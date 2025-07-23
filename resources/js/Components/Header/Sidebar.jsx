@@ -1,7 +1,7 @@
 
 
 
-import React from 'react'
+
 import {
   User,
   Settings,
@@ -10,21 +10,22 @@ import {
   Archive,
   FolderPlus,
   LogOut,
-  Menu,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { router, usePage } from '@inertiajs/react'
+import React, { useState } from 'react';
+import Modal from '@/Components/Modal';
 
 const sidebarItemsTop = [
-  { label: 'Account', icon: <User />, link: '/profile' },
-  { label: 'Settings', icon: <Settings />, link: '/settings' },
-  { label: 'Contact', icon: <Mail />, link: '/contact' },
+  { label: 'Account', icon: <User /> },
+  { label: 'Settings', icon: <Settings /> },
+  { label: 'Contact', icon: <Mail /> },
 ]
 
 const sidebarItemsBottom = [
-  { label: 'All', icon: <FolderKanban />, link: '/projects' },
-  { label: 'Archive', icon: <Archive />, link: '/projects/archive' },
-  { label: 'New Folder', icon: <FolderPlus />, link: '/projects/create-folder' },
+  { label: 'All', icon: <FolderKanban /> },
+  { label: 'Archive', icon: <Archive /> },
+  { label: 'New Folder', icon: <FolderPlus /> },
 ]
 
 const Sidebar = ({ isOpen, onClose }) => {
@@ -32,8 +33,15 @@ const Sidebar = ({ isOpen, onClose }) => {
   const user = props.auth?.user
   const avatar = user?.avatar
   const avatarInitial = user?.name?.charAt(0)?.toUpperCase()
+  const [showModal, setShowModal] = useState(false)
+  const [modalText, setModalText] = useState('')
 
   const logout = () => router.post('/logout')
+
+  const handleItemClick = (label) => {
+    setModalText(label)
+    setShowModal(true)
+  }
 
   return (
     <motion.aside
@@ -44,36 +52,34 @@ const Sidebar = ({ isOpen, onClose }) => {
     >
       <div className="space-y-6">
         {sidebarItemsTop.map((item, i) => (
-          <a
-            href={item.link}
+          <button
+            onClick={() => handleItemClick(item.label)}
             key={i}
             className="flex items-center gap-3 text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors"
           >
             {item.icon}
             <span>{item.label}</span>
-          </a>
+          </button>
         ))}
 
         <div className="h-6" /> {/* Spacer */}
 
         {sidebarItemsBottom.map((item, i) => (
-          <a
-            href={item.link}
+          <button
+            onClick={() => handleItemClick(item.label)}
             key={i}
             className="flex items-center gap-3 text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors"
           >
             {item.icon}
             <span>{item.label}</span>
-          </a>
+          </button>
         ))}
       </div>
 
       <div className="flex items-center justify-between">
         <div className="text-[var(--color-text-muted)] text-sm">My Workspace</div>
         <div className="flex items-center gap-3">
-          <div
-            className="w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-sm overflow-hidden"
-          >
+          <div className="w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-sm overflow-hidden">
             {avatar ? (
               <img src={avatar} alt="Avatar" className="w-full h-full object-cover rounded-full" />
             ) : (
@@ -86,6 +92,11 @@ const Sidebar = ({ isOpen, onClose }) => {
           />
         </div>
       </div>
+
+      <Modal show={showModal} onClose={() => setShowModal(false)}>
+        <p className="text-lg text-center font-semibold">{modalText}</p>
+        <p className="text-sm text-gray-500 text-center mt-2">This is a modal for the selected item.</p>
+      </Modal>
     </motion.aside>
   )
 }
