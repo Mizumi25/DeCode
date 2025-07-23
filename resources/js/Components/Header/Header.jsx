@@ -9,9 +9,11 @@ import {
   Play,
   Menu,
   Moon,
+  X
 } from 'lucide-react'
 import { router, usePage } from '@inertiajs/react'
 import { motion, AnimatePresence } from 'framer-motion'
+import Sidebar from '@/Components/Header/Sidebar'
 
 const fadeIn = {
   hidden: { opacity: 0, y: -10 },
@@ -35,6 +37,7 @@ export default function Header({ isAuthenticated = true, currentRoute = '/projec
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
   const [isDark, setIsDark] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme')
@@ -68,6 +71,7 @@ export default function Header({ isAuthenticated = true, currentRoute = '/projec
   }
 
   return (
+    <>
     <header className="w-full bg-[var(--color-surface)] border-b border-[var(--color-border)] shadow-sm px-4 py-2 z-50 relative">
       <div className="flex items-center justify-between relative flex-wrap gap-2">
         {/* === Left Section === */}
@@ -79,10 +83,17 @@ export default function Header({ isAuthenticated = true, currentRoute = '/projec
             custom={1}
             className="flex items-center gap-3"
           >
-            <div className="p-2 rounded-lg bg-[var(--color-bg-muted)] shadow-md">
-              <Menu className="text-[var(--color-text-muted)] w-5 h-5" />
-            </div>
-
+            <button
+              onClick={() => setSidebarOpen(prev => !prev)}
+              className="p-2 rounded-lg bg-[var(--color-bg-muted)] shadow-md"
+            >
+              {sidebarOpen ? (
+                <X className="text-[var(--color-text-muted)] w-5 h-5" />
+              ) : (
+                <Menu className="text-[var(--color-text-muted)] w-5 h-5" />
+              )}
+            </button>
+            
             <div className="w-8 h-8 rounded-full bg-[var(--color-primary)] flex items-center justify-center text-white text-sm font-bold">
               ⬤
             </div>
@@ -252,5 +263,8 @@ export default function Header({ isAuthenticated = true, currentRoute = '/projec
         )}
       </AnimatePresence>
     </header>
+    
+    <AnimatePresence>{sidebarOpen && <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />}</AnimatePresence>
+    </>
   )
 }
