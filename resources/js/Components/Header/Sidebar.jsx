@@ -2,6 +2,7 @@
 
 
 
+import { useEffect, useState } from 'react'
 import {
   User,
   Settings,
@@ -9,12 +10,12 @@ import {
   FolderKanban,
   Archive,
   FolderPlus,
-  LogOut,
+  LogOut
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { router, usePage } from '@inertiajs/react'
-import React, { useState } from 'react';
-import Modal from '@/Components/Modal';
+import Modal from '@/Components/Modal'
+import Edit from '@/Pages/Profile/Edit'
 
 const sidebarItemsTop = [
   { label: 'Account', icon: <User /> },
@@ -35,20 +36,73 @@ const Sidebar = ({ isOpen, onClose }) => {
   const avatarInitial = user?.name?.charAt(0)?.toUpperCase()
   const [showModal, setShowModal] = useState(false)
   const [modalText, setModalText] = useState('')
+  const [loading, setLoading] = useState(false)
 
   const logout = () => router.post('/logout')
 
   const handleItemClick = (label) => {
     setModalText(label)
     setShowModal(true)
+    setLoading(true)
+
+    // Simulate loading delay (replace this later with actual async fetch if needed)
+    setTimeout(() => setLoading(false), 400)
   }
+
+  const renderModalContent = () => {
+      if (loading) return (
+        <div className="flex justify-center items-center h-40">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+          >
+            <svg
+              className="w-6 h-6 animate-spin text-[color:var(--color-primary)]"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v8H4z"
+              />
+            </svg>
+          </motion.div>
+        </div>
+      )
+    
+      return (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          {modalText === 'Account' && <Edit />}
+          {modalText === 'Settings' && (
+            <p className="text-sm text-center mt-4">Settings modal content goes here.</p>
+          )}
+          {modalText === 'Contact' && (
+            <p className="text-sm text-center mt-4">Contact modal content goes here.</p>
+          )}
+        </motion.div>
+      )
+    }
+
 
   return (
     <motion.aside
       initial={{ x: '-100%' }}
       animate={{ x: isOpen ? 0 : '-100%' }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      className="fixed top-[64px] md:top-0 left-0 z-40 md:z-auto h-[calc(100vh-64px)] md:h-full w-full md:w-64 bg-[var(--color-surface)] shadow-xl md:rounded-xl p-6 flex flex-col justify-between space-y-6 md:ml-4 md:my-4"
+      className="fixed top-[64px] md:top-0 left-0 z-40 h-[calc(100vh-64px)] md:h-full w-full md:w-64 bg-[var(--color-surface)] shadow-xl md:rounded-xl p-6 flex flex-col justify-between space-y-6 md:ml-4 md:my-4"
     >
       <div className="space-y-6">
         {sidebarItemsTop.map((item, i) => (
@@ -93,9 +147,8 @@ const Sidebar = ({ isOpen, onClose }) => {
         </div>
       </div>
 
-      <Modal show={showModal} onClose={() => setShowModal(false)}>
-        <p className="text-lg text-center font-semibold">{modalText}</p>
-        <p className="text-sm text-gray-500 text-center mt-2">This is a modal for the selected item.</p>
+      <Modal show={showModal} title={modalText} onClose={() => setShowModal(false)}>
+        {renderModalContent()}
       </Modal>
     </motion.aside>
   )

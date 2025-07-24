@@ -19,6 +19,7 @@ export default function Modal({
   show = false,
   maxWidth = '2xl',
   closeable = true,
+  title = '',
   onClose = () => {},
 }) {
   const panelRef = useRef(null)
@@ -136,7 +137,7 @@ export default function Modal({
                 className="text-base font-semibold"
                 style={{ fontSize: 'var(--fs-lg)' }}
               >
-                Modal
+                {title}
               </h2>
               <div className="flex items-center gap-2">
                 <button
@@ -155,7 +156,14 @@ export default function Modal({
             </div>
 
             {/* BODY */}
-            <div className="p-6">{children}</div>
+            <div
+              className="p-6 overflow-y-auto"
+              style={{
+                maxHeight: isMaximized ? 'calc(95vh - 48px)' : '70vh',
+              }}
+            >
+              {children}
+            </div>
           </DialogPanel>
         </TransitionChild>
       </Dialog>
