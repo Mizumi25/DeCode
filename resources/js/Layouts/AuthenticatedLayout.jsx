@@ -8,7 +8,7 @@ import Header from '@/Components/Header/Header';
 
 export default function AuthenticatedLayout({ header, children }) {
   const user = usePage().props.auth.user;
-  const currentRoute = usePage().url // gets current route like '/projects'
+  const currentRoute = usePage().url 
   const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);
 
   return (

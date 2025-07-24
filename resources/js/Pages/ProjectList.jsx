@@ -3,7 +3,7 @@
 
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
-import { Plus } from 'lucide-react';
+import { Plus, ChevronDown } from 'lucide-react';
 import { Responsive, WidthProvider } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -60,12 +60,21 @@ export default function ProjectList() {
 
       <div className="p-8 space-y-6">
         {/* New Project Button */}
-        <div className="flex justify-end">
+        <div className="flex justify-between items-center">
+          <div className="flex-start items-center flex-col gap-2">
+            <span className="font-bold text-[var(--color-text)] text-sm">All</span>
+            <button className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition">
+              Last viewed by me
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          </div>
+        
           <button className="bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg text-sm shadow-md flex items-center gap-2 hover:bg-[var(--color-primary-hover)] transition">
             <Plus size={16} />
             New Project
           </button>
         </div>
+
 
         {/* Draggable Responsive Grid */}
         <div className="overflow-x-hidden">

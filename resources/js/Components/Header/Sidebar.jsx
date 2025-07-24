@@ -101,8 +101,9 @@ const Sidebar = ({ isOpen, onClose }) => {
     <motion.aside
       initial={{ x: '-100%' }}
       animate={{ x: isOpen ? 0 : '-100%' }}
+      exit={{ x: '-110%' }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      className="fixed top-[64px] md:top-0 left-0 z-40 h-[calc(100vh-64px)] md:h-full w-full md:w-64 bg-[var(--color-surface)] shadow-xl md:rounded-xl p-6 flex flex-col justify-between space-y-6 md:ml-4 md:my-4"
+      className="fixed top-[64px] md:top-[64px] left-0 z-40 h-[calc(100vh-64px)] md:h-full w-full md:w-64 bg-[var(--color-surface)] shadow-xl md:rounded-xl p-6 flex flex-col justify-between space-y-6 md:ml-4 md:my-4"
     >
       <div className="space-y-6">
         {sidebarItemsTop.map((item, i) => (
