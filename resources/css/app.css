@@ -1,0 +1,78 @@
+
+
+
+
+:root {
+  /* === Base Colors === */
+  --color-primary: #A052FF;
+  --color-primary-hover: #944BEB;
+  --color-primary-soft: #E4D7FF;
+
+  --color-bg: #ffffff;
+  --color-bg-muted: #f9fafb;
+  --color-surface: #ffffff;
+  --color-border: #e5e7eb;
+  --color-text: #111827;
+  --color-text-muted: #6b7280;
+  --color-accent: #facc15;
+
+  /* === Utility === */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.15);
+
+  --transition: 0.2s ease-in-out;
+
+  /* === Font Size === */
+  --fs-sm: 0.875rem;
+  --fs-base: 1rem;
+  --fs-lg: 1.125rem;
+  --fs-xl: 1.25rem;
+}
+
+/* === Dark Mode (Default: respects system preference) === */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0f0f1b;
+    --color-bg-muted: #1a1a2e;
+    --color-surface: #161625;
+    --color-border: #2a2a40;
+    --color-text: #f4f4f5;
+    --color-text-muted: #a1a1aa;
+    --color-primary-soft: #321755;
+  }
+}
+
+
+/* === Manual .dark theme override === */
+.dark {
+  --color-bg: #0f0f1b;
+  --color-bg-muted: #1a1a2e;
+  --color-surface: #161625;
+  --color-border: #2a2a40;
+  --color-text: #f4f4f5;
+  --color-text-muted: #a1a1aa;
+  --color-primary-soft: #321755;
+}
+
+
+#nprogress .bar {
+  background: linear-gradient(to right, #a855f7, #7c3aed, #c084fc);
+  height: 7px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 0 10px #a855f7, 0 0 20px #a855f7;
+}
+
+.react-grid-placeholder {
+  background: var(--color-primary) !important;
+  border-radius: 12px;
+}
+
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
