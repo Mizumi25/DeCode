@@ -3,6 +3,7 @@ import gsap from 'gsap'
 import { Head } from '@inertiajs/react'
 import { Plus, Layers, FolderOpen, Code, Users, Upload, Briefcase } from 'lucide-react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
+import Panel from '@/Components/Panel'
 
 export default function VoidPage({ isDark: initialIsDark }) {
   const starsRef = useRef(null)
@@ -13,6 +14,17 @@ export default function VoidPage({ isDark: initialIsDark }) {
   // Handle theme changes from the header
   const handleThemeChange = (darkMode) => {
     setIsDark(darkMode)
+  }
+
+  // Panel handlers - THESE WERE MISSING!
+  const handlePanelClose = (panelId) => {
+    console.log('Closing panel:', panelId)
+    // You can implement panel close logic here
+  }
+
+  const handlePanelMaximize = (panelId) => {
+    console.log('Maximizing panel:', panelId)
+    // You can implement panel maximize logic here
   }
 
   // Floating tools configuration
@@ -361,6 +373,50 @@ export default function VoidPage({ isDark: initialIsDark }) {
             </p>
           </div>
         </div>
+
+        {/* Dockable Panel - MOVED INSIDE THE MAIN DIV */}
+        <Panel
+          isOpen={true}
+          panels={[
+            {
+              id: 'frames-panel',
+              title: 'Frames',
+              content: (
+                <div>
+                  <h4 className="font-semibold mb-4 text-[var(--color-text)]">Frame Manager</h4>
+                  <div className="space-y-2">
+                    <div className="p-3 rounded-lg bg-[var(--color-bg-muted)] border border-[var(--color-border)]">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-[var(--color-primary)]" />
+                        <span className="text-sm text-[var(--color-text)]">Main Frame</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ),
+              closable: true
+            },
+            {
+              id: 'files-panel', 
+              title: 'Project Files',
+              content: (
+                <div>
+                  <h4 className="font-semibold mb-4 text-[var(--color-text)]">File Explorer</h4>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 p-2 hover:bg-[var(--color-bg-hover)] rounded cursor-pointer">
+                      <FolderOpen className="w-4 h-4 text-[var(--color-primary)]" />
+                      <span className="text-sm text-[var(--color-text)]">src/</span>
+                    </div>
+                  </div>
+                </div>
+              ),
+              closable: true
+            }
+          ]}
+          allowedDockPositions={['left', 'right', 'bottom']}
+          onPanelClose={handlePanelClose}
+          onPanelMaximize={handlePanelMaximize}
+        />
       </div>
     </AuthenticatedLayout>
   )
