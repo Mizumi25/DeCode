@@ -4,6 +4,8 @@ import { Head } from '@inertiajs/react'
 import { Plus, Layers, FolderOpen, Code, Users, Upload, Briefcase } from 'lucide-react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import Panel from '@/Components/Panel'
+import PreviewFrame from '@/Components/Void/PreviewFrame'
+
 
 export default function VoidPage({ isDark: initialIsDark }) {
   const starsRef = useRef(null)
@@ -256,6 +258,15 @@ export default function VoidPage({ isDark: initialIsDark }) {
       />
     ))
   }
+  
+  const dummyFrames = [
+    { title: 'Home', x: 40, y: 60 },
+    { title: 'About', x: 200, y: 90 },
+    { title: 'Contact', x: 400, y: 150 },
+    { title: 'Blog', x: 120, y: 300 },
+    { title: 'Portfolio', x: 360, y: 320 },
+  ]
+
 
   return (
     <AuthenticatedLayout onThemeChange={handleThemeChange}>
@@ -372,6 +383,10 @@ export default function VoidPage({ isDark: initialIsDark }) {
               {isDark ? 'Watch the stars dance in the cosmic void' : 'Floating through subtle dreams'}
             </p>
           </div>
+          
+          {dummyFrames.map((frame, i) => (
+            <PreviewFrame key={i} title={frame.title} index={i} x={frame.x} y={frame.y} />
+          ))}
         </div>
 
         {/* Dockable Panel - MOVED INSIDE THE MAIN DIV */}
