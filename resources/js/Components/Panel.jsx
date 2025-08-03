@@ -5,14 +5,48 @@ import { X, GripVertical } from 'lucide-react'
 export default function Panel({ 
   isOpen = true, 
   panels = [],
+  initialPanels = [], // New prop for initial panels
   allowedDockPositions = ['left', 'right'],
   onPanelClose,
+  onPanelStateChange, // New callback for state changes
   className = '',
 }) {
-  const [dockedPanels, setDockedPanels] = useState({
-    left: [],
-    right: []
-  })
+  // Load initial state from in-memory storage (no localStorage in Claude artifacts)
+  const loadPanelState = useCallback(() => {
+    // Use initialPanels if provided, otherwise use panels
+    const panelsToUse = initialPanels.length > 0 ? initialPanels : panels
+    
+    if (panelsToUse.length === 0) {
+      return { left: [], right: [] }
+    }
+
+    // If only right docking is allowed, put all panels on the right
+    if (allowedDockPositions.includes('right') && !allowedDockPositions.includes('left')) {
+      return { 
+        left: [], 
+        right: panelsToUse.slice(0, 2) // Max 2 panels per side
+      }
+    }
+    
+    // If only left docking is allowed, put all panels on the left
+    if (allowedDockPositions.includes('left') && !allowedDockPositions.includes('right')) {
+      return { 
+        left: panelsToUse.slice(0, 2),
+        right: []
+      }
+    }
+
+    // Both sides allowed - distribute panels
+    const leftPanels = panelsToUse.slice(0, Math.min(2, Math.ceil(panelsToUse.length / 2)))
+    const rightPanels = panelsToUse.slice(Math.ceil(panelsToUse.length / 2), Math.ceil(panelsToUse.length / 2) + 2)
+    
+    return {
+      left: allowedDockPositions.includes('left') ? leftPanels : [],
+      right: allowedDockPositions.includes('right') ? rightPanels : leftPanels.slice(0, 2)
+    }
+  }, [initialPanels, panels, allowedDockPositions])
+
+  const [dockedPanels, setDockedPanels] = useState(loadPanelState)
   const [dragState, setDragState] = useState({
     isDragging: false,
     draggedPanel: null,
@@ -26,18 +60,19 @@ export default function Panel({
   const dragPositionRef = useRef({ x: 0, y: 0 })
   const rafRef = useRef(null)
 
-  // Initialize panels
+  // Initialize panels when props change
   useEffect(() => {
-    if (panels.length > 0) {
-      const leftPanels = panels.slice(0, Math.min(2, Math.ceil(panels.length / 2)))
-      const rightPanels = panels.slice(Math.ceil(panels.length / 2), Math.ceil(panels.length / 2) + 2)
-      
-      setDockedPanels({
-        left: allowedDockPositions.includes('left') ? leftPanels : [],
-        right: allowedDockPositions.includes('right') ? rightPanels : leftPanels.slice(0, 2)
-      })
+    const newState = loadPanelState()
+    setDockedPanels(newState)
+  }, [loadPanelState])
+
+  // Notify parent of panel state changes
+  useEffect(() => {
+    if (onPanelStateChange) {
+      const hasRightPanels = dockedPanels.right && dockedPanels.right.length > 0
+      onPanelStateChange(hasRightPanels)
     }
-  }, [panels, allowedDockPositions])
+  }, [dockedPanels, onPanelStateChange])
 
   // Calculate panel height with hover preview
   const getPanelHeight = useCallback((position) => {
@@ -452,7 +487,7 @@ export default function Panel({
           </AnimatePresence>
         </motion.div>
 
-        {/* Drop zone indicator */}
+        {/* Drop zone indicator - ONLY shows when dragging */}
         {isDropTarget && (
           <motion.div 
             className="absolute inset-0 rounded-lg border-2 border-dashed pointer-events-none flex items-center justify-center"
@@ -472,18 +507,6 @@ export default function Panel({
             >
               {dropTarget?.action === 'swap' ? 'Swap Position' : 'Drop Here'}
             </div>
-          </motion.div>
-        )}
-
-        {/* Empty state */}
-        {panels.length === 0 && !dragState.isDragging && (
-          <motion.div 
-            className="absolute inset-0 flex items-center justify-center rounded-lg border-2 border-dashed"
-            style={{ borderColor: 'var(--color-border)', opacity: 0.3 }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.3 }}
-          >
-            <span className="text-sm text-[var(--color-text-muted)]">Drop panels here</span>
           </motion.div>
         )}
       </div>
@@ -524,7 +547,7 @@ export default function Panel({
       {renderDockArea('left')}
       {renderDockArea('right')}
 
-      {/* PREMIUM DRAG STATE DESIGN - Modern primary + transparent gradient */}
+      {/* Enhanced drag state with modern styling */}
       {dragState.isDragging && dragState.draggedPanel && (
         <div
           className="dragged-panel w-80"
@@ -543,7 +566,7 @@ export default function Panel({
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1)',
             }}
           >
-            {/* ORIGINAL HEADER DESIGN - Exact Copy */}
+            {/* Header with primary gradient */}
             <div 
               className="flex items-center justify-between px-3 py-2 border-b bg-gradient-to-r"
               style={{
@@ -557,7 +580,7 @@ export default function Panel({
               </div>
             </div>
             
-            {/* Panel Content - Very Subtle Primary Tint */}
+            {/* Panel Content with subtle tint */}
             <div 
               className="p-3 overflow-y-auto" 
               style={{ 

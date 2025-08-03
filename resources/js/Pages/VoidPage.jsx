@@ -4,21 +4,226 @@ import { Head } from '@inertiajs/react'
 import { Plus, Layers, FolderOpen, Code, Users, Upload, Briefcase } from 'lucide-react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import Panel from '@/Components/Panel'
-import PreviewFrame from '@/Components/Void/PreviewFrame'
-
 
 export default function VoidPage({ isDark: initialIsDark }) {
   const starsRef = useRef(null)
   const cloudsRef = useRef(null)
   const floatingToolsRef = useRef(null)
+  const canvasRef = useRef(null)
   const [isDark, setIsDark] = useState(initialIsDark || false)
   
+  // Infinite scroll state
+  const [scrollPosition, setScrollPosition] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [lastPointerPos, setLastPointerPos] = useState({ x: 0, y: 0 })
+  const scrollBounds = { width: 4000, height: 3000 } // Loop boundaries
+  
+  // Infinite scroll handlers
+  const handlePointerDown = (e) => {
+    setIsDragging(true)
+    setLastPointerPos({ 
+      x: e.clientX || e.touches?.[0]?.clientX, 
+      y: e.clientY || e.touches?.[0]?.clientY 
+    })
+    document.body.style.cursor = 'grabbing'
+    e.preventDefault()
+  }
+
+  const handlePointerMove = (e) => {
+    if (!isDragging) return
+    
+    const currentX = e.clientX || e.touches?.[0]?.clientX
+    const currentY = e.clientY || e.touches?.[0]?.clientY
+    
+    const deltaX = currentX - lastPointerPos.x
+    const deltaY = currentY - lastPointerPos.y
+    
+    setScrollPosition(prev => {
+      let newX = prev.x - deltaX
+      let newY = prev.y - deltaY
+      
+      // Loop boundaries
+      if (newX < 0) newX = scrollBounds.width + newX
+      if (newX > scrollBounds.width) newX = newX - scrollBounds.width
+      if (newY < 0) newY = scrollBounds.height + newY
+      if (newY > scrollBounds.height) newY = newY - scrollBounds.height
+      
+      return { x: newX, y: newY }
+    })
+    
+    setLastPointerPos({ x: currentX, y: currentY })
+    e.preventDefault()
+  }
+
+  const handlePointerUp = () => {
+    setIsDragging(false)
+    document.body.style.cursor = ''
+  }
+
+  const handleWheel = (e) => {
+    const deltaX = e.deltaX
+    const deltaY = e.deltaY
+    
+    setScrollPosition(prev => {
+      let newX = prev.x + deltaX
+      let newY = prev.y + deltaY
+      
+      // Loop boundaries
+      if (newX < 0) newX = scrollBounds.width + newX
+      if (newX > scrollBounds.width) newX = newX - scrollBounds.width
+      if (newY < 0) newY = scrollBounds.height + newY
+      if (newY > scrollBounds.height) newY = newY - scrollBounds.height
+      
+      return { x: newX, y: newY }
+    })
+    
+    e.preventDefault()
+  }
+
+  // Attach scroll handlers
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    // Mouse events
+    canvas.addEventListener('mousedown', handlePointerDown)
+    canvas.addEventListener('wheel', handleWheel, { passive: false })
+    
+    // Touch events
+    canvas.addEventListener('touchstart', handlePointerDown, { passive: false })
+    
+    // Global events
+    document.addEventListener('mousemove', handlePointerMove)
+    document.addEventListener('mouseup', handlePointerUp)
+    document.addEventListener('touchmove', handlePointerMove, { passive: false })
+    document.addEventListener('touchend', handlePointerUp)
+
+    return () => {
+      canvas.removeEventListener('mousedown', handlePointerDown)
+      canvas.removeEventListener('wheel', handleWheel)
+      canvas.removeEventListener('touchstart', handlePointerDown)
+      document.removeEventListener('mousemove', handlePointerMove)
+      document.removeEventListener('mouseup', handlePointerUp)
+      document.removeEventListener('touchmove', handlePointerMove)
+      document.removeEventListener('touchend', handlePointerUp)
+    }
+  }, [isDragging, lastPointerPos])
+
   // Handle theme changes from the header
   const handleThemeChange = (darkMode) => {
     setIsDark(darkMode)
   }
 
-  // Panel handlers - THESE WERE MISSING!
+  // Infinite scroll handlers
+  const handleCanvasPointerDown = (e) => {
+    setIsDragging(true)
+    setLastPointerPos({ 
+      x: e.clientX || e.touches?.[0]?.clientX, 
+      y: e.clientY || e.touches?.[0]?.clientY 
+    })
+    document.body.style.cursor = 'grabbing'
+    e.preventDefault()
+  }
+
+  const handleCanvasPointerMove = (e) => {
+    if (!isDragging) return
+    
+    const currentX = e.clientX || e.touches?.[0]?.clientX
+    const currentY = e.clientY || e.touches?.[0]?.clientY
+    
+    const deltaX = currentX - lastPointerPos.x
+    const deltaY = currentY - lastPointerPos.y
+    
+    setScrollPosition(prev => {
+      let newX = prev.x - deltaX
+      let newY = prev.y - deltaY
+      
+      // Loop boundaries
+      if (newX < 0) newX = scrollBounds.width + newX
+      if (newX > scrollBounds.width) newX = newX - scrollBounds.width
+      if (newY < 0) newY = scrollBounds.height + newY
+      if (newY > scrollBounds.height) newY = newY - scrollBounds.height
+      
+      return { x: newX, y: newY }
+    })
+    
+    setLastPointerPos({ x: currentX, y: currentY })
+    e.preventDefault()
+  }
+
+  const handleCanvasPointerUp = () => {
+    setIsDragging(false)
+    document.body.style.cursor = ''
+  }
+
+  const handleCanvasWheel = (e) => {
+    const deltaX = e.deltaX
+    const deltaY = e.deltaY
+    
+    setScrollPosition(prev => {
+      let newX = prev.x + deltaX
+      let newY = prev.y + deltaY
+      
+      // Loop boundaries
+      if (newX < 0) newX = scrollBounds.width + newX
+      if (newX > scrollBounds.width) newX = newX - scrollBounds.width
+      if (newY < 0) newY = scrollBounds.height + newY
+      if (newY > scrollBounds.height) newY = newY - scrollBounds.height
+      
+      return { x: newX, y: newY }
+    })
+    
+    e.preventDefault()
+  }
+
+  // Attach scroll handlers
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    // Mouse events
+    canvas.addEventListener('mousedown', handleCanvasPointerDown)
+    canvas.addEventListener('wheel', handleCanvasWheel, { passive: false })
+    
+    // Touch events
+    canvas.addEventListener('touchstart', handleCanvasPointerDown, { passive: false })
+    
+    // Global events
+    document.addEventListener('mousemove', handleCanvasPointerMove)
+    document.addEventListener('mouseup', handleCanvasPointerUp)
+    document.addEventListener('touchmove', handleCanvasPointerMove, { passive: false })
+    document.addEventListener('touchend', handleCanvasPointerUp)
+
+    return () => {
+      canvas.removeEventListener('mousedown', handleCanvasPointerDown)
+      canvas.removeEventListener('wheel', handleCanvasWheel)
+      canvas.removeEventListener('touchstart', handleCanvasPointerDown)
+      document.removeEventListener('mousemove', handleCanvasPointerMove)
+      document.removeEventListener('mouseup', handleCanvasPointerUp)
+      document.removeEventListener('touchmove', handleCanvasPointerMove)
+      document.removeEventListener('touchend', handleCanvasPointerUp)
+    }
+  }, [isDragging, lastPointerPos])
+
+  // Update parallax positions based on scroll
+  useEffect(() => {
+    const stars = starsRef.current
+    const clouds = cloudsRef.current
+    
+    if (stars && clouds) {
+      // Stars parallax (far background - slower movement)
+      const starsOffsetX = (scrollPosition.x * 0.1) % 100
+      const starsOffsetY = (scrollPosition.y * 0.1) % 100
+      stars.style.transform = `translate3d(-${starsOffsetX}px, -${starsOffsetY}px, 0)`
+      
+      // Clouds parallax (mid background - medium movement)
+      const cloudsOffsetX = (scrollPosition.x * 0.3) % 100
+      const cloudsOffsetY = (scrollPosition.y * 0.3) % 100
+      clouds.style.transform = `translate3d(-${cloudsOffsetX}px, -${cloudsOffsetY}px, 0)`
+    }
+  }, [scrollPosition])
+
+  // Panel handlers
   const handlePanelClose = (panelId) => {
     console.log('Closing panel:', panelId)
     // You can implement panel close logic here
@@ -258,27 +463,23 @@ export default function VoidPage({ isDark: initialIsDark }) {
       />
     ))
   }
-  
-  const dummyFrames = [
-    { title: 'Home', x: 40, y: 60 },
-    { title: 'About', x: 200, y: 90 },
-    { title: 'Contact', x: 400, y: 150 },
-    { title: 'Blog', x: 120, y: 300 },
-    { title: 'Portfolio', x: 360, y: 320 },
-  ]
-
 
   return (
     <AuthenticatedLayout onThemeChange={handleThemeChange}>
       <Head title="VoidPage" />
       <div 
-        className={`relative w-full h-screen overflow-hidden transition-colors duration-1000 ${
+        ref={canvasRef}
+        className={`relative w-full h-screen overflow-hidden transition-colors duration-1000 cursor-grab ${
+          isDragging ? 'cursor-grabbing' : 'cursor-grab'
+        } ${
           isDark 
             ? 'bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900' 
             : 'bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50'
         }`}
         style={{
-          backgroundColor: isDark ? 'var(--color-bg)' : 'var(--color-bg)'
+          backgroundColor: isDark ? 'var(--color-bg)' : 'var(--color-bg)',
+          userSelect: 'none',
+          touchAction: 'none'
         }}
       >
         {/* Stars layer with hardware acceleration */}
@@ -383,16 +584,38 @@ export default function VoidPage({ isDark: initialIsDark }) {
               {isDark ? 'Watch the stars dance in the cosmic void' : 'Floating through subtle dreams'}
             </p>
           </div>
-          
-          {dummyFrames.map((frame, i) => (
-            <PreviewFrame key={i} title={frame.title} index={i} x={frame.x} y={frame.y} />
-          ))}
         </div>
+        
+        
 
-        {/* Dockable Panel - MOVED INSIDE THE MAIN DIV */}
+        {/* Dockable Panel - RIGHT SIDE ONLY with 2 stacked panels */}
         <Panel
           isOpen={true}
           panels={[
+            {
+              id: 'files-panel', 
+              title: 'Project Files',
+              content: (
+                <div>
+                  <h4 className="font-semibold mb-4 text-[var(--color-text)]">File Explorer</h4>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 p-2 hover:bg-[var(--color-bg-hover)] rounded cursor-pointer">
+                      <FolderOpen className="w-4 h-4 text-[var(--color-primary)]" />
+                      <span className="text-sm text-[var(--color-text)]">src/</span>
+                    </div>
+                    <div className="flex items-center gap-2 p-2 hover:bg-[var(--color-bg-hover)] rounded cursor-pointer ml-4">
+                      <Code className="w-4 h-4 text-[var(--color-text-muted)]" />
+                      <span className="text-sm text-[var(--color-text)]">components/</span>
+                    </div>
+                    <div className="flex items-center gap-2 p-2 hover:bg-[var(--color-bg-hover)] rounded cursor-pointer ml-4">
+                      <Code className="w-4 h-4 text-[var(--color-text-muted)]" />
+                      <span className="text-sm text-[var(--color-text)]">pages/</span>
+                    </div>
+                  </div>
+                </div>
+              ),
+              closable: true
+            },
             {
               id: 'frames-panel',
               title: 'Frames',
@@ -406,21 +629,11 @@ export default function VoidPage({ isDark: initialIsDark }) {
                         <span className="text-sm text-[var(--color-text)]">Main Frame</span>
                       </div>
                     </div>
-                  </div>
-                </div>
-              ),
-              closable: true
-            },
-            {
-              id: 'files-panel', 
-              title: 'Project Files',
-              content: (
-                <div>
-                  <h4 className="font-semibold mb-4 text-[var(--color-text)]">File Explorer</h4>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 p-2 hover:bg-[var(--color-bg-hover)] rounded cursor-pointer">
-                      <FolderOpen className="w-4 h-4 text-[var(--color-primary)]" />
-                      <span className="text-sm text-[var(--color-text)]">src/</span>
+                    <div className="p-3 rounded-lg bg-[var(--color-bg-muted)] border border-[var(--color-border)]">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-[var(--color-primary)]" />
+                        <span className="text-sm text-[var(--color-text)]">Component Frame</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -428,7 +641,7 @@ export default function VoidPage({ isDark: initialIsDark }) {
               closable: true
             }
           ]}
-          allowedDockPositions={['left', 'right', 'bottom']}
+          allowedDockPositions={['right']} // ONLY RIGHT SIDE DOCKING
           onPanelClose={handlePanelClose}
           onPanelMaximize={handlePanelMaximize}
         />
