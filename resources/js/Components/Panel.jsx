@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, GripVertical } from 'lucide-react'
+import { X, GripVertical, Maximize2, Minimize2 } from 'lucide-react'
 
 export default function Panel({ 
   isOpen = true, 
@@ -10,6 +10,9 @@ export default function Panel({
   onPanelClose,
   onPanelStateChange, // New callback for state changes
   className = '',
+  snapToEdge = false, // New prop for edge snapping
+  mergePanels = false, // New prop for panel merging
+  mergePosition = null, // Which position should be merged ('left' or 'right')
 }) {
   // Load initial state from in-memory storage (no localStorage in Claude artifacts)
   const loadPanelState = useCallback(() => {
@@ -47,6 +50,13 @@ export default function Panel({
   }, [initialPanels, panels, allowedDockPositions])
 
   const [dockedPanels, setDockedPanels] = useState(loadPanelState)
+  const [mergedStates, setMergedStates] = useState(() => {
+    // Initialize merged states based on mergePosition prop
+    return {
+      left: mergePosition === 'left',
+      right: mergePosition === 'right'
+    }
+  })
   const [dragState, setDragState] = useState({
     isDragging: false,
     draggedPanel: null,
@@ -66,6 +76,14 @@ export default function Panel({
     setDockedPanels(newState)
   }, [loadPanelState])
 
+  // Update merged states when mergePosition prop changes
+  useEffect(() => {
+    setMergedStates({
+      left: mergePosition === 'left',
+      right: mergePosition === 'right'
+    })
+  }, [mergePosition])
+
   // Notify parent of panel state changes
   useEffect(() => {
     if (onPanelStateChange) {
@@ -74,13 +92,15 @@ export default function Panel({
     }
   }, [dockedPanels, onPanelStateChange])
 
-  // Calculate panel height with hover preview
+  // Calculate panel height with hover preview and merging
   const getPanelHeight = useCallback((position) => {
     const currentCount = dockedPanels[position]?.length || 0
+    const isMerged = mergedStates[position]
+    
     if (currentCount === 0) return 'calc(100% - 1rem)'
-    if (currentCount === 1) return 'calc(100% - 1rem)'
+    if (currentCount === 1 || isMerged) return 'calc(100% - 1rem)'
     return 'calc(50% - 0.75rem)'
-  }, [dockedPanels])
+  }, [dockedPanels, mergedStates])
 
   // Get target drop zone
   const getDropZone = useCallback(() => {
@@ -368,6 +388,105 @@ export default function Panel({
     onPanelClose?.(panelId)
   }, [onPanelClose])
 
+  // Toggle merge state for a position
+  const toggleMerge = useCallback((position) => {
+    setMergedStates(prev => ({
+      ...prev,
+      [position]: !prev[position]
+    }))
+  }, [])
+
+  // Render merged panels
+  const renderMergedPanels = (panels, position) => {
+    if (!panels || panels.length === 0) return null
+    
+    return (
+      <motion.div
+        className="w-full h-full panel-container"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+      >
+        <div 
+          className="rounded-lg border overflow-hidden h-full"
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+            boxShadow: 'var(--shadow-lg)',
+          }}
+        >
+          {/* Merged Header with tabs */}
+          <div 
+            className="flex items-center justify-between border-b"
+            style={{
+              backgroundColor: 'var(--color-bg-muted)',
+              borderColor: 'var(--color-border)',
+              minHeight: '48px',
+            }}
+          >
+            <div className="flex items-center flex-1">
+              <div className="flex items-center gap-2 px-3">
+                <GripVertical className="w-5 h-5 text-[var(--color-text-muted)]" />
+              </div>
+              
+              {/* Panel tabs */}
+              <div className="flex border-r" style={{ borderColor: 'var(--color-border)' }}>
+                {panels.map((panel, index) => (
+                  <div
+                    key={panel.id}
+                    className={`px-3 py-2 text-sm font-medium cursor-pointer transition-colors border-r ${
+                      index === 0 ? 'bg-[var(--color-primary)] text-white' : 'text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]'
+                    }`}
+                    style={{ borderColor: 'var(--color-border)' }}
+                  >
+                    {panel.title}
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 px-3">
+              <button
+                onClick={() => toggleMerge(position)}
+                className="p-1 rounded transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
+                title="Split Panels"
+              >
+                <Minimize2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleClose(panels[0].id, position)}
+                className="p-1 rounded transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
+                title="Close All"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          
+          {/* Merged Content - showing first panel by default */}
+          <div className="overflow-y-auto" style={{ height: 'calc(100% - 48px)' }}>
+            <div className="p-4">
+              {panels[0]?.content}
+            </div>
+            
+            {/* Show other panels collapsed */}
+            {panels.slice(1).map((panel) => (
+              <div key={panel.id} className="border-t p-4" style={{ borderColor: 'var(--color-border)' }}>
+                <div className="text-sm font-medium text-[var(--color-text-muted)] mb-2">
+                  {panel.title}
+                </div>
+                <div className="text-sm opacity-60">
+                  {panel.content}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </motion.div>
+    )
+  }
+
   // Render single panel with visual feedback
   const renderPanel = (panel, position, index) => {
     const isDragged = dragState.isDragging && dragState.draggedPanel?.id === panel.id
@@ -434,16 +553,31 @@ export default function Panel({
                 </span>
               )}
             </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                handleClose(panel.id, position)
-              }}
-              className="p-2 rounded transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-primary)] touch-manipulation"
-              title="Close Panel"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              {/* Merge button - only show if there are 2 panels */}
+              {dockedPanels[position]?.length === 2 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleMerge(position)
+                  }}
+                  className="p-1 rounded transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
+                  title="Merge Panels"
+                >
+                  <Maximize2 className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleClose(panel.id, position)
+                }}
+                className="p-1 rounded transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
+                title="Close Panel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
           
           {/* Panel Content */}
@@ -462,13 +596,29 @@ export default function Panel({
     const panels = dockedPanels[position] || []
     const dropTarget = getDropTarget()
     const isDropTarget = dropTarget && dropTarget.position === position
+    const isMerged = mergedStates[position] && panels.length > 1
     
     if (!allowedDockPositions.includes(position)) return null
 
+    // Calculate positioning based on snapToEdge
+    const dockStyle = snapToEdge
+      ? {
+          [position]: 0,
+          top: 0,
+          height: '100%',
+          width: '320px'
+        }
+      : {
+          [position === 'left' ? 'left' : 'right']: '1rem',
+          top: '1rem',
+          height: 'calc(100% - 2rem)',
+          width: '320px'
+        }
+
     return (
       <div
-        className={`dock-${position} absolute top-4 ${position === 'left' ? 'left-4' : 'right-4'} w-80 z-40`}
-        style={{ height: 'calc(100% - 2rem)' }}
+        className={`dock-${position} absolute z-40`}
+        style={dockStyle}
       >
         {/* Vertical Stack Container */}
         <motion.div
@@ -483,12 +633,18 @@ export default function Panel({
           }}
         >
           <AnimatePresence mode="popLayout">
-            {panels.map((panel, index) => renderPanel(panel, position, index))}
+            {isMerged ? (
+              <motion.div key="merged" className="h-full">
+                {renderMergedPanels(panels, position)}
+              </motion.div>
+            ) : (
+              panels.map((panel, index) => renderPanel(panel, position, index))
+            )}
           </AnimatePresence>
         </motion.div>
 
         {/* Drop zone indicator - ONLY shows when dragging */}
-        {isDropTarget && (
+        {isDropTarget && !isMerged && (
           <motion.div 
             className="absolute inset-0 rounded-lg border-2 border-dashed pointer-events-none flex items-center justify-center"
             style={{
