@@ -1100,3 +1100,4 @@ export default GeneratedComponent;`
     </AuthenticatedLayout>
   );
 }
+
