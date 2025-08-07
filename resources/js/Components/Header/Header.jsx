@@ -94,7 +94,7 @@ const ThemeSelector = ({ currentTheme, onThemeChange }) => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="absolute top-full mt-2 right-0 w-80 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg z-50 overflow-hidden"
+              className="absolute top-full mt-2 left-0 w-80 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg z-50 overflow-hidden"
             >
               {/* Header */}
               <div className="px-4 py-3 border-b border-[var(--color-border)]">

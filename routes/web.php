@@ -36,6 +36,16 @@ Route::middleware('auth')->group(function () {
     Route::get('/void', fn () => Inertia::render('VoidPage'))->name('project.void');
     Route::get('/forge', fn () => Inertia::render('ForgePage'))->name('project.forge');
     Route::get('/source', fn () => Inertia::render('SourcePage'))->name('project.source');
+    
+    
+    //admin
+    Route::get('/user-management', fn () => Inertia::render('Admin/UserManagementPage'))->name('admin.user');
+    Route::get('/asset-management', fn () => Inertia::render('Admin/AssetManagemerPage'))->name('admin.asset');
+    Route::get('/feedback-report', fn () => Inertia::render('Admin/FeedbackReportPage'))->name('admin.feedback');
+    Route::get('/project-oversight', fn () => Inertia::render('Admin/ProjectOversightPage'))->name('admin.oversight');
+    Route::get('/team-management', fn () => Inertia::render('Admin/TeamManagementPage'))->name('admin.team');
+    Route::get('/role-permission', fn () => Inertia::render('Admin/RolePermissionPage'))->name('admin.role');
+    Route::get('/component-library', fn () => Inertia::render('Admin/ComponentLibraryPage'))->name('component.library');
 });
 
 require __DIR__.'/auth.php';

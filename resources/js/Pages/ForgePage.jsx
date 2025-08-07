@@ -1,10 +1,23 @@
-// Enhanced ForgePage.jsx with improved UI and bidirectional code editing
+// Enhanced ForgePage.jsx with syntax highlighting and improved aesthetics
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import Panel from '@/Components/Panel';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Code2, Eye, Palette, Move, X, GripVertical } from 'lucide-react';
+import { 
+  Code, 
+  Eye, 
+  Layers, 
+  Settings, 
+  X, 
+  GripVertical, 
+  HelpCircle,
+  Sparkles,
+  Square,
+  FileImage,
+  Trash2,
+  Move
+} from 'lucide-react';
 
 export default function ForgePage({ projectId, frameId }) {
   // Panel states
@@ -20,6 +33,8 @@ export default function ForgePage({ projectId, frameId }) {
   const [showCodePanel, setShowCodePanel] = useState(false)
   const [codePanelPosition, setCodePanelPosition] = useState('bottom') // 'bottom' or 'right'
   const [activeCodeTab, setActiveCodeTab] = useState('react')
+  const [showTooltips, setShowTooltips] = useState(true)
+  const [hoveredToken, setHoveredToken] = useState(null)
 
   // Drag state
   const [dragState, setDragState] = useState({
@@ -38,13 +53,177 @@ export default function ForgePage({ projectId, frameId }) {
   const canvasRef = useRef(null)
   const codePanelRef = useRef(null)
 
+  // Tooltip definitions for code elements
+  const tooltipDatabase = {
+    // React/JSX
+    'import': { type: 'keyword', description: 'Imports modules, components, or functions from other files' },
+    'export': { type: 'keyword', description: 'Makes components or functions available to other files' },
+    'const': { type: 'keyword', description: 'Declares a constant variable that cannot be reassigned' },
+    'return': { type: 'keyword', description: 'Returns JSX or values from a function/component' },
+    'useState': { type: 'hook', description: 'React hook for managing component state' },
+    'useEffect': { type: 'hook', description: 'React hook for side effects and lifecycle events' },
+    'className': { type: 'prop', description: 'JSX attribute for applying CSS classes (equivalent to HTML class)' },
+    'style': { type: 'prop', description: 'JSX attribute for inline styles as JavaScript objects' },
+    'onClick': { type: 'event', description: 'Event handler that fires when element is clicked' },
+    'div': { type: 'element', description: 'Generic container element for grouping content' },
+    'button': { type: 'element', description: 'Interactive button element for user actions' },
+    'span': { type: 'element', description: 'Inline text element for styling portions of text' },
+    
+    // Tailwind classes
+    'flex': { type: 'layout', description: 'Display: flex - Creates a flexible box layout container' },
+    'items-center': { type: 'layout', description: 'Align-items: center - Centers items vertically in flex container' },
+    'justify-center': { type: 'layout', description: 'Justify-content: center - Centers items horizontally in flex container' },
+    'justify-between': { type: 'layout', description: 'Justify-content: space-between - Distributes items with equal space between' },
+    'gap-2': { type: 'spacing', description: 'Gap: 0.5rem - Adds space between flex/grid items' },
+    'gap-3': { type: 'spacing', description: 'Gap: 0.75rem - Adds space between flex/grid items' },
+    'gap-4': { type: 'spacing', description: 'Gap: 1rem - Adds space between flex/grid items' },
+    'p-2': { type: 'spacing', description: 'Padding: 0.5rem - Adds inner spacing on all sides' },
+    'p-3': { type: 'spacing', description: 'Padding: 0.75rem - Adds inner spacing on all sides' },
+    'p-4': { type: 'spacing', description: 'Padding: 1rem - Adds inner spacing on all sides' },
+    'px-3': { type: 'spacing', description: 'Padding-x: 0.75rem - Adds horizontal padding' },
+    'py-2': { type: 'spacing', description: 'Padding-y: 0.5rem - Adds vertical padding' },
+    'm-2': { type: 'spacing', description: 'Margin: 0.5rem - Adds outer spacing on all sides' },
+    'mb-2': { type: 'spacing', description: 'Margin-bottom: 0.5rem - Adds bottom margin' },
+    'ml-4': { type: 'spacing', description: 'Margin-left: 1rem - Adds left margin' },
+    'w-full': { type: 'sizing', description: 'Width: 100% - Sets element to full width of container' },
+    'h-full': { type: 'sizing', description: 'Height: 100% - Sets element to full height of container' },
+    'w-4': { type: 'sizing', description: 'Width: 1rem - Sets fixed width' },
+    'h-4': { type: 'sizing', description: 'Height: 1rem - Sets fixed height' },
+    'rounded': { type: 'decoration', description: 'Border-radius: 0.25rem - Adds rounded corners' },
+    'rounded-lg': { type: 'decoration', description: 'Border-radius: 0.5rem - Adds larger rounded corners' },
+    'rounded-xl': { type: 'decoration', description: 'Border-radius: 0.75rem - Adds extra large rounded corners' },
+    'bg-white': { type: 'color', description: 'Background-color: white - Sets white background' },
+    'text-white': { type: 'color', description: 'Color: white - Sets white text color' },
+    'text-gray-600': { type: 'color', description: 'Color: gray-600 - Sets medium gray text color' },
+    'border': { type: 'border', description: 'Border: 1px solid - Adds default border' },
+    'border-2': { type: 'border', description: 'Border: 2px solid - Adds thicker border' },
+    'shadow-lg': { type: 'effects', description: 'Box-shadow: large - Adds drop shadow effect' },
+    'hover:bg-gray-50': { type: 'interaction', description: 'Changes background to gray-50 on hover' },
+    'transition-all': { type: 'animation', description: 'Transition: all properties - Animates all property changes' },
+    'cursor-pointer': { type: 'interaction', description: 'Cursor: pointer - Shows pointer cursor on hover' }
+  }
+
+  // Syntax highlighting function
+  const highlightCode = (code, language) => {
+    if (!code) return ''
+    
+    let highlighted = code
+    
+    if (language === 'react' || language === 'jsx') {
+      // Keywords
+      highlighted = highlighted.replace(
+        /\b(import|export|from|const|let|var|function|return|if|else|for|while|class|extends|useState|useEffect|useCallback|React)\b/g,
+        '<span class="code-keyword">$1</span>'
+      )
+      
+      // Strings
+      highlighted = highlighted.replace(
+        /(["'`])((?:\\.|(?!\1)[^\\])*?)\1/g,
+        '<span class="code-string">$1$2$1</span>'
+      )
+      
+      // Comments
+      highlighted = highlighted.replace(
+        /\/\*[\s\S]*?\*\/|\/\/.*$/gm,
+        '<span class="code-comment">$&</span>'
+      )
+      
+      // JSX tags
+      highlighted = highlighted.replace(
+        /(<\/?)([\w.-]+)/g,
+        '$1<span class="code-tag">$2</span>'
+      )
+      
+      // JSX attributes
+      highlighted = highlighted.replace(
+        /\s([\w-]+)(=)/g,
+        ' <span class="code-attr">$1</span>$2'
+      )
+      
+      // Numbers
+      highlighted = highlighted.replace(
+        /\b(\d+(?:\.\d+)?)\b/g,
+        '<span class="code-number">$1</span>'
+      )
+      
+      // Functions
+      highlighted = highlighted.replace(
+        /\b(\w+)(?=\s*\()/g,
+        '<span class="code-function">$1</span>'
+      )
+    } else if (language === 'css') {
+      // Properties
+      highlighted = highlighted.replace(
+        /([a-zA-Z-]+)(\s*:)/g,
+        '<span class="code-property">$1</span>$2'
+      )
+      
+      // Values
+      highlighted = highlighted.replace(
+        /(:\s*)([^;]+)(;?)/g,
+        '$1<span class="code-value">$2</span>$3'
+      )
+      
+      // Selectors
+      highlighted = highlighted.replace(
+        /^([.#]?[\w-]+)(?=\s*{)/gm,
+        '<span class="code-selector">$1</span>'
+      )
+      
+      // Comments
+      highlighted = highlighted.replace(
+        /\/\*[\s\S]*?\*\//g,
+        '<span class="code-comment">$&</span>'
+      )
+    } else if (language === 'html') {
+      // Tags
+      highlighted = highlighted.replace(
+        /(<\/?)([\w.-]+)/g,
+        '$1<span class="code-tag">$2</span>'
+      )
+      
+      // Attributes
+      highlighted = highlighted.replace(
+        /\s([\w-]+)(=)/g,
+        ' <span class="code-attr">$1</span>$2'
+      )
+      
+      // Attribute values
+      highlighted = highlighted.replace(
+        /(=)(["'])((?:\\.|(?!\2)[^\\])*?)\2/g,
+        '$1$2<span class="code-string">$3</span>$2'
+      )
+    }
+    
+    return highlighted
+  }
+
+  // Handle token hover for tooltips
+  const handleTokenHover = (e, token) => {
+    if (!showTooltips) return
+    
+    const tooltip = tooltipDatabase[token]
+    if (tooltip) {
+      setHoveredToken({
+        token,
+        tooltip,
+        x: e.clientX,
+        y: e.clientY
+      })
+    }
+  }
+
+  const handleTokenLeave = () => {
+    setHoveredToken(null)
+  }
+
   // Enhanced component library with Tailwind
   const componentLibrary = {
     button: {
       id: 'button',
       name: 'Button',
       description: 'Interactive button component',
-      icon: '🔘',
+      icon: Square,
       defaultProps: {
         text: 'Click me',
         variant: 'primary',
@@ -310,18 +489,18 @@ export default GeneratedComponent;`
       left: -1000px;
       z-index: 9999;
       padding: 12px 20px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: var(--color-primary);
       color: white;
-      border-radius: 12px;
-      font-size: 14px;
+      border-radius: var(--radius-lg);
+      font-size: var(--fs-sm);
       font-weight: 600;
       pointer-events: none;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      box-shadow: var(--shadow-lg);
       transform: rotate(2deg);
       backdrop-filter: blur(10px);
       border: 1px solid rgba(255, 255, 255, 0.2);
     `
-    preview.innerHTML = `${component.icon} ${component.name}`
+    preview.innerHTML = `${component.name}`
     document.body.appendChild(preview)
     setDragState(prev => ({ ...prev, dragPreview: preview }))
 
@@ -512,7 +691,7 @@ export default GeneratedComponent;`
     setCodePanelPosition('right')
   }, [])
 
-  // Enhanced default panels with better aesthetics
+  // Enhanced default panels with professional aesthetics
   const defaultPanels = [
     {
       id: 'components',
@@ -520,59 +699,63 @@ export default GeneratedComponent;`
       content: (
         <div className="space-y-6">
           <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 rounded-lg bg-gradient-to-r from-purple-500 to-blue-500">
-              <Palette className="w-5 h-5 text-white" />
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+              <Square className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
             </div>
             <div>
-              <h3 className="font-semibold text-[var(--color-text)]">UI Components</h3>
-              <p className="text-xs text-[var(--color-text-muted)]">Drag to canvas to build</p>
+              <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>UI Components</h3>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Drag to canvas to build</p>
             </div>
           </div>
           
           <div className="space-y-3">
-            <div className="text-sm font-medium text-[var(--color-text)] mb-2">Buttons</div>
+            <div className="text-sm font-medium mb-2" style={{ color: 'var(--color-text)' }}>Buttons</div>
             <div 
-              className="group p-4 border-2 border-dashed border-gray-200 rounded-xl cursor-grab hover:border-purple-400 hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-300 active:cursor-grabbing"
+              className="group p-4 border-2 border-dashed rounded-xl cursor-grab hover:border-opacity-60 transition-all duration-300 active:cursor-grabbing"
+              style={{ 
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-bg)'
+              }}
               draggable
               onDragStart={(e) => handleComponentDragStart(e, 'button')}
               onDragEnd={handleComponentDragEnd}
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-lg">
-                  🔘
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-lg" style={{ backgroundColor: 'var(--color-primary)' }}>
+                  <Square className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="font-semibold text-[var(--color-text)] group-hover:text-purple-600 transition-colors">Button</div>
-                  <div className="text-xs text-[var(--color-text-muted)]">Interactive button with variants</div>
+                  <div className="font-semibold group-hover:opacity-80 transition-opacity" style={{ color: 'var(--color-text)' }}>Button</div>
+                  <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Interactive button with variants</div>
                 </div>
               </div>
               <div className="mt-3 flex items-center gap-2">
-                <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">Primary</span>
-                <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full font-medium">Secondary</span>
+                <span className="px-2 py-1 text-xs rounded-full font-medium" style={{ backgroundColor: 'var(--color-primary-soft)', color: 'var(--color-primary)' }}>Primary</span>
+                <span className="px-2 py-1 text-xs rounded-full font-medium" style={{ backgroundColor: 'var(--color-bg-muted)', color: 'var(--color-text-muted)' }}>Secondary</span>
                 <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">Success</span>
               </div>
             </div>
             
-            <div className="p-4 border border-gray-200 rounded-xl opacity-60 cursor-not-allowed">
+            <div className="p-4 border rounded-xl opacity-60 cursor-not-allowed" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-muted)' }}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gray-300 flex items-center justify-center text-gray-500 font-bold text-lg">
-                  📝
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--color-border)' }}>
+                  <Code className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
                 </div>
                 <div>
-                  <div className="font-semibold text-gray-500">Input Field</div>
-                  <div className="text-xs text-gray-400">Coming soon</div>
+                  <div className="font-semibold" style={{ color: 'var(--color-text-muted)' }}>Input Field</div>
+                  <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Coming soon</div>
                 </div>
               </div>
             </div>
             
-            <div className="p-4 border border-gray-200 rounded-xl opacity-60 cursor-not-allowed">
+            <div className="p-4 border rounded-xl opacity-60 cursor-not-allowed" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-muted)' }}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gray-300 flex items-center justify-center text-gray-500 font-bold text-lg">
-                  🃏
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--color-border)' }}>
+                  <Layers className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
                 </div>
                 <div>
-                  <div className="font-semibold text-gray-500">Card</div>
-                  <div className="text-xs text-gray-400">Coming soon</div>
+                  <div className="font-semibold" style={{ color: 'var(--color-text-muted)' }}>Card</div>
+                  <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Coming soon</div>
                 </div>
               </div>
             </div>
@@ -586,19 +769,19 @@ export default GeneratedComponent;`
       content: (
         <div className="space-y-4">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500">
-              <Eye className="w-5 h-5 text-white" />
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+              <Eye className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
             </div>
             <div>
-              <h3 className="font-semibold text-[var(--color-text)]">Layer Tree</h3>
-              <p className="text-xs text-[var(--color-text-muted)]">Page hierarchy</p>
+              <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Layer Tree</h3>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Page hierarchy</p>
             </div>
           </div>
           
           <div className="space-y-2">
-            <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors">
-              <div className="w-4 h-4 rounded bg-gradient-to-r from-purple-500 to-blue-500"></div>
-              <span className="text-sm font-medium text-[var(--color-text)]">Canvas Container</span>
+            <div className="flex items-center gap-3 p-3 rounded-lg transition-colors" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+              <div className="w-4 h-4 rounded" style={{ backgroundColor: 'var(--color-primary)' }}></div>
+              <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>Canvas Container</span>
             </div>
             
             {canvasComponents.map((component, index) => (
@@ -606,22 +789,29 @@ export default GeneratedComponent;`
                 key={component.id}
                 className={`flex items-center gap-3 p-3 ml-4 rounded-lg transition-all cursor-pointer ${
                   selectedComponent === component.id 
-                    ? 'bg-gradient-to-r from-purple-100 to-blue-100 text-purple-700 border-l-4 border-purple-500' 
-                    : 'hover:bg-[var(--color-bg-hover)]'
+                    ? 'border-l-4' 
+                    : ''
                 }`}
+                style={{
+                  backgroundColor: selectedComponent === component.id ? 'var(--color-primary-soft)' : 'var(--color-bg)',
+                  borderLeftColor: selectedComponent === component.id ? 'var(--color-primary)' : 'transparent',
+                  color: selectedComponent === component.id ? 'var(--color-primary)' : 'var(--color-text)'
+                }}
                 onClick={() => setSelectedComponent(component.id)}
               >
-                <div className="w-4 h-4 rounded bg-gradient-to-r from-orange-400 to-pink-400"></div>
+                <div className="w-4 h-4 rounded" style={{ backgroundColor: 'var(--color-accent)' }}></div>
                 <span className="text-sm font-medium">{component.name} {index + 1}</span>
-                <div className="ml-auto text-xs text-[var(--color-text-muted)]">
+                <div className="ml-auto text-xs" style={{ color: 'var(--color-text-muted)' }}>
                   {component.position.x}, {component.position.y}
                 </div>
               </div>
             ))}
             
             {canvasComponents.length === 0 && (
-              <div className="text-sm text-[var(--color-text-muted)] italic p-4 text-center border-2 border-dashed border-gray-200 rounded-lg">
-                <div className="mb-2">🌱</div>
+              <div className="text-sm italic p-4 text-center border-2 border-dashed rounded-lg" style={{ color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' }}>
+                <div className="mb-2">
+                  <Layers className="w-6 h-6 mx-auto opacity-50" />
+                </div>
                 No components yet
                 <br />
                 <span className="text-xs">Drag from Components panel</span>
@@ -637,29 +827,29 @@ export default GeneratedComponent;`
       content: (
         <div className="space-y-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500">
-              <Move className="w-5 h-5 text-white" />
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+              <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
             </div>
             <div>
-              <h3 className="font-semibold text-[var(--color-text)]">Properties</h3>
-              <p className="text-xs text-[var(--color-text-muted)]">Customize elements</p>
+              <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Properties</h3>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Customize elements</p>
             </div>
           </div>
           
           {selectedComponent ? (() => {
             const component = canvasComponents.find(c => c.id === selectedComponent)
-            if (!component) return <div className="text-sm text-[var(--color-text-muted)]">Component not found</div>
+            if (!component) return <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Component not found</div>
             
             return (
               <div className="space-y-4">
-                <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+                <div className="p-4 rounded-xl border" style={{ backgroundColor: 'var(--color-bg-muted)', borderColor: 'var(--color-border)' }}>
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-6 h-6 rounded bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center text-white text-sm font-bold">
-                      🔘
+                    <div className="w-6 h-6 rounded flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: 'var(--color-primary)' }}>
+                      <Square className="w-4 h-4" />
                     </div>
-                    <h4 className="font-semibold text-[var(--color-text)]">{component.name}</h4>
+                    <h4 className="font-semibold" style={{ color: 'var(--color-text)' }}>{component.name}</h4>
                   </div>
-                  <p className="text-xs text-[var(--color-text-muted)] font-mono bg-white px-2 py-1 rounded">
+                  <p className="text-xs font-mono px-2 py-1 rounded" style={{ color: 'var(--color-text-muted)', backgroundColor: 'var(--color-surface)' }}>
                     #{component.id.split('_').pop()}
                   </p>
                 </div>
@@ -667,28 +857,33 @@ export default GeneratedComponent;`
                 {component.type === 'button' && (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-semibold mb-2 text-[var(--color-text)]">Button Text</label>
+                      <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--color-text)' }}>Button Text</label>
                       <input 
                         type="text" 
                         value={component.props.text}
                         onChange={(e) => handlePropertyUpdate(component.id, 'text', e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all"
+                        className="w-full px-4 py-3 border-2 rounded-xl text-sm focus:outline-none transition-all"
+                        style={{ 
+                          borderColor: 'var(--color-border)', 
+                          backgroundColor: 'var(--color-surface)',
+                          color: 'var(--color-text)'
+                        }}
                         placeholder="Enter button text..."
                       />
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-semibold mb-3 text-[var(--color-text)]">Style Variant</label>
+                      <label className="block text-sm font-semibold mb-3" style={{ color: 'var(--color-text)' }}>Style Variant</label>
                       <div className="grid grid-cols-2 gap-2">
                         {['primary', 'secondary', 'success', 'warning', 'danger', 'ghost'].map(variant => (
                           <button
                             key={variant}
                             onClick={() => handlePropertyUpdate(component.id, 'variant', variant)}
-                            className={`p-2 rounded-lg text-xs font-medium transition-all ${
-                              component.props.variant === variant
-                                ? 'bg-purple-500 text-white shadow-lg'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
+                            className="p-2 rounded-lg text-xs font-medium transition-all"
+                            style={{
+                              backgroundColor: component.props.variant === variant ? 'var(--color-primary)' : 'var(--color-bg-muted)',
+                              color: component.props.variant === variant ? 'white' : 'var(--color-text)'
+                            }}
                           >
                             {variant.charAt(0).toUpperCase() + variant.slice(1)}
                           </button>
@@ -697,17 +892,17 @@ export default GeneratedComponent;`
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-semibold mb-3 text-[var(--color-text)]">Size</label>
+                      <label className="block text-sm font-semibold mb-3" style={{ color: 'var(--color-text)' }}>Size</label>
                       <div className="flex gap-2">
                         {['sm', 'md', 'lg'].map(size => (
                           <button
                             key={size}
                             onClick={() => handlePropertyUpdate(component.id, 'size', size)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex-1 ${
-                              component.props.size === size
-                                ? 'bg-purple-500 text-white shadow-lg'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
+                            className="px-4 py-2 rounded-lg text-sm font-medium transition-all flex-1"
+                            style={{
+                              backgroundColor: component.props.size === size ? 'var(--color-primary)' : 'var(--color-bg-muted)',
+                              color: component.props.size === size ? 'white' : 'var(--color-text)'
+                            }}
                           >
                             {size.toUpperCase()}
                           </button>
@@ -716,10 +911,10 @@ export default GeneratedComponent;`
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold mb-2 text-[var(--color-text)]">Position</label>
+                      <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--color-text)' }}>Position</label>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="text-xs text-[var(--color-text-muted)]">X</label>
+                          <label className="text-xs" style={{ color: 'var(--color-text-muted)' }}>X</label>
                           <input
                             type="number"
                             value={component.position.x}
@@ -732,11 +927,16 @@ export default GeneratedComponent;`
                               setCanvasComponents(newComponents)
                               generateCode(newComponents)
                             }}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-500"
+                            className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none"
+                            style={{ 
+                              borderColor: 'var(--color-border)', 
+                              backgroundColor: 'var(--color-surface)',
+                              color: 'var(--color-text)'
+                            }}
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-[var(--color-text-muted)]">Y</label>
+                          <label className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Y</label>
                           <input
                             type="number"
                             value={component.position.y}
@@ -749,7 +949,12 @@ export default GeneratedComponent;`
                               setCanvasComponents(newComponents)
                               generateCode(newComponents)
                             }}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-500"
+                            className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none"
+                            style={{ 
+                              borderColor: 'var(--color-border)', 
+                              backgroundColor: 'var(--color-surface)',
+                              color: 'var(--color-text)'
+                            }}
                           />
                         </div>
                       </div>
@@ -759,16 +964,20 @@ export default GeneratedComponent;`
                 
                 <button
                   onClick={() => handleComponentDelete(component.id)}
-                  className="w-full mt-6 px-4 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white border-0 rounded-xl text-sm font-semibold hover:from-red-600 hover:to-pink-600 transition-all shadow-lg hover:shadow-xl"
+                  className="w-full mt-6 px-4 py-3 text-white border-0 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
+                  style={{ backgroundColor: '#ef4444' }}
                 >
-                  🗑️ Delete Component
+                  <Trash2 className="w-4 h-4" />
+                  Delete Component
                 </button>
               </div>
             )
           })() : (
-            <div className="text-center p-8 border-2 border-dashed border-gray-200 rounded-xl">
-              <div className="text-4xl mb-4">🎨</div>
-              <div className="text-sm text-[var(--color-text-muted)]">
+            <div className="text-center p-8 border-2 border-dashed rounded-xl" style={{ borderColor: 'var(--color-border)' }}>
+              <div className="mb-4">
+                <Settings className="w-12 h-12 mx-auto opacity-50" style={{ color: 'var(--color-text-muted)' }} />
+              </div>
+              <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
                 Select a component from the canvas or layers panel to edit its properties
               </div>
             </div>
@@ -782,28 +991,30 @@ export default GeneratedComponent;`
       content: (
         <div className="space-y-4">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500">
-              <Palette className="w-5 h-5 text-white" />
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+              <FileImage className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
             </div>
             <div>
-              <h3 className="font-semibold text-[var(--color-text)]">Media Assets</h3>
-              <p className="text-xs text-[var(--color-text-muted)]">Images, icons & files</p>
+              <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Media Assets</h3>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Images, icons & files</p>
             </div>
           </div>
           
           <div className="grid grid-cols-2 gap-3">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="aspect-square bg-gradient-to-br from-purple-100 to-blue-100 rounded-xl border-2 border-dashed border-purple-200 flex items-center justify-center cursor-pointer hover:from-purple-200 hover:to-blue-200 transition-all group">
+              <div key={i} className="aspect-square border-2 border-dashed rounded-xl flex items-center justify-center cursor-pointer transition-all group" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-muted)' }}>
                 <div className="text-center">
-                  <div className="text-2xl mb-1 group-hover:scale-110 transition-transform">🖼️</div>
-                  <span className="text-xs text-purple-600 font-medium">Asset {i}</span>
+                  <div className="mb-1 group-hover:scale-110 transition-transform">
+                    <FileImage className="w-8 h-8 mx-auto" style={{ color: 'var(--color-text-muted)' }} />
+                  </div>
+                  <span className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Asset {i}</span>
                 </div>
               </div>
             ))}
           </div>
           
-          <button className="w-full py-4 px-4 border-2 border-dashed border-purple-300 rounded-xl text-sm text-purple-600 hover:border-purple-400 hover:bg-purple-50 transition-all font-semibold flex items-center justify-center gap-2">
-            <span className="text-xl">📁</span>
+          <button className="w-full py-4 px-4 border-2 border-dashed rounded-xl text-sm transition-all font-semibold flex items-center justify-center gap-2" style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)', backgroundColor: 'var(--color-bg)' }}>
+            <FileImage className="w-5 h-5" />
             Upload New Assets
           </button>
         </div>
@@ -811,7 +1022,7 @@ export default GeneratedComponent;`
     }
   ]
 
-  // Code panel content
+  // Code panel content with syntax highlighting
   const codePanel = {
     id: 'code',
     title: 'Generated Code',
@@ -819,56 +1030,92 @@ export default GeneratedComponent;`
       <div className="space-y-4 h-full flex flex-col">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500">
-              <Code2 className="w-5 h-5 text-white" />
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+              <Code className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
             </div>
             <div>
-              <h3 className="font-semibold text-[var(--color-text)]">Live Code</h3>
-              <p className="text-xs text-[var(--color-text-muted)]">Edit to update components</p>
+              <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Live Code</h3>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Edit to update components</p>
             </div>
           </div>
-          <button
-            onClick={() => setShowCodePanel(false)}
-            className="p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>Pro Tips</label>
+              <button
+                onClick={() => setShowTooltips(!showTooltips)}
+                className={`relative w-10 h-6 rounded-full transition-colors ${showTooltips ? 'bg-blue-500' : 'bg-gray-300'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${showTooltips ? 'translate-x-5' : 'translate-x-1'}`} />
+              </button>
+            </div>
+            <button
+              onClick={() => setShowCodePanel(false)}
+              className="p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
         
         {/* Code tabs */}
-        <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+        <div className="flex gap-1 p-1 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
           {['html', 'css', 'react'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveCodeTab(tab)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex-1 ${
-                activeCodeTab === tab
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className="px-4 py-2 rounded-md text-sm font-medium transition-all flex-1"
+              style={{
+                backgroundColor: activeCodeTab === tab ? 'var(--color-surface)' : 'transparent',
+                color: activeCodeTab === tab ? 'var(--color-text)' : 'var(--color-text-muted)',
+                boxShadow: activeCodeTab === tab ? 'var(--shadow-sm)' : 'none'
+              }}
             >
               {tab.toUpperCase()}
             </button>
           ))}
         </div>
         
-        {/* Code editor */}
-        <div className="flex-1 min-h-0">
-          <textarea
-            value={generatedCode[activeCodeTab]}
-            onChange={(e) => handleCodeEdit(e.target.value, activeCodeTab)}
-            className="w-full h-full p-4 bg-gray-900 text-green-400 font-mono text-sm rounded-xl border-0 resize-none focus:outline-none focus:ring-2 focus:ring-green-500"
-            placeholder={`// ${activeCodeTab.toUpperCase()} code will appear here...`}
-            spellCheck={false}
-            style={{ 
+        {/* Code editor with syntax highlighting */}
+        <div className="flex-1 min-h-0 relative">
+          <div
+            className="w-full h-full p-4 rounded-xl border-0 resize-none overflow-auto font-mono text-sm"
+            style={{
+              backgroundColor: '#1e1e1e',
+              color: '#d4d4d4',
               fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
               lineHeight: '1.5'
             }}
-          />
+          >
+            <pre
+              className="whitespace-pre-wrap"
+              dangerouslySetInnerHTML={{
+                __html: highlightCode(generatedCode[activeCodeTab], activeCodeTab)
+              }}
+              onMouseOver={(e) => {
+                if (showTooltips && e.target.tagName === 'SPAN') {
+                  const text = e.target.textContent
+                  handleTokenHover(e, text)
+                }
+              }}
+              onMouseOut={handleTokenLeave}
+            />
+            <textarea
+              value={generatedCode[activeCodeTab]}
+              onChange={(e) => handleCodeEdit(e.target.value, activeCodeTab)}
+              className="absolute inset-4 w-full h-full bg-transparent text-transparent caret-white resize-none outline-none font-mono text-sm"
+              style={{
+                fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+                lineHeight: '1.5'
+              }}
+              placeholder={`// ${activeCodeTab.toUpperCase()} code will appear here...`}
+              spellCheck={false}
+            />
+          </div>
         </div>
         
-        <div className="text-xs text-[var(--color-text-muted)] bg-blue-50 p-3 rounded-lg border border-blue-200">
-          💡 <strong>Tip:</strong> Edit the React code to update components in real-time. Changes will reflect on the canvas automatically.
+        <div className="text-xs p-3 rounded-lg border flex items-center gap-2" style={{ color: 'var(--color-text-muted)', backgroundColor: 'var(--color-primary-soft)', borderColor: 'var(--color-primary)' }}>
+          <Sparkles className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+          <span><strong>Tip:</strong> Edit the React code to update components in real-time. Changes will reflect on the canvas automatically.</span>
         </div>
       </div>
     )
@@ -884,34 +1131,65 @@ export default GeneratedComponent;`
     >
       <Head title="Forge - Visual Builder" />
       
+      {/* Tooltip */}
+      {hoveredToken && showTooltips && (
+        <div
+          className="fixed z-50 px-3 py-2 text-xs rounded-lg shadow-lg pointer-events-none"
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            color: 'var(--color-text)',
+            border: '1px solid var(--color-border)',
+            left: hoveredToken.x + 10,
+            top: hoveredToken.y - 40
+          }}
+        >
+          <div className="font-semibold mb-1">
+            <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+              hoveredToken.tooltip.type === 'keyword' ? 'bg-blue-500' :
+              hoveredToken.tooltip.type === 'string' ? 'bg-green-500' :
+              hoveredToken.tooltip.type === 'element' ? 'bg-purple-500' :
+              hoveredToken.tooltip.type === 'layout' ? 'bg-orange-500' :
+              hoveredToken.tooltip.type === 'spacing' ? 'bg-pink-500' :
+              'bg-gray-500'
+            }`}></span>
+            {hoveredToken.token} 
+            <span className="text-xs opacity-60 ml-1">({hoveredToken.tooltip.type})</span>
+          </div>
+          <div className="text-xs opacity-80">{hoveredToken.tooltip.description}</div>
+        </div>
+      )}
+      
       {/* Main content area - Enhanced Canvas */}
-      <div className="h-[calc(100vh-60px)] flex flex-col bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className="h-[calc(100vh-60px)] flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
         <div className={`flex-1 flex items-center justify-center p-8 ${codePanelPosition === 'bottom' ? 'pb-4' : ''}`}>
           <div className="w-full max-w-6xl">
             <div className="text-center space-y-6 mb-8">
               <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-2">
+                <h1 className="text-4xl font-bold mb-2" style={{ background: 'linear-gradient(to right, var(--color-primary), #7c3aed)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                   Visual Builder
                 </h1>
-                <div className="w-24 h-1 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full mx-auto"></div>
+                <div className="w-24 h-1 rounded-full mx-auto" style={{ background: 'linear-gradient(to right, var(--color-primary), #7c3aed)' }}></div>
               </div>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
+              <p className="text-lg max-w-2xl mx-auto leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
                 Drag components from the sidebar to build your interface. 
-                <span className="font-semibold text-purple-600"> Select and customize</span> elements in real-time.
+                <span className="font-semibold" style={{ color: 'var(--color-primary)' }}> Select and customize</span> elements in real-time.
               </p>
             </div>
             
             {/* Canvas Area */}
             <div 
               ref={canvasRef}
-              className={`relative w-full h-[500px] border-2 border-dashed rounded-2xl transition-all duration-300 shadow-xl ${
+              className={`relative w-full h-[500px] border-2 border-dashed rounded-2xl transition-all duration-300 ${
                 dragState.isDragging 
-                  ? 'border-purple-400 bg-gradient-to-br from-purple-50 to-blue-50 scale-105' 
-                  : 'border-gray-300 bg-gradient-to-br from-white to-gray-50 hover:border-gray-400'
+                  ? 'scale-105' 
+                  : ''
               }`}
               style={{
+                borderColor: dragState.isDragging ? 'var(--color-primary)' : 'var(--color-border)',
+                backgroundColor: dragState.isDragging ? 'var(--color-primary-soft)' : 'var(--color-surface)',
                 backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(155, 155, 155, 0.15) 1px, transparent 0)',
-                backgroundSize: '20px 20px'
+                backgroundSize: '20px 20px',
+                boxShadow: 'var(--shadow-lg)'
               }}
               onDragOver={handleCanvasDragOver}
               onDrop={handleCanvasDrop}
@@ -920,9 +1198,11 @@ export default GeneratedComponent;`
               {canvasComponents.length === 0 && !dragState.isDragging && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center space-y-4">
-                    <div className="text-6xl">🎨</div>
-                    <div className="text-gray-500 text-lg font-medium">Drop components here to start building</div>
-                    <div className="text-sm text-gray-400">Your canvas awaits your creativity</div>
+                    <div className="mb-4">
+                      <Square className="w-16 h-16 mx-auto opacity-50" style={{ color: 'var(--color-text-muted)' }} />
+                    </div>
+                    <div className="text-lg font-medium" style={{ color: 'var(--color-text-muted)' }}>Drop components here to start building</div>
+                    <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Your canvas awaits your creativity</div>
                   </div>
                 </div>
               )}
@@ -930,11 +1210,13 @@ export default GeneratedComponent;`
               {dragState.isDragging && (
                 <div className="absolute inset-0 flex items-center justify-center z-10">
                   <div className="text-center space-y-3">
-                    <div className="text-5xl animate-bounce">✨</div>
-                    <div className="text-purple-600 font-bold text-xl">
+                    <div className="animate-bounce">
+                      <Sparkles className="w-12 h-12 mx-auto" style={{ color: 'var(--color-primary)' }} />
+                    </div>
+                    <div className="font-bold text-xl" style={{ color: 'var(--color-primary)' }}>
                       Drop {dragState.draggedComponent?.name} here
                     </div>
-                    <div className="text-purple-500 text-sm">Release to add to your design</div>
+                    <div className="text-sm" style={{ color: 'var(--color-primary)' }}>Release to add to your design</div>
                   </div>
                 </div>
               )}
@@ -958,12 +1240,14 @@ export default GeneratedComponent;`
                       whileHover={{ scale: 1.05 }}
                       className={`absolute cursor-pointer transition-all duration-300 ${
                         selectedComponent === component.id 
-                          ? 'ring-4 ring-purple-500 ring-offset-2 shadow-2xl' 
-                          : 'hover:shadow-lg'
+                          ? 'ring-4 ring-offset-2' 
+                          : ''
                       }`}
                       style={{
                         left: component.position.x,
                         top: component.position.y,
+                        ringColor: selectedComponent === component.id ? 'var(--color-primary)' : 'transparent',
+                        boxShadow: selectedComponent === component.id ? 'var(--shadow-lg)' : 'var(--shadow-sm)'
                       }}
                       onClick={(e) => handleComponentClick(component.id, e)}
                     >
@@ -977,16 +1261,16 @@ export default GeneratedComponent;`
             {/* Stats bar */}
             {canvasComponents.length > 0 && (
               <div className="mt-6 flex justify-center">
-                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-full px-6 py-3 shadow-lg">
+                <div className="border rounded-full px-6 py-3" style={{ backgroundColor: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(10px)', borderColor: 'var(--color-border)', boxShadow: 'var(--shadow-lg)' }}>
                   <div className="flex items-center gap-6 text-sm">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full"></div>
-                      <span className="text-gray-600">{canvasComponents.length} Component{canvasComponents.length !== 1 ? 's' : ''}</span>
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
+                      <span style={{ color: 'var(--color-text-muted)' }}>{canvasComponents.length} Component{canvasComponents.length !== 1 ? 's' : ''}</span>
                     </div>
                     {selectedComponent && (
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full"></div>
-                        <span className="text-gray-600">Selected: {canvasComponents.find(c => c.id === selectedComponent)?.name}</span>
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--color-accent)' }}></div>
+                        <span style={{ color: 'var(--color-text-muted)' }}>Selected: {canvasComponents.find(c => c.id === selectedComponent)?.name}</span>
                       </div>
                     )}
                   </div>
@@ -1003,30 +1287,35 @@ export default GeneratedComponent;`
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: '300px', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="absolute bottom-0 left-80 right-80 bg-white border-t-2 border-purple-200 shadow-2xl rounded-t-2xl z-30"
+            className="absolute bottom-0 left-80 right-80 border-t-2 rounded-t-2xl z-30"
             style={{
+              backgroundColor: 'var(--color-surface)',
+              borderColor: 'var(--color-border)',
+              boxShadow: 'var(--shadow-lg)',
               maxHeight: '50vh'
             }}
           >
             <div 
-              className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50 rounded-t-2xl cursor-move"
+              className="flex items-center justify-between p-4 border-b rounded-t-2xl cursor-move"
+              style={{ backgroundColor: 'var(--color-bg-muted)', borderColor: 'var(--color-border)' }}
               onMouseDown={handleCodePanelDragStart}
             >
               <div className="flex items-center gap-3">
-                <GripVertical className="w-5 h-5 text-gray-400" />
+                <GripVertical className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500">
-                    <Code2 className="w-5 h-5 text-white" />
+                  <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+                    <Code className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-800">Generated Code</h3>
-                    <p className="text-xs text-gray-500">Drag to move to sidebar →</p>
+                    <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Generated Code</h3>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Drag to move to sidebar →</p>
                   </div>
                 </div>
               </div>
               <button
                 onClick={moveCodePanelToRightSidebar}
-                className="px-3 py-1 bg-purple-500 text-white text-xs rounded-lg hover:bg-purple-600 transition-colors"
+                className="px-3 py-1 text-xs rounded-lg transition-colors text-white"
+                style={{ backgroundColor: 'var(--color-primary)' }}
               >
                 Move to Sidebar →
               </button>
@@ -1053,7 +1342,7 @@ export default GeneratedComponent;`
         mergePosition="right"
       />
       
-      {/* Enhanced drag styles */}
+      {/* Enhanced drag styles with CSS variables */}
       <style jsx global>{`
         .drag-preview {
           animation: dragBounce 0.3s ease-out;
@@ -1073,28 +1362,199 @@ export default GeneratedComponent;`
           min-height: 400px;
         }
 
+        /* Code syntax highlighting styles */
+        .code-keyword {
+          color: #569cd6;
+          font-weight: 600;
+        }
+        
+        .code-string {
+          color: #ce9178;
+        }
+        
+        .code-comment {
+          color: #6a9955;
+          font-style: italic;
+        }
+        
+        .code-tag {
+          color: #4ec9b0;
+        }
+        
+        .code-attr {
+          color: #9cdcfe;
+        }
+        
+        .code-number {
+          color: #b5cea8;
+        }
+        
+        .code-function {
+          color: #dcdcaa;
+        }
+        
+        .code-property {
+          color: #9cdcfe;
+        }
+        
+        .code-value {
+          color: #ce9178;
+        }
+        
+        .code-selector {
+          color: #d7ba7d;
+        }
+
         /* Custom scrollbar for code editor */
-        textarea::-webkit-scrollbar {
+        .code-editor::-webkit-scrollbar {
           width: 8px;
         }
         
-        textarea::-webkit-scrollbar-track {
+        .code-editor::-webkit-scrollbar-track {
           background: #1f2937;
           border-radius: 4px;
         }
         
-        textarea::-webkit-scrollbar-thumb {
-          background: #10b981;
+        .code-editor::-webkit-scrollbar-thumb {
+          background: var(--color-primary);
           border-radius: 4px;
         }
         
-        textarea::-webkit-scrollbar-thumb:hover {
-          background: #059669;
+        .code-editor::-webkit-scrollbar-thumb:hover {
+          background: var(--color-primary-hover);
         }
 
         /* Smooth transitions for all interactive elements */
         .group:hover .group-hover\\:scale-110 {
           transform: scale(1.1);
+        }
+        
+        /* Focus styles using CSS variables */
+        input:focus, textarea:focus, button:focus {
+          box-shadow: 0 0 0 3px rgba(160, 82, 255, 0.1);
+          border-color: var(--color-primary) !important;
+        }
+        
+        /* Hover effects */
+        [style*="cursor-pointer"]:hover {
+          transform: translateY(-1px);
+          transition: var(--transition);
+        }
+        
+        /* Selection styles */
+        ::selection {
+          background-color: var(--color-primary-soft);
+          color: var(--color-primary);
+        }
+        
+        /* Code highlighting hover effects */
+        .code-keyword:hover,
+        .code-string:hover,
+        .code-tag:hover,
+        .code-attr:hover,
+        .code-function:hover {
+          background-color: rgba(255, 255, 255, 0.1);
+          border-radius: 2px;
+          padding: 1px 2px;
+          margin: -1px -2px;
+          cursor: help;
+        }
+        
+        /* Professional button styles */
+        button {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-weight: 500;
+          letter-spacing: -0.025em;
+        }
+        
+        /* Enhanced input styles */
+        input, textarea {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          transition: var(--transition);
+        }
+        
+        input:hover, textarea:hover {
+          border-color: var(--color-primary-hover);
+        }
+        
+        /* Professional panel styling */
+        [class*="panel"] {
+          backdrop-filter: blur(20px);
+          border: 1px solid var(--color-border);
+        }
+        
+        /* Loading states */
+        .loading {
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .loading::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+          animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+          0% { left: -100%; }
+          100% { left: 100%; }
+        }
+        
+        /* Toast notification styles */
+        .toast {
+          background: var(--color-surface);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-lg);
+          box-shadow: var(--shadow-lg);
+          backdrop-filter: blur(20px);
+        }
+        
+        /* Tooltip arrow */
+        .tooltip::after {
+          content: '';
+          position: absolute;
+          top: 100%;
+          left: 50%;
+          margin-left: -5px;
+          border-width: 5px;
+          border-style: solid;
+          border-color: var(--color-surface) transparent transparent transparent;
+        }
+        
+        /* Professional animations */
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @keyframes fadeInScale {
+          from {
+            opacity: 0;
+            transform: scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        
+        .animate-fadeInUp {
+          animation: fadeInUp 0.3s ease-out;
+        }
+        
+        .animate-fadeInScale {
+          animation: fadeInScale 0.2s ease-out;
         }
       `}</style>
     </AuthenticatedLayout>

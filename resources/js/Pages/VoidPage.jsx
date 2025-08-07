@@ -256,9 +256,10 @@ export default function VoidPage({ isDark: initialIsDark }) {
     }))
   }, [])
 
-  // Memoize cloud configurations for performance  
+  // Memoize cloud configurations for performance - with separate dark/light mode gradients
   const cloudConfigs = useMemo(() => {
-    const gradients = [
+    // Light mode gradients (more vibrant for visibility)
+    const lightGradients = [
       'radial-gradient(circle at 30% 70%, rgba(59, 130, 246, 0.15), rgba(147, 51, 234, 0.12), transparent 70%)',
       'radial-gradient(circle at 70% 30%, rgba(236, 72, 153, 0.15), rgba(59, 130, 246, 0.12), transparent 70%)',
       'radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.12), rgba(59, 130, 246, 0.15), transparent 70%)',
@@ -267,11 +268,22 @@ export default function VoidPage({ isDark: initialIsDark }) {
       'radial-gradient(circle at 60% 40%, rgba(14, 165, 233, 0.15), rgba(168, 85, 247, 0.10), transparent 70%)'
     ]
     
+    // Dark mode gradients (VERY SUBTLE - barely visible)
+    const darkGradients = [
+      'radial-gradient(circle at 30% 70%, rgba(59, 130, 246, 0.02), rgba(147, 51, 234, 0.015), transparent 70%)',
+      'radial-gradient(circle at 70% 30%, rgba(236, 72, 153, 0.02), rgba(59, 130, 246, 0.015), transparent 70%)',
+      'radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.015), rgba(59, 130, 246, 0.02), transparent 70%)',
+      'radial-gradient(circle at 20% 80%, rgba(34, 197, 94, 0.015), rgba(59, 130, 246, 0.01), transparent 70%)',
+      'radial-gradient(circle at 80% 20%, rgba(249, 115, 22, 0.015), rgba(236, 72, 153, 0.015), transparent 70%)',
+      'radial-gradient(circle at 60% 40%, rgba(14, 165, 233, 0.02), rgba(168, 85, 247, 0.01), transparent 70%)'
+    ]
+    
     return Array.from({ length: 6 }, (_, i) => ({
       x: Math.random() * 120 - 10,
       y: Math.random() * 120 - 10,
       size: Math.random() * 40 + 80,
-      gradient: gradients[i],
+      lightGradient: lightGradients[i],
+      darkGradient: darkGradients[i],
       moveSpeed: Math.random() * 20 + 15,
       scaleSpeed: Math.random() * 1 + 0.5
     }))
@@ -352,15 +364,15 @@ export default function VoidPage({ isDark: initialIsDark }) {
         })
       }
       
-      // Subtle clouds in dark mode
+      // VERY SUBTLE clouds in dark mode - barely visible
       const clouds = cloudsRef.current?.children
       if (clouds) {
         Array.from(clouds).forEach((cloud, i) => {
           const config = cloudConfigs[i]
           
           gsap.to(cloud, {
-            opacity: 0.08,
-            scale: 0.8,
+            opacity: 0.03, // MUCH MORE SUBTLE - from 0.08 to 0.03
+            scale: 0.6,    // Smaller scale too
             duration: 2,
             delay: i * 0.1,
             ease: "power2.out"
@@ -368,9 +380,9 @@ export default function VoidPage({ isDark: initialIsDark }) {
           
           // Gentle movement
           gsap.to(cloud, {
-            x: `+=${config.moveSpeed * 0.3}`,
-            y: `+=${config.moveSpeed * 0.1}`,
-            duration: 12,
+            x: `+=${config.moveSpeed * 0.2}`, // Less movement
+            y: `+=${config.moveSpeed * 0.05}`, // Much less vertical movement
+            duration: 15, // Slower movement
             repeat: -1,
             yoyo: true,
             ease: "sine.inOut",
@@ -444,7 +456,7 @@ export default function VoidPage({ isDark: initialIsDark }) {
     ))
   }
 
-  // Optimized cloud rendering with modern gradients
+  // Optimized cloud rendering with theme-specific gradients
   const renderClouds = () => {
     return cloudConfigs.map((config, i) => (
       <div
@@ -455,7 +467,7 @@ export default function VoidPage({ isDark: initialIsDark }) {
           height: `${config.size}vw`,
           top: `${config.y}%`,
           left: `${config.x}%`,
-          background: config.gradient,
+          background: isDark ? config.darkGradient : config.lightGradient,
           filter: 'blur(80px)',
           transform: 'translate3d(-50%, -50%, 0) scale(0.8)',
           willChange: 'opacity, transform, filter'
