@@ -603,21 +603,27 @@ export default function Panel({
     // Calculate positioning based on snapToEdge
     const dockStyle = snapToEdge
       ? {
-          [position]: 0,
-          top: 0,
+          position: 'relative', // Changed from absolute to relative for snapToEdge
+          display: 'block',
+          width: '320px',
           height: '100%',
-          width: '320px'
+          float: position, // Use float to position left or right
         }
       : {
+          position: 'absolute', // Keep absolute for non-snapToEdge
           [position === 'left' ? 'left' : 'right']: '1rem',
           top: '1rem',
           height: 'calc(100% - 2rem)',
           width: '320px'
         }
 
+    const containerClass = snapToEdge 
+      ? `dock-${position}-snapped` 
+      : `dock-${position}`
+
     return (
       <div
-        className={`dock-${position} absolute z-40`}
+        className={`${containerClass} z-40`}
         style={dockStyle}
       >
         {/* Vertical Stack Container */}
@@ -697,6 +703,15 @@ export default function Panel({
         .panel-container {
           transform: translate3d(0, 0, 0);
           backface-visibility: hidden;
+        }
+        
+        /* Snap to edge specific styles */
+        .dock-left-snapped {
+          border-right: 1px solid var(--color-border, #3e3e3e);
+        }
+        
+        .dock-right-snapped {
+          border-left: 1px solid var(--color-border, #3e3e3e);
         }
       `}</style>
       
