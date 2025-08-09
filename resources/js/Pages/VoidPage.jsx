@@ -125,20 +125,19 @@ export default function VoidPage({ isDark: initialIsDark }) {
     setIsDark(darkMode)
   }
 
-  // Update parallax positions based on scroll
+  // Update parallax positions based on scroll - OPTIMIZED
   useEffect(() => {
     const stars = starsRef.current
     const clouds = cloudsRef.current
     
     if (stars && clouds) {
-      // Stars parallax (far background - slower movement)
-      const starsOffsetX = (scrollPosition.x * 0.1) % 100
-      const starsOffsetY = (scrollPosition.y * 0.1) % 100
+      // REDUCED parallax calculations for better performance
+      const starsOffsetX = (scrollPosition.x * 0.05) % 50
+      const starsOffsetY = (scrollPosition.y * 0.05) % 50
       stars.style.transform = `translate3d(-${starsOffsetX}px, -${starsOffsetY}px, 0)`
       
-      // Clouds parallax (mid background - medium movement)
-      const cloudsOffsetX = (scrollPosition.x * 0.3) % 100
-      const cloudsOffsetY = (scrollPosition.y * 0.3) % 100
+      const cloudsOffsetX = (scrollPosition.x * 0.15) % 50
+      const cloudsOffsetY = (scrollPosition.y * 0.15) % 50
       clouds.style.transform = `translate3d(-${cloudsOffsetX}px, -${cloudsOffsetY}px, 0)`
     }
   }, [scrollPosition])
@@ -165,9 +164,9 @@ export default function VoidPage({ isDark: initialIsDark }) {
     { icon: Briefcase, label: 'Project', isPrimary: false }
   ]
 
-  // Memoize star positions for performance
+  // Memoize star positions for performance - REDUCED count
   const starPositions = useMemo(() => {
-    return Array.from({ length: 150 }, () => ({
+    return Array.from({ length: 75 }, () => ({ // REDUCED from 150 to 75
       x: Math.random() * 100,
       y: Math.random() * 100,
       size: Math.random() * 2 + 1,
@@ -176,16 +175,13 @@ export default function VoidPage({ isDark: initialIsDark }) {
     }))
   }, [])
 
-  // Memoize cloud configurations for performance - with separate dark/light mode gradients
+  // Memoize cloud configurations for performance - REDUCED count
   const cloudConfigs = useMemo(() => {
     // Light mode gradients (more vibrant for visibility)
     const lightGradients = [
       'radial-gradient(circle at 30% 70%, rgba(59, 130, 246, 0.15), rgba(147, 51, 234, 0.12), transparent 70%)',
       'radial-gradient(circle at 70% 30%, rgba(236, 72, 153, 0.15), rgba(59, 130, 246, 0.12), transparent 70%)',
       'radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.12), rgba(59, 130, 246, 0.15), transparent 70%)',
-      'radial-gradient(circle at 20% 80%, rgba(34, 197, 94, 0.12), rgba(59, 130, 246, 0.10), transparent 70%)',
-      'radial-gradient(circle at 80% 20%, rgba(249, 115, 22, 0.12), rgba(236, 72, 153, 0.12), transparent 70%)',
-      'radial-gradient(circle at 60% 40%, rgba(14, 165, 233, 0.15), rgba(168, 85, 247, 0.10), transparent 70%)'
     ]
     
     // Dark mode gradients (VERY SUBTLE - barely visible)
@@ -193,12 +189,9 @@ export default function VoidPage({ isDark: initialIsDark }) {
       'radial-gradient(circle at 30% 70%, rgba(59, 130, 246, 0.02), rgba(147, 51, 234, 0.015), transparent 70%)',
       'radial-gradient(circle at 70% 30%, rgba(236, 72, 153, 0.02), rgba(59, 130, 246, 0.015), transparent 70%)',
       'radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.015), rgba(59, 130, 246, 0.02), transparent 70%)',
-      'radial-gradient(circle at 20% 80%, rgba(34, 197, 94, 0.015), rgba(59, 130, 246, 0.01), transparent 70%)',
-      'radial-gradient(circle at 80% 20%, rgba(249, 115, 22, 0.015), rgba(236, 72, 153, 0.015), transparent 70%)',
-      'radial-gradient(circle at 60% 40%, rgba(14, 165, 233, 0.02), rgba(168, 85, 247, 0.01), transparent 70%)'
     ]
     
-    return Array.from({ length: 6 }, (_, i) => ({
+    return Array.from({ length: 3 }, (_, i) => ({ // REDUCED from 6 to 3
       x: Math.random() * 120 - 10,
       y: Math.random() * 120 - 10,
       size: Math.random() * 40 + 80,
@@ -497,57 +490,51 @@ export default function VoidPage({ isDark: initialIsDark }) {
           </div>
         </div>
 
-        {/* Floating Trash Can - positioned at the bottom left of the left panel */}
-        <div className="absolute left-8 bottom-8 z-20">
+        {/* Floating Trash Can - FIXED positioning to be more visible */}
+        <div className="fixed left-8 bottom-8 z-30">
           <div className="flex flex-col items-center group">
             <button
-              className="w-12 h-12 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 ease-out hover:scale-110 hover:-translate-y-1"
+              className="w-14 h-14 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 ease-out hover:scale-110 hover:-translate-y-1"
               style={{
-                boxShadow: '0 4px 14px rgba(239, 68, 68, 0.3)'
+                boxShadow: '0 4px 20px rgba(239, 68, 68, 0.4)'
               }}
             >
-              <Trash2 className="w-5 h-5 text-white" />
+              <Trash2 className="w-6 h-6 text-white" />
             </button>
             <span 
-              className="mt-2 text-xs font-medium opacity-70 group-hover:opacity-100 transition-opacity duration-300 text-center"
-              style={{
-                color: 'var(--color-text)',
-                fontSize: 'var(--fs-sm)'
-              }}
+              className="mt-2 text-xs font-medium opacity-70 group-hover:opacity-100 transition-opacity duration-300 text-center bg-black bg-opacity-70 text-white px-2 py-1 rounded"
             >
               Delete
             </span>
           </div>
         </div>
         
-        {/* Preview Frames Layer - IMPROVED infinite scroll */}
+        {/* Preview Frames Layer - OPTIMIZED for performance */}
         <div 
           className="absolute z-15"
           style={{
-            // Create a repeating pattern by using multiple transforms
-            width: `${scrollBounds.width * 3}px`,
-            height: `${scrollBounds.height * 3}px`,
-            left: '-50%',
-            top: '-50%',
+            // Simpler approach - just use transform without massive container
             transform: `translate3d(-${scrollPosition.x}px, -${scrollPosition.y}px, 0)`,
             willChange: 'transform'
           }}
         >
-          {/* Render frames in a 3x3 grid pattern for seamless infinite scroll */}
-          {[-1, 0, 1].map(xOffset => 
-            [-1, 0, 1].map(yOffset => 
-              frames.map((frame, index) => (
-                <PreviewFrame
-                  key={`${frame.id}-${xOffset}-${yOffset}`}
-                  title={frame.title}
-                  fileName={frame.fileName}
-                  index={index}
-                  x={frame.x + (xOffset * scrollBounds.width)}
-                  y={frame.y + (yOffset * scrollBounds.height)}
-                />
-              ))
+          {/* Only render frames that could be visible + buffer */}
+          {frames.map((frame, index) => {
+            // Calculate wrapped positions for infinite effect
+            const wrappedX = ((frame.x - scrollPosition.x) % scrollBounds.width + scrollBounds.width) % scrollBounds.width
+            const wrappedY = ((frame.y - scrollPosition.y) % scrollBounds.height + scrollBounds.height) % scrollBounds.height
+            
+            return (
+              <PreviewFrame
+                key={frame.id}
+                title={frame.title}
+                fileName={frame.fileName}
+                index={index}
+                x={wrappedX + scrollPosition.x}
+                y={wrappedY + scrollPosition.y}
+              />
             )
-          )}
+          })}
         </div>
         
 

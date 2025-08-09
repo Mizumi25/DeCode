@@ -1,4 +1,4 @@
-// Enhanced ForgePage.jsx with syntax highlighting and improved aesthetics
+// Enhanced ForgePage.jsx with improved code panel and features
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
@@ -16,7 +16,13 @@ import {
   Square,
   FileImage,
   Trash2,
-  Move
+  Move,
+  ChevronUp,
+  ChevronDown,
+  Maximize2,
+  Copy,
+  Download,
+  RefreshCw
 } from 'lucide-react';
 
 export default function ForgePage({ projectId, frameId }) {
@@ -29,12 +35,15 @@ export default function ForgePage({ projectId, frameId }) {
   // Canvas state for dropped components
   const [canvasComponents, setCanvasComponents] = useState([])
   const [selectedComponent, setSelectedComponent] = useState(null)
-  const [generatedCode, setGeneratedCode] = useState({ html: '', css: '', react: '' })
+  const [generatedCode, setGeneratedCode] = useState({ html: '', css: '', react: '', tailwind: '' })
   const [showCodePanel, setShowCodePanel] = useState(false)
   const [codePanelPosition, setCodePanelPosition] = useState('bottom') // 'bottom' or 'right'
   const [activeCodeTab, setActiveCodeTab] = useState('react')
   const [showTooltips, setShowTooltips] = useState(true)
   const [hoveredToken, setHoveredToken] = useState(null)
+  const [codePanelHeight, setCodePanelHeight] = useState(400) // Increased default height
+  const [codePanelMinimized, setCodePanelMinimized] = useState(false)
+  const [codeStyle, setCodeStyle] = useState('react-tailwind') // 'react-tailwind', 'react-css', 'html-css', 'html-tailwind'
 
   // Drag state
   const [dragState, setDragState] = useState({
@@ -53,73 +62,109 @@ export default function ForgePage({ projectId, frameId }) {
   const canvasRef = useRef(null)
   const codePanelRef = useRef(null)
 
-  // Tooltip definitions for code elements
+  // Tooltip definitions for code elements - Enhanced with more details
   const tooltipDatabase = {
     // React/JSX
-    'import': { type: 'keyword', description: 'Imports modules, components, or functions from other files' },
-    'export': { type: 'keyword', description: 'Makes components or functions available to other files' },
-    'const': { type: 'keyword', description: 'Declares a constant variable that cannot be reassigned' },
-    'return': { type: 'keyword', description: 'Returns JSX or values from a function/component' },
-    'useState': { type: 'hook', description: 'React hook for managing component state' },
-    'useEffect': { type: 'hook', description: 'React hook for side effects and lifecycle events' },
-    'className': { type: 'prop', description: 'JSX attribute for applying CSS classes (equivalent to HTML class)' },
-    'style': { type: 'prop', description: 'JSX attribute for inline styles as JavaScript objects' },
-    'onClick': { type: 'event', description: 'Event handler that fires when element is clicked' },
-    'div': { type: 'element', description: 'Generic container element for grouping content' },
-    'button': { type: 'element', description: 'Interactive button element for user actions' },
-    'span': { type: 'element', description: 'Inline text element for styling portions of text' },
+    'import': { type: 'keyword', description: 'Imports modules, components, or functions from other files. Essential for modular development.' },
+    'export': { type: 'keyword', description: 'Makes components or functions available to other files. Use "export default" for main component.' },
+    'const': { type: 'keyword', description: 'Declares a constant variable that cannot be reassigned. Preferred for React components and hooks.' },
+    'return': { type: 'keyword', description: 'Returns JSX or values from a function/component. Must return a single parent element or Fragment.' },
+    'useState': { type: 'hook', description: 'React hook for managing component state. Returns [value, setter] array.' },
+    'useEffect': { type: 'hook', description: 'React hook for side effects and lifecycle events. Runs after component renders.' },
+    'className': { type: 'prop', description: 'JSX attribute for applying CSS classes (equivalent to HTML class). Use camelCase in JSX.' },
+    'style': { type: 'prop', description: 'JSX attribute for inline styles as JavaScript objects. Properties use camelCase.' },
+    'onClick': { type: 'event', description: 'Event handler that fires when element is clicked. Use arrow functions or useCallback for optimization.' },
+    'div': { type: 'element', description: 'Generic container element for grouping content. Block-level element with no semantic meaning.' },
+    'button': { type: 'element', description: 'Interactive button element for user actions. Use for clickable actions, not navigation.' },
+    'span': { type: 'element', description: 'Inline text element for styling portions of text. Use for small content chunks.' },
     
-    // Tailwind classes
-    'flex': { type: 'layout', description: 'Display: flex - Creates a flexible box layout container' },
-    'items-center': { type: 'layout', description: 'Align-items: center - Centers items vertically in flex container' },
-    'justify-center': { type: 'layout', description: 'Justify-content: center - Centers items horizontally in flex container' },
-    'justify-between': { type: 'layout', description: 'Justify-content: space-between - Distributes items with equal space between' },
-    'gap-2': { type: 'spacing', description: 'Gap: 0.5rem - Adds space between flex/grid items' },
-    'gap-3': { type: 'spacing', description: 'Gap: 0.75rem - Adds space between flex/grid items' },
-    'gap-4': { type: 'spacing', description: 'Gap: 1rem - Adds space between flex/grid items' },
-    'p-2': { type: 'spacing', description: 'Padding: 0.5rem - Adds inner spacing on all sides' },
-    'p-3': { type: 'spacing', description: 'Padding: 0.75rem - Adds inner spacing on all sides' },
-    'p-4': { type: 'spacing', description: 'Padding: 1rem - Adds inner spacing on all sides' },
-    'px-3': { type: 'spacing', description: 'Padding-x: 0.75rem - Adds horizontal padding' },
-    'py-2': { type: 'spacing', description: 'Padding-y: 0.5rem - Adds vertical padding' },
-    'm-2': { type: 'spacing', description: 'Margin: 0.5rem - Adds outer spacing on all sides' },
-    'mb-2': { type: 'spacing', description: 'Margin-bottom: 0.5rem - Adds bottom margin' },
-    'ml-4': { type: 'spacing', description: 'Margin-left: 1rem - Adds left margin' },
-    'w-full': { type: 'sizing', description: 'Width: 100% - Sets element to full width of container' },
-    'h-full': { type: 'sizing', description: 'Height: 100% - Sets element to full height of container' },
-    'w-4': { type: 'sizing', description: 'Width: 1rem - Sets fixed width' },
-    'h-4': { type: 'sizing', description: 'Height: 1rem - Sets fixed height' },
-    'rounded': { type: 'decoration', description: 'Border-radius: 0.25rem - Adds rounded corners' },
-    'rounded-lg': { type: 'decoration', description: 'Border-radius: 0.5rem - Adds larger rounded corners' },
-    'rounded-xl': { type: 'decoration', description: 'Border-radius: 0.75rem - Adds extra large rounded corners' },
-    'bg-white': { type: 'color', description: 'Background-color: white - Sets white background' },
-    'text-white': { type: 'color', description: 'Color: white - Sets white text color' },
-    'text-gray-600': { type: 'color', description: 'Color: gray-600 - Sets medium gray text color' },
-    'border': { type: 'border', description: 'Border: 1px solid - Adds default border' },
-    'border-2': { type: 'border', description: 'Border: 2px solid - Adds thicker border' },
-    'shadow-lg': { type: 'effects', description: 'Box-shadow: large - Adds drop shadow effect' },
-    'hover:bg-gray-50': { type: 'interaction', description: 'Changes background to gray-50 on hover' },
-    'transition-all': { type: 'animation', description: 'Transition: all properties - Animates all property changes' },
-    'cursor-pointer': { type: 'interaction', description: 'Cursor: pointer - Shows pointer cursor on hover' }
+    // Tailwind classes - Enhanced descriptions
+    'flex': { type: 'layout', description: 'Display: flex - Creates a flexible box layout container. Default direction is row.' },
+    'items-center': { type: 'layout', description: 'Align-items: center - Centers items vertically in flex container. Works with flex display.' },
+    'justify-center': { type: 'layout', description: 'Justify-content: center - Centers items horizontally in flex container. Main axis alignment.' },
+    'justify-between': { type: 'layout', description: 'Justify-content: space-between - Distributes items with equal space between them.' },
+    'gap-2': { type: 'spacing', description: 'Gap: 0.5rem (8px) - Adds space between flex/grid items. More efficient than margins.' },
+    'gap-3': { type: 'spacing', description: 'Gap: 0.75rem (12px) - Adds space between flex/grid items. Good for medium spacing.' },
+    'gap-4': { type: 'spacing', description: 'Gap: 1rem (16px) - Adds space between flex/grid items. Standard spacing unit.' },
+    'p-2': { type: 'spacing', description: 'Padding: 0.5rem (8px) - Adds inner spacing on all sides. Small padding for tight layouts.' },
+    'p-3': { type: 'spacing', description: 'Padding: 0.75rem (12px) - Adds inner spacing on all sides. Medium padding for buttons.' },
+    'p-4': { type: 'spacing', description: 'Padding: 1rem (16px) - Adds inner spacing on all sides. Standard padding for containers.' },
+    'px-3': { type: 'spacing', description: 'Padding-x: 0.75rem (12px) - Adds horizontal padding (left + right).' },
+    'py-2': { type: 'spacing', description: 'Padding-y: 0.5rem (8px) - Adds vertical padding (top + bottom).' },
+    'm-2': { type: 'spacing', description: 'Margin: 0.5rem (8px) - Adds outer spacing on all sides. Use for element separation.' },
+    'mb-2': { type: 'spacing', description: 'Margin-bottom: 0.5rem (8px) - Adds bottom margin. Good for stacking elements.' },
+    'ml-4': { type: 'spacing', description: 'Margin-left: 1rem (16px) - Adds left margin. Use for indentation.' },
+    'w-full': { type: 'sizing', description: 'Width: 100% - Sets element to full width of container. Responsive by default.' },
+    'h-full': { type: 'sizing', description: 'Height: 100% - Sets element to full height of container. Use with care.' },
+    'w-4': { type: 'sizing', description: 'Width: 1rem (16px) - Sets fixed width. Good for icons and small elements.' },
+    'h-4': { type: 'sizing', description: 'Height: 1rem (16px) - Sets fixed height. Matches w-4 for square elements.' },
+    'rounded': { type: 'decoration', description: 'Border-radius: 0.25rem (4px) - Adds subtle rounded corners. Good for modern UI.' },
+    'rounded-lg': { type: 'decoration', description: 'Border-radius: 0.5rem (8px) - Adds larger rounded corners. Great for cards and buttons.' },
+    'rounded-xl': { type: 'decoration', description: 'Border-radius: 0.75rem (12px) - Adds extra large rounded corners. Modern, friendly look.' },
+    'bg-white': { type: 'color', description: 'Background-color: white (#ffffff) - Pure white background. High contrast base.' },
+    'text-white': { type: 'color', description: 'Color: white (#ffffff) - White text color. Use on dark backgrounds for contrast.' },
+    'text-gray-600': { type: 'color', description: 'Color: gray-600 (#4b5563) - Medium gray text color. Good for secondary text.' },
+    'border': { type: 'border', description: 'Border: 1px solid #e5e7eb - Adds subtle border. Good for defining boundaries.' },
+    'border-2': { type: 'border', description: 'Border: 2px solid - Adds thicker border. More prominent visual separation.' },
+    'shadow-lg': { type: 'effects', description: 'Box-shadow: large - Adds prominent drop shadow effect. Creates depth and elevation.' },
+    'hover:bg-gray-50': { type: 'interaction', description: 'Changes background to gray-50 on hover. Provides visual feedback.' },
+    'transition-all': { type: 'animation', description: 'Transition: all properties - Animates all property changes smoothly.' },
+    'cursor-pointer': { type: 'interaction', description: 'Cursor: pointer - Shows pointer cursor on hover. Indicates clickable element.' }
   }
 
-  // Syntax highlighting function
+  // Format code with proper indentation
+  const formatCode = (code, language) => {
+    if (!code) return ''
+    
+    // Simple code formatter
+    let formatted = code
+    let indentLevel = 0
+    const lines = formatted.split('\n')
+    const formattedLines = []
+    
+    for (let line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed) {
+        formattedLines.push('')
+        continue
+      }
+      
+      // Decrease indent for closing tags/brackets
+      if (trimmed.startsWith('</') || trimmed.startsWith('}') || trimmed.startsWith(']') || trimmed.startsWith(')')) {
+        indentLevel = Math.max(0, indentLevel - 1)
+      }
+      
+      // Add indentation
+      const indent = '  '.repeat(indentLevel)
+      formattedLines.push(indent + trimmed)
+      
+      // Increase indent for opening tags/brackets
+      if (trimmed.includes('<') && !trimmed.includes('</') && !trimmed.endsWith('/>') ||
+          trimmed.endsWith('{') || trimmed.endsWith('[') || trimmed.endsWith('(')) {
+        indentLevel++
+      }
+    }
+    
+    return formattedLines.join('\n')
+  }
+
+  // Syntax highlighting function - Enhanced
   const highlightCode = (code, language) => {
     if (!code) return ''
     
-    let highlighted = code
+    let highlighted = formatCode(code, language)
     
     if (language === 'react' || language === 'jsx') {
       // Keywords
       highlighted = highlighted.replace(
         /\b(import|export|from|const|let|var|function|return|if|else|for|while|class|extends|useState|useEffect|useCallback|React)\b/g,
-        '<span class="code-keyword">$1</span>'
+        '<span class="code-keyword" data-token="$1">$1</span>'
       )
       
       // Strings
       highlighted = highlighted.replace(
         /(["'`])((?:\\.|(?!\1)[^\\])*?)\1/g,
-        '<span class="code-string">$1$2$1</span>'
+        '<span class="code-string" data-token="string">$1$2$1</span>'
       )
       
       // Comments
@@ -131,13 +176,13 @@ export default function ForgePage({ projectId, frameId }) {
       // JSX tags
       highlighted = highlighted.replace(
         /(<\/?)([\w.-]+)/g,
-        '$1<span class="code-tag">$2</span>'
+        '$1<span class="code-tag" data-token="$2">$2</span>'
       )
       
       // JSX attributes
       highlighted = highlighted.replace(
         /\s([\w-]+)(=)/g,
-        ' <span class="code-attr">$1</span>$2'
+        ' <span class="code-attr" data-token="$1">$1</span>$2'
       )
       
       // Numbers
@@ -149,13 +194,13 @@ export default function ForgePage({ projectId, frameId }) {
       // Functions
       highlighted = highlighted.replace(
         /\b(\w+)(?=\s*\()/g,
-        '<span class="code-function">$1</span>'
+        '<span class="code-function" data-token="$1">$1</span>'
       )
     } else if (language === 'css') {
       // Properties
       highlighted = highlighted.replace(
         /([a-zA-Z-]+)(\s*:)/g,
-        '<span class="code-property">$1</span>$2'
+        '<span class="code-property" data-token="$1">$1</span>$2'
       )
       
       // Values
@@ -179,13 +224,13 @@ export default function ForgePage({ projectId, frameId }) {
       // Tags
       highlighted = highlighted.replace(
         /(<\/?)([\w.-]+)/g,
-        '$1<span class="code-tag">$2</span>'
+        '$1<span class="code-tag" data-token="$2">$2</span>'
       )
       
       // Attributes
       highlighted = highlighted.replace(
         /\s([\w-]+)(=)/g,
-        ' <span class="code-attr">$1</span>$2'
+        ' <span class="code-attr" data-token="$1">$1</span>$2'
       )
       
       // Attribute values
@@ -193,22 +238,35 @@ export default function ForgePage({ projectId, frameId }) {
         /(=)(["'])((?:\\.|(?!\2)[^\\])*?)\2/g,
         '$1$2<span class="code-string">$3</span>$2'
       )
+    } else if (language === 'tailwind') {
+      // Highlight Tailwind classes
+      highlighted = highlighted.replace(
+        /\b([\w-]+)(?=\s|$)/g,
+        (match) => {
+          const tooltip = tooltipDatabase[match]
+          if (tooltip) {
+            return `<span class="code-tailwind ${tooltip.type}" data-token="${match}">${match}</span>`
+          }
+          return match
+        }
+      )
     }
     
     return highlighted
   }
 
-  // Handle token hover for tooltips
-  const handleTokenHover = (e, token) => {
+  // Handle token hover for tooltips - Fixed for both mouse and touch
+  const handleTokenHover = (e) => {
     if (!showTooltips) return
     
-    const tooltip = tooltipDatabase[token]
-    if (tooltip) {
+    const token = e.target.getAttribute('data-token')
+    if (token && tooltipDatabase[token]) {
+      const rect = e.target.getBoundingClientRect()
       setHoveredToken({
         token,
-        tooltip,
-        x: e.clientX,
-        y: e.clientY
+        tooltip: tooltipDatabase[token],
+        x: rect.left + rect.width / 2,
+        y: rect.top - 10
       })
     }
   }
@@ -217,7 +275,7 @@ export default function ForgePage({ projectId, frameId }) {
     setHoveredToken(null)
   }
 
-  // Enhanced component library with Tailwind
+  // Enhanced component library with multiple code generation styles
   const componentLibrary = {
     button: {
       id: 'button',
@@ -253,30 +311,55 @@ export default function ForgePage({ projectId, frameId }) {
           {props.text}
         </button>
       ),
-      generateCode: (props, allComponents) => {
-        const htmlComponents = allComponents.map(comp => {
-          const lib = componentLibrary[comp.type]
-          if (!lib) return ''
-          return `    <div style="position: absolute; left: ${comp.position.x}px; top: ${comp.position.y}px;">
-      <button class="btn btn-${comp.props.variant} btn-${comp.props.size}">${comp.props.text}</button>
-    </div>`
-        }).join('\n')
-
-        const reactComponents = allComponents.map(comp => {
-          const lib = componentLibrary[comp.type]
-          if (!lib) return ''
-          return `        <div style={{ position: 'absolute', left: '${comp.position.x}px', top: '${comp.position.y}px' }}>
+      generateCode: (props, allComponents, style) => {
+        const generateReactTailwind = () => {
+          const reactComponents = allComponents.map(comp => {
+            return `        <div style={{ position: 'absolute', left: '${comp.position.x}px', top: '${comp.position.y}px' }}>
           <button className="${getButtonTailwindClasses(comp.props)}">
             ${comp.props.text}
           </button>
         </div>`
-        }).join('\n')
+          }).join('\n')
 
-        return {
-          html: `<div class="canvas-container">
-${htmlComponents}
-</div>`,
-          css: `.canvas-container {
+          return {
+            react: `import React from 'react';
+
+const GeneratedComponent = () => {
+  return (
+    <div className="relative w-full h-full min-h-[400px] bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl">
+${reactComponents}
+    </div>
+  );
+};
+
+export default GeneratedComponent;`,
+            tailwind: allComponents.map(comp => getButtonTailwindClasses(comp.props)).join('\n\n// Next component:\n')
+          }
+        }
+
+        const generateReactCSS = () => {
+          const reactComponents = allComponents.map(comp => {
+            return `        <div style={{ position: 'absolute', left: '${comp.position.x}px', top: '${comp.position.y}px' }}>
+          <button className="btn btn-${comp.props.variant} btn-${comp.props.size}">
+            ${comp.props.text}
+          </button>
+        </div>`
+          }).join('\n')
+
+          return {
+            react: `import React from 'react';
+import './GeneratedComponent.css';
+
+const GeneratedComponent = () => {
+  return (
+    <div className="canvas-container">
+${reactComponents}
+    </div>
+  );
+};
+
+export default GeneratedComponent;`,
+            css: `.canvas-container {
   position: relative;
   width: 100%;
   height: 100%;
@@ -357,18 +440,158 @@ ${htmlComponents}
 .btn-lg {
   padding: 16px 32px;
   font-size: 1.125rem;
-}`,
-          react: `import React from 'react';
+}`
+          }
+        }
 
-const GeneratedComponent = () => {
-  return (
-    <div className="relative w-full h-full min-h-[400px] bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl">
-${reactComponents}
+        const generateHTMLCSS = () => {
+          const htmlComponents = allComponents.map(comp => {
+            return `    <div style="position: absolute; left: ${comp.position.x}px; top: ${comp.position.y}px;">
+      <button class="btn btn-${comp.props.variant} btn-${comp.props.size}">${comp.props.text}</button>
+    </div>`
+          }).join('\n')
+
+          return {
+            html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generated Component</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="canvas-container">
+${htmlComponents}
     </div>
-  );
-};
+</body>
+</html>`,
+            css: `.canvas-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+}
 
-export default GeneratedComponent;`
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+}
+
+.btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+}
+
+.btn-secondary {
+  background: white;
+  color: #374151;
+  border: 2px solid #e5e7eb;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-secondary:hover {
+  background: #f9fafb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+}
+
+.btn-warning {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.875rem;
+}
+
+.btn-md {
+  padding: 10px 24px;
+  font-size: 1rem;
+}
+
+.btn-lg {
+  padding: 16px 32px;
+  font-size: 1.125rem;
+}`
+          }
+        }
+
+        const generateHTMLTailwind = () => {
+          const htmlComponents = allComponents.map(comp => {
+            return `    <div style="position: absolute; left: ${comp.position.x}px; top: ${comp.position.y}px;">
+      <button class="${getButtonTailwindClasses(comp.props)}">${comp.props.text}</button>
+    </div>`
+          }).join('\n')
+
+          return {
+            html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generated Component</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div class="relative w-full h-full min-h-[400px] bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl">
+${htmlComponents}
+    </div>
+</body>
+</html>`,
+            tailwind: `/* Tailwind CSS Classes Used */
+${allComponents.map(comp => `
+/* ${comp.props.text} Button */
+${getButtonTailwindClasses(comp.props)}
+`).join('\n')}`
+          }
+        }
+
+        switch (style) {
+          case 'react-tailwind':
+            return generateReactTailwind()
+          case 'react-css':
+            return generateReactCSS()
+          case 'html-css':
+            return generateHTMLCSS()
+          case 'html-tailwind':
+            return generateHTMLTailwind()
+          default:
+            return generateReactTailwind()
         }
       }
     }
@@ -650,21 +873,21 @@ export default GeneratedComponent;`
     generateCode(updatedComponents)
   }, [canvasComponents])
 
-  // Code generation
+  // Code generation with style support
   const generateCode = useCallback((components) => {
     if (components.length === 0) {
-      setGeneratedCode({ html: '', css: '', react: '' })
+      setGeneratedCode({ html: '', css: '', react: '', tailwind: '' })
       setShowCodePanel(false)
       return
     }
 
     const lib = componentLibrary.button // Using button as the main component
     if (lib && lib.generateCode) {
-      const code = lib.generateCode({}, components)
+      const code = lib.generateCode({}, components, codeStyle)
       setGeneratedCode(code)
       setShowCodePanel(true)
     }
-  }, [])
+  }, [codeStyle])
 
   // Handle code editing
   const handleCodeEdit = useCallback((newCode, codeType) => {
@@ -690,6 +913,43 @@ export default GeneratedComponent;`
   const moveCodePanelToRightSidebar = useCallback(() => {
     setCodePanelPosition('right')
   }, [])
+
+  // Copy code to clipboard
+  const copyCodeToClipboard = useCallback(async (code) => {
+    try {
+      await navigator.clipboard.writeText(code)
+      // You can add a toast notification here
+    } catch (err) {
+      console.error('Failed to copy code:', err)
+    }
+  }, [])
+
+  // Download code as file
+  const downloadCode = useCallback((code, filename, type) => {
+    const element = document.createElement('a')
+    const file = new Blob([code], { type: 'text/plain' })
+    element.href = URL.createObjectURL(file)
+    element.download = `${filename}.${type}`
+    document.body.appendChild(element)
+    element.click()
+    document.body.removeChild(element)
+  }, [])
+
+  // Get available tabs based on code style
+  const getAvailableTabs = () => {
+    switch (codeStyle) {
+      case 'react-tailwind':
+        return ['react', 'tailwind']
+      case 'react-css':
+        return ['react', 'css']
+      case 'html-css':
+        return ['html', 'css']
+      case 'html-tailwind':
+        return ['html', 'tailwind']
+      default:
+        return ['react', 'tailwind']
+    }
+  }
 
   // Enhanced default panels with professional aesthetics
   const defaultPanels = [
@@ -1022,7 +1282,7 @@ export default GeneratedComponent;`
     }
   ]
 
-  // Code panel content with syntax highlighting
+  // Enhanced code panel content with better styling and functionality
   const codePanel = {
     id: 'code',
     title: 'Generated Code',
@@ -1034,13 +1294,13 @@ export default GeneratedComponent;`
               <Code className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
             </div>
             <div>
-              <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Live Code</h3>
-              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Edit to update components</p>
+              <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Live Code Generator</h3>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Real-time code generation with tooltips</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2">
-              <label className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>Pro Tips</label>
+              <label className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>Tooltips</label>
               <button
                 onClick={() => setShowTooltips(!showTooltips)}
                 className={`relative w-10 h-6 rounded-full transition-colors ${showTooltips ? 'bg-blue-500' : 'bg-gray-300'}`}
@@ -1048,6 +1308,13 @@ export default GeneratedComponent;`
                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${showTooltips ? 'translate-x-5' : 'translate-x-1'}`} />
               </button>
             </div>
+            <button
+              onClick={() => setCodePanelMinimized(!codePanelMinimized)}
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              {codePanelMinimized ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
             <button
               onClick={() => setShowCodePanel(false)}
               className="p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
@@ -1057,66 +1324,129 @@ export default GeneratedComponent;`
           </div>
         </div>
         
-        {/* Code tabs */}
-        <div className="flex gap-1 p-1 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
-          {['html', 'css', 'react'].map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveCodeTab(tab)}
-              className="px-4 py-2 rounded-md text-sm font-medium transition-all flex-1"
-              style={{
-                backgroundColor: activeCodeTab === tab ? 'var(--color-surface)' : 'transparent',
-                color: activeCodeTab === tab ? 'var(--color-text)' : 'var(--color-text-muted)',
-                boxShadow: activeCodeTab === tab ? 'var(--shadow-sm)' : 'none'
-              }}
-            >
-              {tab.toUpperCase()}
-            </button>
-          ))}
-        </div>
+        {!codePanelMinimized && (
+          <>
+            {/* Code Style Selector */}
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Code Style Combination</label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: 'react-tailwind', label: 'React + Tailwind', desc: 'Modern JSX with utility classes' },
+                  { value: 'react-css', label: 'React + CSS', desc: 'JSX with traditional stylesheets' },
+                  { value: 'html-css', label: 'HTML + CSS', desc: 'Vanilla HTML with CSS files' },
+                  { value: 'html-tailwind', label: 'HTML + Tailwind', desc: 'HTML with utility classes' }
+                ].map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      setCodeStyle(option.value)
+                      generateCode(canvasComponents)
+                    }}
+                    className="p-3 rounded-lg text-left transition-all border-2"
+                    style={{
+                      backgroundColor: codeStyle === option.value ? 'var(--color-primary-soft)' : 'var(--color-bg-muted)',
+                      borderColor: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-border)',
+                      color: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text)'
+                    }}
+                  >
+                    <div className="font-semibold text-sm">{option.label}</div>
+                    <div className="text-xs opacity-80">{option.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
         
-        {/* Code editor with syntax highlighting */}
-        <div className="flex-1 min-h-0 relative">
-          <div
-            className="w-full h-full p-4 rounded-xl border-0 resize-none overflow-auto font-mono text-sm"
-            style={{
-              backgroundColor: '#1e1e1e',
-              color: '#d4d4d4',
-              fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
-              lineHeight: '1.5'
-            }}
-          >
-            <pre
-              className="whitespace-pre-wrap"
-              dangerouslySetInnerHTML={{
-                __html: highlightCode(generatedCode[activeCodeTab], activeCodeTab)
-              }}
-              onMouseOver={(e) => {
-                if (showTooltips && e.target.tagName === 'SPAN') {
-                  const text = e.target.textContent
-                  handleTokenHover(e, text)
-                }
-              }}
-              onMouseOut={handleTokenLeave}
-            />
-            <textarea
-              value={generatedCode[activeCodeTab]}
-              onChange={(e) => handleCodeEdit(e.target.value, activeCodeTab)}
-              className="absolute inset-4 w-full h-full bg-transparent text-transparent caret-white resize-none outline-none font-mono text-sm"
-              style={{
-                fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
-                lineHeight: '1.5'
-              }}
-              placeholder={`// ${activeCodeTab.toUpperCase()} code will appear here...`}
-              spellCheck={false}
-            />
-          </div>
-        </div>
-        
-        <div className="text-xs p-3 rounded-lg border flex items-center gap-2" style={{ color: 'var(--color-text-muted)', backgroundColor: 'var(--color-primary-soft)', borderColor: 'var(--color-primary)' }}>
-          <Sparkles className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
-          <span><strong>Tip:</strong> Edit the React code to update components in real-time. Changes will reflect on the canvas automatically.</span>
-        </div>
+            {/* Code tabs */}
+            <div className="flex gap-1 p-1 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+              {getAvailableTabs().map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveCodeTab(tab)}
+                  className="px-4 py-2 rounded-md text-sm font-medium transition-all flex-1 relative"
+                  style={{
+                    backgroundColor: activeCodeTab === tab ? 'var(--color-surface)' : 'transparent',
+                    color: activeCodeTab === tab ? 'var(--color-text)' : 'var(--color-text-muted)',
+                    boxShadow: activeCodeTab === tab ? 'var(--shadow-sm)' : 'none'
+                  }}
+                >
+                  {tab.toUpperCase()}
+                  {activeCodeTab === tab && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }} />
+                  )}
+                </button>
+              ))}
+            </div>
+            
+            {/* Code editor with enhanced features */}
+            <div className="flex-1 min-h-0 relative">
+              <div className="absolute top-2 right-2 z-10 flex gap-2">
+                <button
+                  onClick={() => copyCodeToClipboard(generatedCode[activeCodeTab])}
+                  className="p-2 rounded-lg text-white hover:bg-white hover:bg-opacity-20 transition-all"
+                  style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+                  title="Copy to clipboard"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => downloadCode(generatedCode[activeCodeTab], `component.${activeCodeTab}`, activeCodeTab)}
+                  className="p-2 rounded-lg text-white hover:bg-white hover:bg-opacity-20 transition-all"
+                  style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+                  title="Download file"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => generateCode(canvasComponents)}
+                  className="p-2 rounded-lg text-white hover:bg-white hover:bg-opacity-20 transition-all"
+                  style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+                  title="Regenerate code"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div
+                className="code-editor w-full h-full p-4 rounded-xl border-0 resize-none overflow-auto font-mono text-sm relative"
+                style={{
+                  backgroundColor: '#1e1e1e',
+                  color: '#d4d4d4',
+                  fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+                  lineHeight: '1.6',
+                  fontSize: '14px'
+                }}
+              >
+                <pre
+                  className="whitespace-pre-wrap pr-16"
+                  dangerouslySetInnerHTML={{
+                    __html: highlightCode(generatedCode[activeCodeTab], activeCodeTab)
+                  }}
+                  onMouseOver={handleTokenHover}
+                  onMouseOut={handleTokenLeave}
+                  onTouchStart={handleTokenHover}
+                  onTouchEnd={handleTokenLeave}
+                />
+                <textarea
+                  value={generatedCode[activeCodeTab]}
+                  onChange={(e) => handleCodeEdit(e.target.value, activeCodeTab)}
+                  className="absolute inset-4 w-full h-full bg-transparent text-transparent caret-white resize-none outline-none font-mono text-sm pr-16"
+                  style={{
+                    fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+                    lineHeight: '1.6',
+                    fontSize: '14px'
+                  }}
+                  placeholder={`// ${activeCodeTab.toUpperCase()} code will appear here...`}
+                  spellCheck={false}
+                />
+              </div>
+            </div>
+            
+            <div className="text-xs p-3 rounded-lg border flex items-center gap-2" style={{ color: 'var(--color-text-muted)', backgroundColor: 'var(--color-primary-soft)', borderColor: 'var(--color-primary)' }}>
+              <Sparkles className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+              <span><strong>Pro Tip:</strong> Hover over code elements for helpful explanations. Edit code directly to update components in real-time.</span>
+            </div>
+          </>
+        )}
       </div>
     )
   }
@@ -1131,37 +1461,58 @@ export default GeneratedComponent;`
     >
       <Head title="Forge - Visual Builder" />
       
-      {/* Tooltip */}
+      {/* Enhanced Tooltip with better positioning */}
       {hoveredToken && showTooltips && (
         <div
-          className="fixed z-50 px-3 py-2 text-xs rounded-lg shadow-lg pointer-events-none"
+          className="fixed z-[9999] px-4 py-3 text-xs rounded-lg shadow-xl pointer-events-none max-w-xs"
           style={{
-            backgroundColor: 'var(--color-surface)',
-            color: 'var(--color-text)',
-            border: '1px solid var(--color-border)',
-            left: hoveredToken.x + 10,
-            top: hoveredToken.y - 40
+            backgroundColor: '#2d3748',
+            color: '#e2e8f0',
+            border: '1px solid #4a5568',
+            left: Math.max(10, Math.min(hoveredToken.x - 150, window.innerWidth - 320)),
+            top: hoveredToken.y - 80,
+            backdropFilter: 'blur(20px)'
           }}
         >
-          <div className="font-semibold mb-1">
-            <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
-              hoveredToken.tooltip.type === 'keyword' ? 'bg-blue-500' :
-              hoveredToken.tooltip.type === 'string' ? 'bg-green-500' :
-              hoveredToken.tooltip.type === 'element' ? 'bg-purple-500' :
-              hoveredToken.tooltip.type === 'layout' ? 'bg-orange-500' :
-              hoveredToken.tooltip.type === 'spacing' ? 'bg-pink-500' :
-              'bg-gray-500'
+          <div className="font-semibold mb-2 flex items-center gap-2">
+            <span className={`inline-block w-2 h-2 rounded-full ${
+              hoveredToken.tooltip.type === 'keyword' ? 'bg-blue-400' :
+              hoveredToken.tooltip.type === 'string' ? 'bg-green-400' :
+              hoveredToken.tooltip.type === 'element' ? 'bg-purple-400' :
+              hoveredToken.tooltip.type === 'layout' ? 'bg-orange-400' :
+              hoveredToken.tooltip.type === 'spacing' ? 'bg-pink-400' :
+              hoveredToken.tooltip.type === 'hook' ? 'bg-red-400' :
+              'bg-gray-400'
             }`}></span>
-            {hoveredToken.token} 
-            <span className="text-xs opacity-60 ml-1">({hoveredToken.tooltip.type})</span>
+            <span className="text-white">{hoveredToken.token}</span>
+            <span className="text-xs opacity-60 bg-gray-600 px-2 py-0.5 rounded">
+              {hoveredToken.tooltip.type}
+            </span>
           </div>
-          <div className="text-xs opacity-80">{hoveredToken.tooltip.description}</div>
+          <div className="text-xs leading-relaxed text-gray-300">{hoveredToken.tooltip.description}</div>
+          {/* Tooltip arrow */}
+          <div 
+            className="absolute top-full left-1/2 transform -translate-x-1/2"
+            style={{
+              width: 0,
+              height: 0,
+              borderLeft: '6px solid transparent',
+              borderRight: '6px solid transparent',
+              borderTop: '6px solid #2d3748'
+            }}
+          />
         </div>
       )}
       
       {/* Main content area - Enhanced Canvas */}
       <div className="h-[calc(100vh-60px)] flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
-        <div className={`flex-1 flex items-center justify-center p-8 ${codePanelPosition === 'bottom' ? 'pb-4' : ''}`}>
+        <div className={`flex-1 flex items-center justify-center p-8 ${
+          codePanelPosition === 'bottom' && showCodePanel 
+            ? codePanelMinimized 
+              ? 'pb-20' 
+              : `pb-[${codePanelHeight + 80}px]`
+            : 'pb-8'
+        }`}>
           <div className="w-full max-w-6xl">
             <div className="text-center space-y-6 mb-8">
               <div>
@@ -1280,52 +1631,103 @@ export default GeneratedComponent;`
           </div>
         </div>
         
-        {/* Code Generation Panel - Bottom (when not in right sidebar) */}
+        {/* Fixed Code Generation Panel - Bottom */}
         {showCodePanel && codePanelPosition === 'bottom' && (
           <motion.div
             ref={codePanelRef}
             initial={{ height: 0, opacity: 0 }}
-            animate={{ height: '300px', opacity: 1 }}
+            animate={{ 
+              height: codePanelMinimized ? '60px' : `${codePanelHeight}px`, 
+              opacity: 1 
+            }}
             exit={{ height: 0, opacity: 0 }}
-            className="absolute bottom-0 left-80 right-80 border-t-2 rounded-t-2xl z-30"
+            className="fixed bottom-0 left-0 right-0 border-t-2 bg-white z-50 shadow-2xl"
             style={{
               backgroundColor: 'var(--color-surface)',
               borderColor: 'var(--color-border)',
-              boxShadow: 'var(--shadow-lg)',
-              maxHeight: '50vh'
+              boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.1)',
+              width: '100vw',
+              maxHeight: '60vh'
             }}
           >
+            {/* Resizable handle */}
             <div 
-              className="flex items-center justify-between p-4 border-b rounded-t-2xl cursor-move"
+              className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-purple-500 hover:bg-opacity-20 transition-colors flex items-center justify-center"
+              onMouseDown={(e) => {
+                const startY = e.clientY
+                const startHeight = codePanelHeight
+                
+                const handleMouseMove = (e) => {
+                  const newHeight = Math.max(200, Math.min(600, startHeight - (e.clientY - startY)))
+                  setCodePanelHeight(newHeight)
+                }
+                
+                const handleMouseUp = () => {
+                  document.removeEventListener('mousemove', handleMouseMove)
+                  document.removeEventListener('mouseup', handleMouseUp)
+                }
+                
+                document.addEventListener('mousemove', handleMouseMove)
+                document.addEventListener('mouseup', handleMouseUp)
+              }}
+            >
+              <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
+            </div>
+            
+            <div 
+              className="flex items-center justify-between p-4 border-b"
               style={{ backgroundColor: 'var(--color-bg-muted)', borderColor: 'var(--color-border)' }}
-              onMouseDown={handleCodePanelDragStart}
             >
               <div className="flex items-center gap-3">
-                <GripVertical className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
+                <GripVertical 
+                  className="w-5 h-5 cursor-move" 
+                  style={{ color: 'var(--color-text-muted)' }}
+                  onMouseDown={handleCodePanelDragStart}
+                />
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
                     <Code className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
                   </div>
                   <div>
-                    <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Generated Code</h3>
-                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Drag to move to sidebar →</p>
+                    <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Generated Code Panel</h3>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                      {codePanelMinimized ? 'Click to expand' : 'Drag handle to resize • Drag to move to sidebar →'}
+                    </p>
                   </div>
                 </div>
               </div>
-              <button
-                onClick={moveCodePanelToRightSidebar}
-                className="px-3 py-1 text-xs rounded-lg transition-colors text-white"
-                style={{ backgroundColor: 'var(--color-primary)' }}
-              >
-                Move to Sidebar →
-              </button>
-            </div>
-            
-            <div className="h-full overflow-hidden">
-              <div className="p-4 h-full">
-                {codePanel.content}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={moveCodePanelToRightSidebar}
+                  className="px-3 py-2 text-xs rounded-lg transition-colors text-white flex items-center gap-2"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
+                  <Move className="w-4 h-4" />
+                  Move to Sidebar
+                </button>
+                <button
+                  onClick={() => setCodePanelMinimized(!codePanelMinimized)}
+                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  {codePanelMinimized ? <Maximize2 className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                <button
+                  onClick={() => setShowCodePanel(false)}
+                  className="p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
+            
+            {!codePanelMinimized && (
+              <div className="h-full overflow-hidden">
+                <div className="p-6 h-full">
+                  {codePanel.content}
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </div>
@@ -1333,7 +1735,140 @@ export default GeneratedComponent;`
       {/* Enhanced Panel System */}
       <Panel
         isOpen={true}
-        initialPanels={codePanelPosition === 'right' && showCodePanel ? [...defaultPanels, codePanel] : defaultPanels}
+        initialPanels={codePanelPosition === 'right' && showCodePanel ? [...defaultPanels, {
+          ...codePanel,
+          content: (
+            <div className="space-y-4 h-full flex flex-col" style={{ opacity: 1 }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+                    <Code className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Live Code</h3>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Edit to update components</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>Tips</label>
+                    <button
+                      onClick={() => setShowTooltips(!showTooltips)}
+                      className={`relative w-10 h-6 rounded-full transition-colors ${showTooltips ? 'bg-blue-500' : 'bg-gray-300'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${showTooltips ? 'translate-x-5' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setCodePanelPosition('bottom')}
+                    className="px-3 py-1 text-xs rounded-lg transition-colors text-white"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    ↓ Move to Bottom
+                  </button>
+                </div>
+              </div>
+              
+              {/* Code Style Selector - Sidebar version */}
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Code Style</label>
+                <select
+                  value={codeStyle}
+                  onChange={(e) => {
+                    setCodeStyle(e.target.value)
+                    generateCode(canvasComponents)
+                  }}
+                  className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none transition-all"
+                  style={{ 
+                    borderColor: 'var(--color-border)', 
+                    backgroundColor: 'var(--color-surface)',
+                    color: 'var(--color-text)'
+                  }}
+                >
+                  <option value="react-tailwind">React + Tailwind CSS</option>
+                  <option value="react-css">React + Traditional CSS</option>
+                  <option value="html-css">HTML + CSS</option>
+                  <option value="html-tailwind">HTML + Tailwind CSS</option>
+                </select>
+              </div>
+        
+              {/* Code tabs - Sidebar version */}
+              <div className="flex gap-1 p-1 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                {getAvailableTabs().map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveCodeTab(tab)}
+                    className="px-3 py-2 rounded-md text-sm font-medium transition-all flex-1"
+                    style={{
+                      backgroundColor: activeCodeTab === tab ? 'var(--color-surface)' : 'transparent',
+                      color: activeCodeTab === tab ? 'var(--color-text)' : 'var(--color-text-muted)',
+                      boxShadow: activeCodeTab === tab ? 'var(--shadow-sm)' : 'none'
+                    }}
+                  >
+                    {tab.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              
+              {/* Code editor - Sidebar version with full opacity */}
+              <div className="flex-1 min-h-0 relative">
+                <div className="absolute top-2 right-2 z-10 flex gap-1">
+                  <button
+                    onClick={() => copyCodeToClipboard(generatedCode[activeCodeTab])}
+                    className="p-1.5 rounded-md text-white hover:bg-white hover:bg-opacity-20 transition-all"
+                    style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+                    title="Copy"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={() => downloadCode(generatedCode[activeCodeTab], `component.${activeCodeTab}`, activeCodeTab)}
+                    className="p-1.5 rounded-md text-white hover:bg-white hover:bg-opacity-20 transition-all"
+                    style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+                    title="Download"
+                  >
+                    <Download className="w-3 h-3" />
+                  </button>
+                </div>
+                
+                <div
+                  className="code-editor w-full h-full p-3 rounded-xl border-0 resize-none overflow-auto font-mono text-sm relative"
+                  style={{
+                    backgroundColor: '#1e1e1e',
+                    color: '#d4d4d4',
+                    fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+                    lineHeight: '1.5',
+                    fontSize: '13px',
+                    opacity: 1 // Ensure full opacity in sidebar
+                  }}
+                >
+                  <pre
+                    className="whitespace-pre-wrap pr-12"
+                    dangerouslySetInnerHTML={{
+                      __html: highlightCode(generatedCode[activeCodeTab], activeCodeTab)
+                    }}
+                    onMouseOver={handleTokenHover}
+                    onMouseOut={handleTokenLeave}
+                    onTouchStart={handleTokenHover}
+                    onTouchEnd={handleTokenLeave}
+                  />
+                  <textarea
+                    value={generatedCode[activeCodeTab]}
+                    onChange={(e) => handleCodeEdit(e.target.value, activeCodeTab)}
+                    className="absolute inset-3 w-full h-full bg-transparent text-transparent caret-white resize-none outline-none font-mono text-sm pr-12"
+                    style={{
+                      fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+                      lineHeight: '1.5',
+                      fontSize: '13px'
+                    }}
+                    placeholder={`// ${activeCodeTab.toUpperCase()} code will appear here...`}
+                    spellCheck={false}
+                  />
+                </div>
+              </div>
+            </div>
+          )
+        }] : defaultPanels}
         allowedDockPositions={['left', 'right']}
         onPanelClose={handlePanelClose}
         onPanelStateChange={handlePanelStateChange}
@@ -1362,14 +1897,32 @@ export default GeneratedComponent;`
           min-height: 400px;
         }
 
-        /* Code syntax highlighting styles */
+        /* Enhanced Code syntax highlighting styles */
         .code-keyword {
           color: #569cd6;
           font-weight: 600;
+          cursor: help;
+          border-radius: 3px;
+          padding: 1px 2px;
+          margin: -1px -2px;
+          transition: background-color 0.2s ease;
+        }
+        
+        .code-keyword:hover {
+          background-color: rgba(86, 156, 214, 0.2);
         }
         
         .code-string {
           color: #ce9178;
+          cursor: help;
+          border-radius: 3px;
+          padding: 1px 2px;
+          margin: -1px -2px;
+          transition: background-color 0.2s ease;
+        }
+        
+        .code-string:hover {
+          background-color: rgba(206, 145, 120, 0.2);
         }
         
         .code-comment {
@@ -1379,10 +1932,28 @@ export default GeneratedComponent;`
         
         .code-tag {
           color: #4ec9b0;
+          cursor: help;
+          border-radius: 3px;
+          padding: 1px 2px;
+          margin: -1px -2px;
+          transition: background-color 0.2s ease;
+        }
+        
+        .code-tag:hover {
+          background-color: rgba(78, 201, 176, 0.2);
         }
         
         .code-attr {
           color: #9cdcfe;
+          cursor: help;
+          border-radius: 3px;
+          padding: 1px 2px;
+          margin: -1px -2px;
+          transition: background-color 0.2s ease;
+        }
+        
+        .code-attr:hover {
+          background-color: rgba(156, 220, 254, 0.2);
         }
         
         .code-number {
@@ -1391,10 +1962,28 @@ export default GeneratedComponent;`
         
         .code-function {
           color: #dcdcaa;
+          cursor: help;
+          border-radius: 3px;
+          padding: 1px 2px;
+          margin: -1px -2px;
+          transition: background-color 0.2s ease;
+        }
+        
+        .code-function:hover {
+          background-color: rgba(220, 220, 170, 0.2);
         }
         
         .code-property {
           color: #9cdcfe;
+          cursor: help;
+          border-radius: 3px;
+          padding: 1px 2px;
+          margin: -1px -2px;
+          transition: background-color 0.2s ease;
+        }
+        
+        .code-property:hover {
+          background-color: rgba(156, 220, 254, 0.2);
         }
         
         .code-value {
@@ -1404,24 +1993,108 @@ export default GeneratedComponent;`
         .code-selector {
           color: #d7ba7d;
         }
+        
+        /* Tailwind-specific highlighting */
+        .code-tailwind {
+          cursor: help;
+          border-radius: 3px;
+          padding: 1px 3px;
+          margin: -1px -3px;
+          transition: all 0.2s ease;
+          font-weight: 500;
+        }
+        
+        .code-tailwind.layout {
+          color: #f59e0b;
+        }
+        
+        .code-tailwind.layout:hover {
+          background-color: rgba(245, 158, 11, 0.2);
+        }
+        
+        .code-tailwind.spacing {
+          color: #ec4899;
+        }
+        
+        .code-tailwind.spacing:hover {
+          background-color: rgba(236, 72, 153, 0.2);
+        }
+        
+        .code-tailwind.sizing {
+          color: #8b5cf6;
+        }
+        
+        .code-tailwind.sizing:hover {
+          background-color: rgba(139, 92, 246, 0.2);
+        }
+        
+        .code-tailwind.color {
+          color: #06b6d4;
+        }
+        
+        .code-tailwind.color:hover {
+          background-color: rgba(6, 182, 212, 0.2);
+        }
+        
+        .code-tailwind.decoration {
+          color: #10b981;
+        }
+        
+        .code-tailwind.decoration:hover {
+          background-color: rgba(16, 185, 129, 0.2);
+        }
+        
+        .code-tailwind.effects {
+          color: #f97316;
+        }
+        
+        .code-tailwind.effects:hover {
+          background-color: rgba(249, 115, 22, 0.2);
+        }
+        
+        .code-tailwind.interaction {
+          color: #ef4444;
+        }
+        
+        .code-tailwind.interaction:hover {
+          background-color: rgba(239, 68, 68, 0.2);
+        }
 
-        /* Custom scrollbar for code editor */
+        /* Enhanced scrollbar for code editor */
         .code-editor::-webkit-scrollbar {
-          width: 8px;
+          width: 12px;
         }
         
         .code-editor::-webkit-scrollbar-track {
-          background: #1f2937;
-          border-radius: 4px;
+          background: #2d3748;
+          border-radius: 6px;
         }
         
         .code-editor::-webkit-scrollbar-thumb {
           background: var(--color-primary);
-          border-radius: 4px;
+          border-radius: 6px;
+          border: 2px solid #2d3748;
         }
         
         .code-editor::-webkit-scrollbar-thumb:hover {
           background: var(--color-primary-hover);
+        }
+
+        /* Fixed bottom panel specific styles */
+        .fixed-code-panel {
+          backdrop-filter: blur(20px);
+          border-top: 2px solid var(--color-border);
+        }
+        
+        /* Resizable handle styles */
+        .resize-handle {
+          background: linear-gradient(to right, transparent, var(--color-primary), transparent);
+          opacity: 0.5;
+          transition: opacity 0.2s ease;
+        }
+        
+        .resize-handle:hover {
+          opacity: 1;
         }
 
         /* Smooth transitions for all interactive elements */
@@ -1447,19 +2120,6 @@ export default GeneratedComponent;`
           color: var(--color-primary);
         }
         
-        /* Code highlighting hover effects */
-        .code-keyword:hover,
-        .code-string:hover,
-        .code-tag:hover,
-        .code-attr:hover,
-        .code-function:hover {
-          background-color: rgba(255, 255, 255, 0.1);
-          border-radius: 2px;
-          padding: 1px 2px;
-          margin: -1px -2px;
-          cursor: help;
-        }
-        
         /* Professional button styles */
         button {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -1468,19 +2128,29 @@ export default GeneratedComponent;`
         }
         
         /* Enhanced input styles */
-        input, textarea {
+        input, textarea, select {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           transition: var(--transition);
         }
         
-        input:hover, textarea:hover {
+        input:hover, textarea:hover, select:hover {
           border-color: var(--color-primary-hover);
         }
         
-        /* Professional panel styling */
+        /* Professional panel styling with full opacity */
         [class*="panel"] {
           backdrop-filter: blur(20px);
           border: 1px solid var(--color-border);
+          opacity: 1 !important;
+        }
+        
+        /* Ensure sidebar code panel has full opacity */
+        .panel-content .code-editor {
+          opacity: 1 !important;
+        }
+        
+        .panel-content .code-editor * {
+          opacity: 1 !important;
         }
         
         /* Loading states */
@@ -1514,18 +2184,6 @@ export default GeneratedComponent;`
           backdrop-filter: blur(20px);
         }
         
-        /* Tooltip arrow */
-        .tooltip::after {
-          content: '';
-          position: absolute;
-          top: 100%;
-          left: 50%;
-          margin-left: -5px;
-          border-width: 5px;
-          border-style: solid;
-          border-color: var(--color-surface) transparent transparent transparent;
-        }
-        
         /* Professional animations */
         @keyframes fadeInUp {
           from {
@@ -1555,6 +2213,67 @@ export default GeneratedComponent;`
         
         .animate-fadeInScale {
           animation: fadeInScale 0.2s ease-out;
+        }
+        
+        /* Enhanced mobile responsiveness */
+        @media (max-width: 768px) {
+          .tooltip {
+            font-size: 11px;
+            max-width: 250px;
+          }
+          
+          .code-editor {
+            font-size: 12px;
+          }
+          
+          .fixed-code-panel {
+            left: 0 !important;
+            right: 0 !important;
+          }
+        }
+        
+        /* Touch-friendly hover states */
+        @media (hover: none) {
+          .code-keyword,
+          .code-string,
+          .code-tag,
+          .code-attr,
+          .code-function,
+          .code-property,
+          .code-tailwind {
+            cursor: pointer;
+          }
+          
+          .code-keyword:active,
+          .code-string:active,
+          .code-tag:active,
+          .code-attr:active,
+          .code-function:active,
+          .code-property:active,
+          .code-tailwind:active {
+            background-color: rgba(255, 255, 255, 0.1) !important;
+          }
+        }
+        
+        /* Code formatting improvements */
+        .code-editor pre {
+          tab-size: 2;
+          -moz-tab-size: 2;
+          -o-tab-size: 2;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+        }
+        
+        /* Better line height for readability */
+        .code-editor,
+        .code-editor pre,
+        .code-editor textarea {
+          line-height: 1.6 !important;
+        }
+        
+        /* Ensure consistent font sizing */
+        .code-editor * {
+          font-family: Monaco, Menlo, "Ubuntu Mono", "Courier New", monospace !important;
         }
       `}</style>
     </AuthenticatedLayout>
