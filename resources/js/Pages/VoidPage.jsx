@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
 import gsap from 'gsap'
 import { Head } from '@inertiajs/react'
-import { Plus, Layers, FolderOpen, Code, Users, Upload, Briefcase } from 'lucide-react'
+import { Plus, Layers, FolderOpen, Code, Users, Upload, Briefcase, Trash2 } from 'lucide-react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import Panel from '@/Components/Panel'
+import PreviewFrame from '@/Components/Void/PreviewFrame'
 
 export default function VoidPage({ isDark: initialIsDark }) {
   const starsRef = useRef(null)
@@ -12,11 +13,23 @@ export default function VoidPage({ isDark: initialIsDark }) {
   const canvasRef = useRef(null)
   const [isDark, setIsDark] = useState(initialIsDark || false)
   
-  // Infinite scroll state
+  // Infinite scroll state - REDUCED scroll bounds and sensitivity
   const [scrollPosition, setScrollPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [lastPointerPos, setLastPointerPos] = useState({ x: 0, y: 0 })
-  const scrollBounds = { width: 4000, height: 3000 } // Loop boundaries
+  const scrollBounds = { width: 2000, height: 1500 } // REDUCED from 4000x3000
+
+  // Sample frames data - DISTRIBUTED across the scroll area
+  const [frames] = useState([
+    { id: 1, title: 'Frame1', fileName: 'File1', x: 200, y: 150 },
+    { id: 2, title: 'Frame2', fileName: 'File2', x: 600, y: 200 },
+    { id: 3, title: 'Frame3', fileName: 'File3', x: 400, y: 400 },
+    { id: 4, title: 'Frame4', fileName: 'File4', x: 800, y: 300 },
+    { id: 5, title: 'Frame5', fileName: 'File5', x: 300, y: 600 },
+    { id: 6, title: 'Frame6', fileName: 'File6', x: 1200, y: 250 },
+    { id: 7, title: 'Frame7', fileName: 'File7', x: 1000, y: 500 },
+    { id: 8, title: 'Frame8', fileName: 'File8', x: 1500, y: 350 },
+  ])
   
   // Infinite scroll handlers
   const handlePointerDown = (e) => {
@@ -35,18 +48,17 @@ export default function VoidPage({ isDark: initialIsDark }) {
     const currentX = e.clientX || e.touches?.[0]?.clientX
     const currentY = e.clientY || e.touches?.[0]?.clientY
     
-    const deltaX = currentX - lastPointerPos.x
-    const deltaY = currentY - lastPointerPos.y
+    // REDUCED sensitivity - multiply by 0.3 to make it slower
+    const deltaX = (currentX - lastPointerPos.x) * 0.3
+    const deltaY = (currentY - lastPointerPos.y) * 0.3
     
     setScrollPosition(prev => {
       let newX = prev.x - deltaX
       let newY = prev.y - deltaY
       
-      // Loop boundaries
-      if (newX < 0) newX = scrollBounds.width + newX
-      if (newX > scrollBounds.width) newX = newX - scrollBounds.width
-      if (newY < 0) newY = scrollBounds.height + newY
-      if (newY > scrollBounds.height) newY = newY - scrollBounds.height
+      // IMPROVED Loop boundaries - use modulo for seamless wrapping
+      newX = ((newX % scrollBounds.width) + scrollBounds.width) % scrollBounds.width
+      newY = ((newY % scrollBounds.height) + scrollBounds.height) % scrollBounds.height
       
       return { x: newX, y: newY }
     })
@@ -61,18 +73,17 @@ export default function VoidPage({ isDark: initialIsDark }) {
   }
 
   const handleWheel = (e) => {
-    const deltaX = e.deltaX
-    const deltaY = e.deltaY
+    // REDUCED wheel sensitivity - multiply by 0.2 to make it much slower
+    const deltaX = e.deltaX * 0.2
+    const deltaY = e.deltaY * 0.2
     
     setScrollPosition(prev => {
       let newX = prev.x + deltaX
       let newY = prev.y + deltaY
       
-      // Loop boundaries
-      if (newX < 0) newX = scrollBounds.width + newX
-      if (newX > scrollBounds.width) newX = newX - scrollBounds.width
-      if (newY < 0) newY = scrollBounds.height + newY
-      if (newY > scrollBounds.height) newY = newY - scrollBounds.height
+      // IMPROVED Loop boundaries - use modulo for seamless wrapping
+      newX = ((newX % scrollBounds.width) + scrollBounds.width) % scrollBounds.width
+      newY = ((newY % scrollBounds.height) + scrollBounds.height) % scrollBounds.height
       
       return { x: newX, y: newY }
     })
@@ -113,97 +124,6 @@ export default function VoidPage({ isDark: initialIsDark }) {
   const handleThemeChange = (darkMode) => {
     setIsDark(darkMode)
   }
-
-  // Infinite scroll handlers
-  const handleCanvasPointerDown = (e) => {
-    setIsDragging(true)
-    setLastPointerPos({ 
-      x: e.clientX || e.touches?.[0]?.clientX, 
-      y: e.clientY || e.touches?.[0]?.clientY 
-    })
-    document.body.style.cursor = 'grabbing'
-    e.preventDefault()
-  }
-
-  const handleCanvasPointerMove = (e) => {
-    if (!isDragging) return
-    
-    const currentX = e.clientX || e.touches?.[0]?.clientX
-    const currentY = e.clientY || e.touches?.[0]?.clientY
-    
-    const deltaX = currentX - lastPointerPos.x
-    const deltaY = currentY - lastPointerPos.y
-    
-    setScrollPosition(prev => {
-      let newX = prev.x - deltaX
-      let newY = prev.y - deltaY
-      
-      // Loop boundaries
-      if (newX < 0) newX = scrollBounds.width + newX
-      if (newX > scrollBounds.width) newX = newX - scrollBounds.width
-      if (newY < 0) newY = scrollBounds.height + newY
-      if (newY > scrollBounds.height) newY = newY - scrollBounds.height
-      
-      return { x: newX, y: newY }
-    })
-    
-    setLastPointerPos({ x: currentX, y: currentY })
-    e.preventDefault()
-  }
-
-  const handleCanvasPointerUp = () => {
-    setIsDragging(false)
-    document.body.style.cursor = ''
-  }
-
-  const handleCanvasWheel = (e) => {
-    const deltaX = e.deltaX
-    const deltaY = e.deltaY
-    
-    setScrollPosition(prev => {
-      let newX = prev.x + deltaX
-      let newY = prev.y + deltaY
-      
-      // Loop boundaries
-      if (newX < 0) newX = scrollBounds.width + newX
-      if (newX > scrollBounds.width) newX = newX - scrollBounds.width
-      if (newY < 0) newY = scrollBounds.height + newY
-      if (newY > scrollBounds.height) newY = newY - scrollBounds.height
-      
-      return { x: newX, y: newY }
-    })
-    
-    e.preventDefault()
-  }
-
-  // Attach scroll handlers
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    // Mouse events
-    canvas.addEventListener('mousedown', handleCanvasPointerDown)
-    canvas.addEventListener('wheel', handleCanvasWheel, { passive: false })
-    
-    // Touch events
-    canvas.addEventListener('touchstart', handleCanvasPointerDown, { passive: false })
-    
-    // Global events
-    document.addEventListener('mousemove', handleCanvasPointerMove)
-    document.addEventListener('mouseup', handleCanvasPointerUp)
-    document.addEventListener('touchmove', handleCanvasPointerMove, { passive: false })
-    document.addEventListener('touchend', handleCanvasPointerUp)
-
-    return () => {
-      canvas.removeEventListener('mousedown', handleCanvasPointerDown)
-      canvas.removeEventListener('wheel', handleCanvasWheel)
-      canvas.removeEventListener('touchstart', handleCanvasPointerDown)
-      document.removeEventListener('mousemove', handleCanvasPointerMove)
-      document.removeEventListener('mouseup', handleCanvasPointerUp)
-      document.removeEventListener('touchmove', handleCanvasPointerMove)
-      document.removeEventListener('touchend', handleCanvasPointerUp)
-    }
-  }, [isDragging, lastPointerPos])
 
   // Update parallax positions based on scroll
   useEffect(() => {
@@ -576,30 +496,62 @@ export default function VoidPage({ isDark: initialIsDark }) {
             })}
           </div>
         </div>
-        
-        {/* Content overlay */}
-        <div className="absolute inset-0 flex items-center justify-center z-10">
-          <div className="text-center">
-            <h1 className={`text-5xl font-bold mb-4 transition-all duration-1000 ${
-              isDark 
-                ? 'bg-gradient-to-r from-white via-blue-100 to-purple-200 bg-clip-text text-transparent'
-                : 'bg-gradient-to-r from-gray-800 via-blue-600 to-purple-600 bg-clip-text text-transparent'
-            }`}>
-              {isDark ? 'Starry Void' : 'Dream Cloud'}
-            </h1>
-            <p 
-              className="text-lg transition-colors duration-1000"
+
+        {/* Floating Trash Can - positioned at the bottom left of the left panel */}
+        <div className="absolute left-8 bottom-8 z-20">
+          <div className="flex flex-col items-center group">
+            <button
+              className="w-12 h-12 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 ease-out hover:scale-110 hover:-translate-y-1"
               style={{
-                color: isDark ? 'var(--color-text-muted)' : 'var(--color-text-muted)'
+                boxShadow: '0 4px 14px rgba(239, 68, 68, 0.3)'
               }}
             >
-              {isDark ? 'Watch the stars dance in the cosmic void' : 'Floating through subtle dreams'}
-            </p>
+              <Trash2 className="w-5 h-5 text-white" />
+            </button>
+            <span 
+              className="mt-2 text-xs font-medium opacity-70 group-hover:opacity-100 transition-opacity duration-300 text-center"
+              style={{
+                color: 'var(--color-text)',
+                fontSize: 'var(--fs-sm)'
+              }}
+            >
+              Delete
+            </span>
           </div>
         </div>
         
+        {/* Preview Frames Layer - IMPROVED infinite scroll */}
+        <div 
+          className="absolute z-15"
+          style={{
+            // Create a repeating pattern by using multiple transforms
+            width: `${scrollBounds.width * 3}px`,
+            height: `${scrollBounds.height * 3}px`,
+            left: '-50%',
+            top: '-50%',
+            transform: `translate3d(-${scrollPosition.x}px, -${scrollPosition.y}px, 0)`,
+            willChange: 'transform'
+          }}
+        >
+          {/* Render frames in a 3x3 grid pattern for seamless infinite scroll */}
+          {[-1, 0, 1].map(xOffset => 
+            [-1, 0, 1].map(yOffset => 
+              frames.map((frame, index) => (
+                <PreviewFrame
+                  key={`${frame.id}-${xOffset}-${yOffset}`}
+                  title={frame.title}
+                  fileName={frame.fileName}
+                  index={index}
+                  x={frame.x + (xOffset * scrollBounds.width)}
+                  y={frame.y + (yOffset * scrollBounds.height)}
+                />
+              ))
+            )
+          )}
+        </div>
         
 
+        
         {/* Dockable Panel - RIGHT SIDE ONLY with 2 stacked panels */}
         <Panel
           isOpen={true}
@@ -635,18 +587,14 @@ export default function VoidPage({ isDark: initialIsDark }) {
                 <div>
                   <h4 className="font-semibold mb-4 text-[var(--color-text)]">Frame Manager</h4>
                   <div className="space-y-2">
-                    <div className="p-3 rounded-lg bg-[var(--color-bg-muted)] border border-[var(--color-border)]">
-                      <div className="flex items-center gap-2">
-                        <Layers className="w-4 h-4 text-[var(--color-primary)]" />
-                        <span className="text-sm text-[var(--color-text)]">Main Frame</span>
+                    {frames.map((frame) => (
+                      <div key={frame.id} className="p-3 rounded-lg bg-[var(--color-bg-muted)] border border-[var(--color-border)]">
+                        <div className="flex items-center gap-2">
+                          <Layers className="w-4 h-4 text-[var(--color-primary)]" />
+                          <span className="text-sm text-[var(--color-text)]">{frame.title}</span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="p-3 rounded-lg bg-[var(--color-bg-muted)] border border-[var(--color-border)]">
-                      <div className="flex items-center gap-2">
-                        <Layers className="w-4 h-4 text-[var(--color-primary)]" />
-                        <span className="text-sm text-[var(--color-text)]">Component Frame</span>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               ),

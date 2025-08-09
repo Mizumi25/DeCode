@@ -40,7 +40,7 @@ Route::middleware('auth')->group(function () {
     
     //admin
     Route::get('/user-management', fn () => Inertia::render('Admin/UserManagementPage'))->name('admin.user');
-    Route::get('/asset-management', fn () => Inertia::render('Admin/AssetManagemerPage'))->name('admin.asset');
+    Route::get('/asset-management', fn () => Inertia::render('Admin/AssetManagerPage'))->name('admin.asset');
     Route::get('/feedback-report', fn () => Inertia::render('Admin/FeedbackReportPage'))->name('admin.feedback');
     Route::get('/project-oversight', fn () => Inertia::render('Admin/ProjectOversightPage'))->name('admin.oversight');
     Route::get('/team-management', fn () => Inertia::render('Admin/TeamManagementPage'))->name('admin.team');
