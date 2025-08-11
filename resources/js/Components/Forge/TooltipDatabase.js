@@ -1,0 +1,51 @@
+// @/Components/Forge/TooltipDatabase.js
+
+// Tooltip definitions for code elements - Enhanced with more details
+export const tooltipDatabase = {
+  // React/JSX
+  'import': { type: 'keyword', description: 'Imports modules, components, or functions from other files. Essential for modular development.' },
+  'export': { type: 'keyword', description: 'Makes components or functions available to other files. Use "export default" for main component.' },
+  'const': { type: 'keyword', description: 'Declares a constant variable that cannot be reassigned. Preferred for React components and hooks.' },
+  'return': { type: 'keyword', description: 'Returns JSX or values from a function/component. Must return a single parent element or Fragment.' },
+  'useState': { type: 'hook', description: 'React hook for managing component state. Returns [value, setter] array.' },
+  'useEffect': { type: 'hook', description: 'React hook for side effects and lifecycle events. Runs after component renders.' },
+  'className': { type: 'prop', description: 'JSX attribute for applying CSS classes (equivalent to HTML class). Use camelCase in JSX.' },
+  'style': { type: 'prop', description: 'JSX attribute for inline styles as JavaScript objects. Properties use camelCase.' },
+  'onClick': { type: 'event', description: 'Event handler that fires when element is clicked. Use arrow functions or useCallback for optimization.' },
+  'div': { type: 'element', description: 'Generic container element for grouping content. Block-level element with no semantic meaning.' },
+  'button': { type: 'element', description: 'Interactive button element for user actions. Use for clickable actions, not navigation.' },
+  'span': { type: 'element', description: 'Inline text element for styling portions of text. Use for small content chunks.' },
+  
+  // Tailwind classes - Enhanced descriptions
+  'flex': { type: 'layout', description: 'Display: flex - Creates a flexible box layout container. Default direction is row.' },
+  'items-center': { type: 'layout', description: 'Align-items: center - Centers items vertically in flex container. Works with flex display.' },
+  'justify-center': { type: 'layout', description: 'Justify-content: center - Centers items horizontally in flex container. Main axis alignment.' },
+  'justify-between': { type: 'layout', description: 'Justify-content: space-between - Distributes items with equal space between them.' },
+  'gap-2': { type: 'spacing', description: 'Gap: 0.5rem (8px) - Adds space between flex/grid items. More efficient than margins.' },
+  'gap-3': { type: 'spacing', description: 'Gap: 0.75rem (12px) - Adds space between flex/grid items. Good for medium spacing.' },
+  'gap-4': { type: 'spacing', description: 'Gap: 1rem (16px) - Adds space between flex/grid items. Standard spacing unit.' },
+  'p-2': { type: 'spacing', description: 'Padding: 0.5rem (8px) - Adds inner spacing on all sides. Small padding for tight layouts.' },
+  'p-3': { type: 'spacing', description: 'Padding: 0.75rem (12px) - Adds inner spacing on all sides. Medium padding for buttons.' },
+  'p-4': { type: 'spacing', description: 'Padding: 1rem (16px) - Adds inner spacing on all sides. Standard padding for containers.' },
+  'px-3': { type: 'spacing', description: 'Padding-x: 0.75rem (12px) - Adds horizontal padding (left + right).' },
+  'py-2': { type: 'spacing', description: 'Padding-y: 0.5rem (8px) - Adds vertical padding (top + bottom).' },
+  'm-2': { type: 'spacing', description: 'Margin: 0.5rem (8px) - Adds outer spacing on all sides. Use for element separation.' },
+  'mb-2': { type: 'spacing', description: 'Margin-bottom: 0.5rem (8px) - Adds bottom margin. Good for stacking elements.' },
+  'ml-4': { type: 'spacing', description: 'Margin-left: 1rem (16px) - Adds left margin. Use for indentation.' },
+  'w-full': { type: 'sizing', description: 'Width: 100% - Sets element to full width of container. Responsive by default.' },
+  'h-full': { type: 'sizing', description: 'Height: 100% - Sets element to full height of container. Use with care.' },
+  'w-4': { type: 'sizing', description: 'Width: 1rem (16px) - Sets fixed width. Good for icons and small elements.' },
+  'h-4': { type: 'sizing', description: 'Height: 1rem (16px) - Sets fixed height. Matches w-4 for square elements.' },
+  'rounded': { type: 'decoration', description: 'Border-radius: 0.25rem (4px) - Adds subtle rounded corners. Good for modern UI.' },
+  'rounded-lg': { type: 'decoration', description: 'Border-radius: 0.5rem (8px) - Adds larger rounded corners. Great for cards and buttons.' },
+  'rounded-xl': { type: 'decoration', description: 'Border-radius: 0.75rem (12px) - Adds extra large rounded corners. Modern, friendly look.' },
+  'bg-white': { type: 'color', description: 'Background-color: white (#ffffff) - Pure white background. High contrast base.' },
+  'text-white': { type: 'color', description: 'Color: white (#ffffff) - White text color. Use on dark backgrounds for contrast.' },
+  'text-gray-600': { type: 'color', description: 'Color: gray-600 (#4b5563) - Medium gray text color. Good for secondary text.' },
+  'border': { type: 'border', description: 'Border: 1px solid #e5e7eb - Adds subtle border. Good for defining boundaries.' },
+  'border-2': { type: 'border', description: 'Border: 2px solid - Adds thicker border. More prominent visual separation.' },
+  'shadow-lg': { type: 'effects', description: 'Box-shadow: large - Adds prominent drop shadow effect. Creates depth and elevation.' },
+  'hover:bg-gray-50': { type: 'interaction', description: 'Changes background to gray-50 on hover. Provides visual feedback.' },
+  'transition-all': { type: 'animation', description: 'Transition: all properties - Animates all property changes smoothly.' },
+  'cursor-pointer': { type: 'interaction', description: 'Cursor: pointer - Shows pointer cursor on hover. Indicates clickable element.' }
+}

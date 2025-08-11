@@ -1,0 +1,399 @@
+/* @/css/forge.css - Enhanced CSS for Forge Page Components */
+
+/* Enhanced drag styles with CSS variables */
+.drag-preview {
+  animation: dragBounce 0.3s ease-out;
+  backdrop-filter: blur(20px);
+}
+
+@keyframes dragBounce {
+  0% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.1) rotate(2deg); }
+  100% { transform: scale(1) rotate(2deg); }
+}
+
+.canvas-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+}
+
+/* Enhanced Code syntax highlighting styles */
+.code-keyword {
+  color: #569cd6;
+  font-weight: 600;
+  cursor: help;
+  border-radius: 3px;
+  padding: 1px 2px;
+  margin: -1px -2px;
+  transition: background-color 0.2s ease;
+}
+
+.code-keyword:hover {
+  background-color: rgba(86, 156, 214, 0.2);
+}
+
+.code-string {
+  color: #ce9178;
+  cursor: help;
+  border-radius: 3px;
+  padding: 1px 2px;
+  margin: -1px -2px;
+  transition: background-color 0.2s ease;
+}
+
+.code-string:hover {
+  background-color: rgba(206, 145, 120, 0.2);
+}
+
+.code-comment {
+  color: #6a9955;
+  font-style: italic;
+}
+
+.code-tag {
+  color: #4ec9b0;
+  cursor: help;
+  border-radius: 3px;
+  padding: 1px 2px;
+  margin: -1px -2px;
+  transition: background-color 0.2s ease;
+}
+
+.code-tag:hover {
+  background-color: rgba(78, 201, 176, 0.2);
+}
+
+.code-attr {
+  color: #9cdcfe;
+  cursor: help;
+  border-radius: 3px;
+  padding: 1px 2px;
+  margin: -1px -2px;
+  transition: background-color 0.2s ease;
+}
+
+.code-attr:hover {
+  background-color: rgba(156, 220, 254, 0.2);
+}
+
+.code-number {
+  color: #b5cea8;
+}
+
+.code-function {
+  color: #dcdcaa;
+  cursor: help;
+  border-radius: 3px;
+  padding: 1px 2px;
+  margin: -1px -2px;
+  transition: background-color 0.2s ease;
+}
+
+.code-function:hover {
+  background-color: rgba(220, 220, 170, 0.2);
+}
+
+.code-property {
+  color: #9cdcfe;
+  cursor: help;
+  border-radius: 3px;
+  padding: 1px 2px;
+  margin: -1px -2px;
+  transition: background-color 0.2s ease;
+}
+
+.code-property:hover {
+  background-color: rgba(156, 220, 254, 0.2);
+}
+
+.code-value {
+  color: #ce9178;
+}
+
+.code-selector {
+  color: #d7ba7d;
+}
+
+/* Tailwind-specific highlighting */
+.code-tailwind {
+  cursor: help;
+  border-radius: 3px;
+  padding: 1px 3px;
+  margin: -1px -3px;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.code-tailwind.layout {
+  color: #f59e0b;
+}
+
+.code-tailwind.layout:hover {
+  background-color: rgba(245, 158, 11, 0.2);
+}
+
+.code-tailwind.spacing {
+  color: #ec4899;
+}
+
+.code-tailwind.spacing:hover {
+  background-color: rgba(236, 72, 153, 0.2);
+}
+
+.code-tailwind.sizing {
+  color: #8b5cf6;
+}
+
+.code-tailwind.sizing:hover {
+  background-color: rgba(139, 92, 246, 0.2);
+}
+
+.code-tailwind.color {
+  color: #06b6d4;
+}
+
+.code-tailwind.color:hover {
+  background-color: rgba(6, 182, 212, 0.2);
+}
+
+.code-tailwind.decoration {
+  color: #10b981;
+}
+
+.code-tailwind.decoration:hover {
+  background-color: rgba(16, 185, 129, 0.2);
+}
+
+.code-tailwind.effects {
+  color: #f97316;
+}
+
+.code-tailwind.effects:hover {
+  background-color: rgba(249, 115, 22, 0.2);
+}
+
+.code-tailwind.interaction {
+  color: #ef4444;
+}
+
+.code-tailwind.interaction:hover {
+  background-color: rgba(239, 68, 68, 0.2);
+}
+
+/* Enhanced scrollbar for code editor */
+.code-editor::-webkit-scrollbar {
+  width: 12px;
+}
+
+.code-editor::-webkit-scrollbar-track {
+  background: #2d3748;
+  border-radius: 6px;
+}
+
+.code-editor::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 6px;
+  border: 2px solid #2d3748;
+}
+
+.code-editor::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-hover);
+}
+
+/* Fixed bottom panel specific styles */
+.fixed-code-panel {
+  backdrop-filter: blur(20px);
+  border-top: 2px solid var(--color-border);
+}
+
+/* Resizable handle styles */
+.resize-handle {
+  background: linear-gradient(to right, transparent, var(--color-primary), transparent);
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+
+.resize-handle:hover {
+  opacity: 1;
+}
+
+/* Smooth transitions for all interactive elements */
+.group:hover .group-hover\:scale-110 {
+  transform: scale(1.1);
+}
+
+/* Focus styles using CSS variables */
+input:focus, textarea:focus, button:focus {
+  box-shadow: 0 0 0 3px rgba(160, 82, 255, 0.1);
+  border-color: var(--color-primary) !important;
+}
+
+/* Hover effects */
+[style*="cursor-pointer"]:hover {
+  transform: translateY(-1px);
+  transition: var(--transition);
+}
+
+/* Selection styles */
+::selection {
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+/* Professional button styles */
+button {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+}
+
+/* Enhanced input styles */
+input, textarea, select {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  transition: var(--transition);
+}
+
+input:hover, textarea:hover, select:hover {
+  border-color: var(--color-primary-hover);
+}
+
+/* Professional panel styling with full opacity */
+[class*="panel"] {
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--color-border);
+  opacity: 1 !important;
+}
+
+/* Ensure sidebar code panel has full opacity */
+.panel-content .code-editor {
+  opacity: 1 !important;
+}
+
+.panel-content .code-editor * {
+  opacity: 1 !important;
+}
+
+/* Loading states */
+.loading {
+  position: relative;
+  overflow: hidden;
+}
+
+.loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* Toast notification styles */
+.toast {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(20px);
+}
+
+/* Professional animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+.animate-fadeInScale {
+  animation: fadeInScale 0.2s ease-out;
+}
+
+/* Enhanced mobile responsiveness */
+@media (max-width: 768px) {
+  .tooltip {
+    font-size: 11px;
+    max-width: 250px;
+  }
+  
+  .code-editor {
+    font-size: 12px;
+  }
+  
+  .fixed-code-panel {
+    left: 0 !important;
+    right: 0 !important;
+  }
+}
+
+/* Touch-friendly hover states */
+@media (hover: none) {
+  .code-keyword,
+  .code-string,
+  .code-tag,
+  .code-attr,
+  .code-function,
+  .code-property,
+  .code-tailwind {
+    cursor: pointer;
+  }
+  
+  .code-keyword:active,
+  .code-string:active,
+  .code-tag:active,
+  .code-attr:active,
+  .code-function:active,
+  .code-property:active,
+  .code-tailwind:active {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+  }
+}
+
+/* Code formatting improvements */
+.code-editor pre {
+  tab-size: 2;
+  -moz-tab-size: 2;
+  -o-tab-size: 2;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Better line height for readability */
+.code-editor,
+.code-editor pre,
+.code-editor textarea {
+  line-height: 1.6 !important;
+}
+
+/* Ensure consistent font sizing */
+.code-editor * {
+  font-family: Monaco, Menlo, "Ubuntu Mono", "Courier New", monospace !important;
+}
