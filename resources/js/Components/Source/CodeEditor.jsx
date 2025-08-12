@@ -1,5 +1,6 @@
 import React from 'react';
 import { FileText, Code2, Settings, Plus, X } from 'lucide-react';
+import Editor from '@monaco-editor/react';
 
 const sampleCode = `import React, { useState, useEffect } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
@@ -25,9 +26,7 @@ export default function SourcePage({ projectId, frameId }) {
   };
 
   useEffect(() => {
-    // Component mounted
     console.log('SourcePage mounted');
-    
     return () => {
       console.log('SourcePage unmounted');
     };
@@ -58,26 +57,29 @@ const tabs = [
 ];
 
 export default function CodeEditor() {
+  // detect dark mode from your CSS variable or Tailwind dark class
+  const isDarkMode = document.documentElement.classList.contains('dark');
+
   return (
     <div className="flex flex-col h-full">
       {/* Editor Tabs */}
-      <div 
+      <div
         className="flex border-b backdrop-blur-sm"
-        style={{ 
+        style={{
           backgroundColor: 'var(--color-surface)',
           borderColor: 'var(--color-border)'
         }}
       >
         <div className="flex items-center space-x-1 px-4">
-          {tabs.map((tab, index) => (
+          {tabs.map((tab) => (
             <div
               key={tab.name}
               className={`flex items-center px-4 py-3 border-r cursor-pointer rounded-t-lg transition-all border-b-2 ${
-                tab.active 
-                  ? 'border-blue-400' 
+                tab.active
+                  ? 'border-blue-400'
                   : 'border-transparent'
               }`}
-              style={{ 
+              style={{
                 borderRightColor: 'var(--color-border)',
                 backgroundColor: tab.active ? 'var(--color-primary-soft)' : 'transparent',
                 color: tab.active ? 'var(--color-primary)' : 'var(--color-text)',
@@ -85,83 +87,63 @@ export default function CodeEditor() {
               }}
               onMouseEnter={(e) => {
                 if (!tab.active) {
-                  e.target.style.backgroundColor = 'var(--color-bg-muted)';
-                  e.target.style.color = 'var(--color-text)';
+                  e.currentTarget.style.backgroundColor = 'var(--color-bg-muted)';
+                  e.currentTarget.style.color = 'var(--color-text)';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!tab.active) {
-                  e.target.style.backgroundColor = 'transparent';
-                  e.target.style.color = 'var(--color-text)';
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = 'var(--color-text)';
                 }
               }}
             >
               <tab.icon size={14} className="mr-2" style={{ color: tab.color }} />
               <span className="text-sm font-medium">{tab.name}</span>
-              <button 
-                className="ml-3 text-xs transition-colors opacity-0 hover:opacity-100" 
+              <button
+                className="ml-3 text-xs transition-colors opacity-0 hover:opacity-100"
                 style={{ color: 'var(--color-text-muted)' }}
-                onMouseEnter={(e) => e.target.style.color = '#ef4444'}
-                onMouseLeave={(e) => e.target.style.color = 'var(--color-text-muted)'}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
               >
                 <X size={12} />
               </button>
             </div>
           ))}
-          <button 
+          <button
             className="p-2 rounded-lg transition-all"
             style={{ color: 'var(--color-text-muted)' }}
             onMouseEnter={(e) => {
-              e.target.style.color = 'var(--color-text)';
-              e.target.style.backgroundColor = 'var(--color-bg-muted)';
+              e.currentTarget.style.color = 'var(--color-text)';
+              e.currentTarget.style.backgroundColor = 'var(--color-bg-muted)';
             }}
             onMouseLeave={(e) => {
-              e.target.style.color = 'var(--color-text-muted)';
-              e.target.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = 'var(--color-text-muted)';
+              e.currentTarget.style.backgroundColor = 'transparent';
             }}
           >
             <Plus size={14} />
           </button>
         </div>
-        
-
       </div>
 
-      {/* Code Editor Content */}
-      <div className="flex-grow flex flex-col min-h-0">
-        <div className="flex-1 overflow-auto">
-          {/* Line numbers and code content */}
-          <div className="flex" style={{ backgroundColor: 'var(--color-surface)' }}>
-            <div 
-              className="text-right px-4 py-6 select-none border-r font-mono text-sm flex-shrink-0"
-              style={{ 
-                color: 'var(--color-text-muted)',
-                borderColor: 'var(--color-border)',
-                backgroundColor: 'var(--color-bg-muted)',
-                minWidth: '60px'
-              }}
-            >
-              {sampleCode.split('\n').map((_, index) => (
-                <div key={index} className="leading-6 text-xs">
-                  {index + 1}
-                </div>
-              ))}
-            </div>
-            
-            {/* Code content */}
-            <div 
-              className="flex-1 p-6 overflow-auto backdrop-blur-sm"
-              style={{ backgroundColor: 'var(--color-surface)' }}
-            >
-              <pre 
-                className="whitespace-pre-wrap font-mono text-sm leading-6"
-                style={{ color: 'var(--color-text)' }}
-              >
-                <code>{sampleCode}</code>
-              </pre>
-            </div>
-          </div>
-        </div>
+      {/* Monaco Code Editor */}
+      <div className="flex-grow flex flex-col min-h-0" style={{ backgroundColor: 'var(--color-surface)' }}>
+        <Editor
+          height="100%"
+          defaultLanguage="javascript"
+          defaultValue={sampleCode}
+          theme={isDarkMode ? 'vs-dark' : 'light'}
+          options={{
+            automaticLayout: true,
+            minimap: { enabled: false },
+            fontSize: 13,
+            wordWrap: 'on',
+            scrollBeyondLastLine: false,
+            renderLineHighlight: 'line',
+            padding: { top: 10, bottom: 10 }
+          }}
+        />
       </div>
     </div>
   );
