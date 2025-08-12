@@ -10,7 +10,9 @@ import {
   Type,
   MousePointer,
   Image,
-  Grid3X3
+  Grid3X3,
+  Sparkles,
+  Palette
 } from 'lucide-react';
 
 export default function PreviewPanel({ previewMode, setPreviewMode }) {
@@ -18,7 +20,7 @@ export default function PreviewPanel({ previewMode, setPreviewMode }) {
     <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--color-surface)', color: 'var(--color-text)' }}>
       {/* Preview Header */}
       <div 
-        className="flex items-center justify-between p-3 border-b"
+        className="flex items-center justify-between p-4 border-b"
         style={{ 
           borderColor: 'var(--color-border)',
           backgroundColor: 'var(--color-bg-muted)'
@@ -26,78 +28,103 @@ export default function PreviewPanel({ previewMode, setPreviewMode }) {
       >
         <div className="flex items-center space-x-2">
           <Eye size={16} style={{ color: 'var(--color-primary)' }} />
-          <span className="text-sm font-medium">Live Preview</span>
+          <span className="text-sm font-semibold uppercase tracking-wide">Live Preview</span>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1">
           <button
             onClick={() => setPreviewMode('desktop')}
-            className={`p-1 rounded transition-colors ${previewMode === 'desktop' ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
+            className={`p-1.5 rounded-md transition-all hover:scale-110 ${
+              previewMode === 'desktop' 
+                ? 'text-white shadow-lg' 
+                : 'hover:text-[var(--color-primary)]'
+            }`}
+            style={{
+              backgroundColor: previewMode === 'desktop' ? 'var(--color-primary)' : 'var(--color-primary-soft)',
+              color: previewMode === 'desktop' ? 'white' : 'var(--color-primary)'
+            }}
             title="Desktop View"
           >
-            <Monitor size={16} />
+            <Monitor size={14} />
           </button>
           <button
             onClick={() => setPreviewMode('tablet')}
-            className={`p-1 rounded transition-colors ${previewMode === 'tablet' ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
+            className={`p-1.5 rounded-md transition-all hover:scale-110 ${
+              previewMode === 'tablet' 
+                ? 'text-white shadow-lg' 
+                : 'hover:text-[var(--color-primary)]'
+            }`}
+            style={{
+              backgroundColor: previewMode === 'tablet' ? 'var(--color-primary)' : 'var(--color-primary-soft)',
+              color: previewMode === 'tablet' ? 'white' : 'var(--color-primary)'
+            }}
             title="Tablet View"
           >
-            <Tablet size={16} />
+            <Tablet size={14} />
           </button>
           <button
             onClick={() => setPreviewMode('mobile')}
-            className={`p-1 rounded transition-colors ${previewMode === 'mobile' ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
+            className={`p-1.5 rounded-md transition-all hover:scale-110 ${
+              previewMode === 'mobile' 
+                ? 'text-white shadow-lg' 
+                : 'hover:text-[var(--color-primary)]'
+            }`}
+            style={{
+              backgroundColor: previewMode === 'mobile' ? 'var(--color-primary)' : 'var(--color-primary-soft)',
+              color: previewMode === 'mobile' ? 'white' : 'var(--color-primary)'
+            }}
             title="Mobile View"
           >
-            <Smartphone size={16} />
+            <Smartphone size={14} />
           </button>
-          <div className="w-px h-4" style={{ backgroundColor: 'var(--color-border)' }}></div>
+          <div className="w-px h-4 bg-slate-300 mx-2"></div>
           <button
-            className="p-1 rounded transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            className="p-1.5 rounded-md transition-all hover:scale-110 hover:text-[var(--color-primary)]"
+            style={{
+              backgroundColor: 'var(--color-bg-muted)',
+              color: 'var(--color-text-muted)'
+            }}
             title="Refresh Preview"
           >
-            <RotateCcw size={16} />
+            <RotateCcw size={14} />
           </button>
         </div>
       </div>
 
       {/* Preview Content */}
-      <div className="flex-grow p-2">
-        <div 
-          className="h-full rounded-lg shadow-lg overflow-hidden"
-          style={{ backgroundColor: '#ffffff' }}
-        >
+      <div className="flex-grow p-4">
+        <div className="h-64 rounded-xl shadow-inner p-6 bg-gradient-to-br from-blue-100 via-purple-50 to-pink-100">
           <div className={`h-full transition-all duration-300 ${
-            previewMode === 'mobile' ? 'max-w-[375px] mx-auto' :
-            previewMode === 'tablet' ? 'max-w-[768px] mx-auto' : 'w-full'
-          }`}>
-            {/* Mock Preview Content */}
-            <div className="p-8 bg-gradient-to-br from-blue-50 to-indigo-100 h-full">
-              <div className="max-w-4xl mx-auto">
-                <h1 className="text-4xl font-bold text-gray-900 mb-6">Welcome to DeCode</h1>
-                <p className="text-lg text-gray-600 mb-8">
-                  A powerful website builder with visual design and code generation capabilities.
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-white p-6 rounded-lg shadow-md">
-                    <div className="w-12 h-12 bg-blue-500 rounded-lg mb-4 flex items-center justify-center">
-                      <Layers className="text-white" size={24} />
-                    </div>
-                    <h3 className="text-lg font-semibold mb-2">Visual Design</h3>
-                    <p className="text-gray-600 text-sm">Design with drag and drop components</p>
+            previewMode === 'mobile' ? 'max-w-[300px] mx-auto' :
+            previewMode === 'tablet' ? 'max-w-[500px] mx-auto' : 'w-full'
+          } rounded-lg p-4 shadow-lg`} style={{ backgroundColor: 'var(--color-surface)' }}>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Sparkles style={{ color: 'var(--color-primary)' }} size={20} />
+                <h2 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>DeCode Studio</h2>
+              </div>
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>A beautiful website builder with magical code generation ✨</p>
+              <button className="w-full py-2 px-4 rounded-lg text-sm font-medium shadow-lg hover:shadow-xl transition-all hover:scale-105 text-white bg-gradient-to-r from-blue-500 to-purple-500">
+                Get Started
+              </button>
+              
+              {/* Mock content grid */}
+              <div className="grid grid-cols-1 gap-2 mt-4">
+                <div className="p-2 rounded-lg shadow-sm" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                  <div className="flex items-center space-x-2">
+                    <Layers style={{ color: 'var(--color-primary)' }} size={16} />
+                    <span className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>Visual Design</span>
                   </div>
-                  <div className="bg-white p-6 rounded-lg shadow-md">
-                    <div className="w-12 h-12 bg-green-500 rounded-lg mb-4 flex items-center justify-center">
-                      <Code2 className="text-white" size={24} />
-                    </div>
-                    <h3 className="text-lg font-semibold mb-2">Code Generation</h3>
-                    <p className="text-gray-600 text-sm">Automatically generate clean code</p>
+                </div>
+                <div className="p-2 rounded-lg shadow-sm" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                  <div className="flex items-center space-x-2">
+                    <Code2 className="text-green-500" size={16} />
+                    <span className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>Code Generation</span>
                   </div>
-                  <div className="bg-white p-6 rounded-lg shadow-md">
-                    <div className="w-12 h-12 bg-purple-500 rounded-lg mb-4 flex items-center justify-center">
-                      <Eye className="text-white" size={24} />
-                    </div>
-                    <h3 className="text-lg font-semibold mb-2">Live Preview</h3>
-                    <p className="text-gray-600 text-sm">See changes in real-time</p>
+                </div>
+                <div className="p-2 rounded-lg shadow-sm" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                  <div className="flex items-center space-x-2">
+                    <Eye style={{ color: 'var(--color-primary)' }} size={16} />
+                    <span className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>Live Preview</span>
                   </div>
                 </div>
               </div>
@@ -111,55 +138,34 @@ export default function PreviewPanel({ previewMode, setPreviewMode }) {
         className="border-t p-4 space-y-3"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-muted)' }}
       >
-        <h4 className="text-sm font-semibold" style={{ color: 'var(--color-text-muted)' }}>COMPONENT LIBRARY</h4>
+        <h4 className="text-xs font-semibold uppercase tracking-wide flex items-center space-x-1" style={{ color: 'var(--color-text-muted)' }}>
+          <Palette size={12} />
+          <span>Component Library</span>
+        </h4>
         <div className="grid grid-cols-2 gap-2">
           <div 
-            className="flex items-center space-x-2 p-2 rounded cursor-pointer transition-colors border"
-            style={{ 
-              borderColor: 'var(--color-border)', 
-              backgroundColor: 'var(--color-surface)'
-            }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-bg-muted)'}
-            onMouseLeave={(e) => e.target.style.backgroundColor = 'var(--color-surface)'}
+            className="flex items-center space-x-2 p-2 rounded-lg cursor-pointer transition-all hover:scale-105 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-600 hover:from-blue-500/20 hover:to-cyan-500/20 shadow-sm"
           >
-            <Type size={16} style={{ color: 'var(--color-primary)' }} />
-            <span className="text-xs">Text</span>
+            <Type size={14} />
+            <span className="text-xs font-medium">Text</span>
           </div>
           <div 
-            className="flex items-center space-x-2 p-2 rounded cursor-pointer transition-colors border"
-            style={{ 
-              borderColor: 'var(--color-border)', 
-              backgroundColor: 'var(--color-surface)'
-            }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-bg-muted)'}
-            onMouseLeave={(e) => e.target.style.backgroundColor = 'var(--color-surface)'}
+            className="flex items-center space-x-2 p-2 rounded-lg cursor-pointer transition-all hover:scale-105 bg-gradient-to-r from-green-500/10 to-emerald-500/10 text-green-600 hover:from-green-500/20 hover:to-emerald-500/20 shadow-sm"
           >
-            <MousePointer size={16} style={{ color: 'var(--color-primary)' }} />
-            <span className="text-xs">Button</span>
+            <MousePointer size={14} />
+            <span className="text-xs font-medium">Button</span>
           </div>
           <div 
-            className="flex items-center space-x-2 p-2 rounded cursor-pointer transition-colors border"
-            style={{ 
-              borderColor: 'var(--color-border)', 
-              backgroundColor: 'var(--color-surface)'
-            }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-bg-muted)'}
-            onMouseLeave={(e) => e.target.style.backgroundColor = 'var(--color-surface)'}
+            className="flex items-center space-x-2 p-2 rounded-lg cursor-pointer transition-all hover:scale-105 bg-gradient-to-r from-purple-500/10 to-pink-500/10 text-purple-600 hover:from-purple-500/20 hover:to-pink-500/20 shadow-sm"
           >
-            <Image size={16} style={{ color: 'var(--color-primary)' }} />
-            <span className="text-xs">Image</span>
+            <Image size={14} />
+            <span className="text-xs font-medium">Image</span>
           </div>
           <div 
-            className="flex items-center space-x-2 p-2 rounded cursor-pointer transition-colors border"
-            style={{ 
-              borderColor: 'var(--color-border)', 
-              backgroundColor: 'var(--color-surface)'
-            }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-bg-muted)'}
-            onMouseLeave={(e) => e.target.style.backgroundColor = 'var(--color-surface)'}
+            className="flex items-center space-x-2 p-2 rounded-lg cursor-pointer transition-all hover:scale-105 bg-gradient-to-r from-orange-500/10 to-red-500/10 text-orange-600 hover:from-orange-500/20 hover:to-red-500/20 shadow-sm"
           >
-            <Grid3X3 size={16} style={{ color: 'var(--color-primary)' }} />
-            <span className="text-xs">Grid</span>
+            <Grid3X3 size={14} />
+            <span className="text-xs font-medium">Grid</span>
           </div>
         </div>
       </div>

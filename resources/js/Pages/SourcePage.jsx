@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import Panel from '@/Components/Panel';
-
 // Import components
 import ExplorerPanel from '@/Components/Source/ExplorerPanel';
 import PreviewPanel from '@/Components/Source/PreviewPanel';
@@ -15,10 +14,13 @@ export default function SourcePage({ projectId, frameId }) {
     forge: false,
     source: false
   });
-
-  // Split view state
-  const [splitView, setSplitView] = useState(true);
+  
+  // Split view state - always true now since preview is always on
+  const [splitView] = useState(true);
   const [previewMode, setPreviewMode] = useState('desktop');
+  
+  // Use ref to track previous state and avoid console spam
+  const previousPanelState = useRef(null);
 
   // Handler for when a panel is closed
   const handlePanelClose = (panelId) => {
@@ -29,9 +31,13 @@ export default function SourcePage({ projectId, frameId }) {
     }));
   };
 
-  // Handler for changes in panel state
+  // Handler for changes in panel state - with debouncing to prevent spam
   const handlePanelStateChange = (hasRightPanels) => {
-    console.log(`Right panels active: ${hasRightPanels}`);
+    // Only log if the state actually changed
+    if (previousPanelState.current !== hasRightPanels) {
+      console.log(`Right panels active: ${hasRightPanels}`);
+      previousPanelState.current = hasRightPanels;
+    }
   };
 
   // Define the content for the left-docked panel (Explorer)
@@ -50,7 +56,7 @@ export default function SourcePage({ projectId, frameId }) {
 
   // Default panels configuration
   const defaultPanels = [explorerPanel];
-  const previewPanels = splitView ? [previewPanel] : [];
+  const previewPanels = [previewPanel]; // Always show preview now
 
   // Handle panel maximize
   const handlePanelMaximize = (panelType) => {
@@ -87,18 +93,17 @@ export default function SourcePage({ projectId, frameId }) {
       }}
     >
       <Head title="Source - Code Editor" />
-
+      
       {/* Main Layout Container */}
       <div 
         className="h-[calc(100vh-60px)] flex"
         style={{ 
-          backgroundColor: 'var(--color-bg)', 
           color: 'var(--color-text)' 
         }}
       >
         
         {/* Left Panel Container - Explorer */}
-        <div className="w-80 flex-shrink-0">
+        <div className="w-80 flex-shrink-0 shadow-lg">
           <Panel
             isOpen={true}
             initialPanels={defaultPanels}
@@ -113,26 +118,23 @@ export default function SourcePage({ projectId, frameId }) {
         <div className="flex-1 flex flex-col min-w-0">
           {/* Code Editor */}
           <div className="flex-1 min-h-0">
-            <CodeEditor splitView={splitView} setSplitView={setSplitView} />
+            <CodeEditor />
           </div>
-
           {/* Terminal/Output Area */}
           <TerminalPanel />
         </div>
 
-        {/* Right Panel Container - Preview (when split view is enabled) */}
-        {splitView && (
-          <div className="w-80 flex-shrink-0">
-            <Panel
-              isOpen={true}
-              initialPanels={previewPanels}
-              allowedDockPositions={['right']}
-              onPanelClose={handlePanelClose}
-              onPanelStateChange={handlePanelStateChange}
-              snapToEdge={true}
-            />
-          </div>
-        )}
+        {/* Right Panel Container - Preview (always visible now) */}
+        <div className="w-80 flex-shrink-0 shadow-lg">
+          <Panel
+            isOpen={true}
+            initialPanels={previewPanels}
+            allowedDockPositions={['right']}
+            onPanelClose={handlePanelClose}
+            onPanelStateChange={handlePanelStateChange}
+            snapToEdge={true}
+          />
+        </div>
       </div>
     </AuthenticatedLayout>
   );

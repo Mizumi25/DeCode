@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Code2, SplitSquareHorizontal } from 'lucide-react';
+import { FileText, Code2, Settings, Plus, X } from 'lucide-react';
 
 const sampleCode = `import React, { useState, useEffect } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
@@ -50,63 +50,81 @@ export default function SourcePage({ projectId, frameId }) {
   );
 }`;
 
-export default function CodeEditor({ splitView, setSplitView }) {
+const tabs = [
+  { name: 'App.jsx', icon: FileText, color: '#61dafb', active: true },
+  { name: 'index.js', icon: FileText, color: '#f7df1e', active: false },
+  { name: 'styles.css', icon: Code2, color: '#1572b6', active: false },
+  { name: 'package.json', icon: Settings, color: '#68a063', active: false }
+];
+
+export default function CodeEditor() {
   return (
     <div className="flex flex-col h-full">
       {/* Editor Tabs */}
       <div 
-        className="flex border-b"
+        className="flex border-b backdrop-blur-sm"
         style={{ 
-          borderColor: 'var(--color-border)', 
-          backgroundColor: 'var(--color-bg-muted)' 
+          backgroundColor: 'var(--color-surface)',
+          borderColor: 'var(--color-border)'
         }}
       >
-        <div 
-          className="flex items-center px-4 py-2 border-r cursor-pointer"
-          style={{ 
-            borderColor: 'var(--color-border)', 
-            backgroundColor: 'var(--color-surface)', 
-            color: 'var(--color-text)' 
-          }}
-        >
-          <FileText size={14} className="mr-2" style={{ color: 'var(--color-primary)' }} />
-          <span className="text-sm font-medium">App.jsx</span>
-          <button className="ml-3 text-xs hover:text-[var(--color-primary)] transition-colors" style={{ color: 'var(--color-text-muted)' }}>×</button>
-        </div>
-        <div 
-          className="flex items-center px-4 py-2 border-r cursor-pointer hover:bg-[var(--color-bg-muted)] transition-colors"
-          style={{ 
-            borderColor: 'var(--color-border)', 
-            color: 'var(--color-text-muted)' 
-          }}
-        >
-          <FileText size={14} className="mr-2" style={{ color: 'var(--color-primary)' }} />
-          <span className="text-sm">index.js</span>
-          <button className="ml-3 text-xs hover:text-[var(--color-primary)] transition-colors">×</button>
-        </div>
-        <div 
-          className="flex items-center px-4 py-2 cursor-pointer hover:bg-[var(--color-bg-muted)] transition-colors"
-          style={{ color: 'var(--color-text-muted)' }}
-        >
-          <Code2 size={14} className="mr-2" style={{ color: '#e34c26' }} />
-          <span className="text-sm">styles.css</span>
-          <button className="ml-3 text-xs hover:text-[var(--color-primary)] transition-colors">×</button>
-        </div>
-        
-        {/* Tab Actions */}
-        <div className="ml-auto flex items-center px-4">
-          <button
-            onClick={() => setSplitView(!splitView)}
-            className={`p-2 rounded transition-colors ${
-              splitView 
-                ? 'text-[var(--color-primary)] bg-[var(--color-primary-soft)]' 
-                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-muted)]'
-            }`}
-            title={splitView ? 'Close Split View' : 'Open Split View'}
+        <div className="flex items-center space-x-1 px-4">
+          {tabs.map((tab, index) => (
+            <div
+              key={tab.name}
+              className={`flex items-center px-4 py-3 border-r cursor-pointer rounded-t-lg transition-all border-b-2 ${
+                tab.active 
+                  ? 'border-blue-400' 
+                  : 'border-transparent'
+              }`}
+              style={{ 
+                borderRightColor: 'var(--color-border)',
+                backgroundColor: tab.active ? 'var(--color-primary-soft)' : 'transparent',
+                color: tab.active ? 'var(--color-primary)' : 'var(--color-text)',
+                borderBottomColor: tab.active ? 'var(--color-primary)' : 'transparent'
+              }}
+              onMouseEnter={(e) => {
+                if (!tab.active) {
+                  e.target.style.backgroundColor = 'var(--color-bg-muted)';
+                  e.target.style.color = 'var(--color-text)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!tab.active) {
+                  e.target.style.backgroundColor = 'transparent';
+                  e.target.style.color = 'var(--color-text)';
+                }
+              }}
+            >
+              <tab.icon size={14} className="mr-2" style={{ color: tab.color }} />
+              <span className="text-sm font-medium">{tab.name}</span>
+              <button 
+                className="ml-3 text-xs transition-colors opacity-0 hover:opacity-100" 
+                style={{ color: 'var(--color-text-muted)' }}
+                onMouseEnter={(e) => e.target.style.color = '#ef4444'}
+                onMouseLeave={(e) => e.target.style.color = 'var(--color-text-muted)'}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+          <button 
+            className="p-2 rounded-lg transition-all"
+            style={{ color: 'var(--color-text-muted)' }}
+            onMouseEnter={(e) => {
+              e.target.style.color = 'var(--color-text)';
+              e.target.style.backgroundColor = 'var(--color-bg-muted)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.color = 'var(--color-text-muted)';
+              e.target.style.backgroundColor = 'transparent';
+            }}
           >
-            <SplitSquareHorizontal size={16} />
+            <Plus size={14} />
           </button>
         </div>
+        
+
       </div>
 
       {/* Code Editor Content */}
@@ -117,9 +135,9 @@ export default function CodeEditor({ splitView, setSplitView }) {
             <div 
               className="text-right px-4 py-6 select-none border-r font-mono text-sm flex-shrink-0"
               style={{ 
-                backgroundColor: 'var(--color-bg-muted)', 
                 color: 'var(--color-text-muted)',
                 borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-bg-muted)',
                 minWidth: '60px'
               }}
             >
@@ -131,7 +149,10 @@ export default function CodeEditor({ splitView, setSplitView }) {
             </div>
             
             {/* Code content */}
-            <div className="flex-1 p-6 overflow-auto">
+            <div 
+              className="flex-1 p-6 overflow-auto backdrop-blur-sm"
+              style={{ backgroundColor: 'var(--color-surface)' }}
+            >
               <pre 
                 className="whitespace-pre-wrap font-mono text-sm leading-6"
                 style={{ color: 'var(--color-text)' }}
