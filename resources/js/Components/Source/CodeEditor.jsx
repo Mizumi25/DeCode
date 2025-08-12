@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FileText, Code2, Settings, Plus, X } from 'lucide-react';
-import Editor from '@monaco-editor/react';
+import Editor, { useMonaco } from '@monaco-editor/react';
 
 const sampleCode = `import React, { useState, useEffect } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
@@ -57,8 +57,68 @@ const tabs = [
 ];
 
 export default function CodeEditor() {
-  // detect dark mode from your CSS variable or Tailwind dark class
-  const isDarkMode = document.documentElement.classList.contains('dark');
+  const monaco = useMonaco();
+  const editorRef = useRef(null);
+  const [theme, setTheme] = useState('decode-theme');
+
+  // Get CSS variable value
+  const getCSSVar = (name) =>
+    getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  // Define custom theme from CSS variables
+  const defineDecodeTheme = () => {
+    if (monaco) {
+      const surface = getCSSVar('--color-surface');
+      const text = getCSSVar('--color-text');
+      const primary = getCSSVar('--color-primary');
+      const muted = getCSSVar('--color-text-muted');
+
+      monaco.editor.defineTheme('decode-theme', {
+        base: document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs',
+        inherit: true,
+        rules: [
+          { token: '', foreground: text.replace('#', '') },
+          { token: 'comment', foreground: muted.replace('#', '') },
+          { token: 'keyword', foreground: primary.replace('#', '') }
+        ],
+        colors: {
+          'editor.background': surface,
+          'editor.foreground': text,
+          'editorLineNumber.foreground': muted,
+          'editorLineNumber.activeForeground': primary,
+          'editor.selectionBackground': primary + '33',
+          'editorCursor.foreground': primary
+        }
+      });
+      monaco.editor.setTheme('decode-theme');
+    }
+  };
+
+  // Re-define theme on load and when theme changes
+  useEffect(() => {
+    defineDecodeTheme();
+
+    const updateTheme = () => {
+      defineDecodeTheme();
+      setTheme('decode-theme');
+    };
+
+    // Watch for .dark class changes
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+
+    // Also watch system preference
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', updateTheme);
+
+    return () => {
+      observer.disconnect();
+      mediaQuery.removeEventListener('change', updateTheme);
+    };
+  }, [monaco]);
 
   return (
     <div className="flex flex-col h-full">
@@ -133,7 +193,7 @@ export default function CodeEditor() {
           height="100%"
           defaultLanguage="javascript"
           defaultValue={sampleCode}
-          theme={isDarkMode ? 'vs-dark' : 'light'}
+          theme={theme}
           options={{
             automaticLayout: true,
             minimap: { enabled: false },
@@ -143,6 +203,7 @@ export default function CodeEditor() {
             renderLineHighlight: 'line',
             padding: { top: 10, bottom: 10 }
           }}
+          onMount={(editor) => (editorRef.current = editor)}
         />
       </div>
     </div>
