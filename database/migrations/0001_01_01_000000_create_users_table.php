@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('google_id')->nullable()->unique();
             $table->string('github_id')->nullable()->unique();
             $table->string('avatar')->nullable();
+            $table->enum('platform_role', ['admin', 'user'])->default('user'); 
             $table->rememberToken();
             $table->timestamps();
         });

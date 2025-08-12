@@ -24,6 +24,7 @@ class User extends Authenticatable
         'google_id', 
         'github_id',
         'avatar',
+        'platform_role',
     ];
 
     /**
@@ -47,5 +48,18 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+    
+    public function scopeAdmins($query)
+    {
+        return $query->where('platform_role', 'admin');
+    }
+
+    /**
+     * Check if the user is admin
+     */
+    public function isAdmin(): bool
+    {
+        return $this->platform_role === 'admin';
     }
 }
