@@ -43,9 +43,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/asset-management', fn () => Inertia::render('Admin/AssetManagerPage'))->name('admin.asset');
     Route::get('/feedback-report', fn () => Inertia::render('Admin/FeedbackReportPage'))->name('admin.feedback');
     Route::get('/project-oversight', fn () => Inertia::render('Admin/ProjectOversightPage'))->name('admin.oversight');
-    Route::get('/team-management', fn () => Inertia::render('Admin/TeamManagementPage'))->name('admin.team');
-    Route::get('/role-permission', fn () => Inertia::render('Admin/RolePermissionPage'))->name('admin.role');
-    Route::get('/component-library', fn () => Inertia::render('Admin/ComponentLibraryPage'))->name('component.library');
 });
 
 require __DIR__.'/auth.php';

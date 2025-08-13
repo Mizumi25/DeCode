@@ -1,7 +1,3 @@
-
-
-
-
 import { useEffect, useState } from 'react'
 import {
   User,
@@ -10,12 +6,17 @@ import {
   FolderKanban,
   Archive,
   FolderPlus,
-  LogOut
+  LogOut,
+  Users,
+  Database,
+  MessageSquare,
+  Eye
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { router, usePage } from '@inertiajs/react'
 import Modal from '@/Components/Modal'
 import Edit from '@/Pages/Profile/Edit'
+import FeedbackReportPage from '@/Pages/Admin/FeedbackReportPage'
 
 const sidebarItemsTop = [
   { label: 'Account', icon: <User /> },
@@ -29,11 +30,35 @@ const sidebarItemsBottom = [
   { label: 'New Folder', icon: <FolderPlus /> },
 ]
 
+const adminNavItems = [
+  { 
+    label: 'User Management', 
+    icon: <Users />, 
+    route: 'admin.user' 
+  },
+  { 
+    label: 'Asset Management', 
+    icon: <Database />, 
+    route: 'admin.asset' 
+  },
+  { 
+    label: 'Feedback Report', 
+    icon: <MessageSquare />, 
+    route: 'admin.feedback' 
+  },
+  { 
+    label: 'Project Oversight', 
+    icon: <Eye />, 
+    route: 'admin.oversight' 
+  },
+]
+
 const Sidebar = ({ isOpen, onClose }) => {
   const { props } = usePage()
   const user = props.auth?.user
   const avatar = user?.avatar
   const avatarInitial = user?.name?.charAt(0)?.toUpperCase()
+  const isAdmin = user?.isAdmin
   const [showModal, setShowModal] = useState(false)
   const [modalText, setModalText] = useState('')
   const [loading, setLoading] = useState(false)
@@ -47,6 +72,18 @@ const Sidebar = ({ isOpen, onClose }) => {
 
     // Simulate loading delay (replace this later with actual async fetch if needed)
     setTimeout(() => setLoading(false), 400)
+  }
+
+  const handleAdminNavClick = (route, label) => {
+    if (label === 'Feedback Report') {
+      setModalText(label)
+      setShowModal(true)
+      setLoading(true)
+      // Simulate loading delay for consistency
+      setTimeout(() => setLoading(false), 400)
+    } else {
+      router.get(route)
+    }
   }
 
   const renderModalContent = () => {
@@ -92,6 +129,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           {modalText === 'Contact' && (
             <p className="text-sm text-center mt-4">Contact modal content goes here.</p>
           )}
+          {modalText === 'Feedback Report' && <FeedbackReportPage />}
         </motion.div>
       )
     }
@@ -106,29 +144,58 @@ const Sidebar = ({ isOpen, onClose }) => {
       className="fixed top-[64px] md:top-[64px] left-0 z-40 h-[calc(100vh-64px)] md:h-full w-full md:w-64 bg-[var(--color-surface)] shadow-xl md:rounded-xl p-6 flex flex-col justify-between space-y-6 md:ml-4 md:my-4"
     >
       <div className="space-y-6">
-        {sidebarItemsTop.map((item, i) => (
-          <button
-            onClick={() => handleItemClick(item.label)}
-            key={i}
-            className="flex items-center gap-3 text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors"
-          >
-            {item.icon}
-            <span>{item.label}</span>
-          </button>
-        ))}
+        {/* User Navigation Section */}
+        <div className="space-y-4">
+          <div className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
+            User
+          </div>
+          {sidebarItemsTop.map((item, i) => (
+            <button
+              onClick={() => handleItemClick(item.label)}
+              key={i}
+              className="flex items-center gap-3 text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors"
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
 
-        <div className="h-6" /> {/* Spacer */}
+        {/* Workspace Navigation Section */}
+        <div className="space-y-4">
+          <div className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
+            Workspace
+          </div>
+          {sidebarItemsBottom.map((item, i) => (
+            <button
+              onClick={() => handleItemClick(item.label)}
+              key={i}
+              className="flex items-center gap-3 text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors"
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
 
-        {sidebarItemsBottom.map((item, i) => (
-          <button
-            onClick={() => handleItemClick(item.label)}
-            key={i}
-            className="flex items-center gap-3 text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors"
-          >
-            {item.icon}
-            <span>{item.label}</span>
-          </button>
-        ))}
+        {/* Admin Navigation Section */}
+        {isAdmin && (
+          <div className="space-y-4">
+            <div className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
+              Admin
+            </div>
+            {adminNavItems.map((item, i) => (
+              <button
+                onClick={() => handleAdminNavClick(item.route, item.label)}
+                key={i}
+                className="flex items-center gap-3 text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors"
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between">
