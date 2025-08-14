@@ -126,7 +126,7 @@ export default function Header({
 
   return (
     <>
-      <header className="w-full bg-[var(--color-surface)] border-b border-[var(--color-border)] shadow-sm px-3 py-2 z-50 relative">
+      <header className="w-full bg-[var(--color-surface)] border-b border-[var(--color-border)] shadow-sm px-3 py-2 z-50 fixed top-0 left-0">
         <div className={`flex items-center relative ${(onVoidPage || onForgePage || onSourcePage) ? 'justify-between gap-3' : 'justify-between flex-wrap gap-2'}`}>
           
           {/* Left Section */}
