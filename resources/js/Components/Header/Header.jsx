@@ -9,14 +9,16 @@ import LeftSection from './Head/LeftSection'
 import CenterSection from './Head/CenterSection'
 import RightSection from './Head/RightSection'
 import MobileSearch from './Head/MobileSearch'
-import { themeColors } from './Head/ThemeSelector'
+
+// Import Zustand stores
+import { useThemeStore } from '@/stores/useThemeStore'
+import { useEditorStore } from '@/stores/useEditorStore'
 
 export default function Header({ 
   isAuthenticated = true, 
   currentRoute = '/projects', 
   onThemeChange, 
   onPanelToggle, 
-  panelStates = {}, 
   onModeSwitch  
 }) {
   const { props } = usePage()
@@ -26,58 +28,50 @@ export default function Header({
   const onForgePage = isAuthenticated && (currentRoute === '/forge' || currentRoute.includes('/forge'))
   const onSourcePage = isAuthenticated && (currentRoute === '/source' || currentRoute.includes('/source'))
 
-  const [isDark, setIsDark] = useState(false)
+  // Zustand stores
+  const { 
+    isDark, 
+    currentTheme, 
+    toggleTheme, 
+    setThemeColor, 
+    initializeTheme 
+  } = useThemeStore()
+  
+  const {
+    responsiveMode,
+    zoomLevel,
+    interactionMode,
+    editMode,
+    inspectMode,
+    activeNav,
+    panelStates,
+    setResponsiveMode,
+    setZoomLevel,
+    setInteractionMode,
+    setEditMode,
+    setInspectMode,
+    setActiveNav,
+    togglePanel,
+    resetForPage
+  } = useEditorStore()
+
+  // Local component states (keep these as they are)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-
-  // Dropdown states
   const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false)
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
 
-  // Theme state
-  const [currentTheme, setCurrentTheme] = useState(themeColors[themeColors.length - 1]) // Default theme
-
-  // Void and Forge page specific states
-  const [responsiveMode, setResponsiveMode] = useState('desktop')
-  const [zoomLevel, setZoomLevel] = useState(80)
-  const [interactionMode, setInteractionMode] = useState('cursor')
-  const [editMode, setEditMode] = useState('edit')
-
-  // Forge and Source page specific states
-  const [activeNav, setActiveNav] = useState(() => {
-    if (onForgePage) return 'Forge'
-    if (onSourcePage) return 'Source'
-    return 'Forge'
-  })
-  const [inspectMode, setInspectMode] = useState(false)
-  
+  // Initialize theme on mount
   useEffect(() => {
-    if (onForgePage) setActiveNav('Forge')
-    else if (onSourcePage) setActiveNav('Source')
-  }, [onForgePage, onSourcePage])
+    initializeTheme()
+  }, [initializeTheme])
 
+  // Reset editor states when page changes
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme')
-    if (savedTheme === 'dark') {
-      document.documentElement.classList.add('dark')
-      setIsDark(true)
-    } else if (savedTheme === 'light') {
-      document.documentElement.classList.remove('dark')
-      setIsDark(false)
-    } else {
-      const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      document.documentElement.classList.toggle('dark', systemDark)
-      setIsDark(systemDark)
-    }
-
-    // Load saved theme color
-    const savedThemeColor = localStorage.getItem('themeColor')
-    if (savedThemeColor) {
-      const savedThemeObj = JSON.parse(savedThemeColor)
-      setCurrentTheme(savedThemeObj)
-      applyThemeColor(savedThemeObj)
-    }
-  }, [])
+    if (onForgePage) resetForPage('forge')
+    else if (onSourcePage) resetForPage('source')
+    else if (onVoidPage) resetForPage('void')
+  }, [onForgePage, onSourcePage, onVoidPage, resetForPage])
 
   // Notify parent component about theme changes
   useEffect(() => {
@@ -85,25 +79,6 @@ export default function Header({
       onThemeChange(isDark)
     }
   }, [isDark, onThemeChange])
-
-  const toggleTheme = () => {
-    const newTheme = isDark ? 'light' : 'dark'
-    localStorage.setItem('theme', newTheme)
-    document.documentElement.classList.toggle('dark', !isDark)
-    setIsDark(!isDark)
-  }
-
-  const applyThemeColor = (theme) => {
-    const root = document.documentElement
-    root.style.setProperty('--color-primary', theme.color)
-    root.style.setProperty('--color-primary-hover', theme.color + 'dd') // Add opacity
-  }
-
-  const handleThemeColorChange = (theme) => {
-    setCurrentTheme(theme)
-    applyThemeColor(theme)
-    localStorage.setItem('themeColor', JSON.stringify(theme))
-  }
 
   const toggleMobileSearch = () => {
     setMobileSearchOpen(prev => !prev)
@@ -138,7 +113,7 @@ export default function Header({
               isDark={isDark}
               onThemeToggle={toggleTheme}
               currentTheme={currentTheme}
-              onThemeColorChange={handleThemeColorChange}
+              onThemeColorChange={setThemeColor}
               activeNav={activeNav}
               setActiveNav={setActiveNav}
               onModeSwitch={onModeSwitch}
@@ -160,7 +135,7 @@ export default function Header({
             setZoomLevel={setZoomLevel}
             interactionMode={interactionMode}
             setInteractionMode={setInteractionMode}
-            onPanelToggle={onPanelToggle}
+            onPanelToggle={onPanelToggle || togglePanel}
             panelStates={panelStates}
           />
 

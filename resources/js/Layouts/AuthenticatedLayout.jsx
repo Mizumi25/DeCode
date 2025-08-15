@@ -1,7 +1,3 @@
-
-
-
-
 // Update your existing AuthenticatedLayout.jsx
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
@@ -10,6 +6,7 @@ import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import { Link, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import Header from '@/Components/Header/Header';
+import { useThemeStore } from '@/stores/useThemeStore';
 
 export default function AuthenticatedLayout({ 
   header, 
@@ -20,10 +17,14 @@ export default function AuthenticatedLayout({
   const user = usePage().props.auth.user;
   const currentRoute = usePage().url;
   const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);
-
-  const handleThemeChange = (isDark) => {
+  
+  // Get theme from Zustand store
+  const { isDark } = useThemeStore();
+  
+  const handleThemeChange = (isDarkFromHeader) => {
+    // Call the prop callback if provided (for backward compatibility)
     if (onThemeChange) {
-      onThemeChange(isDark);
+      onThemeChange(isDarkFromHeader);
     }
   };
 

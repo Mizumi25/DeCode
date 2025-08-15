@@ -8,10 +8,15 @@ import FloatingToolbox from '@/Components/Void/FloatingToolbox'
 import FramesContainer from '@/Components/Void/FramesContainer'
 import DeleteButton from '@/Components/Void/DeleteButton'
 import { useScrollHandler } from '@/Components/Void/ScrollHandler'
+import { useThemeStore } from '@/stores/useThemeStore'
+import { useEditorStore } from '@/stores/useEditorStore'
 
-export default function VoidPage({ isDark: initialIsDark }) {
+export default function VoidPage() {
   const canvasRef = useRef(null)
-  const [isDark, setIsDark] = useState(initialIsDark || false)
+  
+  // Zustand stores
+  const { isDark } = useThemeStore()
+  const { panelStates, togglePanel } = useEditorStore()
   
   // Infinite scroll state - REDUCED scroll bounds and sensitivity
   const [scrollPosition, setScrollPosition] = useState({ x: 0, y: 0 })
@@ -43,15 +48,9 @@ export default function VoidPage({ isDark: initialIsDark }) {
     scrollBounds
   })
 
-  // Handle theme changes from the header
-  const handleThemeChange = (darkMode) => {
-    setIsDark(darkMode)
-  }
-
   // Panel handlers
   const handlePanelClose = (panelId) => {
-    console.log('Closing panel:', panelId)
-    // You can implement panel close logic here
+    togglePanel(panelId)
   }
 
   const handlePanelMaximize = (panelId) => {
@@ -71,7 +70,7 @@ export default function VoidPage({ isDark: initialIsDark }) {
   ]
 
   return (
-    <AuthenticatedLayout onThemeChange={handleThemeChange}>
+    <AuthenticatedLayout>
       <Head title="VoidPage" />
       <div 
         ref={canvasRef}

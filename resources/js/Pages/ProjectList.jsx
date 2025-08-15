@@ -437,7 +437,7 @@ export default function ProjectList() {
                   className="w-full max-w-4xl h-full max-h-[600px] bg-[var(--color-bg-muted)] rounded-2xl shadow-2xl overflow-hidden"
                   style={{ perspective: 1000 }}
                 >
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-800 dark:to-slate-900">
+                  <div className="w-full h-full flex items-center justify-center bg-[var(--color-bg-muted)]">
                     <div className="text-center">
                       <div className="w-24 h-24 mx-auto mb-4 bg-gradient-to-r from-blue-400 to-purple-500 rounded-xl opacity-80"></div>
                       <h3 className="text-2xl font-bold text-[var(--color-text)] mb-2">
