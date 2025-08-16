@@ -8,6 +8,7 @@ import ResponsiveToggle from './ResponsiveToggle'
 import UndoRedoControls from './UndoRedoControls'
 import ZoomControls from './ZoomControls'
 import BinaryToggle from './BinaryToggle'
+import AnimatedBlackHoleLogo from '@/Components/AnimatedBlackHoleLogo'
 
 const fadeIn = {
   hidden: { opacity: 0, y: -10 },
@@ -74,10 +75,8 @@ const LeftSection = ({
         </button>
       )}
       
-      {/* Logo */}
-      <div className="w-5 h-5 rounded-full bg-[var(--color-primary)] flex items-center justify-center text-white text-xs font-bold">
-        ⬤
-      </div>
+      {/* Animated Logo */}
+      <AnimatedBlackHoleLogo size={20} />
 
       {/* Logo Label */}
       <span className="text-[var(--color-text)] text-sm font-semibold">DeCode</span>

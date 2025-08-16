@@ -1,5 +1,5 @@
-// Enhanced ForgePage.jsx - Refactored with separated components
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+// Enhanced ForgePage.jsx - Updated with dynamic component system
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import Panel from '@/Components/Panel';
@@ -14,8 +14,8 @@ import BottomCodePanel from '@/Components/Forge/BottomCodePanel';
 import SidebarCodePanel from '@/Components/Forge/SidebarCodePanel';
 import CodeTooltip from '@/Components/Forge/CodeTooltip';
 
-// Import utilities and data
-import { componentLibrary } from '@/Components/Forge/ComponentLibrary';
+// Import dynamic component service
+import { componentLibraryService } from '@/Services/ComponentLibraryService';
 import { tooltipDatabase } from '@/Components/Forge/TooltipDatabase';
 import { formatCode, highlightCode, parseCodeAndUpdateComponents } from '@/Components/Forge/CodeUtils';
 
@@ -38,6 +38,7 @@ export default function ForgePage({ projectId, frameId }) {
   const [codePanelHeight, setCodePanelHeight] = useState(400)
   const [codePanelMinimized, setCodePanelMinimized] = useState(false)
   const [codeStyle, setCodeStyle] = useState('react-tailwind')
+  const [componentsLoaded, setComponentsLoaded] = useState(false)
 
   // Drag state
   const [dragState, setDragState] = useState({
@@ -56,7 +57,46 @@ export default function ForgePage({ projectId, frameId }) {
   const canvasRef = useRef(null)
   const codePanelRef = useRef(null)
 
-  // Handle token hover for tooltips - Fixed for both mouse and touch
+  // Initialize component library on mount
+  useEffect(() => {
+    const initializeComponents = async () => {
+      try {
+        await componentLibraryService.loadComponents();
+        setComponentsLoaded(true);
+        
+        // Load existing project components if projectId and frameId are provided
+        if (projectId && frameId) {
+          const existingComponents = await componentLibraryService.loadProjectComponents(projectId, frameId);
+          setCanvasComponents(existingComponents);
+          if (existingComponents.length > 0) {
+            generateCode(existingComponents);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to initialize components:', error);
+      }
+    };
+
+    initializeComponents();
+  }, [projectId, frameId]);
+
+  // Auto-save project components when they change
+  useEffect(() => {
+    const saveComponents = async () => {
+      if (projectId && frameId && canvasComponents.length > 0 && componentsLoaded) {
+        try {
+          await componentLibraryService.saveProjectComponents(projectId, frameId, canvasComponents);
+        } catch (error) {
+          console.error('Failed to auto-save components:', error);
+        }
+      }
+    };
+
+    const timeoutId = setTimeout(saveComponents, 1000); // Debounce saves
+    return () => clearTimeout(timeoutId);
+  }, [canvasComponents, projectId, frameId, componentsLoaded]);
+
+  // Handle token hover for tooltips
   const handleTokenHover = (e) => {
     if (!showTooltips) return
     
@@ -81,9 +121,10 @@ export default function ForgePage({ projectId, frameId }) {
     console.log(`Panel ${panelId} closed`)
   }
 
-  const handlePanelStateChange = (hasRightPanels) => {
+  // FIXED: Memoize the callback to prevent unnecessary re-renders
+  const handlePanelStateChange = useCallback((hasRightPanels) => {
     console.log(`Right panels active: ${hasRightPanels}`)
-  }
+  }, [])
 
   const handlePanelToggle = (panelType) => {
     setPanelStates(prev => ({
@@ -108,16 +149,19 @@ export default function ForgePage({ projectId, frameId }) {
     }
   }
 
-  // Component drag handlers
+  // Component drag handlers - Updated for dynamic system
   const handleComponentDragStart = useCallback((e, componentType) => {
-    const component = componentLibrary[componentType]
-    if (!component) return
+    const componentDef = componentLibraryService.getComponentDefinition(componentType)
+    const component = componentLibraryService.getComponent(componentType)
+    
+    if (!component || !componentDef) return
 
     setDragState({
       isDragging: true,
       draggedComponent: {
         ...component,
-        type: componentType
+        type: componentType,
+        definition: componentDef
       },
       dragPreview: null
     })
@@ -161,7 +205,7 @@ export default function ForgePage({ projectId, frameId }) {
     })
   }, [dragState.dragPreview])
 
-  // Canvas drop handlers
+  // Canvas drop handlers - Updated for dynamic system
   const handleCanvasDragOver = useCallback((e) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'copy'
@@ -173,9 +217,10 @@ export default function ForgePage({ projectId, frameId }) {
     if (!canvasRef.current || !dragState.isDragging) return
 
     const componentType = e.dataTransfer.getData('text/plain')
-    const component = componentLibrary[componentType]
+    const componentDef = componentLibraryService.getComponentDefinition(componentType)
+    const component = componentLibraryService.getComponent(componentType)
     
-    if (!component) return
+    if (!component || !componentDef) return
 
     // Calculate drop position relative to canvas
     const canvasRect = canvasRef.current.getBoundingClientRect()
@@ -186,20 +231,21 @@ export default function ForgePage({ projectId, frameId }) {
     const newComponent = {
       id: `${componentType}_${Date.now()}`,
       type: componentType,
-      props: { ...component.defaultProps },
+      props: { ...componentDef.default_props },
       position: { x, y },
-      name: component.name
+      name: componentDef.name
     }
 
-    setCanvasComponents(prev => [...prev, newComponent])
+    const updatedComponents = [...canvasComponents, newComponent];
+    setCanvasComponents(updatedComponents)
     setSelectedComponent(newComponent.id)
     handleComponentDragEnd()
 
     // Generate code for all components
-    generateCode([...canvasComponents, newComponent])
+    generateCode(updatedComponents)
   }, [dragState.isDragging, canvasComponents])
 
-  // Code panel drag handlers
+  // Code panel drag handlers (unchanged)
   const handleCodePanelDragStart = useCallback((e) => {
     setCodePanelDragState({
       isDragging: true,
@@ -214,7 +260,6 @@ export default function ForgePage({ projectId, frameId }) {
     const deltaX = e.clientX - codePanelDragState.startX
     const deltaY = e.clientY - codePanelDragState.startY
 
-    // Determine if dragging to right panel (more horizontal movement to right)
     if (Math.abs(deltaX) > Math.abs(deltaY) && deltaX > 100) {
       setCodePanelPosition('right')
     } else if (deltaY > 50) {
@@ -224,7 +269,7 @@ export default function ForgePage({ projectId, frameId }) {
     setCodePanelDragState({ isDragging: false, startX: 0, startY: 0 })
   }, [codePanelDragState])
 
-  // Global drag handlers for drag preview positioning
+  // Global drag handlers for drag preview positioning (unchanged)
   useEffect(() => {
     if (!dragState.isDragging || !dragState.dragPreview) return
 
@@ -237,7 +282,6 @@ export default function ForgePage({ projectId, frameId }) {
 
     const handleMouseMove = (e) => {
       if (codePanelDragState.isDragging) {
-        // Visual feedback during drag
         const deltaX = e.clientX - codePanelDragState.startX
         if (codePanelRef.current) {
           codePanelRef.current.style.transform = `translateX(${Math.max(-50, Math.min(50, deltaX * 0.1))}px)`
@@ -297,19 +341,24 @@ export default function ForgePage({ projectId, frameId }) {
     generateCode(updatedComponents)
   }, [canvasComponents])
 
-  // Code generation with style support
-  const generateCode = useCallback((components) => {
+  // Code generation with dynamic system
+  const generateCode = useCallback(async (components) => {
     if (components.length === 0) {
       setGeneratedCode({ html: '', css: '', react: '', tailwind: '' })
       setShowCodePanel(false)
       return
     }
 
-    const lib = componentLibrary.button
-    if (lib && lib.generateCode) {
-      const code = lib.generateCode({}, components, codeStyle)
-      setGeneratedCode(code)
-      setShowCodePanel(true)
+    try {
+      // Use the first component to get the service (they all use the same generator now)
+      const firstComponent = componentLibraryService.getComponent(components[0].type);
+      if (firstComponent && firstComponent.generateCode) {
+        const code = await firstComponent.generateCode({}, components, codeStyle)
+        setGeneratedCode(code)
+        setShowCodePanel(true)
+      }
+    } catch (error) {
+      console.error('Failed to generate code:', error);
     }
   }, [codeStyle])
 
@@ -320,7 +369,6 @@ export default function ForgePage({ projectId, frameId }) {
       [codeType]: newCode
     }))
     
-    // Parse code and update components if editing React code
     if (codeType === 'react') {
       parseCodeAndUpdateComponents(newCode, codeType, setCanvasComponents)
     }
@@ -342,7 +390,6 @@ export default function ForgePage({ projectId, frameId }) {
   const copyCodeToClipboard = useCallback(async (code) => {
     try {
       await navigator.clipboard.writeText(code)
-      // You can add a toast notification here
     } catch (err) {
       console.error('Failed to copy code:', err)
     }
@@ -375,8 +422,8 @@ export default function ForgePage({ projectId, frameId }) {
     }
   }
 
-  // Enhanced default panels with professional aesthetics
-  const defaultPanels = [
+  // FIXED: Memoize default panels to prevent recreation on every render
+  const defaultPanels = useMemo(() => [
     {
       id: 'components',
       title: 'Components',
@@ -408,6 +455,7 @@ export default function ForgePage({ projectId, frameId }) {
           onPropertyUpdate={handlePropertyUpdate}
           onComponentDelete={handleComponentDelete}
           onGenerateCode={generateCode}
+          componentLibraryService={componentLibraryService}
         />
       )
     },
@@ -416,7 +464,59 @@ export default function ForgePage({ projectId, frameId }) {
       title: 'Assets',
       content: <AssetsPanel />
     }
-  ]
+  ], [
+    handleComponentDragStart,
+    handleComponentDragEnd,
+    canvasComponents,
+    selectedComponent,
+    handlePropertyUpdate,
+    handleComponentDelete,
+    generateCode
+  ])
+
+  // FIXED: Memoize the sidebar code panel to prevent recreation
+  const sidebarCodePanel = useMemo(() => ({
+    id: 'code',
+    title: 'Generated Code',
+    content: (
+      <SidebarCodePanel
+        showTooltips={showTooltips}
+        setShowTooltips={setShowTooltips}
+        codeStyle={codeStyle}
+        setCodeStyle={setCodeStyle}
+        activeCodeTab={activeCodeTab}
+        setActiveCodeTab={setActiveCodeTab}
+        generatedCode={generatedCode}
+        getAvailableTabs={getAvailableTabs}
+        highlightCode={highlightCode}
+        handleTokenHover={handleTokenHover}
+        handleTokenLeave={handleTokenLeave}
+        handleCodeEdit={handleCodeEdit}
+        copyCodeToClipboard={copyCodeToClipboard}
+        downloadCode={downloadCode}
+        setCodePanelPosition={setCodePanelPosition}
+        canvasComponents={canvasComponents}
+        generateCode={generateCode}
+      />
+    )
+  }), [
+    showTooltips,
+    codeStyle,
+    activeCodeTab,
+    generatedCode,
+    handleCodeEdit,
+    copyCodeToClipboard,
+    downloadCode,
+    canvasComponents,
+    generateCode
+  ])
+
+  // FIXED: Memoize the final panels array
+  const finalPanels = useMemo(() => {
+    return codePanelPosition === 'right' && showCodePanel 
+      ? [...defaultPanels, sidebarCodePanel]
+      : defaultPanels
+  }, [defaultPanels, sidebarCodePanel, codePanelPosition, showCodePanel])
 
   return (
     <AuthenticatedLayout
@@ -445,7 +545,7 @@ export default function ForgePage({ projectId, frameId }) {
             canvasComponents={canvasComponents}
             selectedComponent={selectedComponent}
             dragState={dragState}
-            componentLibrary={componentLibrary}
+            componentLibrary={componentLibraryService.getAllComponents()}
             onCanvasDragOver={handleCanvasDragOver}
             onCanvasDrop={handleCanvasDrop}
             onCanvasClick={handleCanvasClick}
@@ -485,34 +585,10 @@ export default function ForgePage({ projectId, frameId }) {
         />
       </div>
 
-      {/* Enhanced Panel System */}
+      {/* Enhanced Panel System - FIXED: Use memoized panels */}
       <Panel
         isOpen={true}
-        initialPanels={codePanelPosition === 'right' && showCodePanel ? [...defaultPanels, {
-          id: 'code',
-          title: 'Generated Code',
-          content: (
-            <SidebarCodePanel
-              showTooltips={showTooltips}
-              setShowTooltips={setShowTooltips}
-              codeStyle={codeStyle}
-              setCodeStyle={setCodeStyle}
-              activeCodeTab={activeCodeTab}
-              setActiveCodeTab={setActiveCodeTab}
-              generatedCode={generatedCode}
-              getAvailableTabs={getAvailableTabs}
-              highlightCode={highlightCode}
-              handleTokenHover={handleTokenHover}
-              handleTokenLeave={handleTokenLeave}
-              handleCodeEdit={handleCodeEdit}
-              copyCodeToClipboard={copyCodeToClipboard}
-              downloadCode={downloadCode}
-              setCodePanelPosition={setCodePanelPosition}
-              canvasComponents={canvasComponents}
-              generateCode={generateCode}
-            />
-          )
-        }] : defaultPanels}
+        initialPanels={finalPanels}
         allowedDockPositions={['left', 'right']}
         onPanelClose={handlePanelClose}
         onPanelStateChange={handlePanelStateChange}

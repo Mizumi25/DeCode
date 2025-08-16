@@ -1,162 +1,313 @@
 // @/Components/Forge/PropertiesPanel.jsx
 import React from 'react';
-import { Settings, Square, Trash2 } from 'lucide-react';
+import { Settings, Trash2, Code, Move, Lock, Unlock } from 'lucide-react';
 
 const PropertiesPanel = ({ 
   canvasComponents, 
   selectedComponent, 
   onPropertyUpdate, 
-  onComponentDelete,
-  onGenerateCode 
+  onComponentDelete, 
+  onGenerateCode,
+  componentLibraryService
 }) => {
+  const selectedComponentData = canvasComponents.find(c => c.id === selectedComponent);
+
+  if (!selectedComponent || !selectedComponentData) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+            <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+          </div>
+          <div>
+            <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Properties</h3>
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Select a component to edit</p>
+          </div>
+        </div>
+        
+        <div className="text-center py-12">
+          <Settings className="w-12 h-12 mx-auto mb-4 opacity-30" style={{ color: 'var(--color-text-muted)' }} />
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+            No component selected.<br />
+            Click on a component to see its properties.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const componentDefinition = componentLibraryService.getComponentDefinition(selectedComponentData.type);
+
+  if (!componentDefinition) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-sm text-red-500">
+          Component definition not found for {selectedComponentData.type}
+        </p>
+      </div>
+    );
+  }
+
+  const handlePropertyChange = (propName, value) => {
+    onPropertyUpdate(selectedComponent, propName, value);
+  };
+
+  const handlePositionChange = (axis, value) => {
+    const newPosition = {
+      ...selectedComponentData.position,
+      [axis]: parseFloat(value) || 0
+    };
+    onPropertyUpdate(selectedComponent, 'position', newPosition);
+  };
+
+  const renderPropertyInput = (propName, propDef, currentValue) => {
+    const baseInputClasses = "w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors";
+
+    switch (propDef.type) {
+      case 'string':
+        return (
+          <input
+            type="text"
+            value={currentValue || propDef.default || ''}
+            onChange={(e) => handlePropertyChange(propName, e.target.value)}
+            className={baseInputClasses}
+            placeholder={propDef.default || ''}
+          />
+        );
+
+      case 'textarea':
+        return (
+          <textarea
+            value={currentValue || propDef.default || ''}
+            onChange={(e) => handlePropertyChange(propName, e.target.value)}
+            className={`${baseInputClasses} resize-vertical min-h-[80px]`}
+            placeholder={propDef.default || ''}
+            rows={3}
+          />
+        );
+
+      case 'number':
+        return (
+          <input
+            type="number"
+            value={currentValue || propDef.default || 0}
+            onChange={(e) => handlePropertyChange(propName, parseFloat(e.target.value) || 0)}
+            className={baseInputClasses}
+            step={propDef.step || 1}
+            min={propDef.min}
+            max={propDef.max}
+          />
+        );
+
+      case 'boolean':
+        return (
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              checked={currentValue !== undefined ? currentValue : propDef.default}
+              onChange={(e) => handlePropertyChange(propName, e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+            />
+            <label className="ml-2 text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+              {propDef.label}
+            </label>
+          </div>
+        );
+
+      case 'select':
+        return (
+          <select
+            value={currentValue || propDef.default || ''}
+            onChange={(e) => handlePropertyChange(propName, e.target.value)}
+            className={baseInputClasses}
+          >
+            {propDef.options.map((option) => (
+              <option key={option} value={option}>
+                {option.charAt(0).toUpperCase() + option.slice(1)}
+              </option>
+            ))}
+          </select>
+        );
+
+      case 'color':
+        return (
+          <div className="flex gap-2">
+            <input
+              type="color"
+              value={currentValue || propDef.default || '#000000'}
+              onChange={(e) => handlePropertyChange(propName, e.target.value)}
+              className="w-12 h-10 border rounded cursor-pointer"
+            />
+            <input
+              type="text"
+              value={currentValue || propDef.default || ''}
+              onChange={(e) => handlePropertyChange(propName, e.target.value)}
+              className={`${baseInputClasses} flex-1`}
+              placeholder="#000000"
+            />
+          </div>
+        );
+
+      case 'range':
+        return (
+          <div className="space-y-2">
+            <input
+              type="range"
+              min={propDef.min || 0}
+              max={propDef.max || 100}
+              step={propDef.step || 1}
+              value={currentValue || propDef.default || 0}
+              onChange={(e) => handlePropertyChange(propName, parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+            />
+            <div className="text-xs text-center" style={{ color: 'var(--color-text-muted)' }}>
+              {currentValue || propDef.default || 0}
+            </div>
+          </div>
+        );
+
+      default:
+        return (
+          <input
+            type="text"
+            value={currentValue || propDef.default || ''}
+            onChange={(e) => handlePropertyChange(propName, e.target.value)}
+            className={baseInputClasses}
+          />
+        );
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-6">
         <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
           <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
         </div>
         <div>
           <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Properties</h3>
-          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Customize elements</p>
+          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            {componentDefinition.name} #{selectedComponent.split('_').pop()}
+          </p>
         </div>
       </div>
-      
-      {selectedComponent ? (() => {
-        const component = canvasComponents.find(c => c.id === selectedComponent)
-        if (!component) return <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Component not found</div>
-        
-        return (
-          <div className="space-y-4">
-            <div className="p-4 rounded-xl border" style={{ backgroundColor: 'var(--color-bg-muted)', borderColor: 'var(--color-border)' }}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 rounded flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: 'var(--color-primary)' }}>
-                  <Square className="w-4 h-4" />
-                </div>
-                <h4 className="font-semibold" style={{ color: 'var(--color-text)' }}>{component.name}</h4>
-              </div>
-              <p className="text-xs font-mono px-2 py-1 rounded" style={{ color: 'var(--color-text-muted)', backgroundColor: 'var(--color-surface)' }}>
-                #{component.id.split('_').pop()}
-              </p>
-            </div>
-            
-            {component.type === 'button' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--color-text)' }}>Button Text</label>
-                  <input 
-                    type="text" 
-                    value={component.props.text}
-                    onChange={(e) => onPropertyUpdate(component.id, 'text', e.target.value)}
-                    className="w-full px-4 py-3 border-2 rounded-xl text-sm focus:outline-none transition-all"
-                    style={{ 
-                      borderColor: 'var(--color-border)', 
-                      backgroundColor: 'var(--color-surface)',
-                      color: 'var(--color-text)'
-                    }}
-                    placeholder="Enter button text..."
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold mb-3" style={{ color: 'var(--color-text)' }}>Style Variant</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {['primary', 'secondary', 'success', 'warning', 'danger', 'ghost'].map(variant => (
-                      <button
-                        key={variant}
-                        onClick={() => onPropertyUpdate(component.id, 'variant', variant)}
-                        className="p-2 rounded-lg text-xs font-medium transition-all"
-                        style={{
-                          backgroundColor: component.props.variant === variant ? 'var(--color-primary)' : 'var(--color-bg-muted)',
-                          color: component.props.variant === variant ? 'white' : 'var(--color-text)'
-                        }}
-                      >
-                        {variant.charAt(0).toUpperCase() + variant.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold mb-3" style={{ color: 'var(--color-text)' }}>Size</label>
-                  <div className="flex gap-2">
-                    {['sm', 'md', 'lg'].map(size => (
-                      <button
-                        key={size}
-                        onClick={() => onPropertyUpdate(component.id, 'size', size)}
-                        className="px-4 py-2 rounded-lg text-sm font-medium transition-all flex-1"
-                        style={{
-                          backgroundColor: component.props.size === size ? 'var(--color-primary)' : 'var(--color-bg-muted)',
-                          color: component.props.size === size ? 'white' : 'var(--color-text)'
-                        }}
-                      >
-                        {size.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
-                <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--color-text)' }}>Position</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs" style={{ color: 'var(--color-text-muted)' }}>X</label>
-                      <input
-                        type="number"
-                        value={component.position.x}
-                        onChange={(e) => onPropertyUpdate(component.id, 'position', { 
-                          ...component.position, 
-                          x: parseInt(e.target.value) || 0 
-                        })}
-                        className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none"
-                        style={{ 
-                          borderColor: 'var(--color-border)', 
-                          backgroundColor: 'var(--color-surface)',
-                          color: 'var(--color-text)'
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Y</label>
-                      <input
-                        type="number"
-                        value={component.position.y}
-                        onChange={(e) => onPropertyUpdate(component.id, 'position', { 
-                          ...component.position, 
-                          y: parseInt(e.target.value) || 0 
-                        })}
-                        className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none"
-                        style={{ 
-                          borderColor: 'var(--color-border)', 
-                          backgroundColor: 'var(--color-surface)',
-                          color: 'var(--color-text)'
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            <button
-              onClick={() => onComponentDelete(component.id)}
-              className="w-full mt-6 px-4 py-3 text-white border-0 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
-              style={{ backgroundColor: '#ef4444' }}
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete Component
-            </button>
+      {/* Component Info */}
+      <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-medium" style={{ color: 'var(--color-text)' }}>
+            {componentDefinition.name}
+          </span>
+          <span className="text-xs px-2 py-1 rounded-full" style={{ 
+            backgroundColor: 'var(--color-primary-soft)', 
+            color: 'var(--color-primary)' 
+          }}>
+            {componentDefinition.category}
+          </span>
+        </div>
+        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+          {componentDefinition.description}
+        </p>
+      </div>
+
+      {/* Position Controls */}
+      <div className="space-y-3">
+        <h4 className="font-medium text-sm flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+          <Move className="w-4 h-4" />
+          Position
+        </h4>
+        
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>
+              X Position
+            </label>
+            <input
+              type="number"
+              value={selectedComponentData.position.x}
+              onChange={(e) => handlePositionChange('x', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              step="1"
+            />
           </div>
-        )
-      })() : (
-        <div className="text-center p-8 border-2 border-dashed rounded-xl" style={{ borderColor: 'var(--color-border)' }}>
-          <div className="mb-4">
-            <Settings className="w-12 h-12 mx-auto opacity-50" style={{ color: 'var(--color-text-muted)' }} />
-          </div>
-          <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-            Select a component from the canvas or layers panel to edit its properties
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>
+              Y Position
+            </label>
+            <input
+              type="number"
+              value={selectedComponentData.position.y}
+              onChange={(e) => handlePositionChange('y', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              step="1"
+            />
           </div>
         </div>
+      </div>
+
+      {/* Component Properties */}
+      {componentDefinition.prop_definitions && Object.keys(componentDefinition.prop_definitions).length > 0 && (
+        <div className="space-y-4">
+          <h4 className="font-medium text-sm" style={{ color: 'var(--color-text)' }}>
+            Component Properties
+          </h4>
+          
+          {Object.entries(componentDefinition.prop_definitions).map(([propName, propDef]) => (
+            <div key={propName} className="space-y-2">
+              {propDef.type !== 'boolean' && (
+                <label className="block text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+                  {propDef.label || propName.charAt(0).toUpperCase() + propName.slice(1)}
+                </label>
+              )}
+              
+              {renderPropertyInput(
+                propName, 
+                propDef, 
+                selectedComponentData.props[propName]
+              )}
+              
+              {propDef.description && (
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  {propDef.description}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
       )}
+
+      {/* Component Name */}
+      <div className="space-y-2">
+        <label className="block text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+          Component Name
+        </label>
+        <input
+          type="text"
+          value={selectedComponentData.name}
+          onChange={(e) => onPropertyUpdate(selectedComponent, 'name', e.target.value)}
+          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="Component name"
+        />
+      </div>
+
+      {/* Actions */}
+      <div className="space-y-3 pt-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+        <button
+          onClick={() => onGenerateCode([selectedComponentData])}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Code className="w-4 h-4" />
+          Generate Code
+        </button>
+        
+        <button
+          onClick={() => onComponentDelete(selectedComponent)}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+          Delete Component
+        </button>
+      </div>
     </div>
   );
 };

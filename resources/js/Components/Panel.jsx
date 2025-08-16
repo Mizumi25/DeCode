@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, GripVertical, Maximize2, Minimize2 } from 'lucide-react'
 
@@ -14,11 +14,13 @@ export default function Panel({
   mergePanels = false, // New prop for panel merging
   mergePosition = null, // Which position should be merged ('left' or 'right')
 }) {
-  // Load initial state from in-memory storage (no localStorage in Claude artifacts)
-  const loadPanelState = useCallback(() => {
-    // Use initialPanels if provided, otherwise use panels
-    const panelsToUse = initialPanels.length > 0 ? initialPanels : panels
-    
+  // Memoize the panels to use to prevent unnecessary re-calculations
+  const panelsToUse = useMemo(() => {
+    return initialPanels.length > 0 ? initialPanels : panels
+  }, [initialPanels, panels])
+
+  // Memoize the initial state calculation
+  const initialPanelState = useMemo(() => {
     if (panelsToUse.length === 0) {
       return { left: [], right: [] }
     }
@@ -47,9 +49,9 @@ export default function Panel({
       left: allowedDockPositions.includes('left') ? leftPanels : [],
       right: allowedDockPositions.includes('right') ? rightPanels : leftPanels.slice(0, 2)
     }
-  }, [initialPanels, panels, allowedDockPositions])
+  }, [panelsToUse, allowedDockPositions])
 
-  const [dockedPanels, setDockedPanels] = useState(loadPanelState)
+  const [dockedPanels, setDockedPanels] = useState(initialPanelState)
   const [mergedStates, setMergedStates] = useState(() => {
     // Initialize merged states based on mergePosition prop
     return {
@@ -70,11 +72,10 @@ export default function Panel({
   const dragPositionRef = useRef({ x: 0, y: 0 })
   const rafRef = useRef(null)
 
-  // Initialize panels when props change
+  // Only update panels when the memoized panelsToUse actually changes
   useEffect(() => {
-    const newState = loadPanelState()
-    setDockedPanels(newState)
-  }, [loadPanelState])
+    setDockedPanels(initialPanelState)
+  }, [initialPanelState])
 
   // Update merged states when mergePosition prop changes
   useEffect(() => {
@@ -84,13 +85,13 @@ export default function Panel({
     })
   }, [mergePosition])
 
-  // Notify parent of panel state changes
+  // Notify parent of panel state changes - ADD DEPENDENCY ARRAY
   useEffect(() => {
     if (onPanelStateChange) {
       const hasRightPanels = dockedPanels.right && dockedPanels.right.length > 0
       onPanelStateChange(hasRightPanels)
     }
-  }, [dockedPanels, onPanelStateChange])
+  }, [dockedPanels.right?.length, onPanelStateChange]) // FIXED: Added proper dependencies
 
   // Calculate panel height with hover preview and merging
   const getPanelHeight = useCallback((position) => {
