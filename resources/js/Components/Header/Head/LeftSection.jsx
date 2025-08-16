@@ -75,8 +75,19 @@ const LeftSection = ({
         </button>
       )}
       
-      {/* Animated Logo */}
-      <AnimatedBlackHoleLogo size={20} />
+      {/* Animated Logo with Glow Wrapper */}
+      <div 
+        className="relative"
+        style={{
+          filter: `
+            drop-shadow(0 0 8px rgba(255, 255, 255, 0.3))
+            drop-shadow(0 0 16px rgba(139, 92, 246, 0.4))
+            drop-shadow(0 0 24px rgba(147, 51, 234, 0.3))
+          `
+        }}
+      >
+        <AnimatedBlackHoleLogo size={20} />
+      </div>
 
       {/* Logo Label */}
       <span className="text-[var(--color-text)] text-sm font-semibold">DeCode</span>
