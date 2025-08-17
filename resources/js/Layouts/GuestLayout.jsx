@@ -28,9 +28,7 @@ export default function GuestLayout({ children }) {
     return (
         <div className="flex min-h-screen flex-col items-center bg-[var(--color-bg)] pt-6 sm:justify-center sm:pt-0 transition-all">
             <div ref={logoRef}>
-                <Link href="/">
-                    <ApplicationLogo className="h-20 w-20 fill-current text-[var(--color-text-muted)]" />
-                </Link>
+                
             </div>
 
             <div

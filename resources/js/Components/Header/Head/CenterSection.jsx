@@ -89,24 +89,6 @@ const CenterSection = ({
 
         {/* Vertical Divider */}
         <div className="w-px h-4 bg-[var(--color-border)]"></div>
-
-        {/* Style Modal Button */}
-        <button
-          onClick={toggleStyleModal}
-          className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
-          title="Style Variables"
-        >
-          <Settings className="w-4 h-4 text-[var(--color-text)]" />
-        </button>
-
-        {/* Hide All Panels Button */}
-        <button
-          onClick={() => onPanelToggle && onPanelToggle('hideAll')}
-          className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
-          title="Hide All Panels"
-        >
-          <EyeOff className="w-4 h-4 text-[var(--color-text)]" />
-        </button>
       </motion.div>
     )
   }
