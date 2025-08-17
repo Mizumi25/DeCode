@@ -1,5 +1,6 @@
 // @/Services/ComponentLibraryService.js
 import axios from 'axios';
+import React from 'react';
 
 class ComponentLibraryService {
   constructor() {
@@ -19,7 +20,11 @@ class ComponentLibraryService {
           this.componentDefinitions.set(component.type, component);
           this.components.set(component.type, this.createComponentRenderer(component));
         });
+        
+        console.log('Components loaded:', this.components.size);
+        return true;
       }
+      return false;
     } catch (error) {
       console.error('Failed to load components:', error);
       throw error;
@@ -36,18 +41,9 @@ class ComponentLibraryService {
       defaultProps: componentDef.default_props,
       propDefinitions: componentDef.prop_definitions,
       
-      // Render function based on component type
+      // Dynamic render function
       render: (props, id) => {
-        switch (componentDef.type) {
-          case 'button':
-            return this.renderButton(props, id);
-          case 'input':
-            return this.renderInput(props, id);
-          case 'card':
-            return this.renderCard(props, id);
-          default:
-            return this.renderGeneric(props, id, componentDef);
-        }
+        return this.renderComponent(componentDef, props, id);
       },
 
       // Generate code function
@@ -57,21 +53,36 @@ class ComponentLibraryService {
     };
   }
 
+  // Dynamic component renderer
+  renderComponent(componentDef, props, id) {
+    const mergedProps = { ...componentDef.default_props, ...props };
+    
+    switch (componentDef.type) {
+      case 'button':
+        return this.renderButton(mergedProps, id);
+      case 'input':
+        return this.renderInput(mergedProps, id);
+      case 'card':
+        return this.renderCard(mergedProps, id);
+      default:
+        return this.renderGeneric(mergedProps, id, componentDef);
+    }
+  }
+
   // Button renderer
   renderButton(props, id) {
-    const React = window.React;
     const className = this.getButtonClasses(props);
     
     return React.createElement('button', {
       key: id,
       className,
-      onClick: () => console.log(`Button ${id} clicked`)
+      onClick: () => console.log(`Button ${id} clicked`),
+      disabled: props.disabled || false
     }, props.text || 'Button');
   }
 
   // Input renderer
   renderInput(props, id) {
-    const React = window.React;
     const className = this.getInputClasses(props);
     
     return React.createElement('input', {
@@ -86,7 +97,6 @@ class ComponentLibraryService {
 
   // Card renderer
   renderCard(props, id) {
-    const React = window.React;
     const cardClassName = this.getCardClasses(props);
     
     return React.createElement('div', {
@@ -95,7 +105,7 @@ class ComponentLibraryService {
     }, [
       props.title && React.createElement('h3', {
         key: `${id}-title`,
-        className: 'font-semibold text-lg mb-2'
+        className: 'font-semibold text-lg mb-2 text-gray-900'
       }, props.title),
       React.createElement('div', {
         key: `${id}-content`,
@@ -104,15 +114,22 @@ class ComponentLibraryService {
     ]);
   }
 
-  // Generic renderer for unknown components
+  // Generic renderer for any component type
   renderGeneric(props, id, componentDef) {
-    const React = window.React;
-    
     return React.createElement('div', {
       key: id,
-      className: 'p-4 border rounded-lg bg-gray-100',
+      className: 'p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 text-center',
       title: `${componentDef.name} component`
-    }, `${componentDef.name} (${componentDef.type})`);
+    }, [
+      React.createElement('div', {
+        key: `${id}-name`,
+        className: 'font-semibold text-gray-700'
+      }, componentDef.name),
+      React.createElement('div', {
+        key: `${id}-type`,
+        className: 'text-xs text-gray-500 mt-1'
+      }, `(${componentDef.type})`)
+    ]);
   }
 
   // Get Tailwind classes for button
@@ -158,12 +175,12 @@ class ComponentLibraryService {
 
   // Get Tailwind classes for card
   getCardClasses(props) {
-    const baseClasses = "rounded-lg border";
+    const baseClasses = "rounded-lg border bg-white";
     
     const variantClasses = {
-      default: "bg-white border-gray-200",
-      outlined: "bg-transparent border-gray-300",
-      elevated: "bg-white border-transparent shadow-lg"
+      default: "border-gray-200",
+      outlined: "border-gray-300 bg-transparent",
+      elevated: "border-transparent shadow-lg"
     };
     
     const paddingClasses = {
@@ -177,9 +194,10 @@ class ComponentLibraryService {
     return `${baseClasses} ${variantClasses[props.variant] || variantClasses.default} ${paddingClasses[props.padding] || paddingClasses.md} ${shadowClass}`;
   }
 
-  // Generate code for component
+  // Generate code for components
   async generateComponentCode(componentDef, props, allComponents, style) {
     try {
+      // Try server-side generation first
       const response = await axios.post('/api/components/generate-code', {
         components: allComponents,
         style: style
@@ -189,25 +207,49 @@ class ComponentLibraryService {
         return response.data.data;
       }
     } catch (error) {
-      console.error('Failed to generate code:', error);
-      // Fallback to client-side generation
-      return this.clientSideCodeGeneration(componentDef, props, allComponents, style);
+      console.warn('Server-side code generation failed, using client-side fallback:', error);
     }
+    
+    // Fallback to client-side generation
+    return this.clientSideCodeGeneration(allComponents, style);
   }
 
-  // Fallback client-side code generation
-  clientSideCodeGeneration(componentDef, props, allComponents, style) {
+  // Client-side code generation
+  clientSideCodeGeneration(allComponents, style) {
+    console.log('Generating code for', allComponents.length, 'components with style:', style);
+    
     switch (style) {
       case 'react-tailwind':
         return this.generateReactTailwindCode(allComponents);
+      case 'react-css':
+        return this.generateReactCSSCode(allComponents);
+      case 'html-css':
+        return this.generateHTMLCSSCode(allComponents);
       case 'html-tailwind':
         return this.generateHTMLTailwindCode(allComponents);
       default:
-        return { html: '', css: '', react: '', tailwind: '' };
+        return this.generateReactTailwindCode(allComponents);
     }
   }
 
   generateReactTailwindCode(allComponents) {
+    if (!allComponents || allComponents.length === 0) {
+      return {
+        react: `import React from 'react';
+
+const GeneratedComponent = () => {
+  return (
+    <div className="relative w-full h-full min-h-[400px] bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl">
+      {/* No components yet */}
+    </div>
+  );
+};
+
+export default GeneratedComponent;`,
+        tailwind: '// No components to generate classes for'
+      };
+    }
+
     const reactComponents = allComponents.map(comp => {
       const classes = this.getComponentClasses(comp);
       return `        <div style={{ position: 'absolute', left: '${comp.position.x}px', top: '${comp.position.y}px' }}>
@@ -227,7 +269,57 @@ ${reactComponents}
 };
 
 export default GeneratedComponent;`,
-      tailwind: allComponents.map(comp => this.getComponentClasses(comp)).join('\n\n// Next component:\n')
+      tailwind: allComponents.map(comp => `// ${comp.name} (${comp.type})\n${this.getComponentClasses(comp)}`).join('\n\n')
+    };
+  }
+
+  generateReactCSSCode(allComponents) {
+    const reactComponents = allComponents.map(comp => {
+      return `        <div style={{ position: 'absolute', left: '${comp.position.x}px', top: '${comp.position.y}px' }}>
+          ${this.generateComponentJSX(comp, `btn btn-${comp.props.variant || 'primary'} btn-${comp.props.size || 'md'}`)}
+        </div>`;
+    }).join('\n');
+
+    return {
+      react: `import React from 'react';
+import './GeneratedComponent.css';
+
+const GeneratedComponent = () => {
+  return (
+    <div className="canvas-container">
+${reactComponents}
+    </div>
+  );
+};
+
+export default GeneratedComponent;`,
+      css: this.generateCSSStyles(allComponents)
+    };
+  }
+
+  generateHTMLCSSCode(allComponents) {
+    const htmlComponents = allComponents.map(comp => {
+      return `    <div style="position: absolute; left: ${comp.position.x}px; top: ${comp.position.y}px;">
+      ${this.generateComponentHTML(comp, `btn btn-${comp.props.variant || 'primary'} btn-${comp.props.size || 'md'}`)}
+    </div>`;
+    }).join('\n');
+
+    return {
+      html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generated Component</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="canvas-container">
+${htmlComponents}
+    </div>
+</body>
+</html>`,
+      css: this.generateCSSStyles(allComponents)
     };
   }
 
@@ -254,40 +346,157 @@ ${htmlComponents}
     </div>
 </body>
 </html>`,
-      tailwind: allComponents.map(comp => this.getComponentClasses(comp)).join('\n\n')
+      tailwind: allComponents.map(comp => `/* ${comp.name} (${comp.type}) */\n${this.getComponentClasses(comp)}`).join('\n\n')
     };
   }
 
   generateComponentJSX(comp, classes) {
+    const componentDef = this.componentDefinitions.get(comp.type);
+    if (!componentDef) return `<div className="${classes}">${comp.name || comp.type}</div>`;
+
     switch (comp.type) {
       case 'button':
-        return `<button className="${classes}">${comp.props.text}</button>`;
+        return `<button className="${classes}" ${comp.props.disabled ? 'disabled' : ''}>${comp.props.text || 'Button'}</button>`;
       case 'input':
-        return `<input type="${comp.props.type || 'text'}" placeholder="${comp.props.placeholder || ''}" className="${classes}" />`;
+        return `<input type="${comp.props.type || 'text'}" placeholder="${comp.props.placeholder || ''}" className="${classes}" ${comp.props.required ? 'required' : ''} ${comp.props.disabled ? 'disabled' : ''} />`;
       case 'card':
         return `<div className="${classes}">
-            ${comp.props.title ? `<h3 className="font-semibold text-lg mb-2">${comp.props.title}</h3>` : ''}
+            ${comp.props.title ? `<h3 className="font-semibold text-lg mb-2 text-gray-900">${comp.props.title}</h3>` : ''}
             <div className="text-gray-600">${comp.props.content || 'Card content'}</div>
           </div>`;
       default:
-        return `<div className="${classes}">${comp.name}</div>`;
+        return `<div className="${classes}">${comp.name || componentDef.name}</div>`;
     }
   }
 
   generateComponentHTML(comp, classes) {
+    const componentDef = this.componentDefinitions.get(comp.type);
+    if (!componentDef) return `<div class="${classes}">${comp.name || comp.type}</div>`;
+
     switch (comp.type) {
       case 'button':
-        return `<button class="${classes}">${comp.props.text}</button>`;
+        return `<button class="${classes}" ${comp.props.disabled ? 'disabled' : ''}>${comp.props.text || 'Button'}</button>`;
       case 'input':
-        return `<input type="${comp.props.type || 'text'}" placeholder="${comp.props.placeholder || ''}" class="${classes}" />`;
+        return `<input type="${comp.props.type || 'text'}" placeholder="${comp.props.placeholder || ''}" class="${classes}" ${comp.props.required ? 'required' : ''} ${comp.props.disabled ? 'disabled' : ''} />`;
       case 'card':
         return `<div class="${classes}">
-        ${comp.props.title ? `<h3 class="font-semibold text-lg mb-2">${comp.props.title}</h3>` : ''}
+        ${comp.props.title ? `<h3 class="font-semibold text-lg mb-2 text-gray-900">${comp.props.title}</h3>` : ''}
         <div class="text-gray-600">${comp.props.content || 'Card content'}</div>
       </div>`;
       default:
-        return `<div class="${classes}">${comp.name}</div>`;
+        return `<div class="${classes}">${comp.name || componentDef.name}</div>`;
     }
+  }
+
+  generateCSSStyles(allComponents) {
+    return `.canvas-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+}
+
+.btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+}
+
+.btn-secondary {
+  background: white;
+  color: #374151;
+  border: 2px solid #e5e7eb;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-secondary:hover {
+  background: #f9fafb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+}
+
+.btn-warning {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.875rem;
+}
+
+.btn-md {
+  padding: 10px 24px;
+  font-size: 1rem;
+}
+
+.btn-lg {
+  padding: 16px 32px;
+  font-size: 1.125rem;
+}
+
+/* Input styles */
+.input {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Card styles */
+.card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}`;
   }
 
   getComponentClasses(comp) {
@@ -299,7 +508,7 @@ ${htmlComponents}
       case 'card':
         return this.getCardClasses(comp.props);
       default:
-        return 'p-4 border rounded-lg bg-gray-100';
+        return 'p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50';
     }
   }
 
@@ -316,6 +525,11 @@ ${htmlComponents}
   // Get all components
   getAllComponents() {
     return Object.fromEntries(this.components);
+  }
+
+  // Get all component definitions
+  getAllComponentDefinitions() {
+    return Object.fromEntries(this.componentDefinitions);
   }
 
   // Save project components to backend

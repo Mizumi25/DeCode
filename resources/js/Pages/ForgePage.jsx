@@ -39,6 +39,7 @@ export default function ForgePage({ projectId, frameId }) {
   const [codePanelMinimized, setCodePanelMinimized] = useState(false)
   const [codeStyle, setCodeStyle] = useState('react-tailwind')
   const [componentsLoaded, setComponentsLoaded] = useState(false)
+  const [loadingMessage, setLoadingMessage] = useState('Initializing components...')
 
   // Drag state
   const [dragState, setDragState] = useState({
@@ -61,19 +62,25 @@ export default function ForgePage({ projectId, frameId }) {
   useEffect(() => {
     const initializeComponents = async () => {
       try {
+        setLoadingMessage('Loading components from database...');
         await componentLibraryService.loadComponents();
         setComponentsLoaded(true);
+        setLoadingMessage('Components loaded successfully!');
         
         // Load existing project components if projectId and frameId are provided
         if (projectId && frameId) {
+          setLoadingMessage('Loading existing project components...');
           const existingComponents = await componentLibraryService.loadProjectComponents(projectId, frameId);
           setCanvasComponents(existingComponents);
           if (existingComponents.length > 0) {
             generateCode(existingComponents);
           }
         }
+        
+        setTimeout(() => setLoadingMessage(''), 2000); // Clear message after 2 seconds
       } catch (error) {
         console.error('Failed to initialize components:', error);
+        setLoadingMessage('Failed to load components. Please refresh the page.');
       }
     };
 
@@ -151,10 +158,18 @@ export default function ForgePage({ projectId, frameId }) {
 
   // Component drag handlers - Updated for dynamic system
   const handleComponentDragStart = useCallback((e, componentType) => {
+    if (!componentsLoaded) {
+      console.warn('Components not loaded yet');
+      return;
+    }
+
     const componentDef = componentLibraryService.getComponentDefinition(componentType)
     const component = componentLibraryService.getComponent(componentType)
     
-    if (!component || !componentDef) return
+    if (!component || !componentDef) {
+      console.error(`Component "${componentType}" not found in library`);
+      return;
+    }
 
     setDragState({
       isDragging: true,
@@ -192,7 +207,7 @@ export default function ForgePage({ projectId, frameId }) {
 
     e.dataTransfer.effectAllowed = 'copy'
     e.dataTransfer.setData('text/plain', componentType)
-  }, [])
+  }, [componentsLoaded])
 
   const handleComponentDragEnd = useCallback(() => {
     if (dragState.dragPreview) {
@@ -214,13 +229,16 @@ export default function ForgePage({ projectId, frameId }) {
   const handleCanvasDrop = useCallback((e) => {
     e.preventDefault()
     
-    if (!canvasRef.current || !dragState.isDragging) return
+    if (!canvasRef.current || !dragState.isDragging || !componentsLoaded) return
 
     const componentType = e.dataTransfer.getData('text/plain')
     const componentDef = componentLibraryService.getComponentDefinition(componentType)
     const component = componentLibraryService.getComponent(componentType)
     
-    if (!component || !componentDef) return
+    if (!component || !componentDef) {
+      console.error(`Cannot drop: Component "${componentType}" not found in library`);
+      return;
+    }
 
     // Calculate drop position relative to canvas
     const canvasRect = canvasRef.current.getBoundingClientRect()
@@ -243,7 +261,7 @@ export default function ForgePage({ projectId, frameId }) {
 
     // Generate code for all components
     generateCode(updatedComponents)
-  }, [dragState.isDragging, canvasComponents])
+  }, [dragState.isDragging, canvasComponents, componentsLoaded])
 
   // Code panel drag handlers (unchanged)
   const handleCodePanelDragStart = useCallback((e) => {
@@ -269,7 +287,7 @@ export default function ForgePage({ projectId, frameId }) {
     setCodePanelDragState({ isDragging: false, startX: 0, startY: 0 })
   }, [codePanelDragState])
 
-  // Global drag handlers for drag preview positioning (unchanged)
+  // Global drag handlers for drag preview positioning
   useEffect(() => {
     if (!dragState.isDragging || !dragState.dragPreview) return
 
@@ -341,8 +359,13 @@ export default function ForgePage({ projectId, frameId }) {
     generateCode(updatedComponents)
   }, [canvasComponents])
 
-  // Code generation with dynamic system
+  // Code generation with dynamic system - UPDATED
   const generateCode = useCallback(async (components) => {
+    if (!componentsLoaded) {
+      console.warn('Cannot generate code: Components not loaded yet');
+      return;
+    }
+
     if (components.length === 0) {
       setGeneratedCode({ html: '', css: '', react: '', tailwind: '' })
       setShowCodePanel(false)
@@ -350,17 +373,16 @@ export default function ForgePage({ projectId, frameId }) {
     }
 
     try {
-      // Use the first component to get the service (they all use the same generator now)
-      const firstComponent = componentLibraryService.getComponent(components[0].type);
-      if (firstComponent && firstComponent.generateCode) {
-        const code = await firstComponent.generateCode({}, components, codeStyle)
-        setGeneratedCode(code)
-        setShowCodePanel(true)
-      }
+      // Use the service's code generation
+      const code = await componentLibraryService.clientSideCodeGeneration(components, codeStyle);
+      setGeneratedCode(code);
+      setShowCodePanel(true);
+      
+      console.log('Code generated successfully:', Object.keys(code));
     } catch (error) {
       console.error('Failed to generate code:', error);
     }
-  }, [codeStyle])
+  }, [codeStyle, componentsLoaded])
 
   // Handle code editing
   const handleCodeEdit = useCallback((newCode, codeType) => {
@@ -518,6 +540,28 @@ export default function ForgePage({ projectId, frameId }) {
       : defaultPanels
   }, [defaultPanels, sidebarCodePanel, codePanelPosition, showCodePanel])
 
+  // Show loading state while components are loading
+  if (!componentsLoaded && loadingMessage) {
+    return (
+      <AuthenticatedLayout
+        headerProps={{
+          onPanelToggle: handlePanelToggle,
+          panelStates: panelStates,
+          onModeSwitch: handleModeSwitch
+        }}
+      >
+        <Head title="Forge - Visual Builder" />
+        
+        <div className="h-[calc(100vh-60px)] flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
+          <div className="text-center space-y-4">
+            <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto"></div>
+            <div className="text-lg font-medium" style={{ color: 'var(--color-text)' }}>{loadingMessage}</div>
+          </div>
+        </div>
+      </AuthenticatedLayout>
+    );
+  }
+
   return (
     <AuthenticatedLayout
       headerProps={{
@@ -545,7 +589,7 @@ export default function ForgePage({ projectId, frameId }) {
             canvasComponents={canvasComponents}
             selectedComponent={selectedComponent}
             dragState={dragState}
-            componentLibrary={componentLibraryService.getAllComponents()}
+            componentLibraryService={componentLibraryService} // Pass the service instead of static library
             onCanvasDragOver={handleCanvasDragOver}
             onCanvasDrop={handleCanvasDrop}
             onCanvasClick={handleCanvasClick}
