@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { MousePointer, Hand, Edit3, Eye } from 'lucide-react'
 import { router, usePage } from '@inertiajs/react'
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import Sidebar from '@/Components/Header/Sidebar'
 
 // Import all separated components
@@ -9,10 +9,13 @@ import LeftSection from './Head/LeftSection'
 import CenterSection from './Head/CenterSection'
 import RightSection from './Head/RightSection'
 import MobileSearch from './Head/MobileSearch'
+import HeaderToggleButton from './Head/HeaderToggleButton'
+import StyleModal from './Head/StyleModal'
 
 // Import Zustand stores
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useEditorStore } from '@/stores/useEditorStore'
+import { useHeaderStore } from '@/stores/useHeaderStore'
 
 export default function Header({ 
   isAuthenticated = true, 
@@ -55,16 +58,22 @@ export default function Header({
     resetForPage
   } = useEditorStore()
 
+  const {
+    isHeaderVisible,
+    initializeHeader
+  } = useHeaderStore()
+
   // Local component states (keep these as they are)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false)
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
 
-  // Initialize theme on mount
+  // Initialize stores on mount
   useEffect(() => {
     initializeTheme()
-  }, [initializeTheme])
+    initializeHeader()
+  }, [initializeTheme, initializeHeader])
 
   // Reset editor states when page changes
   useEffect(() => {
@@ -101,7 +110,24 @@ export default function Header({
 
   return (
     <>
-      <header className="w-full bg-[var(--color-surface)] border-b border-[var(--color-border)] shadow-sm px-3 py-2 z-50 fixed top-0 left-0">
+      {/* Header Toggle Button - Always visible */}
+      <HeaderToggleButton />
+
+      {/* Header with animation */}
+      <motion.header 
+        className="w-full bg-[var(--color-surface)] border-b border-[var(--color-border)] shadow-sm px-3 py-2 z-50 fixed top-0 left-0"
+        initial={false}
+        animate={{ 
+          y: isHeaderVisible ? 0 : -100,
+          opacity: isHeaderVisible ? 1 : 0
+        }}
+        transition={{ 
+          type: "spring", 
+          damping: 25, 
+          stiffness: 300,
+          duration: 0.3
+        }}
+      >
         <div className={`flex items-center relative ${(onVoidPage || onForgePage || onSourcePage) ? 'justify-between gap-3' : 'justify-between flex-wrap gap-2'}`}>
           
           {/* Left Section */}
@@ -158,12 +184,15 @@ export default function Header({
           isOpen={mobileSearchOpen} 
           onProjectsPage={onProjectsPage} 
         />
-      </header>
+      </motion.header>
       
       {/* Sidebar */}
       <AnimatePresence>
         {sidebarOpen && <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
       </AnimatePresence>
+
+      {/* Style Modal */}
+      <StyleModal />
     </>
   )
 }

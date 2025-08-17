@@ -1,6 +1,7 @@
 import React from 'react'
-import { Menu, X, Lock, MousePointer2, Hand } from 'lucide-react'
+import { Menu, X, Lock, MousePointer2, Hand, ChevronLeft } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { router } from '@inertiajs/react'
 import ThemeToggle from './ThemeToggle'
 import ThemeSelector from './ThemeSelector'
 import NavigationDropdown from './NavigationDropdown'
@@ -53,6 +54,10 @@ const LeftSection = ({
     { key: 'hand', icon: Hand }
   ]
 
+  const handleBackToVoid = () => {
+    router.visit('/void')
+  }
+
   return (
     <motion.div
       variants={fadeIn}
@@ -61,6 +66,17 @@ const LeftSection = ({
       custom={1}
       className="flex items-center gap-1.5 flex-shrink-0"
     >
+      {/* Back Button - Only on Forge and Source Pages */}
+      {(onForgePage || onSourcePage) && (
+        <button
+          onClick={handleBackToVoid}
+          className="p-1 rounded-lg hover:bg-[var(--color-bg-muted)] transition-colors"
+          title="Back to Void"
+        >
+          <ChevronLeft className="w-4 h-4 text-[var(--color-primary)]" />
+        </button>
+      )}
+
       {/* Menu Button - Only on Projects Page */}
       {onProjectsPage && (
         <button

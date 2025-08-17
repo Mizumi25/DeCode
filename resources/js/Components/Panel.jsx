@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, GripVertical, Maximize2, Minimize2 } from 'lucide-react'
+import { X, GripVertical, Group, Ungroup } from 'lucide-react'
 
 export default function Panel({ 
   isOpen = true, 
@@ -217,9 +217,14 @@ export default function Panel({
       dragElement: element
     })
 
+    // Prevent scrolling and interaction with background elements
     document.body.style.userSelect = 'none'
     document.body.style.touchAction = 'none'
     document.body.style.cursor = 'grabbing'
+    document.body.style.overflow = 'hidden' // Prevent page scrolling
+    
+    // Add event blocker
+    document.body.classList.add('dragging-panel')
   }, [])
 
   // Enhanced drag end handler with swapping
@@ -306,9 +311,12 @@ export default function Panel({
       dragElement: null
     })
 
+    // Restore page interaction
     document.body.style.userSelect = ''
     document.body.style.touchAction = ''
     document.body.style.cursor = ''
+    document.body.style.overflow = ''
+    document.body.classList.remove('dragging-panel')
   }, [dragState, getDropTarget])
 
   // Mouse handlers
@@ -453,7 +461,7 @@ export default function Panel({
                 className="p-1 rounded transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
                 title="Split Panels"
               >
-                <Minimize2 className="w-4 h-4" />
+                <Ungroup className="w-4 h-4" />
               </button>
               <button
                 onClick={() => handleClose(panels[0].id, position)}
@@ -563,9 +571,9 @@ export default function Panel({
                     toggleMerge(position)
                   }}
                   className="p-1 rounded transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
-                  title="Merge Panels"
+                  title="Group Panels"
                 >
-                  <Maximize2 className="w-4 h-4" />
+                  <Group className="w-4 h-4" />
                 </button>
               )}
               <button
@@ -650,26 +658,95 @@ export default function Panel({
           </AnimatePresence>
         </motion.div>
 
-        {/* Drop zone indicator - ONLY shows when dragging */}
-        {isDropTarget && !isMerged && (
+        {/* Enhanced Drop zone indicators - Split zones for multiple panels */}
+        {isDropTarget && !isMerged && dragState.isDragging && (
           <motion.div 
-            className="absolute inset-0 rounded-lg border-2 border-dashed pointer-events-none flex items-center justify-center"
-            style={{
-              borderColor: dropTarget?.action === 'swap' ? 'rgb(251, 146, 60)' : 'var(--color-primary)',
-              backgroundColor: dropTarget?.action === 'swap' ? 'rgba(251, 146, 60, 0.1)' : 'rgba(59, 130, 246, 0.1)'
-            }}
+            className="absolute inset-0 pointer-events-none"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div 
-              className="px-3 py-1 rounded-full text-sm font-medium text-white"
-              style={{
-                backgroundColor: dropTarget?.action === 'swap' ? 'rgb(251, 146, 60)' : 'var(--color-primary)'
-              }}
-            >
-              {dropTarget?.action === 'swap' ? 'Swap Position' : 'Drop Here'}
-            </div>
+            {panels.length === 0 ? (
+              // Single drop zone for empty dock
+              <div 
+                className="absolute inset-0 rounded-lg border-2 border-dashed flex items-center justify-center"
+                style={{
+                  borderColor: 'var(--color-primary)',
+                  backgroundColor: 'rgba(59, 130, 246, 0.1)'
+                }}
+              >
+                <div 
+                  className="px-4 py-2 rounded-full text-sm font-medium text-white"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
+                  Drop Here
+                </div>
+              </div>
+            ) : panels.length === 1 ? (
+              // Two drop zones for dock with one panel
+              <>
+                <div 
+                  className="absolute top-0 left-0 right-0 h-1/2 rounded-t-lg border-2 border-dashed flex items-center justify-center"
+                  style={{
+                    borderColor: 'var(--color-primary)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)'
+                  }}
+                >
+                  <div 
+                    className="px-3 py-1 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    Drop Top
+                  </div>
+                </div>
+                <div 
+                  className="absolute bottom-0 left-0 right-0 h-1/2 rounded-b-lg border-2 border-dashed flex items-center justify-center"
+                  style={{
+                    borderColor: 'var(--color-primary)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)'
+                  }}
+                >
+                  <div 
+                    className="px-3 py-1 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    Drop Bottom
+                  </div>
+                </div>
+              </>
+            ) : (
+              // Two swap zones for dock with two panels
+              <>
+                <div 
+                  className="absolute top-0 left-0 right-0 h-1/2 rounded-t-lg border-2 border-dashed flex items-center justify-center"
+                  style={{
+                    borderColor: 'rgb(251, 146, 60)',
+                    backgroundColor: 'rgba(251, 146, 60, 0.1)'
+                  }}
+                >
+                  <div 
+                    className="px-3 py-1 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: 'rgb(251, 146, 60)' }}
+                  >
+                    Swap Top
+                  </div>
+                </div>
+                <div 
+                  className="absolute bottom-0 left-0 right-0 h-1/2 rounded-b-lg border-2 border-dashed flex items-center justify-center"
+                  style={{
+                    borderColor: 'rgb(251, 146, 60)',
+                    backgroundColor: 'rgba(251, 146, 60, 0.1)'
+                  }}
+                >
+                  <div 
+                    className="px-3 py-1 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: 'rgb(251, 146, 60)' }}
+                  >
+                    Swap Bottom
+                  </div>
+                </div>
+              </>
+            )}
           </motion.div>
         )}
       </div>
@@ -704,6 +781,20 @@ export default function Panel({
         .panel-container {
           transform: translate3d(0, 0, 0);
           backface-visibility: hidden;
+        }
+        
+        /* Prevent interaction with background while dragging */
+        .dragging-panel {
+          overflow: hidden !important;
+        }
+        
+        .dragging-panel * {
+          pointer-events: none !important;
+        }
+        
+        .dragging-panel .dragged-panel,
+        .dragging-panel .dragged-panel * {
+          pointer-events: none !important;
         }
         
         /* Snap to edge specific styles */

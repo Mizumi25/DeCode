@@ -4,12 +4,16 @@ import {
   Code,
   Puzzle,
   Layers,
-  Grid3X3
+  Grid3X3,
+  Settings,
+  EyeOff
 } from 'lucide-react'
+import { useHeaderStore } from '@/stores/useHeaderStore'
 
 const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) => {
   const onForgePage = currentRoute === '/forge'
   const onSourcePage = currentRoute === '/source'
+  const { toggleStyleModal } = useHeaderStore()
 
   return (
     <div className="flex items-center gap-1 flex-shrink-0">
@@ -35,18 +39,40 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
         <Code className={`w-3 h-3 ${onSourcePage || panelStates.source ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'}`} />
       </button>
 
+      {/* Puzzle - Third Icon */}
       <button className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors">
         <Puzzle className="w-3 h-3 text-[var(--color-text)]" />
       </button>
 
-      {/* Layers - Inactive */}
+      {/* Layers - Fourth Icon */}
       <button className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors">
         <Layers className="w-3 h-3 text-[var(--color-text)]" />
       </button>
 
-      {/* Paneling - Inactive */}
+      {/* Paneling - Fifth Icon */}
       <button className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors">
         <Grid3X3 className="w-3 h-3 text-[var(--color-text)]" />
+      </button>
+
+      {/* Vertical Divider */}
+      <div className="w-px h-3 bg-[var(--color-border)]"></div>
+
+      {/* Style Modal Button */}
+      <button
+        onClick={toggleStyleModal}
+        className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+        title="Style Variables"
+      >
+        <Settings className="w-3 h-3 text-[var(--color-text)]" />
+      </button>
+
+      {/* Hide All Panels Button */}
+      <button
+        onClick={() => onPanelToggle && onPanelToggle('hideAll')}
+        className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+        title="Hide All Panels"
+      >
+        <EyeOff className="w-3 h-3 text-[var(--color-text)]" />
       </button>
     </div>
   )

@@ -1,11 +1,13 @@
 import React from 'react'
 import { motion } from 'framer-motion'
+import { Settings, EyeOff, Eye } from 'lucide-react'
 import SearchBar from './SearchBar'
 import UndoRedoControls from './UndoRedoControls'
 import ZoomControls from './ZoomControls'
 import BinaryToggle from './BinaryToggle'
 import MiddlePanelControls from './MiddlePanelControls'
 import { MousePointer, Hand } from 'lucide-react'
+import { useHeaderStore } from '@/stores/useHeaderStore'
 
 const fadeIn = {
   hidden: { opacity: 0, y: -10 },
@@ -29,6 +31,8 @@ const CenterSection = ({
   onPanelToggle,
   panelStates
 }) => {
+  const { toggleStyleModal } = useHeaderStore()
+  
   const onProjectsPage = currentRoute === '/projects'
   const onVoidPage = currentRoute === '/void'
   const onForgePage = currentRoute === '/forge' || currentRoute.includes('/forge')
@@ -82,6 +86,27 @@ const CenterSection = ({
           setActiveMode={setInteractionMode}
           options={interactionOptions}
         />
+
+        {/* Vertical Divider */}
+        <div className="w-px h-4 bg-[var(--color-border)]"></div>
+
+        {/* Style Modal Button */}
+        <button
+          onClick={toggleStyleModal}
+          className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+          title="Style Variables"
+        >
+          <Settings className="w-4 h-4 text-[var(--color-text)]" />
+        </button>
+
+        {/* Hide All Panels Button */}
+        <button
+          onClick={() => onPanelToggle && onPanelToggle('hideAll')}
+          className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+          title="Hide All Panels"
+        >
+          <EyeOff className="w-4 h-4 text-[var(--color-text)]" />
+        </button>
       </motion.div>
     )
   }
@@ -101,6 +126,9 @@ const CenterSection = ({
           onPanelToggle={onPanelToggle}
           panelStates={panelStates}
         />
+
+        {/* Vertical Divider */}
+        <div className="w-px h-3 bg-[var(--color-border)]"></div>
       </motion.div>
     )
   }
