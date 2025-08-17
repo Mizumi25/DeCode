@@ -1,6 +1,6 @@
-// PreviewFrame.jsx
-import React from 'react'
-import { Plug, Lock, MoreHorizontal } from 'lucide-react'
+import React, { useState } from 'react'
+import { Plug, Lock, Unlock, MoreHorizontal } from 'lucide-react'
+import { router } from '@inertiajs/react'
 
 const sizes = [
   { w: 80, h: 56 },
@@ -12,9 +12,25 @@ const sizes = [
 
 export default function PreviewFrame({ title = 'Untitled', index = 0, x = 0, y = 0, fileName = 'File1' }) {
   const size = sizes[index % sizes.length]
-
+  const [isLocked, setIsLocked] = useState(true)
+  
   // Dummy avatar colors for stacked avatars
   const avatarColors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500']
+
+  const handleFrameClick = (e) => {
+    // Prevent navigation if clicking on lock button
+    if (e.target.closest('.lock-button')) {
+      return
+    }
+    
+    // Navigate to /forge
+    router.visit('/forge')
+  }
+
+  const handleLockToggle = (e) => {
+    e.stopPropagation() // Prevent frame click
+    setIsLocked(!isLocked)
+  }
 
   return (
     <div
@@ -28,6 +44,7 @@ export default function PreviewFrame({ title = 'Untitled', index = 0, x = 0, y =
         borderColor: 'var(--color-border)',
         boxShadow: 'var(--shadow-md)',
       }}
+      onClick={handleFrameClick}
     >
       {/* Top Header with Frame Info and Controls */}
       <div className="flex items-center justify-between mb-2 -mt-1">
@@ -38,11 +55,20 @@ export default function PreviewFrame({ title = 'Untitled', index = 0, x = 0, y =
           <span>({fileName})</span>
           <Plug className="w-3 h-3" />
         </div>
-
         {/* Right: Lock, Avatars, and More options */}
         <div className="flex items-center gap-1.5">
-          {/* Lock icon */}
-          <Lock className="w-3 h-3" style={{ color: 'var(--color-text-muted)' }} />
+          {/* Lock/Unlock toggle button */}
+          <button 
+            className="lock-button p-0.5 rounded hover:bg-opacity-20 hover:bg-gray-500 transition-colors duration-200"
+            onClick={handleLockToggle}
+            title={isLocked ? 'Unlock frame' : 'Lock frame'}
+          >
+            {isLocked ? (
+              <Lock className="w-3 h-3" style={{ color: 'var(--color-text-muted)' }} />
+            ) : (
+              <Unlock className="w-3 h-3" style={{ color: 'var(--color-primary)' }} />
+            )}
+          </button>
           
           {/* Stacked avatars */}
           <div className="flex -space-x-1">
@@ -61,7 +87,6 @@ export default function PreviewFrame({ title = 'Untitled', index = 0, x = 0, y =
           <MoreHorizontal className="w-3 h-3" style={{ color: 'var(--color-text-muted)' }} />
         </div>
       </div>
-
       {/* Mock content */}
       <div
         className="rounded-sm mb-2 flex-1"

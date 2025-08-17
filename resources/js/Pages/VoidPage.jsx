@@ -18,22 +18,26 @@ export default function VoidPage() {
   const { isDark } = useThemeStore()
   const { panelStates, togglePanel } = useEditorStore()
   
-  // Infinite scroll state - REDUCED scroll bounds and sensitivity
+  // Infinite scroll state - INCREASED scroll bounds for larger void space
   const [scrollPosition, setScrollPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [lastPointerPos, setLastPointerPos] = useState({ x: 0, y: 0 })
-  const scrollBounds = { width: 2000, height: 1500 } // REDUCED from 4000x3000
+  const scrollBounds = { width: 6000, height: 4000 } // INCREASED from 2000x1500
 
-  // Sample frames data - DISTRIBUTED across the scroll area
+  // Sample frames data - DISTRIBUTED across the LARGER scroll area
   const [frames] = useState([
-    { id: 1, title: 'Frame1', fileName: 'File1', x: 200, y: 150 },
-    { id: 2, title: 'Frame2', fileName: 'File2', x: 600, y: 200 },
-    { id: 3, title: 'Frame3', fileName: 'File3', x: 400, y: 400 },
-    { id: 4, title: 'Frame4', fileName: 'File4', x: 800, y: 300 },
-    { id: 5, title: 'Frame5', fileName: 'File5', x: 300, y: 600 },
-    { id: 6, title: 'Frame6', fileName: 'File6', x: 1200, y: 250 },
-    { id: 7, title: 'Frame7', fileName: 'File7', x: 1000, y: 500 },
-    { id: 8, title: 'Frame8', fileName: 'File8', x: 1500, y: 350 },
+    { id: 1, title: 'Frame1', fileName: 'File1', x: 400, y: 300 },
+    { id: 2, title: 'Frame2', fileName: 'File2', x: 1200, y: 400 },
+    { id: 3, title: 'Frame3', fileName: 'File3', x: 800, y: 800 },
+    { id: 4, title: 'Frame4', fileName: 'File4', x: 1600, y: 600 },
+    { id: 5, title: 'Frame5', fileName: 'File5', x: 600, y: 1200 },
+    { id: 6, title: 'Frame6', fileName: 'File6', x: 2400, y: 500 },
+    { id: 7, title: 'Frame7', fileName: 'File7', x: 2000, y: 1000 },
+    { id: 8, title: 'Frame8', fileName: 'File8', x: 3000, y: 700 },
+    { id: 9, title: 'Frame9', fileName: 'File9', x: 1000, y: 1600 },
+    { id: 10, title: 'Frame10', fileName: 'File10', x: 3500, y: 900 },
+    { id: 11, title: 'Frame11', fileName: 'File11', x: 2200, y: 1400 },
+    { id: 12, title: 'Frame12', fileName: 'File12', x: 4000, y: 1100 },
   ])
 
   // Use the scroll handler hook
@@ -84,7 +88,11 @@ export default function VoidPage() {
         style={{
           backgroundColor: isDark ? 'var(--color-bg)' : 'var(--color-bg)',
           userSelect: 'none',
-          touchAction: 'none'
+          touchAction: 'none',
+          // Optimize for smooth scrolling
+          willChange: 'transform',
+          backfaceVisibility: 'hidden',
+          perspective: 1000
         }}
       >
         {/* Background Layers */}
@@ -93,10 +101,10 @@ export default function VoidPage() {
         {/* Floating Toolbox */}
         <FloatingToolbox tools={floatingTools} />
 
-        {/* Delete Button - Positioned beside the right panel */}
+        {/* Delete Button - Positioned beside the left panel */}
         <DeleteButton />
         
-        {/* Frames Container - FIXED infinite scroll */}
+        {/* Frames Container - OPTIMIZED infinite scroll with larger bounds */}
         <FramesContainer 
           frames={frames} 
           scrollPosition={scrollPosition} 
