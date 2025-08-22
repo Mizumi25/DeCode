@@ -1,6 +1,5 @@
 <?php
 // routes/api.php
-
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ComponentController;
@@ -19,6 +18,8 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 // Component management routes
 Route::prefix('components')->group(function () {
     Route::get('/', [ComponentController::class, 'index']);
+    Route::get('/search', [ComponentController::class, 'search']);
+    Route::get('/letter', [ComponentController::class, 'getByLetter']);
     Route::get('/{component}', [ComponentController::class, 'show']);
     Route::post('/', [ComponentController::class, 'store']);
     Route::put('/{component}', [ComponentController::class, 'update']);

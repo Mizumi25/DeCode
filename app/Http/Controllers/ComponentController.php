@@ -10,92 +10,339 @@ class ComponentController extends Controller
 {
     public function index(): JsonResponse
     {
-        $components = Component::active()
-            ->ordered()
-            ->get()
-            ->groupBy('category');
+        try {
+            $components = Component::active()
+                ->ordered()
+                ->get();
 
-        return response()->json([
-            'success' => true,
-            'data' => $components
-        ]);
+            // Debug: Log the raw components
+            \Log::info('Raw components from database:', ['count' => $components->count()]);
+            
+            if ($components->isEmpty()) {
+                \Log::warning('No components found in database');
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'elements' => [],
+                        'components' => []
+                    ],
+                    'debug' => 'No components found in database'
+                ]);
+            }
+
+            // Group by component_type first, then by alphabet_group
+            $groupedComponents = $components->groupBy(function ($component) {
+                $componentType = $component->component_type ?? 'element';
+                $alphabetGroup = $component->alphabet_group ?? strtoupper(substr($component->name ?? 'A', 0, 1));
+                return $componentType . '_' . $alphabetGroup;
+            })->map(function ($group) {
+                return $group->sortBy('sort_order')->values()->map(function ($component) {
+                    // Ensure variants is properly handled
+                    $variants = $component->variants;
+                    if (is_string($variants)) {
+                        $variants = json_decode($variants, true);
+                    }
+                    
+                    return [
+                        'id' => $component->id,
+                        'name' => $component->name,
+                        'type' => $component->type,
+                        'component_type' => $component->component_type,
+                        'category' => $component->category,
+                        'alphabet_group' => $component->alphabet_group,
+                        'description' => $component->description,
+                        'icon' => $component->icon,
+                        'default_props' => $component->default_props,
+                        'prop_definitions' => $component->prop_definitions,
+                        'variants' => $variants,
+                        'has_animation' => $component->has_animation,
+                        'animation_type' => $component->animation_type,
+                        'sort_order' => $component->sort_order
+                    ];
+                });
+            });
+
+            // Restructure the data for frontend consumption
+            $restructured = [
+                'elements' => [],
+                'components' => []
+            ];
+
+            foreach ($groupedComponents as $key => $group) {
+                $parts = explode('_', $key);
+                if (count($parts) >= 2) {
+                    $type = $parts[0];
+                    $letter = $parts[1];
+                    
+                    // Ensure the type key exists and is pluralized
+                    $typeKey = $type === 'element' ? 'elements' : 'components';
+                    
+                    if (!isset($restructured[$typeKey])) {
+                        $restructured[$typeKey] = [];
+                    }
+                    
+                    if (!isset($restructured[$typeKey][$letter])) {
+                        $restructured[$typeKey][$letter] = [];
+                    }
+                    
+                    $restructured[$typeKey][$letter] = array_merge(
+                        $restructured[$typeKey][$letter], 
+                        $group->toArray()
+                    );
+                }
+            }
+
+            // Debug: Log the restructured data
+            \Log::info('Restructured components:', [
+                'elements_count' => count($restructured['elements']),
+                'components_count' => count($restructured['components']),
+                'elements_letters' => array_keys($restructured['elements']),
+                'components_letters' => array_keys($restructured['components'])
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $restructured,
+                'debug' => [
+                    'total_components' => $components->count(),
+                    'elements_letters' => array_keys($restructured['elements']),
+                    'components_letters' => array_keys($restructured['components'])
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error in ComponentController@index:', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load components: ' . $e->getMessage(),
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function show(Component $component): JsonResponse
     {
-        return response()->json([
-            'success' => true,
-            'data' => $component
-        ]);
+        try {
+            // Ensure variants is properly loaded and decoded
+            $componentData = $component->toArray();
+            
+            if (isset($componentData['variants']) && is_string($componentData['variants'])) {
+                $componentData['variants'] = json_decode($componentData['variants'], true);
+            }
+            
+            return response()->json([
+                'success' => true,
+                'data' => $componentData
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load component: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'type' => 'required|string|unique:components|max:255',
-            'category' => 'required|string|max:255',
-            'description' => 'required|string',
-            'icon' => 'nullable|string|max:255',
-            'default_props' => 'required|array',
-            'prop_definitions' => 'required|array',
-            'render_template' => 'required|string',
-            'code_generators' => 'required|array',
-            'sort_order' => 'integer|min:0'
-        ]);
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'type' => 'required|string|unique:components|max:255',
+                'component_type' => 'required|in:element,component',
+                'category' => 'required|string|max:255',
+                'alphabet_group' => 'required|string|size:1',
+                'description' => 'required|string',
+                'icon' => 'nullable|string|max:255',
+                'default_props' => 'required|array',
+                'prop_definitions' => 'required|array',
+                'render_template' => 'required|string',
+                'code_generators' => 'required|array',
+                'variants' => 'nullable|array',
+                'has_animation' => 'boolean',
+                'animation_type' => 'nullable|string|max:255',
+                'sort_order' => 'integer|min:0'
+            ]);
 
-        $component = Component::create($validated);
+            $component = Component::create($validated);
 
-        return response()->json([
-            'success' => true,
-            'data' => $component,
-            'message' => 'Component created successfully'
-        ], 201);
+            return response()->json([
+                'success' => true,
+                'data' => $component,
+                'message' => 'Component created successfully'
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create component: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function update(Request $request, Component $component): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => 'string|max:255',
-            'type' => 'string|unique:components,type,' . $component->id . '|max:255',
-            'category' => 'string|max:255',
-            'description' => 'string',
-            'icon' => 'nullable|string|max:255',
-            'default_props' => 'array',
-            'prop_definitions' => 'array',
-            'render_template' => 'string',
-            'code_generators' => 'array',
-            'is_active' => 'boolean',
-            'sort_order' => 'integer|min:0'
-        ]);
+        try {
+            $validated = $request->validate([
+                'name' => 'string|max:255',
+                'type' => 'string|unique:components,type,' . $component->id . '|max:255',
+                'component_type' => 'in:element,component',
+                'category' => 'string|max:255',
+                'alphabet_group' => 'string|size:1',
+                'description' => 'string',
+                'icon' => 'nullable|string|max:255',
+                'default_props' => 'array',
+                'prop_definitions' => 'array',
+                'render_template' => 'string',
+                'code_generators' => 'array',
+                'variants' => 'nullable|array',
+                'has_animation' => 'boolean',
+                'animation_type' => 'nullable|string|max:255',
+                'is_active' => 'boolean',
+                'sort_order' => 'integer|min:0'
+            ]);
 
-        $component->update($validated);
+            $component->update($validated);
 
-        return response()->json([
-            'success' => true,
-            'data' => $component,
-            'message' => 'Component updated successfully'
-        ]);
+            return response()->json([
+                'success' => true,
+                'data' => $component,
+                'message' => 'Component updated successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update component: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function destroy(Component $component): JsonResponse
     {
-        $component->delete();
+        try {
+            $component->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Component deleted successfully'
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Component deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete component: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'query' => 'required|string|max:255',
+                'component_type' => 'nullable|in:element,component',
+                'category' => 'nullable|string|max:255'
+            ]);
+
+            $query = Component::active()->search($validated['query']);
+
+            if (isset($validated['component_type'])) {
+                $query->byComponentType($validated['component_type']);
+            }
+
+            if (isset($validated['category'])) {
+                $query->byCategory($validated['category']);
+            }
+
+            $results = $query->ordered()->get()->map(function ($component) {
+                $variants = $component->variants;
+                if (is_string($variants)) {
+                    $variants = json_decode($variants, true);
+                }
+                
+                return [
+                    'id' => $component->id,
+                    'name' => $component->name,
+                    'type' => $component->type,
+                    'component_type' => $component->component_type,
+                    'category' => $component->category,
+                    'alphabet_group' => $component->alphabet_group,
+                    'description' => $component->description,
+                    'icon' => $component->icon,
+                    'variants' => $variants,
+                    'has_animation' => $component->has_animation,
+                    'animation_type' => $component->animation_type
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $results
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to search components: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getByLetter(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'letter' => 'required|string|size:1',
+                'component_type' => 'required|in:element,component'
+            ]);
+
+            $components = Component::active()
+                ->byComponentType($validated['component_type'])
+                ->byAlphabetGroup($validated['letter'])
+                ->ordered()
+                ->get()
+                ->map(function ($component) {
+                    $variants = $component->variants;
+                    if (is_string($variants)) {
+                        $variants = json_decode($variants, true);
+                    }
+                    
+                    return [
+                        'id' => $component->id,
+                        'name' => $component->name,
+                        'type' => $component->type,
+                        'component_type' => $component->component_type,
+                        'category' => $component->category,
+                        'alphabet_group' => $component->alphabet_group,
+                        'description' => $component->description,
+                        'icon' => $component->icon,
+                        'variants' => $variants,
+                        'has_animation' => $component->has_animation,
+                        'animation_type' => $component->animation_type
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => $components
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get components by letter: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function generateCode(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'components' => 'required|array',
-            'style' => 'required|string|in:react-tailwind,react-css,html-css,html-tailwind'
-        ]);
-
         try {
+            $validated = $request->validate([
+                'components' => 'required|array',
+                'style' => 'required|string|in:react-tailwind,react-css,html-css,html-tailwind'
+            ]);
+
             $generatedCode = $this->processCodeGeneration($validated['components'], $validated['style']);
             
             return response()->json([
@@ -112,13 +359,6 @@ class ComponentController extends Controller
 
     private function processCodeGeneration(array $components, string $style): array
     {
-        $result = [
-            'html' => '',
-            'css' => '',
-            'react' => '',
-            'tailwind' => ''
-        ];
-
         if (empty($components)) {
             return $this->getEmptyTemplate($style);
         }
@@ -218,6 +458,159 @@ export default GeneratedComponent;',
         ];
     }
 
+    private function generateComponentJSX(array $comp, Component $component, string $classes): string
+    {
+        // Handle variant-specific generation
+        $variant = $comp['variant'] ?? null;
+        
+        if ($variant && $component->variants) {
+            $variants = is_string($component->variants) 
+                ? json_decode($component->variants, true) 
+                : $component->variants;
+                
+            $variantData = collect($variants)->firstWhere('name', $variant['name']);
+            if ($variantData && isset($variantData['preview_code'])) {
+                return $variantData['preview_code'];
+            }
+        }
+
+        // Fallback to default component generation
+        switch ($comp['type']) {
+            case 'button':
+                $disabled = isset($comp['props']['disabled']) && $comp['props']['disabled'] ? ' disabled' : '';
+                return "<button className=\"{$classes}\"{$disabled}>{$comp['props']['text']}</button>";
+            
+            case 'avatar':
+                return "<div className=\"{$classes}\"><span>A</span></div>";
+            
+            case 'badge':
+                return "<span className=\"{$classes}\">{$comp['props']['text']}</span>";
+            
+            case 'card':
+                $title = isset($comp['props']['title']) ? "<h3 className=\"font-semibold text-lg mb-2 text-gray-900\">{$comp['props']['title']}</h3>" : '';
+                $content = $comp['props']['content'] ?? 'Card content';
+                return "<div className=\"{$classes}\">
+            {$title}
+            <div className=\"text-gray-600\">{$content}</div>
+          </div>";
+            
+            case 'searchbar':
+                return "<div className=\"{$classes}\"><input placeholder=\"{$comp['props']['placeholder']}\" /><svg className=\"search-icon\">...</svg></div>";
+            
+            default:
+                return "<div className=\"{$classes}\">{$component->name}</div>";
+        }
+    }
+
+    private function getComponentClasses(array $comp, Component $component): string
+    {
+        // Handle variant-specific classes
+        $variant = $comp['variant'] ?? null;
+        
+        if ($variant && $component->variants) {
+            $variants = is_string($component->variants) 
+                ? json_decode($component->variants, true) 
+                : $component->variants;
+                
+            $variantData = collect($variants)->firstWhere('name', $variant['name']);
+            if ($variantData && isset($variantData['classes'])) {
+                return $variantData['classes'];
+            }
+        }
+
+        // Default classes based on component type
+        switch ($comp['type']) {
+            case 'button':
+                return $this->getButtonClasses($comp['props'] ?? []);
+            case 'avatar':
+                return 'w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-gray-600';
+            case 'badge':
+                return 'inline-block bg-gray-100 text-gray-800 text-sm px-2 py-1 rounded-full';
+            case 'card':
+                return 'bg-white rounded-lg shadow-md p-6 border border-gray-200';
+            case 'searchbar':
+                return 'relative flex items-center';
+            default:
+                return 'p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50';
+        }
+    }
+
+    private function getButtonClasses(array $props): string
+    {
+        $baseClasses = "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2";
+        
+        $variantClasses = [
+            'primary' => "bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 focus:ring-purple-500 shadow-lg hover:shadow-xl",
+            'secondary' => "bg-white text-gray-900 border-2 border-gray-200 hover:bg-gray-50 focus:ring-gray-500 shadow-sm hover:shadow-md",
+            'success' => "bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:from-emerald-600 hover:to-teal-700 focus:ring-emerald-500 shadow-lg hover:shadow-xl",
+            'warning' => "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 focus:ring-amber-500 shadow-lg hover:shadow-xl",
+            'danger' => "bg-gradient-to-r from-red-500 to-pink-600 text-white hover:from-red-600 hover:to-pink-700 focus:ring-red-500 shadow-lg hover:shadow-xl",
+            'ghost' => "bg-transparent text-purple-600 hover:bg-purple-50 focus:ring-purple-500 border border-transparent hover:border-purple-200",
+            'gradient' => "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all",
+            'neon' => "bg-black border-2 border-cyan-400 text-cyan-400 shadow-lg shadow-cyan-400/50 hover:shadow-cyan-400/75",
+            'glass' => "bg-white/20 backdrop-blur-md border border-white/30 text-white shadow-xl"
+        ];
+        
+        $sizeClasses = [
+            'xs' => "px-2 py-1 text-xs",
+            'sm' => "px-3 py-1.5 text-sm",
+            'md' => "px-6 py-2.5 text-base",
+            'lg' => "px-8 py-4 text-lg",
+            'xl' => "px-10 py-5 text-xl"
+        ];
+        
+        $variant = $variantClasses[$props['variant'] ?? 'primary'] ?? $variantClasses['primary'];
+        $size = $sizeClasses[$props['size'] ?? 'md'] ?? $sizeClasses['md'];
+        $custom = $props['className'] ?? '';
+        
+        return trim("{$baseClasses} {$variant} {$size} {$custom}");
+    }
+
+    private function getInputClasses(array $props): string
+    {
+        $baseClasses = "block w-full rounded-lg border transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1";
+        
+        $variantClasses = [
+            'default' => "border-gray-300 focus:border-blue-500 focus:ring-blue-500",
+            'error' => "border-red-300 focus:border-red-500 focus:ring-red-500",
+            'success' => "border-green-300 focus:border-green-500 focus:ring-green-500"
+        ];
+        
+        $sizeClasses = [
+            'sm' => "px-3 py-1.5 text-sm",
+            'md' => "px-4 py-2.5 text-base",
+            'lg' => "px-5 py-3 text-lg"
+        ];
+        
+        $variant = $variantClasses[$props['variant'] ?? 'default'] ?? $variantClasses['default'];
+        $size = $sizeClasses[$props['size'] ?? 'md'] ?? $sizeClasses['md'];
+        
+        return trim("{$baseClasses} {$variant} {$size}");
+    }
+
+    private function getCardClasses(array $props): string
+    {
+        $baseClasses = "rounded-lg border bg-white";
+        
+        $variantClasses = [
+            'default' => "border-gray-200",
+            'outlined' => "border-gray-300 bg-transparent",
+            'elevated' => "border-transparent shadow-lg"
+        ];
+        
+        $paddingClasses = [
+            'sm' => "p-3",
+            'md' => "p-4",
+            'lg' => "p-6"
+        ];
+        
+        $variant = $variantClasses[$props['variant'] ?? 'default'] ?? $variantClasses['default'];
+        $padding = $paddingClasses[$props['padding'] ?? 'md'] ?? $paddingClasses['md'];
+        $shadow = (isset($props['shadow']) && $props['shadow'] && ($props['variant'] ?? 'default') !== 'elevated') ? 'shadow-sm' : '';
+        
+        return trim("{$baseClasses} {$variant} {$padding} {$shadow}");
+    }
+
     private function generateReactCSSCode(array $components): array
     {
         $reactComponents = [];
@@ -226,9 +619,9 @@ export default GeneratedComponent;',
             $component = Component::where('type', $comp['type'])->first();
             if (!$component) continue;
 
-            $cssClass = "btn btn-{$comp['props']['variant']} btn-{$comp['props']['size']}";
+            $classes = $this->getCSSClasses($comp, $component);
             $reactComponents[] = "        <div style={{ position: 'absolute', left: '{$comp['position']['x']}px', top: '{$comp['position']['y']}px' }}>
-          {$this->generateComponentJSX($comp, $component, $cssClass)}
+          {$this->generateComponentJSX($comp, $component, $classes)}
         </div>";
         }
 
@@ -254,14 +647,14 @@ export default GeneratedComponent;',
     private function generateHTMLCSSCode(array $components): array
     {
         $htmlComponents = [];
-
+        
         foreach ($components as $comp) {
             $component = Component::where('type', $comp['type'])->first();
             if (!$component) continue;
 
-            $cssClass = "btn btn-{$comp['props']['variant']} btn-{$comp['props']['size']}";
+            $classes = $this->getCSSClasses($comp, $component);
             $htmlComponents[] = "    <div style=\"position: absolute; left: {$comp['position']['x']}px; top: {$comp['position']['y']}px;\">
-      {$this->generateComponentHTML($comp, $component, $cssClass)}
+      {$this->generateComponentHTML($comp, $component, $classes)}
     </div>";
         }
 
@@ -319,36 +712,9 @@ export default GeneratedComponent;',
 </body>
 </html>',
             'tailwind' => implode("\n\n", $tailwindClasses),
-            'react' => '',
-            'css' => ''
+            'css' => '',
+            'react' => ''
         ];
-    }
-
-    private function generateComponentJSX(array $comp, Component $component, string $classes): string
-    {
-        switch ($comp['type']) {
-            case 'button':
-                $disabled = isset($comp['props']['disabled']) && $comp['props']['disabled'] ? ' disabled' : '';
-                return "<button className=\"{$classes}\"{$disabled}>{$comp['props']['text']}</button>";
-            
-            case 'input':
-                $type = $comp['props']['type'] ?? 'text';
-                $placeholder = $comp['props']['placeholder'] ?? '';
-                $required = isset($comp['props']['required']) && $comp['props']['required'] ? ' required' : '';
-                $disabled = isset($comp['props']['disabled']) && $comp['props']['disabled'] ? ' disabled' : '';
-                return "<input type=\"{$type}\" placeholder=\"{$placeholder}\" className=\"{$classes}\"{$required}{$disabled} />";
-            
-            case 'card':
-                $title = isset($comp['props']['title']) ? "<h3 className=\"font-semibold text-lg mb-2 text-gray-900\">{$comp['props']['title']}</h3>" : '';
-                $content = $comp['props']['content'] ?? 'Card content';
-                return "<div className=\"{$classes}\">
-            {$title}
-            <div className=\"text-gray-600\">{$content}</div>
-          </div>";
-            
-            default:
-                return "<div className=\"{$classes}\">{$component->name}</div>";
-        }
     }
 
     private function generateComponentHTML(array $comp, Component $component, string $classes): string
@@ -358,12 +724,11 @@ export default GeneratedComponent;',
                 $disabled = isset($comp['props']['disabled']) && $comp['props']['disabled'] ? ' disabled' : '';
                 return "<button class=\"{$classes}\"{$disabled}>{$comp['props']['text']}</button>";
             
-            case 'input':
-                $type = $comp['props']['type'] ?? 'text';
-                $placeholder = $comp['props']['placeholder'] ?? '';
-                $required = isset($comp['props']['required']) && $comp['props']['required'] ? ' required' : '';
-                $disabled = isset($comp['props']['disabled']) && $comp['props']['disabled'] ? ' disabled' : '';
-                return "<input type=\"{$type}\" placeholder=\"{$placeholder}\" class=\"{$classes}\"{$required}{$disabled} />";
+            case 'avatar':
+                return "<div class=\"{$classes}\"><span>A</span></div>";
+            
+            case 'badge':
+                return "<span class=\"{$classes}\">{$comp['props']['text']}</span>";
             
             case 'card':
                 $title = isset($comp['props']['title']) ? "<h3 class=\"font-semibold text-lg mb-2 text-gray-900\">{$comp['props']['title']}</h3>" : '';
@@ -378,89 +743,23 @@ export default GeneratedComponent;',
         }
     }
 
-    private function getComponentClasses(array $comp, Component $component): string
+    private function getCSSClasses(array $comp, Component $component): string
     {
         switch ($comp['type']) {
             case 'button':
-                return $this->getButtonClasses($comp['props']);
-            case 'input':
-                return $this->getInputClasses($comp['props']);
+                $variant = $comp['props']['variant'] ?? 'primary';
+                $size = $comp['props']['size'] ?? 'md';
+                return "btn btn-{$variant} btn-{$size}";
+            case 'avatar':
+                return 'avatar';
+            case 'badge':
+                $variant = $comp['props']['variant'] ?? 'default';
+                return "badge badge-{$variant}";
             case 'card':
-                return $this->getCardClasses($comp['props']);
+                return 'card';
             default:
-                return 'p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50';
+                return 'component-default';
         }
-    }
-
-    private function getButtonClasses(array $props): string
-    {
-        $baseClasses = "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2";
-        
-        $variantClasses = [
-            'primary' => "bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 focus:ring-purple-500 shadow-lg hover:shadow-xl",
-            'secondary' => "bg-white text-gray-900 border-2 border-gray-200 hover:bg-gray-50 focus:ring-gray-500 shadow-sm hover:shadow-md",
-            'success' => "bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:from-emerald-600 hover:to-teal-700 focus:ring-emerald-500 shadow-lg hover:shadow-xl",
-            'warning' => "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 focus:ring-amber-500 shadow-lg hover:shadow-xl",
-            'danger' => "bg-gradient-to-r from-red-500 to-pink-600 text-white hover:from-red-600 hover:to-pink-700 focus:ring-red-500 shadow-lg hover:shadow-xl",
-            'ghost' => "bg-transparent text-purple-600 hover:bg-purple-50 focus:ring-purple-500 border border-transparent hover:border-purple-200"
-        ];
-        
-        $sizeClasses = [
-            'sm' => "px-3 py-1.5 text-sm",
-            'md' => "px-6 py-2.5 text-base",
-            'lg' => "px-8 py-4 text-lg"
-        ];
-        
-        $variant = $variantClasses[$props['variant'] ?? 'primary'] ?? $variantClasses['primary'];
-        $size = $sizeClasses[$props['size'] ?? 'md'] ?? $sizeClasses['md'];
-        $custom = $props['className'] ?? '';
-        
-        return trim("{$baseClasses} {$variant} {$size} {$custom}");
-    }
-
-    private function getInputClasses(array $props): string
-    {
-        $baseClasses = "block w-full rounded-lg border transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1";
-        
-        $variantClasses = [
-            'default' => "border-gray-300 focus:border-blue-500 focus:ring-blue-500",
-            'error' => "border-red-300 focus:border-red-500 focus:ring-red-500",
-            'success' => "border-green-300 focus:border-green-500 focus:ring-green-500"
-        ];
-        
-        $sizeClasses = [
-            'sm' => "px-3 py-1.5 text-sm",
-            'md' => "px-4 py-2.5 text-base",
-            'lg' => "px-5 py-3 text-lg"
-        ];
-        
-        $variant = $variantClasses[$props['variant'] ?? 'default'] ?? $variantClasses['default'];
-        $size = $sizeClasses[$props['size'] ?? 'md'] ?? $sizeClasses['md'];
-        
-        return trim("{$baseClasses} {$variant} {$size}");
-    }
-
-    private function getCardClasses(array $props): string
-    {
-        $baseClasses = "rounded-lg border bg-white";
-        
-        $variantClasses = [
-            'default' => "border-gray-200",
-            'outlined' => "border-gray-300 bg-transparent",
-            'elevated' => "border-transparent shadow-lg"
-        ];
-        
-        $paddingClasses = [
-            'sm' => "p-3",
-            'md' => "p-4",
-            'lg' => "p-6"
-        ];
-        
-        $variant = $variantClasses[$props['variant'] ?? 'default'] ?? $variantClasses['default'];
-        $padding = $paddingClasses[$props['padding'] ?? 'md'] ?? $paddingClasses['md'];
-        $shadow = (isset($props['shadow']) && $props['shadow'] && ($props['variant'] ?? 'default') !== 'elevated') ? 'shadow-sm' : '';
-        
-        return trim("{$baseClasses} {$variant} {$padding} {$shadow}");
     }
 
     private function generateCSSStyles(array $components): string
@@ -572,6 +871,60 @@ export default GeneratedComponent;',
   border-radius: 8px;
   padding: 1rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Avatar styles */
+.avatar {
+  width: 3rem;
+  height: 3rem;
+  background-color: #d1d5db;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+}
+
+/* Badge styles */
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.badge-default {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.badge-primary {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+.badge-success {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.badge-warning {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.badge-danger {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.component-default {
+  padding: 1rem;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  background-color: #f9fafb;
+  text-align: center;
 }';
     }
 }

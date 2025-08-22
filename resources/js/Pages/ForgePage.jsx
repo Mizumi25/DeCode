@@ -1,8 +1,9 @@
-// Enhanced ForgePage.jsx - Updated with dynamic component system
+// Enhanced ForgePage.jsx - Updated with fixed panel system
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import Panel from '@/Components/Panel';
+import { Square, Code, Layers, User, Settings } from 'lucide-react';
 
 // Import separated forge components
 import ComponentsPanel from '@/Components/Forge/ComponentsPanel';
@@ -31,7 +32,7 @@ export default function ForgePage({ projectId, frameId }) {
   const [selectedComponent, setSelectedComponent] = useState(null)
   const [generatedCode, setGeneratedCode] = useState({ html: '', css: '', react: '', tailwind: '' })
   const [showCodePanel, setShowCodePanel] = useState(false)
-  const [codePanelPosition, setCodePanelPosition] = useState('bottom') // 'bottom' or 'right'
+  const [codePanelPosition, setCodePanelPosition] = useState('bottom')
   const [activeCodeTab, setActiveCodeTab] = useState('react')
   const [showTooltips, setShowTooltips] = useState(true)
   const [hoveredToken, setHoveredToken] = useState(null)
@@ -40,6 +41,10 @@ export default function ForgePage({ projectId, frameId }) {
   const [codeStyle, setCodeStyle] = useState('react-tailwind')
   const [componentsLoaded, setComponentsLoaded] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('Initializing components...')
+
+  // Component panel tab state
+  const [activeComponentTab, setActiveComponentTab] = useState('elements')
+  const [componentSearchTerm, setComponentSearchTerm] = useState('')
 
   // Drag state
   const [dragState, setDragState] = useState({
@@ -77,7 +82,7 @@ export default function ForgePage({ projectId, frameId }) {
           }
         }
         
-        setTimeout(() => setLoadingMessage(''), 2000); // Clear message after 2 seconds
+        setTimeout(() => setLoadingMessage(''), 2000);
       } catch (error) {
         console.error('Failed to initialize components:', error);
         setLoadingMessage('Failed to load components. Please refresh the page.');
@@ -99,7 +104,7 @@ export default function ForgePage({ projectId, frameId }) {
       }
     };
 
-    const timeoutId = setTimeout(saveComponents, 1000); // Debounce saves
+    const timeoutId = setTimeout(saveComponents, 1000);
     return () => clearTimeout(timeoutId);
   }, [canvasComponents, projectId, frameId, componentsLoaded]);
 
@@ -128,7 +133,6 @@ export default function ForgePage({ projectId, frameId }) {
     console.log(`Panel ${panelId} closed`)
   }
 
-  // FIXED: Memoize the callback to prevent unnecessary re-renders
   const handlePanelStateChange = useCallback((hasRightPanels) => {
     console.log(`Right panels active: ${hasRightPanels}`)
   }, [])
@@ -155,6 +159,15 @@ export default function ForgePage({ projectId, frameId }) {
       router.visit('/source', { preserveState: true })
     }
   }
+
+  // Component tab handlers
+  const handleComponentTabChange = useCallback((tab) => {
+    setActiveComponentTab(tab)
+  }, [])
+
+  const handleComponentSearch = useCallback((searchTerm) => {
+    setComponentSearchTerm(searchTerm)
+  }, [])
 
   // Component drag handlers - Updated for dynamic system
   const handleComponentDragStart = useCallback((e, componentType) => {
@@ -263,7 +276,7 @@ export default function ForgePage({ projectId, frameId }) {
     generateCode(updatedComponents)
   }, [dragState.isDragging, canvasComponents, componentsLoaded])
 
-  // Code panel drag handlers (unchanged)
+  // Code panel drag handlers
   const handleCodePanelDragStart = useCallback((e) => {
     setCodePanelDragState({
       isDragging: true,
@@ -359,7 +372,7 @@ export default function ForgePage({ projectId, frameId }) {
     generateCode(updatedComponents)
   }, [canvasComponents])
 
-  // Code generation with dynamic system - UPDATED
+  // Code generation with dynamic system
   const generateCode = useCallback(async (components) => {
     if (!componentsLoaded) {
       console.warn('Cannot generate code: Components not loaded yet');
@@ -373,7 +386,6 @@ export default function ForgePage({ projectId, frameId }) {
     }
 
     try {
-      // Use the service's code generation
       const code = await componentLibraryService.clientSideCodeGeneration(components, codeStyle);
       setGeneratedCode(code);
       setShowCodePanel(true);
@@ -444,13 +456,15 @@ export default function ForgePage({ projectId, frameId }) {
     }
   }
 
-  // FIXED: Memoize default panels to prevent recreation on every render
+  // Memoize default panels to prevent recreation on every render
   const defaultPanels = useMemo(() => [
     {
       id: 'components',
       title: 'Components',
       content: (
         <ComponentsPanel
+          activeTab={activeComponentTab}
+          searchTerm={componentSearchTerm}
           onComponentDragStart={handleComponentDragStart}
           onComponentDragEnd={handleComponentDragEnd}
         />
@@ -487,6 +501,8 @@ export default function ForgePage({ projectId, frameId }) {
       content: <AssetsPanel />
     }
   ], [
+    activeComponentTab,
+    componentSearchTerm,
     handleComponentDragStart,
     handleComponentDragEnd,
     canvasComponents,
@@ -496,7 +512,7 @@ export default function ForgePage({ projectId, frameId }) {
     generateCode
   ])
 
-  // FIXED: Memoize the sidebar code panel to prevent recreation
+  // Memoize the sidebar code panel
   const sidebarCodePanel = useMemo(() => ({
     id: 'code',
     title: 'Generated Code',
@@ -533,12 +549,34 @@ export default function ForgePage({ projectId, frameId }) {
     generateCode
   ])
 
-  // FIXED: Memoize the final panels array
+  // Memoize the final panels array
   const finalPanels = useMemo(() => {
-    return codePanelPosition === 'right' && showCodePanel 
-      ? [...defaultPanels, sidebarCodePanel]
-      : defaultPanels
+    const panels = [...defaultPanels]
+    
+    // Add code panel if showing on right
+    if (codePanelPosition === 'right' && showCodePanel) {
+      panels.push(sidebarCodePanel)
+    }
+    
+    return panels
   }, [defaultPanels, sidebarCodePanel, codePanelPosition, showCodePanel])
+
+  // Tab configuration for components panel ONLY
+  const componentTabConfig = useMemo(() => ({
+    defaultTab: 'elements',
+    tabs: [
+      {
+        id: 'elements',
+        label: 'Elements',
+        icon: Square
+      },
+      {
+        id: 'components',
+        label: 'Components',
+        icon: Code
+      }
+    ]
+  }), [])
 
   // Show loading state while components are loading
   if (!componentsLoaded && loadingMessage) {
@@ -589,7 +627,7 @@ export default function ForgePage({ projectId, frameId }) {
             canvasComponents={canvasComponents}
             selectedComponent={selectedComponent}
             dragState={dragState}
-            componentLibraryService={componentLibraryService} // Pass the service instead of static library
+            componentLibraryService={componentLibraryService}
             onCanvasDragOver={handleCanvasDragOver}
             onCanvasDrop={handleCanvasDrop}
             onCanvasClick={handleCanvasClick}
@@ -629,7 +667,7 @@ export default function ForgePage({ projectId, frameId }) {
         />
       </div>
 
-      {/* Enhanced Panel System - FIXED: Use memoized panels */}
+      {/* Enhanced Panel System - ONLY Components Panel has Tabs and Search */}
       <Panel
         isOpen={true}
         initialPanels={finalPanels}
@@ -639,6 +677,12 @@ export default function ForgePage({ projectId, frameId }) {
         snapToEdge={false}
         mergePanels={true}
         mergePosition="right"
+        showTabs={true}
+        showSearch={true}
+        tabConfig={componentTabConfig}
+        onTabChange={handleComponentTabChange}
+        onSearch={handleComponentSearch}
+        searchPlaceholder={`Search ${activeComponentTab}...`}
       />
     </AuthenticatedLayout>
   );
