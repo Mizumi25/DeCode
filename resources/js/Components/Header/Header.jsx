@@ -37,7 +37,8 @@ export default function Header({
     currentTheme, 
     toggleTheme, 
     setThemeColor, 
-    initializeTheme 
+    initializeTheme,
+    refreshTheme
   } = useThemeStore()
   
   const {
@@ -74,6 +75,11 @@ export default function Header({
     initializeTheme()
     initializeHeader()
   }, [initializeTheme, initializeHeader])
+
+  // Refresh theme when route changes (fixes the blue theme issue)
+  useEffect(() => {
+    refreshTheme()
+  }, [currentRoute, refreshTheme])
 
   // Reset editor states when page changes
   useEffect(() => {

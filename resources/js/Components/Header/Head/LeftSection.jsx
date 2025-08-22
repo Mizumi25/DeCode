@@ -58,6 +58,10 @@ const LeftSection = ({
     router.visit('/void')
   }
 
+  const handleLogoClick = () => {
+    router.visit('/projects')
+  }
+
   return (
     <motion.div
       variants={fadeIn}
@@ -91,22 +95,29 @@ const LeftSection = ({
         </button>
       )}
       
-      {/* Animated Logo with Glow Wrapper */}
-      <div 
-        className="relative"
-        style={{
-          filter: `
-            drop-shadow(0 0 8px rgba(255, 255, 255, 0.3))
-            drop-shadow(0 0 16px rgba(139, 92, 246, 0.4))
-            drop-shadow(0 0 24px rgba(147, 51, 234, 0.3))
-          `
-        }}
+      {/* Logo and Name - Clickable Container */}
+      <button 
+        onClick={handleLogoClick}
+        className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+        title="Go to Projects"
       >
-        <AnimatedBlackHoleLogo size={20} />
-      </div>
+        {/* Animated Logo with Glow Wrapper */}
+        <div 
+          className="relative flex items-center justify-center"
+          style={{
+            filter: `
+              drop-shadow(0 0 8px rgba(255, 255, 255, 0.3))
+              drop-shadow(0 0 16px rgba(139, 92, 246, 0.4))
+              drop-shadow(0 0 24px rgba(147, 51, 234, 0.3))
+            `
+          }}
+        >
+          <AnimatedBlackHoleLogo size={20} />
+        </div>
 
-      {/* Logo Label */}
-      <span className="text-[var(--color-text)] text-sm font-semibold">DeCode</span>
+        {/* Logo Label */}
+        <span className="text-[var(--color-text)] text-sm font-semibold leading-none">DeCode</span>
+      </button>
 
       {/* Theme Toggle */}
       <ThemeToggle isDark={isDark} onToggle={onThemeToggle} />

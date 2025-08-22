@@ -1,25 +1,26 @@
-// Update your existing AuthenticatedLayout.jsx
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import { Link, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '@/Components/Header/Header';
 import { useThemeStore } from '@/stores/useThemeStore';
+import { useHeaderStore } from '@/stores/useHeaderStore';
 
 export default function AuthenticatedLayout({ 
   header, 
   children, 
   onThemeChange, 
-  headerProps = {} // NEW: Accept header props from pages
+  headerProps = {} // Accept header props from pages
 }) {
   const user = usePage().props.auth.user;
   const currentRoute = usePage().url;
   const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);
   
-  // Get theme from Zustand store
+  // Get theme and header state from Zustand stores
   const { isDark } = useThemeStore();
+  const { isHeaderVisible } = useHeaderStore();
   
   const handleThemeChange = (isDarkFromHeader) => {
     // Call the prop callback if provided (for backward compatibility)
@@ -38,7 +39,12 @@ export default function AuthenticatedLayout({
         {...headerProps}
       />
       
-      <div className="mt-10 h-full w-full relative">
+      {/* Main content with dynamic margin based on header visibility */}
+      <div 
+        className={`h-full w-full relative transition-all duration-300 ${
+          isHeaderVisible ? 'mt-10' : 'mt-0'
+        }`}
+      >
         {header && (
           <header className="bg-[var(--color-surface)] shadow">
             <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
