@@ -195,18 +195,46 @@ const ComponentsPanel = ({
       setShowVariants(true);
     } else {
       // Handle direct component selection for those without variants
-      onComponentDragStart?.(null, component.type);
+      startComponentDrag(component.type);
+    }
+  };
+
+  // Fixed drag handlers
+  const startComponentDrag = (componentType, variant = null) => {
+    console.log('Starting drag for:', componentType, variant ? `with variant: ${variant.name}` : 'without variant');
+    
+    // Create drag data
+    const dragData = {
+      componentType,
+      variant
+    };
+    
+    // Call the parent drag handler
+    if (onComponentDragStart) {
+      onComponentDragStart(null, componentType, variant);
     }
   };
 
   const handleVariantDragStart = (e, component, variant) => {
+    console.log('Variant drag started:', variant.name, 'from component:', component.name);
+    
+    // Prevent default to enable custom drag behavior
     e.preventDefault();
     e.stopPropagation();
     
-    console.log('Variant drag started:', variant.name, 'from component:', component.name);
+    // Set drag data
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'copy';
+      e.dataTransfer.setData('text/plain', JSON.stringify({
+        componentType: component.type,
+        variant: variant
+      }));
+    }
     
-    // Create a synthetic drag event for the variant
-    onComponentDragStart?.(e, component.type, variant);
+    // Call parent handler with variant data
+    if (onComponentDragStart) {
+      onComponentDragStart(e, component.type, variant);
+    }
   };
 
   const handleBackClick = () => {
@@ -370,7 +398,18 @@ const ComponentsPanel = ({
                             <motion.div
                               key={component.id}
                               className="group cursor-pointer max-w-full"
+                              draggable={variantCount === 0}
                               onClick={() => handleComponentClick(component)}
+                              onDragStart={(e) => {
+                                if (variantCount === 0) {
+                                  e.dataTransfer.effectAllowed = 'copy';
+                                  e.dataTransfer.setData('text/plain', component.type);
+                                  if (onComponentDragStart) {
+                                    onComponentDragStart(e, component.type);
+                                  }
+                                }
+                              }}
+                              onDragEnd={onComponentDragEnd}
                               whileHover={{ scale: 1.01 }}
                               whileTap={{ scale: 0.99 }}
                               initial={{ opacity: 0, y: 10 }}
@@ -485,7 +524,7 @@ const ComponentsPanel = ({
                 </div>
               </div>
 
-              {/* Compact Variants Grid */}
+              {/* Variants Grid - FIXED DRAGGABLE */}
               <div className="flex-1 overflow-y-auto p-3">
                 <motion.div
                   className="rounded-xl p-3"
