@@ -1,4 +1,4 @@
-// Enhanced ForgePage.jsx - Updated with fixed panel system
+// Enhanced ForgePage.jsx - Updated with variant support and enhanced drag system
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
@@ -46,11 +46,12 @@ export default function ForgePage({ projectId, frameId }) {
   const [activeComponentTab, setActiveComponentTab] = useState('elements')
   const [componentSearchTerm, setComponentSearchTerm] = useState('')
 
-  // Drag state
+  // Enhanced drag state with variant support
   const [dragState, setDragState] = useState({
     isDragging: false,
     draggedComponent: null,
-    dragPreview: null
+    dragPreview: null,
+    variant: null // Track variant being dragged
   })
 
   // Code panel drag state
@@ -169,8 +170,8 @@ export default function ForgePage({ projectId, frameId }) {
     setComponentSearchTerm(searchTerm)
   }, [])
 
-  // Component drag handlers - Updated for dynamic system
-  const handleComponentDragStart = useCallback((e, componentType) => {
+  // Enhanced component drag handlers with variant support
+  const handleComponentDragStart = useCallback((e, componentType, variant = null) => {
     if (!componentsLoaded) {
       console.warn('Components not loaded yet');
       return;
@@ -184,17 +185,21 @@ export default function ForgePage({ projectId, frameId }) {
       return;
     }
 
+    console.log('Drag started:', componentType, variant ? `with variant: ${variant.name}` : 'without variant');
+
     setDragState({
       isDragging: true,
       draggedComponent: {
         ...component,
         type: componentType,
-        definition: componentDef
+        definition: componentDef,
+        name: componentDef.name
       },
+      variant: variant, // Store the variant being dragged
       dragPreview: null
     })
 
-    // Create enhanced drag preview
+    // Enhanced drag preview with variant info
     const preview = document.createElement('div')
     preview.className = 'drag-preview'
     preview.style.cssText = `
@@ -202,24 +207,54 @@ export default function ForgePage({ projectId, frameId }) {
       top: -1000px;
       left: -1000px;
       z-index: 9999;
-      padding: 12px 20px;
-      background: var(--color-primary);
+      padding: 16px 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
       border-radius: var(--radius-lg);
       font-size: var(--fs-sm);
       font-weight: 600;
       pointer-events: none;
-      box-shadow: var(--shadow-lg);
-      transform: rotate(2deg);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      transform: rotate(2deg) scale(1.05);
       backdrop-filter: blur(10px);
       border: 1px solid rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 280px;
     `
-    preview.innerHTML = `${component.name}`
+    
+    const icon = variant ? '✨' : '📦';
+    const name = variant ? variant.name : component.name;
+    const subtitle = variant ? `from ${component.name}` : componentDef.description;
+    
+    preview.innerHTML = `
+      <span style="font-size: 18px;">${icon}</span>
+      <div>
+        <div style="font-weight: 700; font-size: 14px;">${name}</div>
+        <div style="font-size: 11px; opacity: 0.8; margin-top: 2px;">${subtitle}</div>
+      </div>
+    `;
+    
     document.body.appendChild(preview)
     setDragState(prev => ({ ...prev, dragPreview: preview }))
 
     e.dataTransfer.effectAllowed = 'copy'
-    e.dataTransfer.setData('text/plain', componentType)
+    
+    // Enhanced drag data with variant info
+    const dragData = {
+      componentType,
+      variant,
+      component: {
+        name: componentDef.name,
+        type: componentType,
+        description: componentDef.description,
+        default_props: componentDef.default_props,
+        prop_definitions: componentDef.prop_definitions
+      }
+    };
+    
+    e.dataTransfer.setData('text/plain', JSON.stringify(dragData))
   }, [componentsLoaded])
 
   const handleComponentDragEnd = useCallback(() => {
@@ -229,11 +264,12 @@ export default function ForgePage({ projectId, frameId }) {
     setDragState({
       isDragging: false,
       draggedComponent: null,
+      variant: null,
       dragPreview: null
     })
   }, [dragState.dragPreview])
 
-  // Canvas drop handlers - Updated for dynamic system
+  // Enhanced canvas drop handlers with variant support
   const handleCanvasDragOver = useCallback((e) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'copy'
@@ -244,36 +280,69 @@ export default function ForgePage({ projectId, frameId }) {
     
     if (!canvasRef.current || !dragState.isDragging || !componentsLoaded) return
 
-    const componentType = e.dataTransfer.getData('text/plain')
-    const componentDef = componentLibraryService.getComponentDefinition(componentType)
-    const component = componentLibraryService.getComponent(componentType)
-    
-    if (!component || !componentDef) {
-      console.error(`Cannot drop: Component "${componentType}" not found in library`);
-      return;
+    try {
+      // Parse enhanced drag data
+      const dragDataStr = e.dataTransfer.getData('text/plain')
+      let dragData;
+      
+      try {
+        dragData = JSON.parse(dragDataStr);
+      } catch {
+        // Fallback for simple component type strings
+        dragData = { componentType: dragDataStr, variant: null };
+      }
+
+      const { componentType, variant } = dragData;
+      const componentDef = componentLibraryService.getComponentDefinition(componentType)
+      const component = componentLibraryService.getComponent(componentType)
+      
+      if (!component || !componentDef) {
+        console.error(`Cannot drop: Component "${componentType}" not found in library`);
+        return;
+      }
+
+      // Calculate drop position relative to canvas
+      const canvasRect = canvasRef.current.getBoundingClientRect()
+      const x = Math.max(0, e.clientX - canvasRect.left - 50)
+      const y = Math.max(0, e.clientY - canvasRect.top - 20)
+
+      // Create new component instance with variant support
+      const newComponent = {
+        id: `${componentType}_${Date.now()}`,
+        type: componentType,
+        props: { ...componentDef.default_props },
+        position: { x, y },
+        name: variant ? `${componentDef.name} (${variant.name})` : componentDef.name,
+        variant: variant || null, // Store variant data if available
+        style: {}, // Initialize with empty styles for property panel
+        animation: {} // Initialize with empty animation config
+      }
+
+      // Apply variant-specific properties if available
+      if (variant) {
+        if (variant.default_props) {
+          newComponent.props = { ...newComponent.props, ...variant.default_props };
+        }
+        if (variant.classes) {
+          // Convert variant classes to style object if needed
+          // This is a simplified conversion - you might want to enhance this
+          newComponent.className = variant.classes;
+        }
+      }
+
+      const updatedComponents = [...canvasComponents, newComponent];
+      setCanvasComponents(updatedComponents)
+      setSelectedComponent(newComponent.id)
+      handleComponentDragEnd()
+
+      console.log('Component dropped:', newComponent);
+
+      // Generate code for all components
+      generateCode(updatedComponents)
+    } catch (error) {
+      console.error('Error handling component drop:', error);
+      handleComponentDragEnd();
     }
-
-    // Calculate drop position relative to canvas
-    const canvasRect = canvasRef.current.getBoundingClientRect()
-    const x = Math.max(0, e.clientX - canvasRect.left - 50)
-    const y = Math.max(0, e.clientY - canvasRect.top - 20)
-
-    // Create new component instance
-    const newComponent = {
-      id: `${componentType}_${Date.now()}`,
-      type: componentType,
-      props: { ...componentDef.default_props },
-      position: { x, y },
-      name: componentDef.name
-    }
-
-    const updatedComponents = [...canvasComponents, newComponent];
-    setCanvasComponents(updatedComponents)
-    setSelectedComponent(newComponent.id)
-    handleComponentDragEnd()
-
-    // Generate code for all components
-    generateCode(updatedComponents)
   }, [dragState.isDragging, canvasComponents, componentsLoaded])
 
   // Code panel drag handlers
@@ -356,12 +425,26 @@ export default function ForgePage({ projectId, frameId }) {
     generateCode(newComponents)
   }, [selectedComponent, canvasComponents])
 
-  // Property update handler
+  // Enhanced property update handler with style and animation support
   const handlePropertyUpdate = useCallback((componentId, propName, value) => {
     const updatedComponents = canvasComponents.map(c => {
       if (c.id === componentId) {
         if (propName === 'position') {
           return { ...c, position: value }
+        } else if (propName === 'style') {
+          return { ...c, style: value }
+        } else if (propName === 'animation') {
+          return { ...c, animation: value }
+        } else if (propName === 'name') {
+          return { ...c, name: value }
+        } else if (propName === 'reset') {
+          // Reset all styles and animations
+          return { 
+            ...c, 
+            style: {}, 
+            animation: {},
+            props: { ...componentLibraryService.getComponentDefinition(c.type)?.default_props || {} }
+          }
         } else {
           return { ...c, props: { ...c.props, [propName]: value } }
         }
@@ -372,7 +455,7 @@ export default function ForgePage({ projectId, frameId }) {
     generateCode(updatedComponents)
   }, [canvasComponents])
 
-  // Code generation with dynamic system
+  // Enhanced code generation with styles and animations
   const generateCode = useCallback(async (components) => {
     if (!componentsLoaded) {
       console.warn('Cannot generate code: Components not loaded yet');
@@ -390,7 +473,7 @@ export default function ForgePage({ projectId, frameId }) {
       setGeneratedCode(code);
       setShowCodePanel(true);
       
-      console.log('Code generated successfully:', Object.keys(code));
+      console.log('Enhanced code generated successfully:', Object.keys(code));
     } catch (error) {
       console.error('Failed to generate code:', error);
     }

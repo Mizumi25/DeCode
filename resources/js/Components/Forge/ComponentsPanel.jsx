@@ -11,7 +11,9 @@ import {
   Layout,
   Menu,
   Zap,
-  Move
+  Move,
+  Palette,
+  Sparkles
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -24,7 +26,9 @@ const iconMap = {
   Search,
   Menu,
   Zap,
-  Tag
+  Tag,
+  Palette,
+  Sparkles
 };
 
 const ComponentsPanel = ({ 
@@ -42,6 +46,7 @@ const ComponentsPanel = ({
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [showVariants, setShowVariants] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [dragPreview, setDragPreview] = useState(null);
 
   // Alphabet navigation - positioned absolutely on the left
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -195,45 +200,135 @@ const ComponentsPanel = ({
       setShowVariants(true);
     } else {
       // Handle direct component selection for those without variants
-      startComponentDrag(component.type);
+      handleMainComponentDragStart(component);
     }
   };
 
-  // Fixed drag handlers
-  const startComponentDrag = (componentType, variant = null) => {
-    console.log('Starting drag for:', componentType, variant ? `with variant: ${variant.name}` : 'without variant');
+  // Fixed drag handlers for main components (without variants)
+  const handleMainComponentDragStart = (component) => {
+    console.log('Starting drag for main component:', component.type);
     
-    // Create drag data
-    const dragData = {
-      componentType,
-      variant
+    // Create drag event manually
+    const dragEvent = {
+      dataTransfer: {
+        effectAllowed: 'copy',
+        setData: (type, data) => {
+          const dragData = {
+            componentType: component.type,
+            variant: null,
+            component: {
+              name: component.name,
+              type: component.type,
+              description: component.description,
+              default_props: component.default_props,
+              prop_definitions: component.prop_definitions
+            }
+          };
+          console.log('Setting drag data:', dragData);
+          return JSON.stringify(dragData);
+        }
+      }
     };
-    
-    // Call the parent drag handler
+
     if (onComponentDragStart) {
-      onComponentDragStart(null, componentType, variant);
+      onComponentDragStart(dragEvent, component.type, null);
     }
   };
 
+  // Enhanced drag handlers for variants
+  const createDragPreview = (component, variant = null) => {
+    const preview = document.createElement('div');
+    preview.className = 'drag-preview';
+    preview.style.cssText = `
+      position: fixed;
+      top: -1000px;
+      left: -1000px;
+      z-index: 99999;
+      padding: 16px 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      pointer-events: none;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      transform: rotate(3deg) scale(1.05);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 250px;
+      transition: all 0.2s ease;
+    `;
+    
+    const icon = variant ? '✨' : '📦';
+    const name = variant ? variant.name : component.name;
+    const subtitle = variant ? `from ${component.name}` : component.description;
+    
+    preview.innerHTML = `
+      <span style="font-size: 18px;">${icon}</span>
+      <div>
+        <div style="font-weight: 700;">${name}</div>
+        <div style="font-size: 12px; opacity: 0.8;">${subtitle}</div>
+      </div>
+    `;
+    
+    document.body.appendChild(preview);
+    return preview;
+  };
+
+  const findComponentByType = (componentType) => {
+    for (const typeGroup of Object.values(components)) {
+      for (const letterGroup of Object.values(typeGroup)) {
+        if (Array.isArray(letterGroup)) {
+          const found = letterGroup.find(comp => comp.type === componentType);
+          if (found) return found;
+        }
+      }
+    }
+    return null;
+  };
+
+  // Enhanced variant drag start handler with proper HTML5 drag API
   const handleVariantDragStart = (e, component, variant) => {
     console.log('Variant drag started:', variant.name, 'from component:', component.name);
     
-    // Prevent default to enable custom drag behavior
-    e.preventDefault();
-    e.stopPropagation();
+    // Set drag data properly
+    const dragData = {
+      componentType: component.type,
+      variant,
+      component: {
+        name: component.name,
+        type: component.type,
+        description: component.description,
+        default_props: component.default_props,
+        prop_definitions: component.prop_definitions
+      }
+    };
     
-    // Set drag data
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'copy';
-      e.dataTransfer.setData('text/plain', JSON.stringify({
-        componentType: component.type,
-        variant: variant
-      }));
-    }
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
+    
+    // Create drag preview
+    const preview = createDragPreview(component, variant);
+    setDragPreview(preview);
     
     // Call parent handler with variant data
     if (onComponentDragStart) {
       onComponentDragStart(e, component.type, variant);
+    }
+  };
+
+  const handleVariantDragEnd = (e) => {
+    console.log('Variant drag ended');
+    if (dragPreview && document.body.contains(dragPreview)) {
+      document.body.removeChild(dragPreview);
+    }
+    setDragPreview(null);
+    
+    if (onComponentDragEnd) {
+      onComponentDragEnd(e);
     }
   };
 
@@ -242,31 +337,42 @@ const ComponentsPanel = ({
     setSelectedComponent(null);
   };
 
-  // Dynamic theme-aware styles
+  // Cleanup drag preview on component unmount
+  useEffect(() => {
+    return () => {
+      if (dragPreview && document.body.contains(dragPreview)) {
+        document.body.removeChild(dragPreview);
+      }
+    };
+  }, [dragPreview]);
+
+  // Dynamic theme-aware styles using your custom colors
   const getThemeStyles = () => {
     if (isDarkMode) {
       return {
-        background: '#111827',
-        surface: '#1f2937',
-        surfaceHover: '#374151',
-        text: '#f9fafb',
-        textMuted: '#9ca3af',
-        border: '#374151',
-        primary: '#3b82f6',
-        primarySoft: '#1e40af',
-        bgMuted: '#1f2937'
+        background: 'var(--color-bg)',
+        surface: 'var(--color-surface)',
+        surfaceHover: 'var(--color-bg-muted)',
+        text: 'var(--color-text)',
+        textMuted: 'var(--color-text-muted)',
+        border: 'var(--color-border)',
+        primary: 'var(--color-primary)',
+        primarySoft: 'var(--color-primary-soft)',
+        bgMuted: 'var(--color-bg-muted)',
+        accent: 'var(--color-accent)'
       };
     }
     return {
-      background: '#ffffff',
-      surface: '#ffffff',
-      surfaceHover: '#f9fafb',
-      text: '#111827',
-      textMuted: '#6b7280',
-      border: '#e5e7eb',
-      primary: '#3b82f6',
-      primarySoft: '#dbeafe',
-      bgMuted: '#f9fafb'
+      background: 'var(--color-bg)',
+      surface: 'var(--color-surface)',
+      surfaceHover: 'var(--color-bg-muted)',
+      text: 'var(--color-text)',
+      textMuted: 'var(--color-text-muted)',
+      border: 'var(--color-border)',
+      primary: 'var(--color-primary)',
+      primarySoft: 'var(--color-primary-soft)',
+      bgMuted: 'var(--color-bg-muted)',
+      accent: 'var(--color-accent)'
     };
   };
 
@@ -366,30 +472,39 @@ const ComponentsPanel = ({
               transition={{ duration: 0.2 }}
               className="flex-1 overflow-hidden"
             >
-              {/* Components List */}
-              <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3">
-                <motion.div 
-                  className="space-y-3 max-w-full"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.1 }}
-                >
-                  {Object.entries(filteredComponents).map(([letter, letterComponents]) => (
-                    <motion.div
-                      key={letter}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="max-w-full"
-                    >
-                      {!selectedLetter && (
-                        <div className="text-xs font-semibold mb-2 uppercase tracking-wider" 
-                             style={{ color: theme.textMuted }}>
-                          {letter}
-                        </div>
-                      )}
-                      
-                      <div className="space-y-1.5 max-w-full">
+              {/* Components List with Before UI Design */}
+              <div className="space-y-6 p-4">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 rounded-lg" style={{ backgroundColor: theme.primarySoft }}>
+                    <Square className="w-5 h-5" style={{ color: theme.primary }} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold" style={{ color: theme.text }}>UI Components</h3>
+                    <p className="text-xs" style={{ color: theme.textMuted }}>Click to explore variants or drag to canvas</p>
+                  </div>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto overflow-x-hidden">
+                  <motion.div 
+                    className="space-y-6"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.1 }}
+                  >
+                    {Object.entries(filteredComponents).map(([letter, letterComponents]) => (
+                      <motion.div
+                        key={letter}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="space-y-3"
+                      >
+                        {!selectedLetter && (
+                          <div className="text-sm font-medium mb-2 capitalize" style={{ color: theme.text }}>
+                            {letter}
+                          </div>
+                        )}
+                        
                         {letterComponents.map((component) => {
                           const IconComponent = iconMap[component.icon] || Square;
                           const variantCount = Array.isArray(component.variants) ? component.variants.length : 0;
@@ -397,99 +512,90 @@ const ComponentsPanel = ({
                           return (
                             <motion.div
                               key={component.id}
-                              className="group cursor-pointer max-w-full"
-                              draggable={variantCount === 0}
-                              onClick={() => handleComponentClick(component)}
-                              onDragStart={(e) => {
-                                if (variantCount === 0) {
-                                  e.dataTransfer.effectAllowed = 'copy';
-                                  e.dataTransfer.setData('text/plain', component.type);
-                                  if (onComponentDragStart) {
-                                    onComponentDragStart(e, component.type);
-                                  }
-                                }
+                              className="group p-4 border-2 border-dashed rounded-xl cursor-pointer hover:border-opacity-60 transition-all duration-300"
+                              style={{ 
+                                borderColor: theme.border,
+                                backgroundColor: theme.bgMuted
                               }}
-                              onDragEnd={onComponentDragEnd}
+                              onClick={() => handleComponentClick(component)}
                               whileHover={{ scale: 1.01 }}
                               whileTap={{ scale: 0.99 }}
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ duration: 0.2 }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.borderColor = theme.primary;
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.borderColor = theme.border;
+                              }}
                             >
-                              <div 
-                                className="p-2 border border-transparent rounded-lg transition-all duration-300 shadow-sm hover:shadow-md max-w-full"
-                                style={{ 
-                                  backgroundColor: theme.bgMuted,
-                                  borderColor: 'transparent'
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.borderColor = theme.primarySoft;
-                                  e.currentTarget.style.backgroundColor = theme.surface;
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.borderColor = 'transparent';
-                                  e.currentTarget.style.backgroundColor = theme.bgMuted;
-                                }}
-                              >
-                                <div className="flex items-start gap-2 w-full min-w-0">
+                              <div className="flex items-center gap-3">
+                                <div 
+                                  className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-lg"
+                                  style={{ backgroundColor: theme.primary }}
+                                >
+                                  <IconComponent className="w-5 h-5" />
+                                </div>
+                                <div className="flex-1">
                                   <div 
-                                    className="w-7 h-7 rounded-md flex items-center justify-center text-white font-bold text-xs shadow-sm flex-shrink-0"
-                                    style={{ backgroundColor: theme.primary }}
+                                    className="font-semibold group-hover:opacity-80 transition-opacity"
+                                    style={{ color: theme.text }}
                                   >
-                                    <IconComponent className="w-3.5 h-3.5" />
+                                    {component.name}
                                   </div>
-                                  <div className="flex-1 min-w-0 overflow-hidden">
-                                    <div 
-                                      className="font-medium text-xs group-hover:opacity-80 transition-colors truncate"
-                                      style={{ color: theme.text }}
-                                      title={component.name}
-                                    >
-                                      {component.name}
-                                    </div>
-                                    <div className="text-xs truncate leading-tight" style={{ color: theme.textMuted }} title={component.description}>
-                                      {component.description}
-                                    </div>
-                                    {component.has_animation && (
-                                      <div className="flex items-center gap-1 mt-1">
-                                        <div className="w-1 h-1 bg-green-400 rounded-full animate-pulse"></div>
-                                        <span className="text-xs text-green-600 dark:text-green-400 font-medium truncate">
-                                          {component.animation_type?.toUpperCase()}
-                                        </span>
-                                      </div>
-                                    )}
+                                  <div className="text-xs" style={{ color: theme.textMuted }}>
+                                    {component.description}
                                   </div>
+                                  {/* Show variant count at the bottom */}
                                   {variantCount > 0 && (
-                                    <div 
-                                      className="text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0"
-                                      style={{ 
-                                        backgroundColor: theme.primarySoft, 
-                                        color: theme.primary 
-                                      }}
-                                    >
-                                      {variantCount}
+                                    <div className="mt-2 text-xs" style={{ color: theme.primary }}>
+                                      {variantCount} variant{variantCount !== 1 ? 's' : ''} available
                                     </div>
                                   )}
                                 </div>
                               </div>
+                              
+                              {/* Show available variants/options if they exist */}
+                              {component.prop_definitions && component.prop_definitions.variant && (
+                                <div className="mt-3 flex items-center gap-2 flex-wrap">
+                                  {component.prop_definitions.variant.options.slice(0, 3).map((option) => (
+                                    <span 
+                                      key={option}
+                                      className="px-2 py-1 text-xs rounded-full font-medium capitalize"
+                                      style={{ 
+                                        backgroundColor: option === 'primary' 
+                                          ? theme.primarySoft
+                                          : theme.bgMuted, 
+                                        color: option === 'primary' 
+                                          ? theme.primary
+                                          : theme.textMuted
+                                      }}
+                                    >
+                                      {option}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </motion.div>
                           );
                         })}
-                      </div>
-                    </motion.div>
-                  ))}
-                  
-                  {Object.keys(filteredComponents).length === 0 && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="text-center py-12"
-                    >
-                      <div style={{ color: theme.textMuted }}>
-                        {searchTerm ? `No ${activeTab} found for "${searchTerm}"` : `No ${activeTab} available`}
-                      </div>
-                    </motion.div>
-                  )}
-                </motion.div>
+                      </motion.div>
+                    ))}
+                    
+                    {Object.keys(filteredComponents).length === 0 && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-center py-12"
+                      >
+                        <div style={{ color: theme.textMuted }}>
+                          {searchTerm ? `No ${activeTab} found for "${searchTerm}"` : `No ${activeTab} available`}
+                        </div>
+                      </motion.div>
+                    )}
+                  </motion.div>
+                </div>
               </div>
             </motion.div>
           ) : (
@@ -524,7 +630,7 @@ const ComponentsPanel = ({
                 </div>
               </div>
 
-              {/* Variants Grid - FIXED DRAGGABLE */}
+              {/* Enhanced Variants Grid - FULLY DRAGGABLE */}
               <div className="flex-1 overflow-y-auto p-3">
                 <motion.div
                   className="rounded-xl p-3"
@@ -537,51 +643,70 @@ const ComponentsPanel = ({
                     {selectedComponent?.variants?.map((variant, index) => (
                       <motion.div
                         key={index}
-                        className="group cursor-move max-w-full"
+                        className="group cursor-grab active:cursor-grabbing max-w-full"
                         draggable
                         onDragStart={(e) => handleVariantDragStart(e, selectedComponent, variant)}
-                        onDragEnd={onComponentDragEnd}
+                        onDragEnd={handleVariantDragEnd}
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.03 }}
-                        whileHover={{ scale: 1.01, y: -1 }}
-                        whileTap={{ scale: 0.99 }}
+                        whileHover={{ scale: 1.02, y: -2 }}
+                        whileTap={{ scale: 0.98 }}
                       >
                         <div 
-                          className="rounded-lg p-2 border transition-all duration-300 shadow-sm hover:shadow-md relative overflow-hidden max-w-full"
+                          className="rounded-lg p-3 border transition-all duration-300 shadow-sm hover:shadow-lg relative overflow-hidden max-w-full backdrop-blur-sm"
                           style={{ 
                             backgroundColor: theme.surface,
-                            borderColor: theme.border
+                            borderColor: theme.border,
+                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = theme.primary;
+                            e.currentTarget.style.borderColor = theme.accent;
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 10px 25px rgba(0, 0, 0, 0.1)';
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.borderColor = theme.border;
+                            e.currentTarget.style.transform = 'translateY(0px)';
+                            e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
                           }}
                         >
-                          {/* Drag indicator */}
-                          <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                            <Move className="w-3 h-3" style={{ color: theme.textMuted }} />
-                          </div>
-                          
-                          <div className="flex items-start gap-2 w-full min-w-0">
-                            {/* Variant Preview - Fixed size container */}
+                          {/* Enhanced Drag indicator */}
+                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10">
                             <div 
-                              className="flex-shrink-0 rounded-md overflow-hidden flex items-center justify-center"
+                              className="p-1 rounded-full"
+                              style={{ backgroundColor: theme.accent }}
+                            >
+                              <Move className="w-3 h-3 text-white" />
+                            </div>
+                          </div>
+
+                          {/* Gradient overlay on hover */}
+                          <div 
+                            className="absolute inset-0 opacity-0 group-hover:opacity-5 transition-opacity duration-300 rounded-lg"
+                            style={{ 
+                              background: `linear-gradient(135deg, ${theme.primary}, ${theme.accent})`
+                            }}
+                          />
+                          
+                          <div className="flex items-start gap-3 w-full min-w-0 relative z-10">
+                            {/* Enhanced Variant Preview */}
+                            <div 
+                              className="flex-shrink-0 rounded-lg overflow-hidden flex items-center justify-center border"
                               style={{ 
                                 background: `linear-gradient(135deg, ${theme.bgMuted}, ${theme.surface})`,
-                                width: '48px',
-                                height: '32px'
+                                width: '56px',
+                                height: '40px',
+                                borderColor: theme.border
                               }}
                             >
                               {variant.preview_code && (
                                 <div 
-                                  className="transform scale-[0.35] origin-center w-full h-full flex items-center justify-center"
+                                  className="transform scale-[0.4] origin-center w-full h-full flex items-center justify-center"
                                   style={{ 
-                                    fontSize: '8px',
-                                    maxWidth: '48px',
-                                    maxHeight: '32px'
+                                    fontSize: '10px',
+                                    maxWidth: '56px',
+                                    maxHeight: '40px'
                                   }}
                                   dangerouslySetInnerHTML={{ 
                                     __html: variant.preview_code.replace(/className=/g, 'class=') 
@@ -589,50 +714,172 @@ const ComponentsPanel = ({
                                 />
                               )}
                               {!variant.preview_code && (
-                                <div 
-                                  className="w-6 h-4 rounded-sm"
-                                  style={{ backgroundColor: theme.primary }}
-                                />
+                                <div className="flex items-center justify-center">
+                                  <Sparkles 
+                                    className="w-4 h-4"
+                                    style={{ color: theme.primary }}
+                                  />
+                                </div>
                               )}
                             </div>
                             
-                            {/* Variant Info - Flexible container */}
+                            {/* Enhanced Variant Info */}
                             <div className="flex-1 min-w-0 overflow-hidden">
-                              <h4 
-                                className="font-medium text-xs mb-1 group-hover:opacity-80 transition-colors truncate"
-                                style={{ color: theme.text }}
-                                title={variant.name || `Variant ${index + 1}`}
-                              >
-                                {variant.name || `Variant ${index + 1}`}
-                              </h4>
-                              
-                              <div className="flex items-center justify-between w-full min-w-0">
-                                <div className="flex items-center space-x-1 min-w-0 flex-1">
-                                  {variant.has_animation && (
-                                    <div className="flex items-center gap-1">
-                                      <div className="w-1 h-1 bg-green-400 rounded-full animate-pulse flex-shrink-0"></div>
-                                      <span className="text-xs text-green-600 dark:text-green-400 font-medium truncate">
-                                        {variant.animation_type?.charAt(0).toUpperCase()}
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
+                              <div className="flex items-center justify-between mb-1">
+                                <h4 
+                                  className="font-semibold text-sm group-hover:opacity-90 transition-colors truncate"
+                                  style={{ color: theme.text }}
+                                  title={variant.name || `Variant ${index + 1}`}
+                                >
+                                  {variant.name || `Variant ${index + 1}`}
+                                </h4>
                                 
                                 <motion.div
                                   className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                                   whileHover={{ scale: 1.1 }}
                                 >
                                   <div 
-                                    className="w-4 h-4 rounded-full flex items-center justify-center"
-                                    style={{ backgroundColor: theme.primary }}
+                                    className="w-5 h-5 rounded-full flex items-center justify-center"
+                                    style={{ backgroundColor: theme.accent }}
                                   >
-                                    <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
                                     </svg>
                                   </div>
                                 </motion.div>
                               </div>
+                              
+                              {/* Variant description if available */}
+                              {variant.description && (
+                                <p className="text-xs mb-2 truncate" style={{ color: theme.textMuted }}>
+                                  {variant.description}
+                                </p>
+                              )}
+                              
+                              {/* Dynamic badges for variant properties */}
+                              <div className="flex flex-wrap items-center gap-1 mb-2">
+                                {/* Animation badge */}
+                                {variant.has_animation && (
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse flex-shrink-0"></div>
+                                    <span className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                                          style={{ 
+                                            backgroundColor: 'rgba(34, 197, 94, 0.1)', 
+                                            color: '#22c55e' 
+                                          }}>
+                                      {variant.animation_type?.charAt(0).toUpperCase() + variant.animation_type?.slice(1) || 'Animated'}
+                                    </span>
+                                  </div>
+                                )}
+                                
+                                {/* Interactive badge */}
+                                {variant.is_interactive && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                                        style={{ 
+                                          backgroundColor: 'rgba(59, 130, 246, 0.1)', 
+                                          color: '#3b82f6' 
+                                        }}>
+                                    Interactive
+                                  </span>
+                                )}
+                                
+                                {/* Responsive badge */}
+                                {variant.is_responsive && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                                        style={{ 
+                                          backgroundColor: 'rgba(168, 85, 247, 0.1)', 
+                                          color: '#a855f7' 
+                                        }}>
+                                    Responsive
+                                  </span>
+                                )}
+                                
+                                {/* Custom tags from variant */}
+                                {variant.tags && variant.tags.map((tag, tagIndex) => (
+                                  <span 
+                                    key={tagIndex}
+                                    className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                                    style={{ 
+                                      backgroundColor: theme.primarySoft, 
+                                      color: theme.primary 
+                                    }}
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                                
+                                {/* Size badge if available */}
+                                {variant.size && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                                        style={{ 
+                                          backgroundColor: 'rgba(245, 158, 11, 0.1)', 
+                                          color: '#f59e0b' 
+                                        }}>
+                                    {variant.size}
+                                  </span>
+                                )}
+                                
+                                {/* Style variant badge */}
+                                {variant.style_variant && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                                        style={{ 
+                                          backgroundColor: 'rgba(236, 72, 153, 0.1)', 
+                                          color: '#ec4899' 
+                                        }}>
+                                    {variant.style_variant}
+                                  </span>
+                                )}
+                                
+                                {/* Theme badge */}
+                                {variant.theme && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                                        style={{ 
+                                          backgroundColor: 'rgba(99, 102, 241, 0.1)', 
+                                          color: '#6366f1' 
+                                        }}>
+                                    {variant.theme}
+                                  </span>
+                                )}
+                                
+                                {/* Complexity badge */}
+                                {variant.complexity && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                                        style={{ 
+                                          backgroundColor: variant.complexity === 'simple' 
+                                            ? 'rgba(34, 197, 94, 0.1)' 
+                                            : variant.complexity === 'advanced' 
+                                            ? 'rgba(239, 68, 68, 0.1)' 
+                                            : 'rgba(245, 158, 11, 0.1)',
+                                          color: variant.complexity === 'simple' 
+                                            ? '#22c55e' 
+                                            : variant.complexity === 'advanced' 
+                                            ? '#ef4444' 
+                                            : '#f59e0b'
+                                        }}>
+                                    {variant.complexity}
+                                  </span>
+                                )}
+                                
+                                {/* Custom properties badge */}
+                                {variant.has_custom_props && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                                        style={{ 
+                                          backgroundColor: 'rgba(20, 184, 166, 0.1)', 
+                                          color: '#14b8a6' 
+                                        }}>
+                                    Custom Props
+                                  </span>
+                                )}
+                              </div>
                             </div>
+                          </div>
+                          
+                          {/* Drag hint */}
+                          <div 
+                            className="absolute bottom-2 left-3 text-xs opacity-0 group-hover:opacity-60 transition-opacity"
+                            style={{ color: theme.textMuted }}
+                          >
+                            Drag to canvas
                           </div>
                         </div>
                       </motion.div>
