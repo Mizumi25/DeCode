@@ -46,7 +46,6 @@ const ComponentsPanel = ({
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [showVariants, setShowVariants] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [dragPreview, setDragPreview] = useState(null);
 
   // Alphabet navigation - positioned absolutely on the left
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -208,96 +207,9 @@ const ComponentsPanel = ({
   const handleMainComponentDragStart = (component) => {
     console.log('Starting drag for main component:', component.type);
     
-    // Create drag event manually
-    const dragEvent = {
-      dataTransfer: {
-        effectAllowed: 'copy',
-        setData: (type, data) => {
-          const dragData = {
-            componentType: component.type,
-            variant: null,
-            component: {
-              name: component.name,
-              type: component.type,
-              description: component.description,
-              default_props: component.default_props,
-              prop_definitions: component.prop_definitions
-            }
-          };
-          console.log('Setting drag data:', dragData);
-          return JSON.stringify(dragData);
-        }
-      }
-    };
-
-    if (onComponentDragStart) {
-      onComponentDragStart(dragEvent, component.type, null);
-    }
-  };
-
-  // Enhanced drag handlers for variants
-  const createDragPreview = (component, variant = null) => {
-    const preview = document.createElement('div');
-    preview.className = 'drag-preview';
-    preview.style.cssText = `
-      position: fixed;
-      top: -1000px;
-      left: -1000px;
-      z-index: 99999;
-      padding: 16px 24px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border-radius: 12px;
-      font-size: 14px;
-      font-weight: 600;
-      pointer-events: none;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-      transform: rotate(3deg) scale(1.05);
-      backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      max-width: 250px;
-      transition: all 0.2s ease;
-    `;
-    
-    const icon = variant ? '✨' : '📦';
-    const name = variant ? variant.name : component.name;
-    const subtitle = variant ? `from ${component.name}` : component.description;
-    
-    preview.innerHTML = `
-      <span style="font-size: 18px;">${icon}</span>
-      <div>
-        <div style="font-weight: 700;">${name}</div>
-        <div style="font-size: 12px; opacity: 0.8;">${subtitle}</div>
-      </div>
-    `;
-    
-    document.body.appendChild(preview);
-    return preview;
-  };
-
-  const findComponentByType = (componentType) => {
-    for (const typeGroup of Object.values(components)) {
-      for (const letterGroup of Object.values(typeGroup)) {
-        if (Array.isArray(letterGroup)) {
-          const found = letterGroup.find(comp => comp.type === componentType);
-          if (found) return found;
-        }
-      }
-    }
-    return null;
-  };
-
-  // Enhanced variant drag start handler with proper HTML5 drag API
-  const handleVariantDragStart = (e, component, variant) => {
-    console.log('Variant drag started:', variant.name, 'from component:', component.name);
-    
-    // Set drag data properly
     const dragData = {
       componentType: component.type,
-      variant,
+      variant: null,
       component: {
         name: component.name,
         type: component.type,
@@ -306,26 +218,58 @@ const ComponentsPanel = ({
         prop_definitions: component.prop_definitions
       }
     };
+
+    // Create a synthetic drag event
+    const syntheticEvent = {
+      dataTransfer: {
+        effectAllowed: 'copy',
+        setData: (type, data) => {
+          console.log('Setting drag data:', dragData);
+          return JSON.stringify(dragData);
+        }
+      }
+    };
+
+    if (onComponentDragStart) {
+      onComponentDragStart(syntheticEvent, component.type, null);
+    }
+  };
+
+  // Enhanced variant drag start handler with proper HTML5 drag API
+  const handleVariantDragStart = (e, component, variant) => {
+    e.stopPropagation();
+    console.log('Variant drag started:', variant.name, 'from component:', component.name);
+    
+    // Set drag data properly with complete component info
+    const dragData = {
+      componentType: component.type,
+      variant: variant,
+      component: {
+        id: component.id,
+        name: component.name,
+        type: component.type,
+        description: component.description,
+        default_props: component.default_props,
+        prop_definitions: component.prop_definitions,
+        category: component.category,
+        icon: component.icon
+      }
+    };
+    
+    console.log('Setting variant drag data:', dragData);
     
     e.dataTransfer.effectAllowed = 'copy';
     e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
-    
-    // Create drag preview
-    const preview = createDragPreview(component, variant);
-    setDragPreview(preview);
+    e.dataTransfer.setData('application/json', JSON.stringify(dragData));
     
     // Call parent handler with variant data
     if (onComponentDragStart) {
-      onComponentDragStart(e, component.type, variant);
+      onComponentDragStart(e, component.type, variant, dragData);
     }
   };
 
   const handleVariantDragEnd = (e) => {
     console.log('Variant drag ended');
-    if (dragPreview && document.body.contains(dragPreview)) {
-      document.body.removeChild(dragPreview);
-    }
-    setDragPreview(null);
     
     if (onComponentDragEnd) {
       onComponentDragEnd(e);
@@ -336,15 +280,6 @@ const ComponentsPanel = ({
     setShowVariants(false);
     setSelectedComponent(null);
   };
-
-  // Cleanup drag preview on component unmount
-  useEffect(() => {
-    return () => {
-      if (dragPreview && document.body.contains(dragPreview)) {
-        document.body.removeChild(dragPreview);
-      }
-    };
-  }, [dragPreview]);
 
   // Dynamic theme-aware styles using your custom colors
   const getThemeStyles = () => {
@@ -642,7 +577,7 @@ const ComponentsPanel = ({
                   <div className="grid grid-cols-1 gap-2 max-w-full">
                     {selectedComponent?.variants?.map((variant, index) => (
                       <motion.div
-                        key={index}
+                        key={`${selectedComponent.id}-${variant.name || index}`}
                         className="group cursor-grab active:cursor-grabbing max-w-full"
                         draggable
                         onDragStart={(e) => handleVariantDragStart(e, selectedComponent, variant)}
@@ -824,7 +759,7 @@ const ComponentsPanel = ({
                                   <span className="text-xs px-1.5 py-0.5 rounded-full font-medium"
                                         style={{ 
                                           backgroundColor: 'rgba(236, 72, 153, 0.1)', 
-                                          color: '#ec4899' 
+                                          color: '#ec4899'
                                         }}>
                                     {variant.style_variant}
                                   </span>
