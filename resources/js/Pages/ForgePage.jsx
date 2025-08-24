@@ -1,10 +1,9 @@
-// Enhanced ForgePage.jsx - MOBILE RESPONSIVE FIXES for code panel visibility
+// Enhanced ForgePage.jsx - MOBILE RESPONSIVE FIXES for code panel visibility and drag functionality
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import Panel from '@/Components/Panel';
 import { Square, Code, Layers, User, Settings, ChevronUp, ChevronDown, Copy, RefreshCw } from 'lucide-react';
-
 
 // Import separated forge components
 import ComponentsPanel from '@/Components/Forge/ComponentsPanel';
@@ -16,7 +15,6 @@ import BottomCodePanel from '@/Components/Forge/BottomCodePanel';
 import SidebarCodePanel from '@/Components/Forge/SidebarCodePanel';
 import CodeTooltip from '@/Components/Forge/CodeTooltip';
 import FloatingFrameSwitcher from '@/Components/Forge/FloatingFrameSwitcher';
-
 
 // Import dynamic component service
 import { componentLibraryService } from '@/Services/ComponentLibraryService';
@@ -61,13 +59,6 @@ export default function ForgePage({ projectId, frameId }) {
     draggedComponent: null,
     dragPreview: null,
     variant: null // Track variant being dragged
-  })
-
-  // Code panel drag state
-  const [codePanelDragState, setCodePanelDragState] = useState({
-    isDragging: false,
-    startX: 0,
-    startY: 0
   })
 
   const canvasRef = useRef(null)
@@ -385,32 +376,6 @@ export default function ForgePage({ projectId, frameId }) {
     }
   }, [canvasComponents, componentsLoaded])
 
-  // Code panel drag handlers with mobile support
-  const handleCodePanelDragStart = useCallback((e) => {
-    if (isMobile) return; // Disable dragging on mobile
-    
-    setCodePanelDragState({
-      isDragging: true,
-      startX: e.clientX,
-      startY: e.clientY
-    })
-  }, [isMobile])
-
-  const handleCodePanelDragEnd = useCallback((e) => {
-    if (!codePanelDragState.isDragging || isMobile) return
-
-    const deltaX = e.clientX - codePanelDragState.startX
-    const deltaY = e.clientY - codePanelDragState.startY
-
-    if (Math.abs(deltaX) > Math.abs(deltaY) && deltaX > 100) {
-      setCodePanelPosition('right')
-    } else if (deltaY > 50) {
-      setCodePanelPosition('bottom')
-    }
-
-    setCodePanelDragState({ isDragging: false, startX: 0, startY: 0 })
-  }, [codePanelDragState, isMobile])
-
   // Global drag handlers with mobile optimizations
   useEffect(() => {
     if (!dragState.isDragging || !dragState.dragPreview) return
@@ -423,34 +388,12 @@ export default function ForgePage({ projectId, frameId }) {
       }
     }
 
-    const handleMouseMove = (e) => {
-      if (codePanelDragState.isDragging && !isMobile) {
-        const deltaX = e.clientX - codePanelDragState.startX
-        if (codePanelRef.current) {
-          codePanelRef.current.style.transform = `translateX(${Math.max(-50, Math.min(50, deltaX * 0.1))}px)`
-        }
-      }
-    }
-
-    const handleMouseUp = (e) => {
-      if (codePanelDragState.isDragging && !isMobile) {
-        handleCodePanelDragEnd(e)
-        if (codePanelRef.current) {
-          codePanelRef.current.style.transform = 'translateX(0px)'
-        }
-      }
-    }
-
     document.addEventListener('dragover', handleDragMove)
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
     
     return () => {
       document.removeEventListener('dragover', handleDragMove)
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [dragState.isDragging, dragState.dragPreview, codePanelDragState, handleCodePanelDragEnd, isMobile])
+  }, [dragState.isDragging, dragState.dragPreview, isMobile])
 
   // Component selection handler
   const handleComponentClick = useCallback((componentId, e) => {
@@ -784,7 +727,6 @@ export default function ForgePage({ projectId, frameId }) {
           setCodePanelHeight={setCodePanelHeight}
           moveCodePanelToRightSidebar={moveCodePanelToRightSidebar}
           setShowCodePanel={setShowCodePanel}
-          handleCodePanelDragStart={handleCodePanelDragStart}
           // CodePanel props
           showTooltips={showTooltips && !isMobile}
           setShowTooltips={setShowTooltips}
@@ -867,7 +809,7 @@ export default function ForgePage({ projectId, frameId }) {
 
       {/* Mobile performance optimization styles */}
       {isMobile && (
-        <style jsx>{`
+        <style>{`
           /* Mobile-specific optimizations */
           * {
             -webkit-font-smoothing: antialiased;
@@ -893,8 +835,7 @@ export default function ForgePage({ projectId, frameId }) {
               box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24) !important;
             }
           }
-        `}
-      </style>
+        `}</style>
       )}
     </AuthenticatedLayout>
   );

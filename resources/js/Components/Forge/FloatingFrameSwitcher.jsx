@@ -1,4 +1,4 @@
-// FloatingFrameSwitcher.jsx - Modern minimalist frame switcher with proper animations
+// FloatingFrameSwitcher.jsx - Modern minimalist frame switcher with proper slide animation
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Monitor, Smartphone, Tablet, Globe, Eye, Grid3X3, Layers, Settings } from 'lucide-react';
@@ -98,49 +98,21 @@ const FloatingFrameSwitcher = ({ currentFrame, onFrameSwitch, isMobile }) => {
   // Animation variants
   const panelVariants = {
     closed: {
-      width: 'auto',
-      opacity: 1,
-      transition: {
-        duration: 0.3,
-        ease: [0.4, 0, 0.2, 1],
-        when: "afterChildren"
-      }
-    },
-    open: {
-      width: isMobile ? 320 : 380,
-      opacity: 1,
-      transition: {
-        duration: 0.3,
-        ease: [0.4, 0, 0.2, 1],
-        when: "beforeChildren"
-      }
-    }
-  };
-
-  const contentVariants = {
-    closed: {
+      x: '100%',
       opacity: 0,
-      x: 20,
       transition: {
-        duration: 0.2,
-        ease: "easeIn"
+        duration: 0.3,
+        ease: [0.4, 0, 0.2, 1]
       }
     },
     open: {
-      opacity: 1,
       x: 0,
+      opacity: 1,
       transition: {
         duration: 0.3,
-        delay: 0.1,
-        ease: "easeOut"
+        ease: [0.4, 0, 0.2, 1]
       }
     }
-  };
-
-  const buttonVariants = {
-    closed: { rotate: 0 },
-    open: { rotate: 180 },
-    hover: { scale: 1.05 }
   };
 
   return (
@@ -151,23 +123,11 @@ const FloatingFrameSwitcher = ({ currentFrame, onFrameSwitch, isMobile }) => {
         filter: 'drop-shadow(0 10px 25px rgba(0, 0, 0, 0.15))'
       }}
     >
-      <motion.div 
-        variants={panelVariants}
-        animate={isExpanded ? "open" : "closed"}
-        initial="closed"
-        className="relative"
-        style={{
-          backgroundColor: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
-          borderRadius: isMobile ? '12px 0 0 12px' : '16px 0 0 16px'
-        }}
-      >
+      <div className="relative">
         {/* Trigger Button - Always visible */}
         <motion.button
           onClick={togglePanel}
-          variants={buttonVariants}
-          animate={isExpanded ? "open" : "closed"}
-          whileHover="hover"
+          whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className="absolute right-0 top-1/2 -translate-y-1/2 z-10"
           style={{
@@ -193,19 +153,20 @@ const FloatingFrameSwitcher = ({ currentFrame, onFrameSwitch, isMobile }) => {
           />
         </motion.button>
 
-        {/* Panel Content - Only rendered when expanded */}
+        {/* Panel Content - Slides from right */}
         <AnimatePresence>
           {isExpanded && (
             <motion.div
-              variants={contentVariants}
+              variants={panelVariants}
               initial="closed"
               animate="open"
               exit="closed"
               className="border backdrop-blur-xl"
               style={{
+                width: isMobile ? 320 : 380,
                 backgroundColor: 'var(--color-surface)',
                 borderColor: 'var(--color-border)',
-                borderRadius: isMobile ? '12px 0 0 12px' : '16px 0 0 16px',
+                borderRadius: isMobile ? '12px 0 0 12px' : '16px 0 0 12px',
                 marginRight: isMobile ? '28px' : '32px',
                 boxShadow: 'var(--shadow-lg)'
               }}
@@ -398,7 +359,7 @@ const FloatingFrameSwitcher = ({ currentFrame, onFrameSwitch, isMobile }) => {
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
+      </div>
 
       {/* Custom Scrollbar Styles */}
       <style jsx>{`

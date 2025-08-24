@@ -1,26 +1,26 @@
-// @/Components/Forge/BottomCodePanel.jsx - FIXED for mobile
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
   GripVertical, 
+  GripHorizontal, 
   Move, 
   Maximize2, 
   ChevronDown, 
-  X 
+  X, 
+  Code2 
 } from 'lucide-react';
 import CodePanel from './CodePanel';
 
 const BottomCodePanel = ({
   showCodePanel,
-  codePanelMinimized,
-  codePanelHeight,
-  codePanelRef,
-  setCodePanelMinimized,
-  setCodePanelHeight,
-  moveCodePanelToRightSidebar,
   setShowCodePanel,
+  codePanelMinimized,
+  setCodePanelMinimized,
+  codePanelHeight,
+  setCodePanelHeight,
+  codePanelRef,
+  moveCodePanelToRightSidebar,
   handleCodePanelDragStart,
-  // CodePanel props
   showTooltips,
   setShowTooltips,
   codeStyle,
@@ -39,72 +39,105 @@ const BottomCodePanel = ({
   canvasComponents,
   setCodePanelPosition
 }) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartY, setDragStartY] = useState(0);
+  const [dragStartHeight, setDragStartHeight] = useState(codePanelHeight || 400);
+
+  const panelRef = useRef(null);
+
+  // Start drag (mouse + touch)
+  const startDrag = (clientY) => {
+    setIsDragging(true);
+    setDragStartY(clientY);
+    setDragStartHeight(codePanelHeight || 400);
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const handleMouseDown = (e) => startDrag(e.clientY);
+  const handleTouchStart = (e) => startDrag(e.touches[0].clientY);
+
+  // Handle move
+  const handleMove = (clientY) => {
+    if (!isDragging) return;
+    const deltaY = dragStartY - clientY;
+    const vh = window.innerHeight;
+    const maxHeight = vh * 0.7;
+    const newHeight = Math.max(200, Math.min(maxHeight, dragStartHeight + deltaY));
+    setCodePanelHeight(newHeight);
+  };
+
+  const handleMouseMove = (e) => handleMove(e.clientY);
+  const handleTouchMove = (e) => handleMove(e.touches[0].clientY);
+
+  // End drag
+  const stopDrag = () => {
+    setIsDragging(false);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
+
+  const handleMouseUp = stopDrag;
+  const handleTouchEnd = stopDrag;
+
+  // Attach/remove listeners
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchmove', handleTouchMove);
+      document.addEventListener('touchend', handleTouchEnd);
+
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+      };
+    }
+  }, [isDragging, dragStartY, dragStartHeight]);
+
   if (!showCodePanel) return null;
 
-  // Calculate responsive height based on screen size
+  // Responsive height
   const getResponsiveHeight = () => {
     const vh = window.innerHeight;
     const isMobile = window.innerWidth < 768;
-    
     if (codePanelMinimized) return '60px';
-    
-    if (isMobile) {
-      // On mobile, use percentage of viewport height
-      return `${Math.min(codePanelHeight, vh * 0.7)}px`;
-    }
-    
+    if (isMobile) return `${Math.min(codePanelHeight, vh * 0.7)}px`;
     return `${Math.min(codePanelHeight, vh * 0.6)}px`;
   };
 
   return (
     <motion.div
-      ref={codePanelRef}
-      initial={{ height: 0, opacity: 0 }}
-      animate={{ 
-        height: getResponsiveHeight(),
-        opacity: 1 
-      }}
-      exit={{ height: 0, opacity: 0 }}
-      className="fixed bottom-0 left-0 right-0 border-t-2 bg-white z-50 shadow-2xl"
+      ref={panelRef}
+      initial={{ y: '100%' }}
+      animate={{ y: 0 }}
+      exit={{ y: '100%' }}
+      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+      className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-2xl z-50 flex flex-col"
       style={{
+        height: getResponsiveHeight(),
+        minHeight: codePanelMinimized ? 'auto' : '200px',
+        maxHeight: codePanelMinimized ? 'auto' : '80vh',
         backgroundColor: 'var(--color-surface)',
         borderColor: 'var(--color-border)',
-        boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.1)',
-        width: '100vw',
-        maxHeight: '70vh', // Prevent taking up entire screen
-        display: 'flex',
-        flexDirection: 'column'
       }}
     >
-      {/* Resizable handle */}
-      <div 
-        className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-purple-500 hover:bg-opacity-20 transition-colors flex items-center justify-center z-10"
-        onMouseDown={(e) => {
-          const startY = e.clientY
-          const startHeight = codePanelHeight
-          
-          const handleMouseMove = (e) => {
-            const vh = window.innerHeight;
-            const maxHeight = vh * 0.7; // Max 70% of viewport height
-            const newHeight = Math.max(200, Math.min(maxHeight, startHeight - (e.clientY - startY)))
-            setCodePanelHeight(newHeight)
-          }
-          
-          const handleMouseUp = () => {
-            document.removeEventListener('mousemove', handleMouseMove)
-            document.removeEventListener('mouseup', handleMouseUp)
-          }
-          
-          document.addEventListener('mousemove', handleMouseMove)
-          document.addEventListener('mouseup', handleMouseUp)
-        }}
-      >
-        <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
-      </div>
-      
-      {/* Header - Fixed height with better mobile responsiveness */}
-      <div 
-        className="flex items-center justify-between p-2 sm:p-3 border-b bg-gray-50 flex-shrink-0"
+      {/* Resize handle */}
+      {!codePanelMinimized && (
+        <div
+          className="h-2 bg-gray-100 hover:bg-gray-200 cursor-ns-resize flex items-center justify-center transition-colors border-b border-gray-200 group"
+          onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
+          title="Drag to resize panel"
+        >
+          <GripHorizontal className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between p-2 sm:p-3 border-b bg-gray-50 flex-shrink-0"
         style={{ 
           backgroundColor: 'var(--color-bg-muted)', 
           borderColor: 'var(--color-border)',
@@ -113,28 +146,28 @@ const BottomCodePanel = ({
         }}
       >
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <GripVertical 
-            className="w-4 h-4 sm:w-5 sm:h-5 cursor-move flex-shrink-0" 
+          <GripVertical
+            className="w-4 h-4 sm:w-5 sm:h-5 cursor-move flex-shrink-0"
             style={{ color: 'var(--color-text-muted)' }}
             onMouseDown={handleCodePanelDragStart}
           />
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <div className="p-1.5 sm:p-2 rounded-lg flex-shrink-0" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
-              <div className="w-4 h-4 sm:w-5 sm:h-5 text-xs" style={{ color: 'var(--color-primary)' }}>📝</div>
+              <Code2 className="w-4 h-4 sm:w-5 sm:h-5" style={{ color: 'var(--color-primary)' }} />
             </div>
             <div className="min-w-0 flex-1">
               <h3 className="font-semibold text-xs sm:text-sm truncate" style={{ color: 'var(--color-text)' }}>
                 Generated Code Panel
               </h3>
               <p className="text-xs hidden sm:block" style={{ color: 'var(--color-text-muted)' }}>
-                {codePanelMinimized ? 'Click to expand' : 'Drag handle to resize • Drag to move to sidebar →'}
+                {codePanelMinimized ? 'Click to expand' : 'Drag to resize • Drag to move →'}
               </p>
             </div>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-          {/* Hide move button on mobile to save space */}
+          {/* Move to Sidebar (desktop only) */}
           <button
             onClick={moveCodePanelToRightSidebar}
             className="hidden sm:flex px-3 py-2 text-xs rounded-lg transition-colors text-white items-center gap-2"
@@ -143,7 +176,8 @@ const BottomCodePanel = ({
             <Move className="w-4 h-4" />
             <span className="hidden md:inline">Move to Sidebar</span>
           </button>
-          
+
+          {/* Minimize/Expand */}
           <button
             onClick={() => setCodePanelMinimized(!codePanelMinimized)}
             className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -152,7 +186,8 @@ const BottomCodePanel = ({
           >
             {codePanelMinimized ? <Maximize2 className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
-          
+
+          {/* Close */}
           <button
             onClick={() => setShowCodePanel(false)}
             className="p-1.5 sm:p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
@@ -162,35 +197,33 @@ const BottomCodePanel = ({
           </button>
         </div>
       </div>
-      
-      {/* Content area - FIXED with proper flex sizing */}
+
+      {/* Content */}
       {!codePanelMinimized && (
         <div className="flex-1 min-h-0 overflow-hidden">
-          <div className="h-full">
-            <CodePanel
-              showTooltips={showTooltips}
-              setShowTooltips={setShowTooltips}
-              codePanelMinimized={codePanelMinimized}
-              setCodePanelMinimized={setCodePanelMinimized}
-              setShowCodePanel={setShowCodePanel}
-              codeStyle={codeStyle}
-              setCodeStyle={setCodeStyle}
-              activeCodeTab={activeCodeTab}
-              setActiveCodeTab={setActiveCodeTab}
-              generatedCode={generatedCode}
-              getAvailableTabs={getAvailableTabs}
-              highlightCode={highlightCode}
-              handleTokenHover={handleTokenHover}
-              handleTokenLeave={handleTokenLeave}
-              handleCodeEdit={handleCodeEdit}
-              copyCodeToClipboard={copyCodeToClipboard}
-              downloadCode={downloadCode}
-              generateCode={generateCode}
-              canvasComponents={canvasComponents}
-              setCodePanelPosition={setCodePanelPosition}
-              isMobile={window.innerWidth < 768}
-            />
-          </div>
+          <CodePanel
+            showTooltips={showTooltips}
+            setShowTooltips={setShowTooltips}
+            codePanelMinimized={codePanelMinimized}
+            setCodePanelMinimized={setCodePanelMinimized}
+            setShowCodePanel={setShowCodePanel}
+            codeStyle={codeStyle}
+            setCodeStyle={setCodeStyle}
+            activeCodeTab={activeCodeTab}
+            setActiveCodeTab={setActiveCodeTab}
+            generatedCode={generatedCode}
+            getAvailableTabs={getAvailableTabs}
+            highlightCode={highlightCode}
+            handleTokenHover={handleTokenHover}
+            handleTokenLeave={handleTokenLeave}
+            handleCodeEdit={handleCodeEdit}
+            copyCodeToClipboard={copyCodeToClipboard}
+            downloadCode={downloadCode}
+            generateCode={generateCode}
+            canvasComponents={canvasComponents}
+            setCodePanelPosition={setCodePanelPosition}
+            isMobile={window.innerWidth < 768}
+          />
         </div>
       )}
     </motion.div>

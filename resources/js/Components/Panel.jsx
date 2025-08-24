@@ -19,6 +19,10 @@ export default function Panel({
   onTabChange = null,
   onSearch = null,
   searchPlaceholder = "Search...",
+  isMobile = false,
+  defaultWidth = 320,
+  minWidth = 280,
+  maxWidth = 400
 }) {
   // Memoize the panels to use to prevent unnecessary re-calculations
   const panelsToUse = useMemo(() => {
@@ -724,11 +728,13 @@ export default function Panel({
     
     if (!allowedDockPositions.includes(position)) return null
 
+    const panelWidth = isMobile ? minWidth : defaultWidth
+
     const dockStyle = snapToEdge
       ? {
           position: 'relative',
           display: 'block',
-          width: '320px',
+          width: `${panelWidth}px`,
           height: '100%',
           float: position,
         }
@@ -737,7 +743,7 @@ export default function Panel({
           [position === 'left' ? 'left' : 'right']: '1rem',
           top: '1rem',
           height: 'calc(100% - 2rem)',
-          width: '320px'
+          width: `${panelWidth}px`
         }
 
     const containerClass = snapToEdge 
@@ -896,7 +902,8 @@ export default function Panel({
 
   return (
     <>
-      <style jsx global>{`
+      {/* FIXED: Removed jsx and global attributes that were causing React warnings */}
+      <style>{`
         .touch-manipulation {
           touch-action: manipulation;
           -webkit-touch-callout: none;
@@ -950,10 +957,11 @@ export default function Panel({
       {/* Drag preview */}
       {dragState.isDragging && dragState.draggedPanel && (
         <div
-          className="dragged-panel w-80"
+          className="dragged-panel"
           style={{
             left: 0,
             top: 0,
+            width: `${isMobile ? minWidth : defaultWidth}px`,
             transform: `translate3d(${dragState.currentPosition.x - dragState.offset.x}px, ${dragState.currentPosition.y - dragState.offset.y}px, 0) rotate(3deg) scale(1.05)`,
           }}
         >
