@@ -236,190 +236,236 @@ class ComponentLibraryService {
     ]);
   }
 
-  // Generic renderer for any component type
-  renderGeneric(props, id, componentDef) {
-    return React.createElement('div', {
-      key: id,
-      className: 'p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 text-center',
-      title: `${componentDef.name} component`,
-      style: props.style
-    }, [
-      React.createElement('div', {
-        key: `${id}-name`,
-        className: 'font-semibold text-gray-700'
-      }, componentDef.name),
-      React.createElement('div', {
-        key: `${id}-type`,
-        className: 'text-xs text-gray-500 mt-1'
-      }, `(${componentDef.type})`)
-    ]);
-  }
+  // Enhanced generic renderer with size constraints
+renderGeneric(props, id, componentDef) {
+  const containerStyle = {
+    maxWidth: '200px',
+    overflow: 'hidden',
+    ...props.style
+  };
+  
+  return React.createElement('div', {
+    key: id,
+    className: 'p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 text-center shrink-0',
+    title: `${componentDef.name} component`,
+    style: containerStyle
+  }, [
+    React.createElement('div', {
+      key: `${id}-name`,
+      className: 'font-semibold text-gray-700 truncate'
+    }, componentDef.name),
+    React.createElement('div', {
+      key: `${id}-type`,
+      className: 'text-xs text-gray-500 mt-1 truncate'
+    }, `(${componentDef.type})`)
+  ]);
+}
 
-  // Enhanced class generators with variant support
+// Enhanced button classes with proper width constraints
+getButtonClasses(props) {
+  const baseClasses = "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 shrink-0";
+  
+  const variantClasses = {
+    primary: "bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 focus:ring-purple-500 shadow-lg hover:shadow-xl",
+    secondary: "bg-white text-gray-900 border-2 border-gray-200 hover:bg-gray-50 focus:ring-gray-500 shadow-sm hover:shadow-md",
+    success: "bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:from-emerald-600 hover:to-teal-700 focus:ring-emerald-500 shadow-lg hover:shadow-xl",
+    warning: "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 focus:ring-amber-500 shadow-lg hover:shadow-xl",
+    danger: "bg-gradient-to-r from-red-500 to-pink-600 text-white hover:from-red-600 hover:to-pink-700 focus:ring-red-500 shadow-lg hover:shadow-xl",
+    ghost: "bg-transparent text-purple-600 hover:bg-purple-50 focus:ring-purple-500 border border-transparent hover:border-purple-200",
+    gradient: "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all",
+    neon: "bg-black border-2 border-cyan-400 text-cyan-400 shadow-lg shadow-cyan-400/50 hover:shadow-cyan-400/75",
+    glass: "bg-white/20 backdrop-blur-md border border-white/30 text-white shadow-xl",
+    outline: "border-2 border-purple-600 text-purple-600 hover:bg-purple-600 hover:text-white",
+    minimal: "text-gray-700 hover:text-gray-900 hover:bg-gray-100",
+    default: "bg-gray-100 text-gray-900 hover:bg-gray-200"
+  };
+  
+  // Enhanced size classes with max-width constraints
+  const sizeClasses = {
+    xs: "px-2 py-1 text-xs min-w-[40px] max-w-[120px]",
+    sm: "px-3 py-1.5 text-sm min-w-[50px] max-w-[150px]", 
+    md: "px-6 py-2.5 text-base min-w-[60px] max-w-[200px]",
+    lg: "px-8 py-4 text-lg min-w-[80px] max-w-[250px]",
+    xl: "px-10 py-5 text-xl min-w-[100px] max-w-[300px]"
+  };
+  
+  const variant = props.variant || 'primary';
+  const size = props.size || 'md';
+  
+  return `${baseClasses} ${variantClasses[variant] || variantClasses.primary} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
+}
 
-  // Get Tailwind classes for button with variant support
-  getButtonClasses(props) {
-    const baseClasses = "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2";
-    
-    const variantClasses = {
-      primary: "bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 focus:ring-purple-500 shadow-lg hover:shadow-xl",
-      secondary: "bg-white text-gray-900 border-2 border-gray-200 hover:bg-gray-50 focus:ring-gray-500 shadow-sm hover:shadow-md",
-      success: "bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:from-emerald-600 hover:to-teal-700 focus:ring-emerald-500 shadow-lg hover:shadow-xl",
-      warning: "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 focus:ring-amber-500 shadow-lg hover:shadow-xl",
-      danger: "bg-gradient-to-r from-red-500 to-pink-600 text-white hover:from-red-600 hover:to-pink-700 focus:ring-red-500 shadow-lg hover:shadow-xl",
-      ghost: "bg-transparent text-purple-600 hover:bg-purple-50 focus:ring-purple-500 border border-transparent hover:border-purple-200",
-      gradient: "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all",
-      neon: "bg-black border-2 border-cyan-400 text-cyan-400 shadow-lg shadow-cyan-400/50 hover:shadow-cyan-400/75",
-      glass: "bg-white/20 backdrop-blur-md border border-white/30 text-white shadow-xl",
-      outline: "border-2 border-purple-600 text-purple-600 hover:bg-purple-600 hover:text-white",
-      minimal: "text-gray-700 hover:text-gray-900 hover:bg-gray-100",
-      default: "bg-gray-100 text-gray-900 hover:bg-gray-200"
-    };
-    
-    const sizeClasses = {
-      xs: "px-2 py-1 text-xs",
-      sm: "px-3 py-1.5 text-sm",
-      md: "px-6 py-2.5 text-base",
-      lg: "px-8 py-4 text-lg",
-      xl: "px-10 py-5 text-xl"
-    };
-    
-    const variant = props.variant || 'primary';
-    const size = props.size || 'md';
-    
-    return `${baseClasses} ${variantClasses[variant] || variantClasses.primary} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
-  }
+// Enhanced button renderer with overflow prevention
+renderButton(props, id) {
+  const className = this.getButtonClasses(props);
+  
+  // Enhanced style with overflow prevention
+  const buttonStyle = {
+    maxWidth: '100%',
+    wordBreak: 'break-word',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    width: props.width || 'fit-content',
+    minWidth: props.minWidth || '60px',
+    ...props.style
+  };
+  
+  return React.createElement('button', {
+    key: id,
+    className,
+    onClick: () => console.log(`Button ${id} clicked`),
+    disabled: props.disabled || false,
+    style: buttonStyle
+  }, props.text || 'Button');
+}
 
-  // Get avatar classes with variant support
-  getAvatarClasses(props) {
-    const baseClasses = "rounded-full flex items-center justify-center overflow-hidden";
-    
-    const variantClasses = {
-      default: "bg-gray-300 text-gray-600",
-      primary: "bg-purple-100 text-purple-600",
-      success: "bg-green-100 text-green-600",
-      warning: "bg-yellow-100 text-yellow-600",
-      danger: "bg-red-100 text-red-600",
-      gradient: "bg-gradient-to-r from-purple-400 to-pink-400 text-white",
-      bordered: "bg-white border-2 border-gray-300 text-gray-600"
-    };
-    
-    const sizeClasses = {
-      xs: "w-6 h-6 text-xs",
-      sm: "w-8 h-8 text-sm",
-      md: "w-12 h-12 text-base",
-      lg: "w-16 h-16 text-lg",
-      xl: "w-20 h-20 text-xl"
-    };
-    
-    const variant = props.variant || 'default';
-    const size = props.size || 'md';
-    
-    return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
-  }
+// Enhanced avatar classes with size constraints
+getAvatarClasses(props) {
+  const baseClasses = "rounded-full flex items-center justify-center overflow-hidden shrink-0";
+  
+  const variantClasses = {
+    default: "bg-gray-300 text-gray-600",
+    primary: "bg-purple-100 text-purple-600",
+    success: "bg-green-100 text-green-600",
+    warning: "bg-yellow-100 text-yellow-600",
+    danger: "bg-red-100 text-red-600",
+    gradient: "bg-gradient-to-r from-purple-400 to-pink-400 text-white",
+    bordered: "bg-white border-2 border-gray-300 text-gray-600"
+  };
+  
+  // Fixed size classes with exact dimensions
+  const sizeClasses = {
+    xs: "w-6 h-6 text-xs min-w-[24px] max-w-[24px]",
+    sm: "w-8 h-8 text-sm min-w-[32px] max-w-[32px]",
+    md: "w-12 h-12 text-base min-w-[48px] max-w-[48px]",
+    lg: "w-16 h-16 text-lg min-w-[64px] max-w-[64px]",
+    xl: "w-20 h-20 text-xl min-w-[80px] max-w-[80px]"
+  };
+  
+  const variant = props.variant || 'default';
+  const size = props.size || 'md';
+  
+  return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
+}
 
-  // Get badge classes with variant support
-  getBadgeClasses(props) {
-    const baseClasses = "inline-block rounded-full font-medium";
-    
-    const variantClasses = {
-      default: "bg-gray-100 text-gray-800",
-      primary: "bg-blue-100 text-blue-800",
-      success: "bg-green-100 text-green-800",
-      warning: "bg-yellow-100 text-yellow-800",
-      danger: "bg-red-100 text-red-800",
-      info: "bg-cyan-100 text-cyan-800",
-      gradient: "bg-gradient-to-r from-purple-400 to-pink-400 text-white",
-      outline: "border-2 border-gray-300 bg-transparent text-gray-700"
-    };
-    
-    const sizeClasses = {
-      xs: "px-1.5 py-0.5 text-xs",
-      sm: "px-2 py-0.5 text-xs",
-      md: "px-2.5 py-1 text-sm",
-      lg: "px-3 py-1.5 text-base"
-    };
-    
-    const variant = props.variant || 'default';
-    const size = props.size || 'md';
-    
-    return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
-  }
+// Enhanced badge classes with size constraints
+getBadgeClasses(props) {
+  const baseClasses = "inline-block rounded-full font-medium shrink-0";
+  
+  const variantClasses = {
+    default: "bg-gray-100 text-gray-800",
+    primary: "bg-blue-100 text-blue-800",
+    success: "bg-green-100 text-green-800",
+    warning: "bg-yellow-100 text-yellow-800",
+    danger: "bg-red-100 text-red-800",
+    info: "bg-cyan-100 text-cyan-800",
+    gradient: "bg-gradient-to-r from-purple-400 to-pink-400 text-white",
+    outline: "border-2 border-gray-300 bg-transparent text-gray-700"
+  };
+  
+  // Size classes with max-width to prevent overflow
+  const sizeClasses = {
+    xs: "px-1.5 py-0.5 text-xs max-w-[80px]",
+    sm: "px-2 py-0.5 text-xs max-w-[100px]",
+    md: "px-2.5 py-1 text-sm max-w-[120px]",
+    lg: "px-3 py-1.5 text-base max-w-[150px]"
+  };
+  
+  const variant = props.variant || 'default';
+  const size = props.size || 'md';
+  
+  return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
+}
 
-  // Get Tailwind classes for input with variant support
-  getInputClasses(props) {
-    const baseClasses = "block w-full rounded-lg border transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1";
-    
-    const variantClasses = {
-      default: "border-gray-300 focus:border-blue-500 focus:ring-blue-500",
-      error: "border-red-300 focus:border-red-500 focus:ring-red-500",
-      success: "border-green-300 focus:border-green-500 focus:ring-green-500",
-      minimal: "border-0 border-b-2 border-gray-300 rounded-none focus:border-blue-500",
-      filled: "bg-gray-100 border-gray-100 focus:bg-white focus:border-blue-500"
-    };
-    
-    const sizeClasses = {
-      sm: "px-3 py-1.5 text-sm",
-      md: "px-4 py-2.5 text-base",
-      lg: "px-5 py-3 text-lg"
-    };
-    
-    const variant = props.variant || 'default';
-    const size = props.size || 'md';
-    
-    return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
-  }
+// Enhanced input classes with width constraints
+getInputClasses(props) {
+  const baseClasses = "block rounded-lg border transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shrink-0";
+  
+  const variantClasses = {
+    default: "border-gray-300 focus:border-blue-500 focus:ring-blue-500",
+    error: "border-red-300 focus:border-red-500 focus:ring-red-500",
+    success: "border-green-300 focus:border-green-500 focus:ring-green-500",
+    minimal: "border-0 border-b-2 border-gray-300 rounded-none focus:border-blue-500",
+    filled: "bg-gray-100 border-gray-100 focus:bg-white focus:border-blue-500"
+  };
+  
+  // Size classes with width constraints
+  const sizeClasses = {
+    sm: "px-3 py-1.5 text-sm w-full max-w-[200px]",
+    md: "px-4 py-2.5 text-base w-full max-w-[250px]",
+    lg: "px-5 py-3 text-lg w-full max-w-[300px]"
+  };
+  
+  const variant = props.variant || 'default';
+  const size = props.size || 'md';
+  
+  return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
+}
 
-  // Get searchbar classes with variant support
-  getSearchbarClasses(props) {
-    const baseClasses = "flex items-center rounded-lg border transition-colors duration-200";
-    
-    const variantClasses = {
-      default: "bg-white border-gray-300 focus-within:border-blue-500",
-      filled: "bg-gray-100 border-gray-100 focus-within:bg-white focus-within:border-blue-500",
-      minimal: "bg-transparent border-0 border-b-2 border-gray-300 rounded-none focus-within:border-blue-500",
-      elevated: "bg-white shadow-md border-0 focus-within:shadow-lg"
-    };
-    
-    const sizeClasses = {
-      sm: "px-3 py-1.5",
-      md: "px-4 py-2.5",
-      lg: "px-5 py-3"
-    };
-    
-    const variant = props.variant || 'default';
-    const size = props.size || 'md';
-    
-    return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
-  }
+// Enhanced searchbar classes with width constraints
+getSearchbarClasses(props) {
+  const baseClasses = "flex items-center rounded-lg border transition-colors duration-200 shrink-0";
+  
+  const variantClasses = {
+    default: "bg-white border-gray-300 focus-within:border-blue-500",
+    filled: "bg-gray-100 border-gray-100 focus-within:bg-white focus-within:border-blue-500",
+    minimal: "bg-transparent border-0 border-b-2 border-gray-300 rounded-none focus-within:border-blue-500",
+    elevated: "bg-white shadow-md border-0 focus-within:shadow-lg"
+  };
+  
+  // Size classes with width constraints
+  const sizeClasses = {
+    sm: "px-3 py-1.5 w-full max-w-[200px]",
+    md: "px-4 py-2.5 w-full max-w-[250px]",
+    lg: "px-5 py-3 w-full max-w-[300px]"
+  };
+  
+  const variant = props.variant || 'default';
+  const size = props.size || 'md';
+  
+  return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
+}
 
-  // Get Tailwind classes for card with variant support
-  getCardClasses(props) {
-    const baseClasses = "rounded-lg";
-    
-    const variantClasses = {
-      default: "bg-white border border-gray-200",
-      outlined: "bg-transparent border-2 border-gray-300",
-      elevated: "bg-white shadow-lg border-0",
-      flat: "bg-gray-50 border-0",
-      gradient: "bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200",
-      glass: "bg-white/20 backdrop-blur-md border border-white/30"
-    };
-    
-    const paddingClasses = {
-      none: "p-0",
-      sm: "p-3",
-      md: "p-4",
-      lg: "p-6",
-      xl: "p-8"
-    };
-    
-    const variant = props.variant || 'default';
-    const padding = props.padding || 'md';
-    const shadow = (props.shadow && variant !== 'elevated') ? 'shadow-sm' : '';
-    
-    return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${paddingClasses[padding] || paddingClasses.md} ${shadow} ${props.className || ''}`;
-  }
+// Enhanced card classes with width constraints
+getCardClasses(props) {
+  const baseClasses = "rounded-lg shrink-0";
+  
+  const variantClasses = {
+    default: "bg-white border border-gray-200",
+    outlined: "bg-transparent border-2 border-gray-300",
+    elevated: "bg-white shadow-lg border-0",
+    flat: "bg-gray-50 border-0",
+    gradient: "bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200",
+    glass: "bg-white/20 backdrop-blur-md border border-white/30"
+  };
+  
+  const paddingClasses = {
+    none: "p-0",
+    sm: "p-3",
+    md: "p-4",
+    lg: "p-6",
+    xl: "p-8"
+  };
+  
+  // Size constraints for cards
+  const sizeClasses = {
+    sm: "max-w-[200px]",
+    md: "max-w-[300px]", 
+    lg: "max-w-[400px]",
+    xl: "max-w-[500px]",
+    full: "w-full max-w-full"
+  };
+  
+  const variant = props.variant || 'default';
+  const padding = props.padding || 'md';
+  const size = props.size || 'md';
+  const shadow = (props.shadow && variant !== 'elevated') ? 'shadow-sm' : '';
+  
+  return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${paddingClasses[padding] || paddingClasses.md} ${sizeClasses[size] || sizeClasses.md} ${shadow} ${props.className || ''}`;
+}
+
+
 
   // Enhanced code generation with variant support
   async generateComponentCode(componentDef, props, allComponents, style) {

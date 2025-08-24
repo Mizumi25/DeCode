@@ -235,7 +235,7 @@ const ComponentsPanel = ({
     }
   };
 
-  // Enhanced variant drag start handler with proper HTML5 drag API
+  // FIXED: Enhanced variant drag start handler with proper HTML5 drag API and constrained preview
   const handleVariantDragStart = (e, component, variant) => {
     e.stopPropagation();
     console.log('Variant drag started:', variant.name, 'from component:', component.name);
@@ -261,6 +261,56 @@ const ComponentsPanel = ({
     e.dataTransfer.effectAllowed = 'copy';
     e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
     e.dataTransfer.setData('application/json', JSON.stringify(dragData));
+    
+    // FIXED: Create a compact drag preview showing only the UI component
+    const dragPreview = document.createElement('div');
+    dragPreview.style.cssText = `
+      position: absolute;
+      top: -1000px;
+      left: -1000px;
+      z-index: 9999;
+      padding: 8px;
+      background: white;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      pointer-events: none;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+      border: 2px solid #e5e7eb;
+      max-width: 120px;
+      max-height: 60px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+    
+    // FIXED: Only show the actual UI preview, not the variant card
+    if (variant.preview_code) {
+      dragPreview.innerHTML = `
+        <div style="transform: scale(0.8); transform-origin: center;">
+          ${variant.preview_code.replace(/className=/g, 'class=')}
+        </div>
+      `;
+    } else {
+      dragPreview.innerHTML = `
+        <div style="padding: 4px 8px; background: #f3f4f6; border-radius: 4px; font-size: 10px;">
+          ${variant.name || component.name}
+        </div>
+      `;
+    }
+    
+    document.body.appendChild(dragPreview);
+    
+    // Set the custom drag image
+    e.dataTransfer.setDragImage(dragPreview, 60, 30);
+    
+    // Clean up the preview element after a short delay
+    setTimeout(() => {
+      if (document.body.contains(dragPreview)) {
+        document.body.removeChild(dragPreview);
+      }
+    }, 100);
     
     // Call parent handler with variant data
     if (onComponentDragStart) {
@@ -565,7 +615,7 @@ const ComponentsPanel = ({
                 </div>
               </div>
 
-              {/* Enhanced Variants Grid - FULLY DRAGGABLE */}
+              {/* FIXED: Enhanced Variants Grid - Only UI components are draggable */}
               <div className="flex-1 overflow-y-auto p-3">
                 <motion.div
                   className="rounded-xl p-3"
@@ -578,15 +628,10 @@ const ComponentsPanel = ({
                     {selectedComponent?.variants?.map((variant, index) => (
                       <motion.div
                         key={`${selectedComponent.id}-${variant.name || index}`}
-                        className="group cursor-grab active:cursor-grabbing max-w-full"
-                        draggable
-                        onDragStart={(e) => handleVariantDragStart(e, selectedComponent, variant)}
-                        onDragEnd={handleVariantDragEnd}
+                        className="group relative max-w-full"
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.03 }}
-                        whileHover={{ scale: 1.02, y: -2 }}
-                        whileTap={{ scale: 0.98 }}
                       >
                         <div 
                           className="rounded-lg p-3 border transition-all duration-300 shadow-sm hover:shadow-lg relative overflow-hidden max-w-full backdrop-blur-sm"
@@ -606,16 +651,6 @@ const ComponentsPanel = ({
                             e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
                           }}
                         >
-                          {/* Enhanced Drag indicator */}
-                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10">
-                            <div 
-                              className="p-1 rounded-full"
-                              style={{ backgroundColor: theme.accent }}
-                            >
-                              <Move className="w-3 h-3 text-white" />
-                            </div>
-                          </div>
-
                           {/* Gradient overlay on hover */}
                           <div 
                             className="absolute inset-0 opacity-0 group-hover:opacity-5 transition-opacity duration-300 rounded-lg"
@@ -625,15 +660,19 @@ const ComponentsPanel = ({
                           />
                           
                           <div className="flex items-start gap-3 w-full min-w-0 relative z-10">
-                            {/* Enhanced Variant Preview */}
+                            {/* FIXED: Variant Preview - Only this part is draggable */}
                             <div 
-                              className="flex-shrink-0 rounded-lg overflow-hidden flex items-center justify-center border"
+                              className="flex-shrink-0 rounded-lg overflow-hidden flex items-center justify-center border cursor-grab active:cursor-grabbing"
                               style={{ 
                                 background: `linear-gradient(135deg, ${theme.bgMuted}, ${theme.surface})`,
                                 width: '56px',
                                 height: '40px',
                                 borderColor: theme.border
                               }}
+                              draggable
+                              onDragStart={(e) => handleVariantDragStart(e, selectedComponent, variant)}
+                              onDragEnd={handleVariantDragEnd}
+                              title="Drag this component to canvas"
                             >
                               {variant.preview_code && (
                                 <div 
@@ -656,9 +695,19 @@ const ComponentsPanel = ({
                                   />
                                 </div>
                               )}
+                              
+                              {/* Enhanced Drag indicator - only shows on preview hover */}
+                              <div className="absolute top-0 right-0 opacity-0 hover:opacity-100 transition-all duration-300 z-10">
+                                <div 
+                                  className="p-1 rounded-full"
+                                  style={{ backgroundColor: theme.accent }}
+                                >
+                                  <Move className="w-2 h-2 text-white" />
+                                </div>
+                              </div>
                             </div>
                             
-                            {/* Enhanced Variant Info */}
+                            {/* Enhanced Variant Info - NOT draggable */}
                             <div className="flex-1 min-w-0 overflow-hidden">
                               <div className="flex items-center justify-between mb-1">
                                 <h4 
@@ -809,12 +858,12 @@ const ComponentsPanel = ({
                             </div>
                           </div>
                           
-                          {/* Drag hint */}
+                          {/* Drag hint - only shows for the preview area */}
                           <div 
-                            className="absolute bottom-2 left-3 text-xs opacity-0 group-hover:opacity-60 transition-opacity"
+                            className="absolute bottom-2 left-3 text-xs opacity-0 group-hover:opacity-60 transition-opacity pointer-events-none"
                             style={{ color: theme.textMuted }}
                           >
-                            Drag to canvas
+                            ← Drag preview to canvas
                           </div>
                         </div>
                       </motion.div>

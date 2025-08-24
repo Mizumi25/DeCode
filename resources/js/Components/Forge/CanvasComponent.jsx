@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Square, Sparkles } from 'lucide-react';
 
@@ -14,7 +14,23 @@ const CanvasComponent = ({
   onComponentClick
 }) => {
   
-  // Apply styles to a component element
+  // Track canvas dimensions for overflow prevention
+  const [canvasDimensions, setCanvasDimensions] = useState({ width: 800, height: 500 });
+  
+  useEffect(() => {
+    if (canvasRef?.current) {
+      const updateDimensions = () => {
+        const rect = canvasRef.current.getBoundingClientRect();
+        setCanvasDimensions({ width: rect.width, height: rect.height });
+      };
+      
+      updateDimensions();
+      window.addEventListener('resize', updateDimensions);
+      return () => window.removeEventListener('resize', updateDimensions);
+    }
+  }, [canvasRef]);
+  
+  // Apply styles to a component element with overflow prevention
   const applyStylesToComponent = (component) => {
     const styles = component.style || {};
     const animation = component.animation || {};
@@ -39,13 +55,19 @@ const CanvasComponent = ({
     if (styles.translateY) transforms.push(`translateY(${styles.translateY})`);
     transformString = transforms.join(' ') || 'none';
     
+    // Calculate available width for the component
+    const availableWidth = canvasDimensions.width - component.position.x - 40; // 40px margin
+    const maxComponentWidth = Math.max(100, Math.min(availableWidth, 400)); // Min 100px, max 400px or available
+    
     return {
-      // Layout & Position
-      width: styles.width || 'auto',
+      // Layout & Position with overflow prevention
+      width: styles.width || 'fit-content',
+      maxWidth: `${maxComponentWidth}px`,
       height: styles.height || 'auto',
       display: styles.display || 'block',
       position: styles.position || 'relative',
       zIndex: styles.zIndex || 'auto',
+      overflow: 'hidden', // Prevent content overflow
       
       // Colors & Appearance
       backgroundColor: styles.backgroundColor || 'transparent',
@@ -63,7 +85,7 @@ const CanvasComponent = ({
       borderStyle: styles.borderStyle || 'solid',
       borderRadius: styles.borderRadius || '0',
       
-      // Typography
+      // Typography with overflow handling
       fontFamily: styles.fontFamily || 'inherit',
       fontSize: styles.fontSize || 'inherit',
       fontWeight: styles.fontWeight || 'inherit',
@@ -72,6 +94,8 @@ const CanvasComponent = ({
       textAlign: styles.textAlign || 'left',
       textTransform: styles.textTransform || 'none',
       textDecoration: styles.textDecoration || 'none',
+      wordBreak: 'break-word',
+      wordWrap: 'break-word',
       
       // Effects
       opacity: styles.opacity !== undefined ? styles.opacity : 1,
@@ -95,14 +119,13 @@ const CanvasComponent = ({
   const getAnimationProps = (component) => {
     const animation = component.animation || {};
     const animationProps = {
-      initial: { opacity: 0, scale: 0, rotate: -10 },
+      initial: { opacity: 0, scale: 0.8 },
       animate: {
         opacity: 1,
-        scale: selectedComponent === component.id ? 1.1 : 1,
-        rotate: 0
+        scale: selectedComponent === component.id ? 1.05 : 1,
       },
-      exit: { scale: 0, opacity: 0, rotate: 10 },
-      whileHover: { scale: 1.05 },
+      exit: { scale: 0.8, opacity: 0 },
+      whileHover: { scale: 1.02 },
       transition: {
         duration: animation.duration || 0.3,
         delay: animation.delay || 0,
@@ -118,82 +141,44 @@ const CanvasComponent = ({
         break;
       
       case 'slideIn':
-        animationProps.initial = { opacity: 0, x: -50 };
+        animationProps.initial = { opacity: 0, x: -30 };
         animationProps.animate = { ...animationProps.animate, x: 0 };
         break;
       
       case 'bounce':
         animationProps.transition.type = 'spring';
-        animationProps.transition.bounce = 0.6;
+        animationProps.transition.bounce = 0.4;
         break;
       
       case 'scale':
-        animationProps.initial = { opacity: 0, scale: 0 };
+        animationProps.initial = { opacity: 0, scale: 0.8 };
         break;
       
       case 'rotate':
-        animationProps.initial = { opacity: 0, rotate: -180 };
+        animationProps.initial = { opacity: 0, rotate: -90 };
+        animationProps.animate = { ...animationProps.animate, rotate: 0 };
         break;
       
       case 'flip':
-        animationProps.initial = { opacity: 0, rotateY: -90 };
+        animationProps.initial = { opacity: 0, rotateY: -45 };
         animationProps.animate = { ...animationProps.animate, rotateY: 0 };
         break;
-    }
-
-    // Apply hover effects
-    if (animation.hover?.type && animation.hover.type !== 'none') {
-      switch (animation.hover.type) {
-        case 'scale':
-          animationProps.whileHover = { 
-            scale: animation.hover.scale || 1.1,
-            transition: { duration: 0.2 }
-          };
-          break;
-        
-        case 'rotate':
-          animationProps.whileHover = { 
-            rotate: 5,
-            transition: { duration: 0.2 }
-          };
-          break;
-        
-        case 'lift':
-          animationProps.whileHover = { 
-            y: -5,
-            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
-            transition: { duration: 0.2 }
-          };
-          break;
-        
-        case 'glow':
-          animationProps.whileHover = { 
-            boxShadow: '0 0 20px rgba(160, 82, 255, 0.5)', // Using CSS variable would be better but can't access here
-            transition: { duration: 0.2 }
-          };
-          break;
-        
-        case 'shake':
-          animationProps.whileHover = { 
-            x: [0, -2, 2, -2, 2, 0],
-            transition: { duration: 0.4, repeat: Infinity }
-          };
-          break;
-      }
-    }
-
-    // Apply scroll trigger animations
-    if (animation.scrollTrigger?.enabled) {
-      // This would need to be implemented with intersection observer
-      // For now, we'll just apply the initial animation
     }
 
     return animationProps;
   };
 
-  // Enhanced component rendering that properly handles variants
+  // Enhanced component rendering that properly handles variants and prevents overflow
   const renderComponent = (component) => {
     console.log('Rendering component:', component.type, 'with variant:', component.variant);
+    
+    // Container styles to prevent overflow
+    const containerStyle = {
+      maxWidth: '100%',
+      overflow: 'hidden',
+      display: 'inline-block',
+      boxSizing: 'border-box',
+    };
     
     const componentRenderer = componentLibraryService?.getComponent(component.type);
     
@@ -202,6 +187,7 @@ const CanvasComponent = ({
       try {
         return (
           <div
+            style={containerStyle}
             dangerouslySetInnerHTML={{
               __html: component.variant.preview_code.replace(/className=/g, 'class=')
             }}
@@ -234,6 +220,7 @@ const CanvasComponent = ({
       if (component.variant.html) {
         return (
           <div
+            style={containerStyle}
             dangerouslySetInnerHTML={{
               __html: component.variant.html.replace(/className=/g, 'class=')
             }}
@@ -242,11 +229,17 @@ const CanvasComponent = ({
       }
     }
     
-    // Dynamic component rendering based on type and variant
-    return renderComponentByType(component, renderProps);
+    // Wrap the component to prevent overflow
+    const renderedComponent = renderComponentByType(component, renderProps);
+    
+    return (
+      <div style={containerStyle}>
+        {renderedComponent}
+      </div>
+    );
   };
 
-  // Dynamic component renderer based on type
+  // Dynamic component renderer based on type with overflow prevention
   const renderComponentByType = (component, props) => {
     const variantName = component.variant?.name || 'default';
     
@@ -268,30 +261,46 @@ const CanvasComponent = ({
     }
   };
 
-  // Button renderer with variant support
+  // Button renderer with variant support and overflow prevention
   const renderButton = (component, props, variantName) => {
     const buttonClasses = getButtonClasses(variantName, props.size || 'md');
     const text = props.text || component.variant?.text || 'Button';
+    
+    // Calculate available width
+    const availableWidth = canvasDimensions.width - component.position.x - 40;
+    const maxWidth = Math.max(60, Math.min(availableWidth, 300));
+    
+    const buttonStyle = {
+      maxWidth: `${maxWidth}px`,
+      wordBreak: 'break-word',
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      width: props.width || 'fit-content',
+      minWidth: '60px',
+      ...props.style
+    };
     
     return (
       <button 
         className={`${buttonClasses} ${props.className || ''}`}
         disabled={props.disabled}
-        style={props.style}
+        style={buttonStyle}
+        title={text} // Show full text on hover
       >
         {text}
       </button>
     );
   };
 
-  // Avatar renderer with variant support
+  // Avatar renderer with variant support and size constraints
   const renderAvatar = (component, props, variantName) => {
     const avatarClasses = getAvatarClasses(variantName, props.size || 'md');
     const initials = props.initials || props.name?.charAt(0) || 'A';
     
     if (props.src) {
       return (
-        <div className={avatarClasses}>
+        <div className={avatarClasses} style={props.style}>
           <img src={props.src} alt={props.alt || 'Avatar'} className="w-full h-full object-cover" />
         </div>
       );
@@ -304,39 +313,73 @@ const CanvasComponent = ({
     );
   };
 
-  // Badge renderer with variant support
+  // Badge renderer with variant support and overflow prevention
   const renderBadge = (component, props, variantName) => {
     const badgeClasses = getBadgeClasses(variantName, props.size || 'md');
     const text = props.text || component.variant?.text || 'Badge';
     
+    const badgeStyle = {
+      maxWidth: '150px',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+      ...props.style
+    };
+    
     return (
-      <span className={`${badgeClasses} ${props.className || ''}`} style={props.style}>
+      <span 
+        className={`${badgeClasses} ${props.className || ''}`} 
+        style={badgeStyle}
+        title={text}
+      >
         {text}
       </span>
     );
   };
 
-  // Card renderer with variant support
+  // Card renderer with variant support and width constraints
   const renderCard = (component, props, variantName) => {
-    const cardClasses = getCardClasses(variantName, props.padding || 'md');
+    const cardClasses = getCardClasses(variantName, props.padding || 'md', props.size || 'md');
+    
+    // Calculate available width for card
+    const availableWidth = canvasDimensions.width - component.position.x - 40;
+    const maxWidth = Math.max(200, Math.min(availableWidth, 400));
+    
+    const cardStyle = {
+      maxWidth: `${maxWidth}px`,
+      width: props.width || 'fit-content',
+      ...props.style
+    };
     
     return (
-      <div className={`${cardClasses} ${props.className || ''}`} style={props.style}>
+      <div className={`${cardClasses} ${props.className || ''}`} style={cardStyle}>
         {props.title && (
-          <h3 className="font-semibold text-lg mb-2 text-gray-900">
+          <h3 className="font-semibold text-lg mb-2 text-gray-900 truncate">
             {props.title}
           </h3>
         )}
-        <div className="text-gray-600">
-          {props.content || 'Card content'}
+        <div className="text-gray-600 overflow-hidden">
+          <div className="line-clamp-3">
+            {props.content || 'Card content'}
+          </div>
         </div>
       </div>
     );
   };
 
-  // Input renderer with variant support
+  // Input renderer with variant support and width constraints
   const renderInput = (component, props, variantName) => {
     const inputClasses = getInputClasses(variantName, props.size || 'md');
+    
+    // Calculate available width
+    const availableWidth = canvasDimensions.width - component.position.x - 40;
+    const maxWidth = Math.max(150, Math.min(availableWidth, 300));
+    
+    const inputStyle = {
+      maxWidth: `${maxWidth}px`,
+      width: props.width || '100%',
+      ...props.style
+    };
     
     return (
       <input 
@@ -345,45 +388,70 @@ const CanvasComponent = ({
         className={`${inputClasses} ${props.className || ''}`}
         disabled={props.disabled}
         required={props.required}
-        style={props.style}
+        style={inputStyle}
       />
     );
   };
 
-  // Searchbar renderer with variant support
+  // Searchbar renderer with variant support and width constraints
   const renderSearchbar = (component, props, variantName) => {
     const searchClasses = getSearchbarClasses(variantName, props.size || 'md');
     
+    // Calculate available width
+    const availableWidth = canvasDimensions.width - component.position.x - 40;
+    const maxWidth = Math.max(200, Math.min(availableWidth, 350));
+    
+    const searchStyle = {
+      maxWidth: `${maxWidth}px`,
+      width: props.width || '100%',
+      ...props.style
+    };
+    
     return (
-      <div className={`${searchClasses} ${props.className || ''}`} style={props.style}>
+      <div className={`${searchClasses} ${props.className || ''}`} style={searchStyle}>
         <input 
           type="text"
           placeholder={props.placeholder || 'Search...'}
-          className="flex-1 bg-transparent outline-none"
+          className="flex-1 bg-transparent outline-none min-w-0"
         />
-        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
       </div>
     );
   };
 
-  // Generic renderer for unknown components
+  // Generic renderer for unknown components with size constraints
   const renderGeneric = (component, props, variantName) => {
+    const containerStyle = {
+      maxWidth: '200px',
+      overflow: 'hidden',
+      ...props.style
+    };
+    
     return (
-      <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 text-center">
-        <div className="font-semibold text-gray-700">{component.name}</div>
-        <div className="text-xs text-gray-500 mt-1">({component.type})</div>
+      <div 
+        className="p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 text-center"
+        style={containerStyle}
+      >
+        <div className="font-semibold text-gray-700 truncate" title={component.name}>
+          {component.name}
+        </div>
+        <div className="text-xs text-gray-500 mt-1 truncate">
+          ({component.type})
+        </div>
         {variantName !== 'default' && (
-          <div className="text-xs text-blue-500 mt-1">{variantName}</div>
+          <div className="text-xs text-blue-500 mt-1 truncate" title={variantName}>
+            {variantName}
+          </div>
         )}
       </div>
     );
   };
 
-  // Get button classes based on variant
+  // Get button classes based on variant with size constraints
   const getButtonClasses = (variant, size) => {
-    const baseClasses = "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2";
+    const baseClasses = "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 shrink-0";
     
     const variantClasses = {
       primary: "bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 focus:ring-purple-500 shadow-lg hover:shadow-xl",
@@ -401,19 +469,19 @@ const CanvasComponent = ({
     };
     
     const sizeClasses = {
-      xs: "px-2 py-1 text-xs",
-      sm: "px-3 py-1.5 text-sm",
-      md: "px-6 py-2.5 text-base",
-      lg: "px-8 py-4 text-lg",
-      xl: "px-10 py-5 text-xl"
+      xs: "px-2 py-1 text-xs min-w-[40px] max-w-[120px]",
+      sm: "px-3 py-1.5 text-sm min-w-[50px] max-w-[150px]",
+      md: "px-6 py-2.5 text-base min-w-[60px] max-w-[200px]",
+      lg: "px-8 py-4 text-lg min-w-[80px] max-w-[250px]",
+      xl: "px-10 py-5 text-xl min-w-[100px] max-w-[300px]"
     };
     
     return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md}`;
   };
 
-  // Get avatar classes based on variant
+  // Get avatar classes based on variant with fixed dimensions
   const getAvatarClasses = (variant, size) => {
-    const baseClasses = "rounded-full flex items-center justify-center overflow-hidden";
+    const baseClasses = "rounded-full flex items-center justify-center overflow-hidden shrink-0";
     
     const variantClasses = {
       default: "bg-gray-300 text-gray-600",
@@ -436,9 +504,9 @@ const CanvasComponent = ({
     return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md}`;
   };
 
-  // Get badge classes based on variant
+  // Get badge classes based on variant with width constraints
   const getBadgeClasses = (variant, size) => {
-    const baseClasses = "inline-block rounded-full font-medium";
+    const baseClasses = "inline-block rounded-full font-medium shrink-0";
     
     const variantClasses = {
       default: "bg-gray-100 text-gray-800",
@@ -452,18 +520,18 @@ const CanvasComponent = ({
     };
     
     const sizeClasses = {
-      xs: "px-1.5 py-0.5 text-xs",
-      sm: "px-2 py-0.5 text-xs",
-      md: "px-2.5 py-1 text-sm",
-      lg: "px-3 py-1.5 text-base"
+      xs: "px-1.5 py-0.5 text-xs max-w-[80px]",
+      sm: "px-2 py-0.5 text-xs max-w-[100px]",
+      md: "px-2.5 py-1 text-sm max-w-[120px]",
+      lg: "px-3 py-1.5 text-base max-w-[150px]"
     };
     
     return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md}`;
   };
 
-  // Get card classes based on variant
-  const getCardClasses = (variant, padding) => {
-    const baseClasses = "rounded-lg";
+  // Get card classes based on variant with size constraints
+  const getCardClasses = (variant, padding, size) => {
+    const baseClasses = "rounded-lg shrink-0";
     
     const variantClasses = {
       default: "bg-white border border-gray-200",
@@ -482,12 +550,19 @@ const CanvasComponent = ({
       xl: "p-8"
     };
     
-    return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${paddingClasses[padding] || paddingClasses.md}`;
+    const sizeClasses = {
+      sm: "max-w-[200px]",
+      md: "max-w-[300px]",
+      lg: "max-w-[400px]",
+      xl: "max-w-[500px]"
+    };
+    
+    return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${paddingClasses[padding] || paddingClasses.md} ${sizeClasses[size] || sizeClasses.md}`;
   };
 
-  // Get input classes based on variant
+  // Get input classes based on variant with width constraints
   const getInputClasses = (variant, size) => {
-    const baseClasses = "block w-full rounded-lg border transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1";
+    const baseClasses = "block rounded-lg border transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shrink-0";
     
     const variantClasses = {
       default: "border-gray-300 focus:border-blue-500 focus:ring-blue-500",
@@ -506,9 +581,9 @@ const CanvasComponent = ({
     return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md}`;
   };
 
-  // Get searchbar classes based on variant
+  // Get searchbar classes based on variant with width constraints
   const getSearchbarClasses = (variant, size) => {
-    const baseClasses = "flex items-center rounded-lg border transition-colors duration-200";
+    const baseClasses = "flex items-center rounded-lg border transition-colors duration-200 shrink-0";
     
     const variantClasses = {
       default: "bg-white border-gray-300 focus-within:border-blue-500",
@@ -560,10 +635,10 @@ const CanvasComponent = ({
         </p>
       </div>
 
-      {/* Enhanced Canvas Area */}
+      {/* Enhanced Canvas Area with overflow prevention */}
       <div
         ref={canvasRef}
-        className={`relative w-full h-[500px] border-2 border-dashed rounded-2xl transition-all duration-300 ${
+        className={`relative w-full h-[500px] border-2 border-dashed rounded-2xl transition-all duration-300 overflow-hidden ${
           dragState.isDragging ? 'scale-105' : ''
         }`}
         style={{
@@ -631,12 +706,15 @@ const CanvasComponent = ({
           </div>
         )}
 
-        {/* Enhanced component rendering with styles and animations */}
+        {/* Enhanced component rendering with styles, animations, and overflow prevention */}
         <AnimatePresence>
           {canvasComponents.map((component) => {
-            // Enhanced component rendering with styles and animations
             const animationProps = getAnimationProps(component);
             const componentStyles = applyStylesToComponent(component);
+
+            // Calculate safe position to prevent component from going outside canvas
+            const safeX = Math.max(0, Math.min(component.position.x, canvasDimensions.width - 60));
+            const safeY = Math.max(0, Math.min(component.position.y, canvasDimensions.height - 40));
 
             return (
               <motion.div
@@ -646,8 +724,8 @@ const CanvasComponent = ({
                   selectedComponent === component.id ? 'ring-4 ring-offset-2' : ''
                 }`}
                 style={{
-                  left: component.position.x,
-                  top: component.position.y,
+                  left: safeX,
+                  top: safeY,
                   ringColor: selectedComponent === component.id ? 'var(--color-primary)' : 'transparent',
                   boxShadow:
                     selectedComponent === component.id ? 'var(--shadow-lg)' : 'var(--shadow-sm)',
@@ -655,7 +733,7 @@ const CanvasComponent = ({
                 }}
                 onClick={(e) => onComponentClick(component.id, e)}
               >
-                {/* Enhanced component rendering */}
+                {/* Enhanced component rendering with overflow prevention */}
                 {renderComponent(component)}
                 
                 {/* Selection indicator */}
@@ -669,17 +747,19 @@ const CanvasComponent = ({
                 {/* Component label when selected */}
                 {selectedComponent === component.id && (
                   <div 
-                    className="absolute -top-6 left-0 px-2 py-1 text-xs font-medium rounded-md"
+                    className="absolute -top-6 left-0 px-2 py-1 text-xs font-medium rounded-md max-w-[200px] overflow-hidden"
                     style={{ 
                       backgroundColor: 'var(--color-primary)', 
                       color: 'white',
                       fontSize: '10px'
                     }}
                   >
-                    {component.name}
-                    {component.variant && (
-                      <span className="opacity-75"> • {component.variant.name}</span>
-                    )}
+                    <span className="truncate block">
+                      {component.name}
+                      {component.variant && (
+                        <span className="opacity-75"> • {component.variant.name}</span>
+                      )}
+                    </span>
                   </div>
                 )}
               </motion.div>
@@ -717,7 +797,7 @@ const CanvasComponent = ({
                     className="w-3 h-3 rounded-full"
                     style={{ backgroundColor: 'var(--color-accent)' }}
                   ></div>
-                  <span style={{ color: 'var(--color-text-muted)' }}>
+                  <span style={{ color: 'var(--color-text-muted)' }} className="truncate max-w-[200px]">
                     Selected: {canvasComponents.find((c) => c.id === selectedComponent)?.name}
                     {canvasComponents.find((c) => c.id === selectedComponent)?.variant && (
                       <span className="opacity-75">
@@ -730,7 +810,7 @@ const CanvasComponent = ({
               <div className="flex items-center gap-2">
                 <Sparkles className="w-3 h-3" style={{ color: 'var(--color-accent)' }} />
                 <span style={{ color: 'var(--color-text-muted)' }}>
-                  Enhanced with CSS & Animations
+                  Overflow Protected
                 </span>
               </div>
             </div>

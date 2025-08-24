@@ -1,4 +1,4 @@
-// Enhanced ForgePage.jsx - Updated with variant support and enhanced drag system
+// Enhanced ForgePage.jsx - Updated with variant support and FIXED drag system
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
@@ -170,8 +170,8 @@ export default function ForgePage({ projectId, frameId }) {
     setComponentSearchTerm(searchTerm)
   }, [])
 
-  // Enhanced component drag handlers with variant support
-  const handleComponentDragStart = useCallback((e, componentType, variant = null) => {
+  // FIXED: Enhanced component drag handlers with proper preview sizing
+  const handleComponentDragStart = useCallback((e, componentType, variant = null, dragData = null) => {
     if (!componentsLoaded) {
       console.warn('Components not loaded yet');
       return;
@@ -199,62 +199,65 @@ export default function ForgePage({ projectId, frameId }) {
       dragPreview: null
     })
 
-    // Enhanced drag preview with variant info
-    const preview = document.createElement('div')
-    preview.className = 'drag-preview'
-    preview.style.cssText = `
-      position: absolute;
-      top: -1000px;
-      left: -1000px;
-      z-index: 9999;
-      padding: 16px 24px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border-radius: var(--radius-lg);
-      font-size: var(--fs-sm);
-      font-weight: 600;
-      pointer-events: none;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-      transform: rotate(2deg) scale(1.05);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      max-width: 280px;
-    `
-    
-    const icon = variant ? '✨' : '📦';
-    const name = variant ? variant.name : component.name;
-    const subtitle = variant ? `from ${component.name}` : componentDef.description;
-    
-    preview.innerHTML = `
-      <span style="font-size: 18px;">${icon}</span>
-      <div>
-        <div style="font-weight: 700; font-size: 14px;">${name}</div>
-        <div style="font-size: 11px; opacity: 0.8; margin-top: 2px;">${subtitle}</div>
-      </div>
-    `;
-    
-    document.body.appendChild(preview)
-    setDragState(prev => ({ ...prev, dragPreview: preview }))
+    // FIXED: Create properly sized drag preview
+    if (!dragData) {
+      const preview = document.createElement('div')
+      preview.className = 'drag-preview'
+      preview.style.cssText = `
+        position: absolute;
+        top: -1000px;
+        left: -1000px;
+        z-index: 9999;
+        padding: 12px 16px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        pointer-events: none;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        transform: rotate(1deg) scale(1.02);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        max-width: 200px;
+        white-space: nowrap;
+      `
+      
+      const icon = variant ? '✨' : '📦';
+      const name = variant ? variant.name : component.name;
+      const subtitle = variant ? `from ${component.name}` : componentDef.description;
+      
+      preview.innerHTML = `
+        <span style="font-size: 16px;">${icon}</span>
+        <div style="overflow: hidden;">
+          <div style="font-weight: 700; font-size: 13px; line-height: 1.2;">${name}</div>
+          <div style="font-size: 10px; opacity: 0.8; margin-top: 2px; overflow: hidden; text-overflow: ellipsis;">${subtitle}</div>
+        </div>
+      `;
+      
+      document.body.appendChild(preview)
+      setDragState(prev => ({ ...prev, dragPreview: preview }))
 
-    e.dataTransfer.effectAllowed = 'copy'
-    
-    // Enhanced drag data with variant info
-    const dragData = {
-      componentType,
-      variant,
-      component: {
-        name: componentDef.name,
-        type: componentType,
-        description: componentDef.description,
-        default_props: componentDef.default_props,
-        prop_definitions: componentDef.prop_definitions
-      }
-    };
-    
-    e.dataTransfer.setData('text/plain', JSON.stringify(dragData))
+      e.dataTransfer.effectAllowed = 'copy'
+      
+      // Enhanced drag data with variant info
+      const enhancedDragData = {
+        componentType,
+        variant,
+        component: {
+          name: componentDef.name,
+          type: componentType,
+          description: componentDef.description,
+          default_props: componentDef.default_props,
+          prop_definitions: componentDef.prop_definitions
+        }
+      };
+      
+      e.dataTransfer.setData('text/plain', JSON.stringify(enhancedDragData))
+    }
   }, [componentsLoaded])
 
   const handleComponentDragEnd = useCallback(() => {
@@ -278,7 +281,7 @@ export default function ForgePage({ projectId, frameId }) {
   const handleCanvasDrop = useCallback((e) => {
     e.preventDefault()
     
-    if (!canvasRef.current || !dragState.isDragging || !componentsLoaded) return
+    if (!canvasRef.current || !componentsLoaded) return
 
     try {
       // Parse enhanced drag data
@@ -343,7 +346,7 @@ export default function ForgePage({ projectId, frameId }) {
       console.error('Error handling component drop:', error);
       handleComponentDragEnd();
     }
-  }, [dragState.isDragging, canvasComponents, componentsLoaded])
+  }, [canvasComponents, componentsLoaded])
 
   // Code panel drag handlers
   const handleCodePanelDragStart = useCallback((e) => {
@@ -369,14 +372,15 @@ export default function ForgePage({ projectId, frameId }) {
     setCodePanelDragState({ isDragging: false, startX: 0, startY: 0 })
   }, [codePanelDragState])
 
-  // Global drag handlers for drag preview positioning
+  // FIXED: Global drag handlers for proper drag preview positioning
   useEffect(() => {
     if (!dragState.isDragging || !dragState.dragPreview) return
 
     const handleDragMove = (e) => {
       if (dragState.dragPreview) {
-        dragState.dragPreview.style.left = (e.clientX + 15) + 'px'
-        dragState.dragPreview.style.top = (e.clientY - 15) + 'px'
+        // FIXED: Better positioning that doesn't interfere with component sizing
+        dragState.dragPreview.style.left = (e.clientX + 10) + 'px'
+        dragState.dragPreview.style.top = (e.clientY - 10) + 'px'
       }
     }
 

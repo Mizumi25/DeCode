@@ -83,9 +83,15 @@ const BottomCodePanel = ({
         <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
       </div>
       
+      {/* FIXED: Header with proper height */}
       <div 
-        className="flex items-center justify-between p-4 border-b"
-        style={{ backgroundColor: 'var(--color-bg-muted)', borderColor: 'var(--color-border)' }}
+        className="flex items-center justify-between p-3 border-b"
+        style={{ 
+          backgroundColor: 'var(--color-bg-muted)', 
+          borderColor: 'var(--color-border)',
+          height: '56px',
+          flexShrink: 0
+        }}
       >
         <div className="flex items-center gap-3">
           <GripVertical 
@@ -98,7 +104,7 @@ const BottomCodePanel = ({
               <div className="w-5 h-5" style={{ color: 'var(--color-primary)' }}>📝</div>
             </div>
             <div>
-              <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Generated Code Panel</h3>
+              <h3 className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>Generated Code Panel</h3>
               <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                 {codePanelMinimized ? 'Click to expand' : 'Drag handle to resize • Drag to move to sidebar →'}
               </p>
@@ -130,9 +136,15 @@ const BottomCodePanel = ({
         </div>
       </div>
       
+      {/* FIXED: Content area with proper height calculation */}
       {!codePanelMinimized && (
-        <div className="h-full overflow-hidden">
-          <div className="p-6 h-full">
+        <div 
+          className="overflow-hidden"
+          style={{ 
+            height: `${codePanelHeight - 56}px` // Subtract header height
+          }}
+        >
+          <div className="h-full">
             <CodePanel
               showTooltips={showTooltips}
               setShowTooltips={setShowTooltips}
