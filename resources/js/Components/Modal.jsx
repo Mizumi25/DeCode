@@ -42,7 +42,7 @@ export default function Modal({
   // Store initial/default sizes for proper restoration
   const [initialSize, setInitialSize] = useState({ width: 'auto', height: 'auto' })
   const [normalSize, setNormalSize] = useState({ width: 'auto', height: 'auto' })
-  const minimizedSize = { width: 300, height: 180 }
+  const minimizedSize = { width: 400, height: 200 } // Increased minimum size
   
   // Draggable instance ref
   const draggableInstance = useRef(null)
@@ -172,7 +172,7 @@ export default function Modal({
           },
           onDrag: function() {
             const rect = panelRef.current.getBoundingClientRect()
-            const newWidth = Math.max(320, rect.width + this.deltaX)
+            const newWidth = Math.max(350, rect.width + this.deltaX) // Increased minimum width
             const newHeight = Math.max(200, rect.height + this.deltaY)
             
             gsap.set(panelRef.current, {
@@ -218,10 +218,12 @@ export default function Modal({
 
         // Capture initial size after first render
         setTimeout(() => {
-          const rect = panelRef.current.getBoundingClientRect()
-          const initial = { width: rect.width, height: rect.height }
-          setInitialSize(initial)
-          setNormalSize(initial)
+          if (panelRef.current) {
+            const rect = panelRef.current.getBoundingClientRect()
+            const initial = { width: rect.width, height: rect.height }
+            setInitialSize(initial)
+            setNormalSize(initial)
+          }
         }, 100)
 
         // Backdrop fade in
@@ -235,7 +237,7 @@ export default function Modal({
           onComplete: () => setIsAnimating(false)
         })
 
-        // Initial state
+        // Initial state - normal size, not minimized
         gsap.set(panelRef.current, {
           scale: 0.8,
           opacity: 0,
@@ -403,11 +405,13 @@ export default function Modal({
         >
           <DialogPanel
             ref={panelRef}
-            className={`relative mx-4 sm:mx-auto w-full ${
-              isMaximized ? 'w-[95vw] h-[90vh]' : 
-              isMinimized ? 'w-80 h-48' : 
-              maxWidthClass
-            } will-change-transform`}
+            className={`relative mx-4 sm:mx-auto w-full will-change-transform ${
+              isMaximized 
+                ? 'w-[95vw] h-[90vh]' 
+                : isMinimized 
+                  ? '' // Remove fixed classes for minimized state
+                  : maxWidthClass
+            }`}
             style={{
               backgroundColor: 'var(--color-surface)',
               color: 'var(--color-text)',
@@ -417,10 +421,15 @@ export default function Modal({
                 : '0 20px 40px -12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05)',
               border: '1px solid var(--color-border)',
               overflow: 'hidden',
-              maxHeight: isMaximized ? '90vh' : isMinimized ? '180px' : '85vh',
-              minWidth: isMaximized ? '95vw' : '320px',
-              minHeight: isMaximized ? '90vh' : '180px',
+              maxHeight: isMaximized ? '90vh' : isMinimized ? `${minimizedSize.height}px` : '85vh',
+              minWidth: isMaximized ? '95vw' : `${minimizedSize.width}px`,
+              minHeight: isMaximized ? '90vh' : `${minimizedSize.height}px`,
               zIndex: isDragging ? 60 : 50,
+              // Set explicit dimensions when minimized
+              ...(isMinimized && {
+                width: `${minimizedSize.width}px`,
+                height: `${minimizedSize.height}px`
+              }),
             }}
           >
             {/* HEADER */}
@@ -490,7 +499,11 @@ export default function Modal({
               ref={contentRef}
               className="overflow-y-auto transition-all duration-300"
               style={{
-                maxHeight: isMaximized ? 'calc(90vh - 60px)' : isMinimized ? '120px' : '70vh',
+                maxHeight: isMaximized 
+                  ? 'calc(90vh - 60px)' 
+                  : isMinimized 
+                    ? `${minimizedSize.height - 60}px` 
+                    : '70vh',
                 backgroundColor: 'var(--color-surface)',
                 opacity: isMinimized ? 0.9 : 1,
               }}
@@ -528,13 +541,30 @@ export default function Modal({
             </div>
 
             {/* RESIZE HANDLE - Bottom right corner */}
-            {!isMaximized && !isMinimized && (
+            {!isMaximized && (
               <div
                 ref={resizeHandleRef}
-                className="absolute bottom-0 right-0 w-4 h-4 cursor-nw-resize group opacity-60 hover:opacity-100 transition-opacity"
+                className="absolute bottom-0 right-0 w-4 h-4 cursor-nw-resize group opacity-60 hover:opacity-100 transition-opacity pointer-events-auto"
+                style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  right: 0,
+                  transform: 'none', // Prevent any transforms
+                  zIndex: 10
+                }}
                 title="Resize modal"
               >
-                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
+                <svg 
+                  className="w-4 h-4" 
+                  viewBox="0 0 16 16" 
+                  fill="currentColor"
+                  style={{ 
+                    position: 'absolute',
+                    bottom: 0,
+                    right: 0,
+                    pointerEvents: 'none'
+                  }}
+                >
                   <path d="M16 16V10h-1v4.3L9.7 9H14V8H8v6h1v-4.3L14.3 15H10v1h6z" />
                 </svg>
               </div>
@@ -542,7 +572,7 @@ export default function Modal({
 
             {/* Drag indicator for minimized mode */}
             {isMinimized && (
-              <div className="absolute top-1 left-1/2 transform -translate-x-1/2 opacity-40">
+              <div className="absolute top-1 left-1/2 transform -translate-x-1/2 opacity-40 pointer-events-none">
                 <div className="w-6 h-1 bg-[var(--color-text-muted)] rounded-full" />
               </div>
             )}
