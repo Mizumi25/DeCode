@@ -1,9 +1,10 @@
-// Enhanced ForgePage.jsx - Updated with variant support and FIXED drag system
+// Enhanced ForgePage.jsx - MOBILE RESPONSIVE FIXES for code panel visibility
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import Panel from '@/Components/Panel';
-import { Square, Code, Layers, User, Settings } from 'lucide-react';
+import { Square, Code, Layers, User, Settings, ChevronUp, ChevronDown, Copy, RefreshCw } from 'lucide-react';
+
 
 // Import separated forge components
 import ComponentsPanel from '@/Components/Forge/ComponentsPanel';
@@ -27,6 +28,10 @@ export default function ForgePage({ projectId, frameId }) {
     source: false
   })
 
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(false)
+  const [windowDimensions, setWindowDimensions] = useState({ width: 0, height: 0 })
+
   // Canvas state for dropped components
   const [canvasComponents, setCanvasComponents] = useState([])
   const [selectedComponent, setSelectedComponent] = useState(null)
@@ -36,6 +41,8 @@ export default function ForgePage({ projectId, frameId }) {
   const [activeCodeTab, setActiveCodeTab] = useState('react')
   const [showTooltips, setShowTooltips] = useState(true)
   const [hoveredToken, setHoveredToken] = useState(null)
+  
+  // Mobile-optimized code panel settings
   const [codePanelHeight, setCodePanelHeight] = useState(400)
   const [codePanelMinimized, setCodePanelMinimized] = useState(false)
   const [codeStyle, setCodeStyle] = useState('react-tailwind')
@@ -63,6 +70,27 @@ export default function ForgePage({ projectId, frameId }) {
 
   const canvasRef = useRef(null)
   const codePanelRef = useRef(null)
+
+  // Handle window resize and mobile detection
+  useEffect(() => {
+    const handleResize = () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      setWindowDimensions({ width, height });
+      setIsMobile(width < 768);
+      
+      // Adjust code panel height for mobile
+      if (width < 768) {
+        setCodePanelHeight(Math.min(400, height * 0.6));
+      }
+    };
+
+    // Initial detection
+    handleResize();
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Initialize component library on mount
   useEffect(() => {
@@ -109,9 +137,16 @@ export default function ForgePage({ projectId, frameId }) {
     return () => clearTimeout(timeoutId);
   }, [canvasComponents, projectId, frameId, componentsLoaded]);
 
+  // Mobile-specific: Force code panel to bottom on mobile
+  useEffect(() => {
+    if (isMobile && codePanelPosition === 'right') {
+      setCodePanelPosition('bottom');
+    }
+  }, [isMobile, codePanelPosition]);
+
   // Handle token hover for tooltips
   const handleTokenHover = (e) => {
-    if (!showTooltips) return
+    if (!showTooltips || isMobile) return // Disable tooltips on mobile
     
     const token = e.target.getAttribute('data-token')
     if (token && tooltipDatabase[token]) {
@@ -170,7 +205,7 @@ export default function ForgePage({ projectId, frameId }) {
     setComponentSearchTerm(searchTerm)
   }, [])
 
-  // FIXED: Enhanced component drag handlers with proper preview sizing
+  // Enhanced component drag handlers with proper preview sizing
   const handleComponentDragStart = useCallback((e, componentType, variant = null, dragData = null) => {
     if (!componentsLoaded) {
       console.warn('Components not loaded yet');
@@ -195,11 +230,11 @@ export default function ForgePage({ projectId, frameId }) {
         definition: componentDef,
         name: componentDef.name
       },
-      variant: variant, // Store the variant being dragged
+      variant: variant,
       dragPreview: null
     })
 
-    // FIXED: Create properly sized drag preview
+    // Create mobile-optimized drag preview
     if (!dragData) {
       const preview = document.createElement('div')
       preview.className = 'drag-preview'
@@ -208,21 +243,21 @@ export default function ForgePage({ projectId, frameId }) {
         top: -1000px;
         left: -1000px;
         z-index: 9999;
-        padding: 12px 16px;
+        padding: ${isMobile ? '8px 12px' : '12px 16px'};
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        border-radius: 8px;
-        font-size: 12px;
+        border-radius: ${isMobile ? '6px' : '8px'};
+        font-size: ${isMobile ? '11px' : '12px'};
         font-weight: 600;
         pointer-events: none;
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-        transform: rotate(1deg) scale(1.02);
+        transform: rotate(1deg) scale(${isMobile ? '0.9' : '1.02'});
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255, 255, 255, 0.2);
         display: flex;
         align-items: center;
-        gap: 8px;
-        max-width: 200px;
+        gap: 6px;
+        max-width: ${isMobile ? '150px' : '200px'};
         white-space: nowrap;
       `
       
@@ -231,10 +266,10 @@ export default function ForgePage({ projectId, frameId }) {
       const subtitle = variant ? `from ${component.name}` : componentDef.description;
       
       preview.innerHTML = `
-        <span style="font-size: 16px;">${icon}</span>
+        <span style="font-size: ${isMobile ? '14px' : '16px'};">${icon}</span>
         <div style="overflow: hidden;">
-          <div style="font-weight: 700; font-size: 13px; line-height: 1.2;">${name}</div>
-          <div style="font-size: 10px; opacity: 0.8; margin-top: 2px; overflow: hidden; text-overflow: ellipsis;">${subtitle}</div>
+          <div style="font-weight: 700; font-size: ${isMobile ? '11px' : '13px'}; line-height: 1.2;">${name}</div>
+          <div style="font-size: ${isMobile ? '9px' : '10px'}; opacity: 0.8; margin-top: 2px; overflow: hidden; text-overflow: ellipsis;">${subtitle}</div>
         </div>
       `;
       
@@ -243,7 +278,6 @@ export default function ForgePage({ projectId, frameId }) {
 
       e.dataTransfer.effectAllowed = 'copy'
       
-      // Enhanced drag data with variant info
       const enhancedDragData = {
         componentType,
         variant,
@@ -258,7 +292,7 @@ export default function ForgePage({ projectId, frameId }) {
       
       e.dataTransfer.setData('text/plain', JSON.stringify(enhancedDragData))
     }
-  }, [componentsLoaded])
+  }, [componentsLoaded, isMobile])
 
   const handleComponentDragEnd = useCallback(() => {
     if (dragState.dragPreview) {
@@ -284,14 +318,12 @@ export default function ForgePage({ projectId, frameId }) {
     if (!canvasRef.current || !componentsLoaded) return
 
     try {
-      // Parse enhanced drag data
       const dragDataStr = e.dataTransfer.getData('text/plain')
       let dragData;
       
       try {
         dragData = JSON.parse(dragDataStr);
       } catch {
-        // Fallback for simple component type strings
         dragData = { componentType: dragDataStr, variant: null };
       }
 
@@ -304,31 +336,26 @@ export default function ForgePage({ projectId, frameId }) {
         return;
       }
 
-      // Calculate drop position relative to canvas
       const canvasRect = canvasRef.current.getBoundingClientRect()
       const x = Math.max(0, e.clientX - canvasRect.left - 50)
       const y = Math.max(0, e.clientY - canvasRect.top - 20)
 
-      // Create new component instance with variant support
       const newComponent = {
         id: `${componentType}_${Date.now()}`,
         type: componentType,
         props: { ...componentDef.default_props },
         position: { x, y },
         name: variant ? `${componentDef.name} (${variant.name})` : componentDef.name,
-        variant: variant || null, // Store variant data if available
-        style: {}, // Initialize with empty styles for property panel
-        animation: {} // Initialize with empty animation config
+        variant: variant || null,
+        style: {},
+        animation: {}
       }
 
-      // Apply variant-specific properties if available
       if (variant) {
         if (variant.default_props) {
           newComponent.props = { ...newComponent.props, ...variant.default_props };
         }
         if (variant.classes) {
-          // Convert variant classes to style object if needed
-          // This is a simplified conversion - you might want to enhance this
           newComponent.className = variant.classes;
         }
       }
@@ -339,8 +366,6 @@ export default function ForgePage({ projectId, frameId }) {
       handleComponentDragEnd()
 
       console.log('Component dropped:', newComponent);
-
-      // Generate code for all components
       generateCode(updatedComponents)
     } catch (error) {
       console.error('Error handling component drop:', error);
@@ -348,17 +373,19 @@ export default function ForgePage({ projectId, frameId }) {
     }
   }, [canvasComponents, componentsLoaded])
 
-  // Code panel drag handlers
+  // Code panel drag handlers with mobile support
   const handleCodePanelDragStart = useCallback((e) => {
+    if (isMobile) return; // Disable dragging on mobile
+    
     setCodePanelDragState({
       isDragging: true,
       startX: e.clientX,
       startY: e.clientY
     })
-  }, [])
+  }, [isMobile])
 
   const handleCodePanelDragEnd = useCallback((e) => {
-    if (!codePanelDragState.isDragging) return
+    if (!codePanelDragState.isDragging || isMobile) return
 
     const deltaX = e.clientX - codePanelDragState.startX
     const deltaY = e.clientY - codePanelDragState.startY
@@ -370,22 +397,22 @@ export default function ForgePage({ projectId, frameId }) {
     }
 
     setCodePanelDragState({ isDragging: false, startX: 0, startY: 0 })
-  }, [codePanelDragState])
+  }, [codePanelDragState, isMobile])
 
-  // FIXED: Global drag handlers for proper drag preview positioning
+  // Global drag handlers with mobile optimizations
   useEffect(() => {
     if (!dragState.isDragging || !dragState.dragPreview) return
 
     const handleDragMove = (e) => {
       if (dragState.dragPreview) {
-        // FIXED: Better positioning that doesn't interfere with component sizing
-        dragState.dragPreview.style.left = (e.clientX + 10) + 'px'
-        dragState.dragPreview.style.top = (e.clientY - 10) + 'px'
+        const offset = isMobile ? { x: 5, y: -5 } : { x: 10, y: -10 };
+        dragState.dragPreview.style.left = (e.clientX + offset.x) + 'px'
+        dragState.dragPreview.style.top = (e.clientY + offset.y) + 'px'
       }
     }
 
     const handleMouseMove = (e) => {
-      if (codePanelDragState.isDragging) {
+      if (codePanelDragState.isDragging && !isMobile) {
         const deltaX = e.clientX - codePanelDragState.startX
         if (codePanelRef.current) {
           codePanelRef.current.style.transform = `translateX(${Math.max(-50, Math.min(50, deltaX * 0.1))}px)`
@@ -394,7 +421,7 @@ export default function ForgePage({ projectId, frameId }) {
     }
 
     const handleMouseUp = (e) => {
-      if (codePanelDragState.isDragging) {
+      if (codePanelDragState.isDragging && !isMobile) {
         handleCodePanelDragEnd(e)
         if (codePanelRef.current) {
           codePanelRef.current.style.transform = 'translateX(0px)'
@@ -411,7 +438,7 @@ export default function ForgePage({ projectId, frameId }) {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [dragState.isDragging, dragState.dragPreview, codePanelDragState, handleCodePanelDragEnd])
+  }, [dragState.isDragging, dragState.dragPreview, codePanelDragState, handleCodePanelDragEnd, isMobile])
 
   // Component selection handler
   const handleComponentClick = useCallback((componentId, e) => {
@@ -442,7 +469,6 @@ export default function ForgePage({ projectId, frameId }) {
         } else if (propName === 'name') {
           return { ...c, name: value }
         } else if (propName === 'reset') {
-          // Reset all styles and animations
           return { 
             ...c, 
             style: {}, 
@@ -502,17 +528,21 @@ export default function ForgePage({ projectId, frameId }) {
     }
   }, [])
 
-  // Move code panel to right sidebar
+  // Move code panel to right sidebar (disabled on mobile)
   const moveCodePanelToRightSidebar = useCallback(() => {
-    setCodePanelPosition('right')
-  }, [])
+    if (!isMobile) {
+      setCodePanelPosition('right')
+    }
+  }, [isMobile])
 
   // Copy code to clipboard
   const copyCodeToClipboard = useCallback(async (code) => {
     try {
       await navigator.clipboard.writeText(code)
+      return true;
     } catch (err) {
       console.error('Failed to copy code:', err)
+      return false;
     }
   }, [])
 
@@ -542,6 +572,19 @@ export default function ForgePage({ projectId, frameId }) {
         return ['react', 'tailwind']
     }
   }
+
+  // Calculate responsive canvas padding for code panel
+  const getCanvasPadding = () => {
+    if (codePanelPosition === 'bottom' && showCodePanel) {
+      if (codePanelMinimized) {
+        return isMobile ? 'pb-16' : 'pb-20';
+      }
+      
+      const panelHeight = Math.min(codePanelHeight, windowDimensions.height * 0.7);
+      return isMobile ? `pb-[${panelHeight + 60}px]` : `pb-[${panelHeight + 80}px]`;
+    }
+    return isMobile ? 'pb-4' : 'pb-8';
+  };
 
   // Memoize default panels to prevent recreation on every render
   const defaultPanels = useMemo(() => [
@@ -599,13 +642,13 @@ export default function ForgePage({ projectId, frameId }) {
     generateCode
   ])
 
-  // Memoize the sidebar code panel
+  // Memoize the sidebar code panel (only for non-mobile)
   const sidebarCodePanel = useMemo(() => ({
     id: 'code',
     title: 'Generated Code',
     content: (
       <SidebarCodePanel
-        showTooltips={showTooltips}
+        showTooltips={showTooltips && !isMobile}
         setShowTooltips={setShowTooltips}
         codeStyle={codeStyle}
         setCodeStyle={setCodeStyle}
@@ -622,6 +665,7 @@ export default function ForgePage({ projectId, frameId }) {
         setCodePanelPosition={setCodePanelPosition}
         canvasComponents={canvasComponents}
         generateCode={generateCode}
+        isMobile={isMobile}
       />
     )
   }), [
@@ -633,20 +677,21 @@ export default function ForgePage({ projectId, frameId }) {
     copyCodeToClipboard,
     downloadCode,
     canvasComponents,
-    generateCode
+    generateCode,
+    isMobile
   ])
 
   // Memoize the final panels array
   const finalPanels = useMemo(() => {
     const panels = [...defaultPanels]
     
-    // Add code panel if showing on right
-    if (codePanelPosition === 'right' && showCodePanel) {
+    // Add code panel if showing on right and not mobile
+    if (codePanelPosition === 'right' && showCodePanel && !isMobile) {
       panels.push(sidebarCodePanel)
     }
     
     return panels
-  }, [defaultPanels, sidebarCodePanel, codePanelPosition, showCodePanel])
+  }, [defaultPanels, sidebarCodePanel, codePanelPosition, showCodePanel, isMobile])
 
   // Tab configuration for components panel ONLY
   const componentTabConfig = useMemo(() => ({
@@ -697,18 +742,12 @@ export default function ForgePage({ projectId, frameId }) {
     >
       <Head title="Forge - Visual Builder" />
       
-      {/* Enhanced Tooltip with better positioning */}
-      <CodeTooltip hoveredToken={hoveredToken} showTooltips={showTooltips} />
+      {/* Enhanced Tooltip with mobile detection */}
+      <CodeTooltip hoveredToken={hoveredToken} showTooltips={showTooltips && !isMobile} />
       
-      {/* Main content area - Enhanced Canvas */}
+      {/* Main content area - Enhanced Canvas with responsive padding */}
       <div className="h-[calc(100vh-60px)] flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
-        <div className={`flex-1 flex items-center justify-center p-8 ${
-          codePanelPosition === 'bottom' && showCodePanel 
-            ? codePanelMinimized 
-              ? 'pb-20' 
-              : `pb-[${codePanelHeight + 80}px]`
-            : 'pb-8'
-        }`}>
+        <div className={`flex-1 flex items-center justify-center ${isMobile ? 'p-4' : 'p-8'} ${getCanvasPadding()}`}>
           <CanvasComponent
             canvasRef={canvasRef}
             canvasComponents={canvasComponents}
@@ -719,12 +758,13 @@ export default function ForgePage({ projectId, frameId }) {
             onCanvasDrop={handleCanvasDrop}
             onCanvasClick={handleCanvasClick}
             onComponentClick={handleComponentClick}
+            isMobile={isMobile}
           />
         </div>
         
-        {/* Fixed Code Generation Panel - Bottom */}
+        {/* Fixed Code Generation Panel - Bottom (Mobile Optimized) */}
         <BottomCodePanel
-          showCodePanel={showCodePanel && codePanelPosition === 'bottom'}
+          showCodePanel={showCodePanel && (codePanelPosition === 'bottom' || isMobile)}
           codePanelMinimized={codePanelMinimized}
           codePanelHeight={codePanelHeight}
           codePanelRef={codePanelRef}
@@ -734,7 +774,7 @@ export default function ForgePage({ projectId, frameId }) {
           setShowCodePanel={setShowCodePanel}
           handleCodePanelDragStart={handleCodePanelDragStart}
           // CodePanel props
-          showTooltips={showTooltips}
+          showTooltips={showTooltips && !isMobile}
           setShowTooltips={setShowTooltips}
           codeStyle={codeStyle}
           setCodeStyle={setCodeStyle}
@@ -751,26 +791,93 @@ export default function ForgePage({ projectId, frameId }) {
           generateCode={generateCode}
           canvasComponents={canvasComponents}
           setCodePanelPosition={setCodePanelPosition}
+          isMobile={isMobile}
+          windowDimensions={windowDimensions}
         />
       </div>
 
-      {/* Enhanced Panel System - ONLY Components Panel has Tabs and Search */}
+      {/* Enhanced Panel System - Mobile responsive */}
       <Panel
         isOpen={true}
         initialPanels={finalPanels}
-        allowedDockPositions={['left', 'right']}
+        allowedDockPositions={isMobile ? ['left'] : ['left', 'right']}
         onPanelClose={handlePanelClose}
         onPanelStateChange={handlePanelStateChange}
         snapToEdge={false}
         mergePanels={true}
-        mergePosition="right"
+        mergePosition={isMobile ? "left" : "right"}
         showTabs={true}
-        showSearch={true}
+        showSearch={!isMobile} // Hide search on mobile to save space
         tabConfig={componentTabConfig}
         onTabChange={handleComponentTabChange}
         onSearch={handleComponentSearch}
         searchPlaceholder={`Search ${activeComponentTab}...`}
+        isMobile={isMobile}
+        defaultWidth={isMobile ? 280 : 320}
+        minWidth={isMobile ? 250 : 280}
+        maxWidth={isMobile ? 300 : 400}
       />
+
+      {/* Mobile-specific: Bottom navigation or quick actions */}
+      {isMobile && showCodePanel && (
+        <div className="fixed bottom-2 left-1/2 transform -translate-x-1/2 z-40">
+          <div className="flex items-center gap-2 bg-black/80 backdrop-blur-md rounded-full px-4 py-2">
+            <button
+              onClick={() => setCodePanelMinimized(!codePanelMinimized)}
+              className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"
+              title={codePanelMinimized ? 'Expand Code Panel' : 'Minimize Code Panel'}
+            >
+              {codePanelMinimized ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={() => copyCodeToClipboard(generatedCode[activeCodeTab])}
+              className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"
+              title="Copy Code"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => generateCode(canvasComponents)}
+              className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"
+              title="Regenerate Code"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile performance optimization styles */}
+      {isMobile && (
+        <style jsx>{`
+          /* Mobile-specific optimizations */
+          * {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+          }
+          
+          /* Reduce animations on mobile */
+          @media (max-width: 768px) {
+            .motion-reduce {
+              animation-duration: 0.01ms !important;
+              animation-iteration-count: 1 !important;
+              transition-duration: 0.01ms !important;
+            }
+            
+            /* Optimize scrolling */
+            .overflow-scroll {
+              -webkit-overflow-scrolling: touch;
+              scroll-behavior: smooth;
+            }
+            
+            /* Reduce shadows for better performance */
+            .shadow-lg, .shadow-xl, .shadow-2xl {
+              box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24) !important;
+            }
+          }
+        `}
+      </style>
+      )}
     </AuthenticatedLayout>
   );
 }

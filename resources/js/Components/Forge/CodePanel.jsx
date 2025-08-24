@@ -1,4 +1,4 @@
-// @/Components/Forge/CodePanel.jsx
+// @/Components/Forge/CodePanel.jsx - FIXED for mobile Monaco Editor visibility
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import { 
@@ -33,23 +33,26 @@ const CodePanel = ({
   downloadCode,
   generateCode,
   canvasComponents,
-  handleCodeEdit
+  handleCodeEdit,
+  isMobile = false
 }) => {
   const [editorTheme, setEditorTheme] = useState('vs-dark');
-  const [fontSize, setFontSize] = useState(14);
-  const [wordWrap, setWordWrap] = useState('off');
-  const [minimap, setMinimap] = useState(false);
+  const [fontSize, setFontSize] = useState(isMobile ? 12 : 14);
+  const [wordWrap, setWordWrap] = useState('on'); // Enable word wrap by default on mobile
+  const [minimap, setMinimap] = useState(!isMobile); // Disable minimap on mobile
   const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [lineNumbers, setLineNumbers] = useState('on');
+  const [lineNumbers, setLineNumbers] = useState(isMobile ? 'off' : 'on');
+  const [editorMounted, setEditorMounted] = useState(false);
   const editorRef = useRef(null);
+  const editorContainerRef = useRef(null);
 
-  // Monaco Editor configuration
+  // Mobile-optimized Monaco Editor configuration
   const editorOptions = {
-    fontSize,
-    wordWrap,
-    minimap: { enabled: minimap },
-    lineNumbers,
+    fontSize: isMobile ? 12 : fontSize,
+    wordWrap: isMobile ? 'on' : wordWrap,
+    minimap: { enabled: isMobile ? false : minimap },
+    lineNumbers: isMobile ? 'off' : lineNumbers,
     scrollBeyondLastLine: false,
     automaticLayout: true,
     tabSize: 2,
@@ -58,47 +61,56 @@ const CodePanel = ({
     formatOnType: true,
     autoIndent: 'advanced',
     bracketPairColorization: { enabled: true },
-    colorDecorators: true,
-    foldingHighlight: true,
+    colorDecorators: !isMobile,
+    foldingHighlight: !isMobile,
     foldingImportsByDefault: false,
     unfoldOnClickAfterEndOfLine: true,
-    showUnused: true,
-    showDeprecated: true,
+    showUnused: !isMobile,
+    showDeprecated: !isMobile,
     suggest: {
       showKeywords: true,
-      showSnippets: true,
+      showSnippets: !isMobile,
       showClasses: true,
       showFunctions: true,
       showVariables: true
     },
-    quickSuggestions: {
+    quickSuggestions: isMobile ? false : {
       other: true,
       comments: false,
       strings: false
     },
-    parameterHints: { enabled: true },
-    hover: { enabled: true },
-    contextmenu: true,
-    mouseWheelZoom: true,
+    parameterHints: { enabled: !isMobile },
+    hover: { enabled: !isMobile },
+    contextmenu: !isMobile,
+    mouseWheelZoom: !isMobile,
     cursorBlinking: 'smooth',
-    cursorSmoothCaretAnimation: true,
-    smoothScrolling: true,
-    renderWhitespace: 'selection',
+    cursorSmoothCaretAnimation: !isMobile,
+    smoothScrolling: !isMobile,
+    renderWhitespace: 'none',
     renderControlCharacters: false,
-    renderIndentGuides: true,
-    highlightActiveIndentGuide: true,
+    renderIndentGuides: !isMobile,
+    highlightActiveIndentGuide: !isMobile,
     rulers: [],
     overviewRulerBorder: false,
     hideCursorInOverviewRuler: true,
     scrollbar: {
       useShadows: false,
-      verticalHasArrows: true,
-      horizontalHasArrows: true,
-      vertical: 'visible',
-      horizontal: 'visible',
-      verticalScrollbarSize: 10,
-      horizontalScrollbarSize: 10
-    }
+      verticalHasArrows: false,
+      horizontalHasArrows: false,
+      vertical: isMobile ? 'auto' : 'visible',
+      horizontal: isMobile ? 'auto' : 'visible',
+      verticalScrollbarSize: isMobile ? 8 : 10,
+      horizontalScrollbarSize: isMobile ? 8 : 10
+    },
+    // Mobile-specific optimizations
+    readOnly: false,
+    selectOnLineNumbers: !isMobile,
+    roundedSelection: true,
+    theme: editorTheme,
+    // Performance optimizations for mobile
+    fontLigatures: false,
+    disableMonospaceOptimizations: isMobile,
+    stopRenderingLineAfter: isMobile ? 1000 : 10000
   };
 
   // Get language for Monaco based on active tab
@@ -112,12 +124,13 @@ const CodePanel = ({
     }
   };
 
-  // Handle editor mount
+  // Handle editor mount with mobile optimizations
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
+    setEditorMounted(true);
     
     // Configure themes
-    monaco.editor.defineTheme('github-dark', {
+    monaco.editor.defineTheme('mobile-dark', {
       base: 'vs-dark',
       inherit: true,
       rules: [
@@ -131,58 +144,54 @@ const CodePanel = ({
         { token: 'variable', foreground: 'e1e4e8' }
       ],
       colors: {
-        'editor.background': '#0d1117',
+        'editor.background': '#1a1a1a',
         'editor.foreground': '#e1e4e8',
-        'editor.lineHighlightBackground': '#161b22',
-        'editor.selectionBackground': '#264f78',
+        'editor.lineHighlightBackground': '#2a2a2a',
+        'editor.selectionBackground': '#3a3a3a',
         'editorCursor.foreground': '#e1e4e8',
         'editorWhitespace.foreground': '#484f58'
       }
     });
 
-    monaco.editor.defineTheme('github-light', {
-      base: 'vs',
-      inherit: true,
-      rules: [
-        { token: 'comment', foreground: '6a737d', fontStyle: 'italic' },
-        { token: 'string', foreground: '032f62' },
-        { token: 'number', foreground: '005cc5' },
-        { token: 'keyword', foreground: 'd73a49' },
-        { token: 'operator', foreground: 'd73a49' },
-        { token: 'type', foreground: '6f42c1' },
-        { token: 'function', foreground: '6f42c1' },
-        { token: 'variable', foreground: '24292e' }
-      ],
-      colors: {
-        'editor.background': '#ffffff',
-        'editor.foreground': '#24292e',
-        'editor.lineHighlightBackground': '#f6f8fa',
-        'editor.selectionBackground': '#0969da40',
-        'editorCursor.foreground': '#24292e'
-      }
-    });
+    // Set theme based on device
+    const theme = isMobile ? 'mobile-dark' : editorTheme;
+    monaco.editor.setTheme(theme);
 
-    // Set default theme
-    monaco.editor.setTheme(editorTheme);
+    // Mobile-specific editor configuration
+    if (isMobile) {
+      // Disable hover widgets that can interfere on mobile
+      editor.updateOptions({
+        hover: { enabled: false },
+        parameterHints: { enabled: false },
+        quickSuggestions: false
+      });
+    }
 
-    // Add keyboard shortcuts
-    editor.addAction({
-      id: 'format-document',
-      label: 'Format Document',
-      keybindings: [monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF],
-      run: () => {
-        editor.getAction('editor.action.formatDocument').run();
-      }
-    });
+    // Add keyboard shortcuts only for non-mobile
+    if (!isMobile) {
+      editor.addAction({
+        id: 'format-document',
+        label: 'Format Document',
+        keybindings: [monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF],
+        run: () => {
+          editor.getAction('editor.action.formatDocument').run();
+        }
+      });
 
-    editor.addAction({
-      id: 'toggle-word-wrap',
-      label: 'Toggle Word Wrap',
-      keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.KeyZ],
-      run: () => {
-        setWordWrap(prev => prev === 'on' ? 'off' : 'on');
-      }
-    });
+      editor.addAction({
+        id: 'toggle-word-wrap',
+        label: 'Toggle Word Wrap',
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.KeyZ],
+        run: () => {
+          setWordWrap(prev => prev === 'on' ? 'off' : 'on');
+        }
+      });
+    }
+
+    // Force layout refresh after mount
+    setTimeout(() => {
+      editor.layout();
+    }, 100);
   };
 
   // Handle editor change
@@ -196,18 +205,23 @@ const CodePanel = ({
   const handleCopy = async () => {
     const success = await copyCodeToClipboard(generatedCode[activeCodeTab]);
     if (success && editorRef.current) {
-      // Show temporary notification in editor
+      // Show temporary notification
       const decorations = editorRef.current.deltaDecorations([], [
-        {
-          range: new monaco.Range(1, 1, 1, 1),
-          options: {
-            afterContentClassName: 'copied-notification'
-          }
+      {
+        range: window.monaco
+          ? new window.monaco.Range(1, 1, 1, 1)
+          : { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+        options: {
+          afterContentClassName: 'copied-notification'
         }
-      ]);
+      }
+    ]);
+
       
       setTimeout(() => {
-        editorRef.current.deltaDecorations(decorations, []);
+        if (editorRef.current) {
+          editorRef.current.deltaDecorations(decorations, []);
+        }
       }, 2000);
     }
   };
@@ -215,7 +229,7 @@ const CodePanel = ({
   // Format document
   const formatCode = () => {
     if (editorRef.current) {
-      editorRef.current.getAction('editor.action.formatDocument').run();
+      editorRef.current.getAction('editor.action.formatDocument')?.run();
     }
   };
 
@@ -235,54 +249,83 @@ const CodePanel = ({
     }
   };
 
+  // Force editor layout on container resize
+  useEffect(() => {
+    const resizeObserver = new ResizeObserver(() => {
+      if (editorRef.current) {
+        setTimeout(() => {
+          editorRef.current.layout();
+        }, 50);
+      }
+    });
+
+    if (editorContainerRef.current) {
+      resizeObserver.observe(editorContainerRef.current);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [editorMounted]);
+
   return (
-    <div className={`space-y-4 h-full flex flex-col ${isFullscreen ? 'fixed inset-0 z-50 bg-white' : ''}`}>
-      {/* Header */}
-      <div className="flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
-            <Code className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+    <div 
+      className={`h-full flex flex-col ${isFullscreen ? 'fixed inset-0 z-50 bg-white' : ''}`}
+      style={{ minHeight: '200px' }}
+    >
+      {/* Header - Responsive for mobile */}
+      <div className="flex items-center justify-between p-2 sm:p-4 flex-shrink-0 bg-gray-50 border-b">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <div className="p-1.5 sm:p-2 rounded-lg flex-shrink-0" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+            <Code className="w-4 h-4 sm:w-5 sm:h-5" style={{ color: 'var(--color-primary)' }} />
           </div>
-          <div>
-            <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Live Code Generator</h3>
-            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-sm sm:text-base" style={{ color: 'var(--color-text)' }}>
+              Live Code Generator
+            </h3>
+            <p className="text-xs hidden sm:block" style={{ color: 'var(--color-text-muted)' }}>
               Monaco Editor with real-time code generation
             </p>
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
-          {/* Tooltips Toggle */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>
-              Tooltips
-            </label>
-            <button
-              onClick={() => setShowTooltips(!showTooltips)}
-              className={`relative w-10 h-6 rounded-full transition-colors ${
-                showTooltips ? 'bg-blue-500' : 'bg-gray-300'
-              }`}
-            >
-              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                showTooltips ? 'translate-x-5' : 'translate-x-1'
-              }`} />
-            </button>
-          </div>
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+          {/* Simplified mobile controls */}
+          {!isMobile && (
+            <>
+              {/* Tooltips Toggle */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>
+                  Tooltips
+                </label>
+                <button
+                  onClick={() => setShowTooltips(!showTooltips)}
+                  className={`relative w-10 h-6 rounded-full transition-colors ${
+                    showTooltips ? 'bg-blue-500' : 'bg-gray-300'
+                  }`}
+                >
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                    showTooltips ? 'translate-x-5' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
 
-          {/* Settings */}
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-            style={{ color: 'var(--color-text-muted)' }}
-            title="Editor Settings"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+              {/* Settings */}
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                style={{ color: 'var(--color-text-muted)' }}
+                title="Editor Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </>
+          )}
 
           {/* Fullscreen */}
           <button
             onClick={toggleFullscreen}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors"
             style={{ color: 'var(--color-text-muted)' }}
             title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
           >
@@ -292,7 +335,7 @@ const CodePanel = ({
           {/* Minimize */}
           <button
             onClick={() => setCodePanelMinimized(!codePanelMinimized)}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors"
             style={{ color: 'var(--color-text-muted)' }}
             title={codePanelMinimized ? 'Expand' : 'Minimize'}
           >
@@ -302,7 +345,7 @@ const CodePanel = ({
           {/* Close */}
           <button
             onClick={() => setShowCodePanel(false)}
-            className="p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
+            className="p-1.5 sm:p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
             title="Close Panel"
           >
             <X className="w-4 h-4" />
@@ -310,9 +353,9 @@ const CodePanel = ({
         </div>
       </div>
 
-      {/* Settings Panel */}
-      {showSettings && !codePanelMinimized && (
-        <div className="p-4 rounded-lg border" style={{ 
+      {/* Settings Panel - Hidden on mobile by default */}
+      {showSettings && !codePanelMinimized && !isMobile && (
+        <div className="p-4 rounded-lg border flex-shrink-0" style={{ 
           backgroundColor: 'var(--color-bg-muted)', 
           borderColor: 'var(--color-border)' 
         }}>
@@ -325,7 +368,7 @@ const CodePanel = ({
               <select
                 value={editorTheme}
                 onChange={(e) => setEditorTheme(e.target.value)}
-                className="w-full px-3 py-2 rounded border"
+                className="w-full px-3 py-2 rounded border text-sm"
                 style={{ 
                   backgroundColor: 'var(--color-surface)', 
                   borderColor: 'var(--color-border)',
@@ -334,10 +377,7 @@ const CodePanel = ({
               >
                 <option value="vs-dark">Dark</option>
                 <option value="vs">Light</option>
-                <option value="github-dark">GitHub Dark</option>
-                <option value="github-light">GitHub Light</option>
-                <option value="hc-black">High Contrast Dark</option>
-                <option value="hc-light">High Contrast Light</option>
+                <option value="mobile-dark">Mobile Dark</option>
               </select>
             </div>
 
@@ -348,8 +388,8 @@ const CodePanel = ({
               </label>
               <input
                 type="range"
-                min="12"
-                max="24"
+                min="10"
+                max="20"
                 value={fontSize}
                 onChange={(e) => setFontSize(parseInt(e.target.value))}
                 className="w-full"
@@ -358,66 +398,18 @@ const CodePanel = ({
                 {fontSize}px
               </div>
             </div>
-
-            {/* Word Wrap */}
-            <div>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={wordWrap === 'on'}
-                  onChange={(e) => setWordWrap(e.target.checked ? 'on' : 'off')}
-                  className="rounded"
-                />
-                <span className="text-sm" style={{ color: 'var(--color-text)' }}>Word Wrap</span>
-              </label>
-            </div>
-
-            {/* Minimap */}
-            <div>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={minimap}
-                  onChange={(e) => setMinimap(e.target.checked)}
-                  className="rounded"
-                />
-                <span className="text-sm" style={{ color: 'var(--color-text)' }}>Minimap</span>
-              </label>
-            </div>
-
-            {/* Line Numbers */}
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text)' }}>
-                Line Numbers
-              </label>
-              <select
-                value={lineNumbers}
-                onChange={(e) => setLineNumbers(e.target.value)}
-                className="w-full px-3 py-2 rounded border"
-                style={{ 
-                  backgroundColor: 'var(--color-surface)', 
-                  borderColor: 'var(--color-border)',
-                  color: 'var(--color-text)'
-                }}
-              >
-                <option value="on">On</option>
-                <option value="off">Off</option>
-                <option value="relative">Relative</option>
-                <option value="interval">Interval</option>
-              </select>
-            </div>
           </div>
         </div>
       )}
       
       {!codePanelMinimized && (
         <>
-          {/* Code Style Selector */}
-          <div className="space-y-3 flex-shrink-0">
+          {/* Code Style Selector - Simplified for mobile */}
+          <div className="p-2 sm:p-4 space-y-2 sm:space-y-3 flex-shrink-0 border-b">
             <label className="block text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
-              Code Style Combination
+              Code Style
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2'} gap-2`}>
               {[
                 { value: 'react-tailwind', label: 'React + Tailwind', desc: 'Modern JSX with utility classes' },
                 { value: 'react-css', label: 'React + CSS', desc: 'JSX with traditional stylesheets' },
@@ -430,27 +422,27 @@ const CodePanel = ({
                     setCodeStyle(option.value);
                     generateCode(canvasComponents);
                   }}
-                  className="p-3 rounded-lg text-left transition-all border-2"
+                  className="p-2 sm:p-3 rounded-lg text-left transition-all border-2"
                   style={{
                     backgroundColor: codeStyle === option.value ? 'var(--color-primary-soft)' : 'var(--color-bg-muted)',
                     borderColor: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-border)',
                     color: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text)'
                   }}
                 >
-                  <div className="font-semibold text-sm">{option.label}</div>
-                  <div className="text-xs opacity-80">{option.desc}</div>
+                  <div className="font-semibold text-xs sm:text-sm">{option.label}</div>
+                  {!isMobile && <div className="text-xs opacity-80">{option.desc}</div>}
                 </button>
               ))}
             </div>
           </div>
       
-          {/* Code tabs */}
-          <div className="flex gap-1 p-1 rounded-lg flex-shrink-0" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+          {/* Code tabs - Responsive */}
+          <div className="flex gap-1 p-1 sm:p-2 bg-gray-50 flex-shrink-0">
             {getAvailableTabs().map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveCodeTab(tab)}
-                className="px-4 py-2 rounded-md text-sm font-medium transition-all flex-1 relative"
+                className="px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-all flex-1 relative"
                 style={{
                   backgroundColor: activeCodeTab === tab ? 'var(--color-surface)' : 'transparent',
                   color: activeCodeTab === tab ? 'var(--color-text)' : 'var(--color-text-muted)',
@@ -465,23 +457,27 @@ const CodePanel = ({
             ))}
           </div>
           
-          {/* Monaco Editor */}
-          <div className="flex-1 min-h-0 relative">
-            {/* Toolbar */}
-            <div className="absolute top-2 right-2 z-10 flex gap-1 bg-black/50 rounded-lg p-1">
+          {/* Monaco Editor Container - FIXED sizing */}
+          <div 
+            ref={editorContainerRef}
+            className="flex-1 min-h-0 relative"
+            style={{ minHeight: isMobile ? '200px' : '300px' }}
+          >
+            {/* Mobile-optimized toolbar */}
+            <div className="absolute top-2 right-2 z-10 flex gap-1 bg-black/70 rounded-lg p-1">
               <button
                 onClick={formatCode}
-                className="p-2 rounded text-white hover:bg-white hover:bg-opacity-20 transition-all"
-                title="Format Code (Shift+Alt+F)"
+                className="p-1.5 sm:p-2 rounded text-white hover:bg-white hover:bg-opacity-20 transition-all"
+                title="Format Code"
               >
-                <Sparkles className="w-4 h-4" />
+                <Sparkles className="w-3 h-3 sm:w-4 sm:h-4" />
               </button>
               <button
                 onClick={handleCopy}
-                className="p-2 rounded text-white hover:bg-white hover:bg-opacity-20 transition-all"
-                title="Copy to clipboard"
+                className="p-1.5 sm:p-2 rounded text-white hover:bg-white hover:bg-opacity-20 transition-all"
+                title="Copy"
               >
-                <Copy className="w-4 h-4" />
+                <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
               </button>
               <button
                 onClick={() => downloadCode(
@@ -489,35 +485,36 @@ const CodePanel = ({
                   `component.${getFileExtension(activeCodeTab)}`, 
                   activeCodeTab
                 )}
-                className="p-2 rounded text-white hover:bg-white hover:bg-opacity-20 transition-all"
-                title="Download file"
+                className="p-1.5 sm:p-2 rounded text-white hover:bg-white hover:bg-opacity-20 transition-all"
+                title="Download"
               >
-                <Download className="w-4 h-4" />
+                <Download className="w-3 h-3 sm:w-4 sm:h-4" />
               </button>
               <button
                 onClick={() => generateCode(canvasComponents)}
-                className="p-2 rounded text-white hover:bg-white hover:bg-opacity-20 transition-all"
-                title="Regenerate code"
+                className="p-1.5 sm:p-2 rounded text-white hover:bg-white hover:bg-opacity-20 transition-all"
+                title="Regenerate"
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
               </button>
             </div>
 
-            {/* Monaco Editor */}
+            {/* Monaco Editor - FIXED with proper dimensions */}
             <div className="h-full rounded-xl overflow-hidden border" style={{ borderColor: 'var(--color-border)' }}>
               <Editor
                 height="100%"
+                width="100%"
                 language={getLanguage(activeCodeTab)}
                 value={generatedCode[activeCodeTab] || ''}
-                theme={editorTheme}
+                theme={isMobile ? 'mobile-dark' : editorTheme}
                 options={editorOptions}
                 onMount={handleEditorDidMount}
                 onChange={handleEditorChange}
                 loading={
-                  <div className="flex items-center justify-center h-full">
+                  <div className="flex items-center justify-center h-full min-h-[200px]">
                     <div className="text-center">
-                      <div className="animate-spin w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                      <p style={{ color: 'var(--color-text-muted)' }}>Loading Monaco Editor...</p>
+                      <div className="animate-spin w-6 h-6 sm:w-8 sm:h-8 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                      <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Loading Monaco Editor...</p>
                     </div>
                   </div>
                 }
@@ -525,18 +522,20 @@ const CodePanel = ({
             </div>
           </div>
           
-          {/* Pro Tip */}
-          <div className="text-xs p-3 rounded-lg border flex items-center gap-2 flex-shrink-0" style={{ 
-            color: 'var(--color-text-muted)', 
-            backgroundColor: 'var(--color-primary-soft)', 
-            borderColor: 'var(--color-primary)' 
-          }}>
-            <Sparkles className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
-            <span>
-              <strong>Pro Tips:</strong> Use Shift+Alt+F to format, Alt+Z to toggle word wrap, 
-              Ctrl+/ for comments. {showTooltips ? 'Hover over code for explanations.' : ''}
-            </span>
-          </div>
+          {/* Pro Tip - Hidden on mobile to save space */}
+          {!isMobile && (
+            <div className="text-xs p-3 rounded-lg border flex items-center gap-2 flex-shrink-0" style={{ 
+              color: 'var(--color-text-muted)', 
+              backgroundColor: 'var(--color-primary-soft)', 
+              borderColor: 'var(--color-primary)' 
+            }}>
+              <Sparkles className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+              <span>
+                <strong>Pro Tips:</strong> Use Shift+Alt+F to format, Alt+Z to toggle word wrap, 
+                Ctrl+/ for comments. {showTooltips ? 'Hover over code for explanations.' : ''}
+              </span>
+            </div>
+          )}
         </>
       )}
 
@@ -561,6 +560,23 @@ const CodePanel = ({
           20% { opacity: 1; transform: translateY(0); }
           80% { opacity: 1; transform: translateY(0); }
           100% { opacity: 0; transform: translateY(-10px); }
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+          .monaco-editor .margin,
+          .monaco-editor .margin-view-overlays {
+            background: #1a1a1a !important;
+          }
+          
+          .monaco-editor .current-line {
+            background: rgba(255, 255, 255, 0.1) !important;
+          }
+          
+          .monaco-editor .view-lines {
+            font-size: 12px !important;
+            line-height: 18px !important;
+          }
         }
       `}</style>
     </div>
