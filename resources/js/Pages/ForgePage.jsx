@@ -15,6 +15,8 @@ import CanvasComponent from '@/Components/Forge/CanvasComponent';
 import BottomCodePanel from '@/Components/Forge/BottomCodePanel';
 import SidebarCodePanel from '@/Components/Forge/SidebarCodePanel';
 import CodeTooltip from '@/Components/Forge/CodeTooltip';
+import FloatingFrameSwitcher from '@/Components/Forge/FloatingFrameSwitcher';
+
 
 // Import dynamic component service
 import { componentLibraryService } from '@/Services/ComponentLibraryService';
@@ -70,6 +72,16 @@ export default function ForgePage({ projectId, frameId }) {
 
   const canvasRef = useRef(null)
   const codePanelRef = useRef(null)
+  
+  const [currentFrame, setCurrentFrame] = useState(frameId || 'frame-1');
+
+  // Add this handler function
+  const handleFrameSwitch = useCallback((frameId) => {
+    setCurrentFrame(frameId);
+    // Add your frame switching logic here
+    // For example: router.visit(`/forge/${projectId}/${frameId}`, { preserveState: true });
+    console.log('Switching to frame:', frameId);
+  }, [projectId]);
 
   // Handle window resize and mobile detection
   useEffect(() => {
@@ -816,6 +828,12 @@ export default function ForgePage({ projectId, frameId }) {
         defaultWidth={isMobile ? 280 : 320}
         minWidth={isMobile ? 250 : 280}
         maxWidth={isMobile ? 300 : 400}
+      />
+      
+      <FloatingFrameSwitcher
+        currentFrame={currentFrame}
+        onFrameSwitch={handleFrameSwitch}
+        isMobile={isMobile}
       />
 
       {/* Mobile-specific: Bottom navigation or quick actions */}

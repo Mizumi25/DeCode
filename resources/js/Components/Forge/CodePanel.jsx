@@ -270,11 +270,20 @@ const CodePanel = ({
 
   return (
     <div 
-      className={`h-full flex flex-col ${isFullscreen ? 'fixed inset-0 z-50 bg-white' : ''}`}
-      style={{ minHeight: '200px' }}
+      className={`h-full flex flex-col ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}
+      style={{ 
+        minHeight: '200px',
+        backgroundColor: isFullscreen ? 'var(--color-surface)' : 'transparent'
+      }}
     >
       {/* Header - Responsive for mobile */}
-      <div className="flex items-center justify-between p-2 sm:p-4 flex-shrink-0 bg-gray-50 border-b">
+      <div 
+        className="flex items-center justify-between p-2 sm:p-4 flex-shrink-0 border-b"
+        style={{ 
+          backgroundColor: 'var(--color-bg-muted)', 
+          borderColor: 'var(--color-border)' 
+        }}
+      >
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           <div className="p-1.5 sm:p-2 rounded-lg flex-shrink-0" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
             <Code className="w-4 h-4 sm:w-5 sm:h-5" style={{ color: 'var(--color-primary)' }} />
@@ -300,21 +309,34 @@ const CodePanel = ({
                 </label>
                 <button
                   onClick={() => setShowTooltips(!showTooltips)}
-                  className={`relative w-10 h-6 rounded-full transition-colors ${
-                    showTooltips ? 'bg-blue-500' : 'bg-gray-300'
-                  }`}
+                  className="relative w-10 h-6 rounded-full transition-colors"
+                  style={{
+                    backgroundColor: showTooltips ? 'var(--color-primary)' : 'var(--color-border)'
+                  }}
                 >
-                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                    showTooltips ? 'translate-x-5' : 'translate-x-1'
-                  }`} />
+                  <div 
+                    className="absolute top-1 w-4 h-4 rounded-full transition-transform"
+                    style={{
+                      backgroundColor: 'var(--color-surface)',
+                      transform: showTooltips ? 'translateX(20px)' : 'translateX(4px)'
+                    }}
+                  />
+                  {showTooltips ? (
+                    <Eye className="absolute top-1.5 left-1.5 w-3 h-3" style={{ color: 'var(--color-surface)' }} />
+                  ) : (
+                    <EyeOff className="absolute top-1.5 right-1.5 w-3 h-3" style={{ color: 'var(--color-text-muted)' }} />
+                  )}
                 </button>
               </div>
 
               {/* Settings */}
               <button
                 onClick={() => setShowSettings(!showSettings)}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                style={{ color: 'var(--color-text-muted)' }}
+                className="p-2 rounded-lg transition-colors"
+                style={{ 
+                  color: 'var(--color-text-muted)',
+                  backgroundColor: showSettings ? 'var(--color-primary-soft)' : 'transparent'
+                }}
                 title="Editor Settings"
               >
                 <Settings className="w-4 h-4" />
@@ -325,8 +347,11 @@ const CodePanel = ({
           {/* Fullscreen */}
           <button
             onClick={toggleFullscreen}
-            className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors"
-            style={{ color: 'var(--color-text-muted)' }}
+            className="p-1.5 sm:p-2 rounded-lg transition-colors"
+            style={{ 
+              color: 'var(--color-text-muted)',
+              backgroundColor: isFullscreen ? 'var(--color-primary-soft)' : 'transparent'
+            }}
             title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -335,8 +360,11 @@ const CodePanel = ({
           {/* Minimize */}
           <button
             onClick={() => setCodePanelMinimized(!codePanelMinimized)}
-            className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors"
-            style={{ color: 'var(--color-text-muted)' }}
+            className="p-1.5 sm:p-2 rounded-lg transition-colors"
+            style={{ 
+              color: 'var(--color-text-muted)',
+              backgroundColor: 'transparent'
+            }}
             title={codePanelMinimized ? 'Expand' : 'Minimize'}
           >
             {codePanelMinimized ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -345,7 +373,7 @@ const CodePanel = ({
           {/* Close */}
           <button
             onClick={() => setShowCodePanel(false)}
-            className="p-1.5 sm:p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
+            className="p-1.5 sm:p-2 rounded-lg transition-colors hover:bg-red-50 text-red-500 hover:text-red-600"
             title="Close Panel"
           >
             <X className="w-4 h-4" />
@@ -355,10 +383,13 @@ const CodePanel = ({
 
       {/* Settings Panel - Hidden on mobile by default */}
       {showSettings && !codePanelMinimized && !isMobile && (
-        <div className="p-4 rounded-lg border flex-shrink-0" style={{ 
-          backgroundColor: 'var(--color-bg-muted)', 
-          borderColor: 'var(--color-border)' 
-        }}>
+        <div 
+          className="p-4 rounded-lg border flex-shrink-0" 
+          style={{ 
+            backgroundColor: 'var(--color-bg-muted)', 
+            borderColor: 'var(--color-border)' 
+          }}
+        >
           <div className="grid grid-cols-2 gap-4">
             {/* Theme Selection */}
             <div>
@@ -393,6 +424,7 @@ const CodePanel = ({
                 value={fontSize}
                 onChange={(e) => setFontSize(parseInt(e.target.value))}
                 className="w-full"
+                style={{ accentColor: 'var(--color-primary)' }}
               />
               <div className="text-xs text-center mt-1" style={{ color: 'var(--color-text-muted)' }}>
                 {fontSize}px
@@ -405,7 +437,10 @@ const CodePanel = ({
       {!codePanelMinimized && (
         <>
           {/* Code Style Selector - Simplified for mobile */}
-          <div className="p-2 sm:p-4 space-y-2 sm:space-y-3 flex-shrink-0 border-b">
+          <div 
+            className="p-2 sm:p-4 space-y-2 sm:space-y-3 flex-shrink-0 border-b"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
             <label className="block text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
               Code Style
             </label>
@@ -437,7 +472,10 @@ const CodePanel = ({
           </div>
       
           {/* Code tabs - Responsive */}
-          <div className="flex gap-1 p-1 sm:p-2 bg-gray-50 flex-shrink-0">
+          <div 
+            className="flex gap-1 p-1 sm:p-2 flex-shrink-0"
+            style={{ backgroundColor: 'var(--color-bg-muted)' }}
+          >
             {getAvailableTabs().map(tab => (
               <button
                 key={tab}
@@ -451,7 +489,10 @@ const CodePanel = ({
               >
                 {tab.toUpperCase()}
                 {activeCodeTab === tab && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }} />
+                  <div 
+                    className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" 
+                    style={{ backgroundColor: 'var(--color-primary)' }} 
+                  />
                 )}
               </button>
             ))}
@@ -464,17 +505,28 @@ const CodePanel = ({
             style={{ minHeight: isMobile ? '200px' : '300px' }}
           >
             {/* Mobile-optimized toolbar */}
-            <div className="absolute top-2 right-2 z-10 flex gap-1 bg-black/70 rounded-lg p-1">
+            <div 
+              className="absolute top-2 right-2 z-10 flex gap-1 rounded-lg p-1"
+              style={{ backgroundColor: 'var(--color-surface-overlay)' }}
+            >
               <button
                 onClick={formatCode}
-                className="p-1.5 sm:p-2 rounded text-white hover:bg-white hover:bg-opacity-20 transition-all"
+                className="p-1.5 sm:p-2 rounded transition-all"
+                style={{ 
+                  color: 'var(--color-text)',
+                  backgroundColor: 'transparent'
+                }}
                 title="Format Code"
               >
                 <Sparkles className="w-3 h-3 sm:w-4 sm:h-4" />
               </button>
               <button
                 onClick={handleCopy}
-                className="p-1.5 sm:p-2 rounded text-white hover:bg-white hover:bg-opacity-20 transition-all"
+                className="p-1.5 sm:p-2 rounded transition-all"
+                style={{ 
+                  color: 'var(--color-text)',
+                  backgroundColor: 'transparent'
+                }}
                 title="Copy"
               >
                 <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -485,14 +537,22 @@ const CodePanel = ({
                   `component.${getFileExtension(activeCodeTab)}`, 
                   activeCodeTab
                 )}
-                className="p-1.5 sm:p-2 rounded text-white hover:bg-white hover:bg-opacity-20 transition-all"
+                className="p-1.5 sm:p-2 rounded transition-all"
+                style={{ 
+                  color: 'var(--color-text)',
+                  backgroundColor: 'transparent'
+                }}
                 title="Download"
               >
                 <Download className="w-3 h-3 sm:w-4 sm:h-4" />
               </button>
               <button
                 onClick={() => generateCode(canvasComponents)}
-                className="p-1.5 sm:p-2 rounded text-white hover:bg-white hover:bg-opacity-20 transition-all"
+                className="p-1.5 sm:p-2 rounded transition-all"
+                style={{ 
+                  color: 'var(--color-text)',
+                  backgroundColor: 'transparent'
+                }}
                 title="Regenerate"
               >
                 <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -500,7 +560,10 @@ const CodePanel = ({
             </div>
 
             {/* Monaco Editor - FIXED with proper dimensions */}
-            <div className="h-full rounded-xl overflow-hidden border" style={{ borderColor: 'var(--color-border)' }}>
+            <div 
+              className="h-full rounded-xl overflow-hidden border" 
+              style={{ borderColor: 'var(--color-border)' }}
+            >
               <Editor
                 height="100%"
                 width="100%"
@@ -511,9 +574,18 @@ const CodePanel = ({
                 onMount={handleEditorDidMount}
                 onChange={handleEditorChange}
                 loading={
-                  <div className="flex items-center justify-center h-full min-h-[200px]">
+                  <div 
+                    className="flex items-center justify-center h-full min-h-[200px]"
+                    style={{ backgroundColor: 'var(--color-surface)' }}
+                  >
                     <div className="text-center">
-                      <div className="animate-spin w-6 h-6 sm:w-8 sm:h-8 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                      <div 
+                        className="animate-spin w-6 h-6 sm:w-8 sm:h-8 border-4 border-t-transparent rounded-full mx-auto mb-4"
+                        style={{ 
+                          borderColor: 'var(--color-primary)',
+                          borderTopColor: 'transparent'
+                        }}
+                      ></div>
                       <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Loading Monaco Editor...</p>
                     </div>
                   </div>
@@ -524,11 +596,14 @@ const CodePanel = ({
           
           {/* Pro Tip - Hidden on mobile to save space */}
           {!isMobile && (
-            <div className="text-xs p-3 rounded-lg border flex items-center gap-2 flex-shrink-0" style={{ 
-              color: 'var(--color-text-muted)', 
-              backgroundColor: 'var(--color-primary-soft)', 
-              borderColor: 'var(--color-primary)' 
-            }}>
+            <div 
+              className="text-xs p-3 rounded-lg border flex items-center gap-2 flex-shrink-0" 
+              style={{ 
+                color: 'var(--color-text-muted)', 
+                backgroundColor: 'var(--color-primary-soft)', 
+                borderColor: 'var(--color-primary)' 
+              }}
+            >
               <Sparkles className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
               <span>
                 <strong>Pro Tips:</strong> Use Shift+Alt+F to format, Alt+Z to toggle word wrap, 
@@ -546,8 +621,8 @@ const CodePanel = ({
           position: absolute;
           top: 0;
           right: 0;
-          background: #22c55e;
-          color: white;
+          background: var(--color-success, #22c55e);
+          color: var(--color-surface, white);
           padding: 4px 8px;
           border-radius: 4px;
           font-size: 12px;
@@ -566,11 +641,11 @@ const CodePanel = ({
         @media (max-width: 768px) {
           .monaco-editor .margin,
           .monaco-editor .margin-view-overlays {
-            background: #1a1a1a !important;
+            background: var(--color-surface-dark, #1a1a1a) !important;
           }
           
           .monaco-editor .current-line {
-            background: rgba(255, 255, 255, 0.1) !important;
+            background: var(--color-surface-overlay, rgba(255, 255, 255, 0.1)) !important;
           }
           
           .monaco-editor .view-lines {
