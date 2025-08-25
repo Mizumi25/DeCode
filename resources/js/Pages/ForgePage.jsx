@@ -750,11 +750,12 @@ export default function ForgePage({ projectId, frameId }) {
         />
       </div>
 
-      {/* Enhanced Panel System - Mobile responsive */}
+      {/* Enhanced Panel System - Mobile responsive with 3 panels per dock limit */}
       <Panel
         isOpen={true}
         initialPanels={finalPanels}
         allowedDockPositions={isMobile ? ['left'] : ['left', 'right']}
+        maxPanelsPerDock={3} // NEW: Limit Forge page to 3 panels per dock
         onPanelClose={handlePanelClose}
         onPanelStateChange={handlePanelStateChange}
         snapToEdge={false}

@@ -7,6 +7,7 @@ export default function Panel({
   panels = [],
   initialPanels = [], 
   allowedDockPositions = ['left', 'right'],
+  maxPanelsPerDock = 4, // NEW: Allow customizing max panels per dock
   onPanelClose,
   onPanelStateChange, 
   className = '',
@@ -33,7 +34,7 @@ export default function Panel({
   const [activeTab, setActiveTab] = useState(tabConfig?.defaultTab || 'tab1')
   const [searchTerm, setSearchTerm] = useState('')
 
-  // Memoize the initial state calculation
+  // Memoize the initial state calculation - NOW USES maxPanelsPerDock
   const initialPanelState = useMemo(() => {
     if (panelsToUse.length === 0) {
       return { left: [], right: [] }
@@ -42,25 +43,25 @@ export default function Panel({
     if (allowedDockPositions.includes('right') && !allowedDockPositions.includes('left')) {
       return { 
         left: [], 
-        right: panelsToUse.slice(0, 2) 
+        right: panelsToUse.slice(0, maxPanelsPerDock)
       }
     }
     
     if (allowedDockPositions.includes('left') && !allowedDockPositions.includes('right')) {
       return { 
-        left: panelsToUse.slice(0, 2),
+        left: panelsToUse.slice(0, maxPanelsPerDock),
         right: []
       }
     }
 
-    const leftPanels = panelsToUse.slice(0, Math.min(2, Math.ceil(panelsToUse.length / 2)))
-    const rightPanels = panelsToUse.slice(Math.ceil(panelsToUse.length / 2), Math.ceil(panelsToUse.length / 2) + 2)
+    const leftPanels = panelsToUse.slice(0, Math.min(maxPanelsPerDock, Math.ceil(panelsToUse.length / 2)))
+    const rightPanels = panelsToUse.slice(Math.ceil(panelsToUse.length / 2), Math.ceil(panelsToUse.length / 2) + maxPanelsPerDock)
     
     return {
       left: allowedDockPositions.includes('left') ? leftPanels : [],
-      right: allowedDockPositions.includes('right') ? rightPanels : leftPanels.slice(0, 2)
+      right: allowedDockPositions.includes('right') ? rightPanels : leftPanels.slice(0, maxPanelsPerDock)
     }
-  }, [panelsToUse, allowedDockPositions])
+  }, [panelsToUse, allowedDockPositions, maxPanelsPerDock])
 
   const [dockedPanels, setDockedPanels] = useState(initialPanelState)
   const [mergedStates, setMergedStates] = useState(() => {
@@ -115,15 +116,20 @@ export default function Panel({
     }
   }, [dockedPanels.right?.length, onPanelStateChange])
 
-  // Calculate panel height with hover preview and merging
+  // Calculate panel height with hover preview and merging - USES maxPanelsPerDock
   const getPanelHeight = useCallback((position) => {
     const currentCount = dockedPanels[position]?.length || 0
     const isMerged = mergedStates[position]
     
     if (currentCount === 0) return 'calc(100% - 1rem)'
     if (currentCount === 1 || isMerged) return 'calc(100% - 1rem)'
-    return 'calc(50% - 0.75rem)'
-  }, [dockedPanels, mergedStates])
+    if (currentCount === 2) return 'calc(50% - 0.75rem)'
+    if (currentCount === 3) return 'calc(33.333% - 0.67rem)'
+    if (currentCount >= 4) return 'calc(25% - 0.75rem)'
+    
+    // Dynamic calculation for maxPanelsPerDock
+    return `calc(${100 / Math.min(currentCount, maxPanelsPerDock)}% - 0.75rem)`
+  }, [dockedPanels, mergedStates, maxPanelsPerDock])
 
   // Get target drop zone
   const getDropZone = useCallback(() => {
@@ -133,7 +139,7 @@ export default function Panel({
     return mouseX < windowWidth / 2 ? 'left' : 'right'
   }, [dragState.isDragging])
 
-  // Simplified getDropTarget
+  // Updated getDropTarget to handle maxPanelsPerDock
   const getDropTarget = useCallback(() => {
     if (!dragState.isDragging) return null
     
@@ -148,10 +154,28 @@ export default function Panel({
     const targetPanels = dockedPanels[targetPosition] || []
     const { startPosition, draggedPanel } = dragState
     
-    // Same dock reordering
-    if (targetPosition === startPosition && targetPanels.length === 2) {
-      const midY = windowHeight / 2
-      const targetIndex = mouseY < midY ? 0 : 1
+    // Same dock reordering - USES maxPanelsPerDock
+    if (targetPosition === startPosition && targetPanels.length >= 2) {
+      let targetIndex
+      const panelCount = Math.min(targetPanels.length, maxPanelsPerDock)
+      
+      if (panelCount === 2) {
+        const midY = windowHeight / 2
+        targetIndex = mouseY < midY ? 0 : 1
+      } else if (panelCount === 3) {
+        const thirdY = windowHeight / 3
+        const twoThirdY = (windowHeight / 3) * 2
+        if (mouseY < thirdY) targetIndex = 0
+        else if (mouseY < twoThirdY) targetIndex = 1
+        else targetIndex = 2
+      } else if (panelCount >= 4) {
+        const quarterY = windowHeight / 4
+        if (mouseY < quarterY) targetIndex = 0
+        else if (mouseY < quarterY * 2) targetIndex = 1
+        else if (mouseY < quarterY * 3) targetIndex = 2
+        else targetIndex = Math.min(3, maxPanelsPerDock - 1)
+      }
+      
       const currentIndex = targetPanels.findIndex(p => p.id === draggedPanel.id)
       
       if (targetIndex !== currentIndex) {
@@ -163,7 +187,7 @@ export default function Panel({
       }
     }
     
-    // Different dock or empty dock
+    // Different dock or empty dock - USES maxPanelsPerDock
     if (targetPosition !== startPosition) {
       if (targetPanels.length === 0) {
         return {
@@ -171,25 +195,46 @@ export default function Panel({
           index: 0,
           action: 'move'
         }
-      } else if (targetPanels.length === 1) {
-        const midY = windowHeight / 2
+      } else if (targetPanels.length < maxPanelsPerDock) { // Use maxPanelsPerDock
+        let targetIndex
+        const panelCount = targetPanels.length
+        
+        if (panelCount === 1) {
+          const midY = windowHeight / 2
+          targetIndex = mouseY < midY ? 0 : 1
+        } else if (panelCount === 2) {
+          const thirdY = windowHeight / 3
+          const twoThirdY = (windowHeight / 3) * 2
+          if (mouseY < thirdY) targetIndex = 0
+          else if (mouseY < twoThirdY) targetIndex = 1
+          else targetIndex = 2
+        } else if (panelCount >= 3 && panelCount < maxPanelsPerDock) {
+          const sectionHeight = windowHeight / (panelCount + 1)
+          targetIndex = Math.floor(mouseY / sectionHeight)
+          targetIndex = Math.min(targetIndex, panelCount)
+        }
+        
         return {
           position: targetPosition,
-          index: mouseY < midY ? 0 : 1,
+          index: targetIndex,
           action: 'add'
         }
-      } else if (targetPanels.length === 2) {
-        const midY = windowHeight / 2
+      } else if (targetPanels.length >= maxPanelsPerDock) { // Swap when at max capacity
+        let targetIndex
+        const sectionHeight = windowHeight / maxPanelsPerDock
+        targetIndex = Math.floor(mouseY / sectionHeight)
+        targetIndex = Math.min(targetIndex, maxPanelsPerDock - 1)
+        
         return {
           position: targetPosition,
-          index: mouseY < midY ? 0 : 1,
+          index: targetIndex,
           action: 'swap'
         }
       }
     }
     
     return null
-  }, [dragState.isDragging, dragState.startPosition, dragState.draggedPanel, dockedPanels, allowedDockPositions])
+  }, [dragState.isDragging, dragState.startPosition, dragState.draggedPanel, dockedPanels, allowedDockPositions, maxPanelsPerDock])
 
   // Optimized drag update using RAF
   const updateDragPosition = useCallback((clientX, clientY) => {
@@ -531,8 +576,13 @@ export default function Panel({
                   e.stopPropagation()
                   toggleMerge(position)
                 }}
-                className="flex items-center gap-2 px-3 py-1 rounded-md text-sm font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
-                style={{ color: 'var(--color-text)' }}
+                className="flex items-center gap-2 px-3 py-1 rounded-md text-sm font-medium transition-colors"
+                style={{ 
+                  color: 'var(--color-text)',
+                  backgroundColor: 'transparent'
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-bg-hover)'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                 title="Split Panels"
               >
                 <Ungroup className="w-4 h-4" />
@@ -543,8 +593,10 @@ export default function Panel({
                   e.stopPropagation()
                   handleClose(panels[0].id, position)
                 }}
-                className="p-1 rounded transition-colors hover:text-[var(--color-primary)]"
+                className="p-1 rounded transition-colors"
                 style={{ color: 'var(--color-text-muted)' }}
+                onMouseEnter={(e) => e.target.style.color = 'var(--color-primary)'}
+                onMouseLeave={(e) => e.target.style.color = 'var(--color-text-muted)'}
                 title="Close All"
               >
                 <X className="w-4 h-4" />
@@ -559,10 +611,19 @@ export default function Panel({
                 key={panel.id}
                 className={`px-4 py-2 text-sm font-medium border-r transition-colors ${
                   index === 0 
-                    ? 'bg-[var(--color-primary)] text-white' 
-                    : 'hover:bg-[var(--color-bg-hover)] text-[var(--color-text)]'
+                    ? 'text-white' 
+                    : 'text-[var(--color-text)]'
                 }`}
-                style={{ borderColor: 'var(--color-border)' }}
+                style={{ 
+                  borderColor: 'var(--color-border)',
+                  backgroundColor: index === 0 ? 'var(--color-primary)' : 'transparent'
+                }}
+                onMouseEnter={(e) => {
+                  if (index !== 0) e.target.style.backgroundColor = 'var(--color-bg-hover)'
+                }}
+                onMouseLeave={(e) => {
+                  if (index !== 0) e.target.style.backgroundColor = 'transparent'
+                }}
               >
                 {panel.title}
               </button>
@@ -678,8 +739,19 @@ export default function Panel({
                     e.preventDefault()
                     toggleMerge(position)
                   }}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors hover:bg-blue-100 hover:text-blue-700"
-                  style={{ color: 'var(--color-text-muted)' }}
+                  className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors"
+                  style={{ 
+                    color: 'var(--color-text-muted)',
+                    backgroundColor: 'transparent'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = 'var(--color-bg-hover)'
+                    e.target.style.color = 'var(--color-primary)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'transparent'
+                    e.target.style.color = 'var(--color-text-muted)'
+                  }}
                   title="Merge all panels in this position"
                 >
                   <Group className="w-3 h-3" />
@@ -693,8 +765,10 @@ export default function Panel({
                   e.preventDefault()
                   handleClose(panel.id, position)
                 }}
-                className="p-1 rounded transition-colors hover:text-red-500"
+                className="p-1 rounded transition-colors"
                 style={{ color: 'var(--color-text-muted)' }}
+                onMouseEnter={(e) => e.target.style.color = 'var(--color-primary)'}
+                onMouseLeave={(e) => e.target.style.color = 'var(--color-text-muted)'}
                 title="Close Panel"
               >
                 <X className="w-4 h-4" />
@@ -719,7 +793,7 @@ export default function Panel({
     )
   }
 
-  // Render dock area with merge suggestion
+  // Render dock area with merge suggestion - UPDATED SMALLER MERGE BANNER
   const renderDockArea = (position) => {
     const panels = dockedPanels[position] || []
     const dropTarget = getDropTarget()
@@ -766,18 +840,23 @@ export default function Panel({
             stiffness: 300
           }}
         >
-          {/* Merge suggestion banner when there are multiple panels */}
+          {/* SMALLER Merge suggestion banner when there are multiple panels */}
           {!isMerged && panels.length > 1 && (
             <motion.div 
-              className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2"
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+              className="border rounded-md px-3 py-2 mb-1"
+              style={{
+                backgroundColor: 'var(--color-bg-muted)',
+                borderColor: 'var(--color-border)'
+              }}
+              initial={{ opacity: 0, y: -10, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: 'auto' }}
+              exit={{ opacity: 0, y: -10, height: 0 }}
+              transition={{ duration: 0.2 }}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Group className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm text-blue-800 font-medium">
+                  <Group className="w-3 h-3" style={{ color: 'var(--color-primary)' }} />
+                  <span className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>
                     {panels.length} panels can be merged
                   </span>
                 </div>
@@ -786,10 +865,16 @@ export default function Panel({
                     e.stopPropagation()
                     toggleMerge(position)
                   }}
-                  className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors"
+                  style={{
+                    backgroundColor: 'var(--color-primary)',
+                    color: 'white'
+                  }}
+                  onMouseEnter={(e) => e.target.style.opacity = '0.9'}
+                  onMouseLeave={(e) => e.target.style.opacity = '1'}
                 >
                   <Group className="w-3 h-3" />
-                  Merge All
+                  Merge
                 </button>
               </div>
             </motion.div>
@@ -806,7 +891,7 @@ export default function Panel({
           </AnimatePresence>
         </motion.div>
 
-        {/* Drop zone indicators */}
+        {/* Drop zone indicators - UPDATED FOR 4 PANELS */}
         {isDropTarget && !isMerged && dragState.isDragging && (
           <motion.div 
             className="absolute inset-0 pointer-events-none"
@@ -819,7 +904,7 @@ export default function Panel({
                 className="absolute inset-0 rounded-lg border-2 border-dashed flex items-center justify-center"
                 style={{
                   borderColor: 'var(--color-primary)',
-                  backgroundColor: 'rgba(59, 130, 246, 0.1)'
+                  backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
                 }}
               >
                 <div 
@@ -835,7 +920,7 @@ export default function Panel({
                   className="absolute top-0 left-0 right-0 h-1/2 rounded-t-lg border-2 border-dashed flex items-center justify-center"
                   style={{
                     borderColor: 'var(--color-primary)',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)'
+                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
                   }}
                 >
                   <div 
@@ -849,7 +934,7 @@ export default function Panel({
                   className="absolute bottom-0 left-0 right-0 h-1/2 rounded-b-lg border-2 border-dashed flex items-center justify-center"
                   style={{
                     borderColor: 'var(--color-primary)',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)'
+                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
                   }}
                 >
                   <div 
@@ -860,34 +945,167 @@ export default function Panel({
                   </div>
                 </div>
               </>
-            ) : (
+            ) : panels.length === 2 ? (
               <>
                 <div 
-                  className="absolute top-0 left-0 right-0 h-1/2 rounded-t-lg border-2 border-dashed flex items-center justify-center"
+                  className="absolute top-0 left-0 right-0 h-1/3 rounded-t-lg border-2 border-dashed flex items-center justify-center"
                   style={{
-                    borderColor: 'rgb(251, 146, 60)',
-                    backgroundColor: 'rgba(251, 146, 60, 0.1)'
+                    borderColor: 'var(--color-primary)',
+                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
                   }}
                 >
                   <div 
-                    className="px-3 py-1 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: 'rgb(251, 146, 60)' }}
+                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
                   >
-                    Swap Top
+                    Drop Top
                   </div>
                 </div>
                 <div 
-                  className="absolute bottom-0 left-0 right-0 h-1/2 rounded-b-lg border-2 border-dashed flex items-center justify-center"
+                  className="absolute top-1/3 left-0 right-0 h-1/3 border-2 border-dashed flex items-center justify-center"
+                  style={{
+                    borderColor: 'var(--color-primary)',
+                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
+                  }}
+                >
+                  <div 
+                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    Drop Middle
+                  </div>
+                </div>
+                <div 
+                  className="absolute bottom-0 left-0 right-0 h-1/3 rounded-b-lg border-2 border-dashed flex items-center justify-center"
+                  style={{
+                    borderColor: 'var(--color-primary)',
+                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
+                  }}
+                >
+                  <div 
+                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    Drop Bottom
+                  </div>
+                </div>
+              </>
+            ) : panels.length === 3 ? (
+              <>
+                <div 
+                  className="absolute top-0 left-0 right-0 h-1/4 rounded-t-lg border-2 border-dashed flex items-center justify-center"
+                  style={{
+                    borderColor: 'var(--color-primary)',
+                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
+                  }}
+                >
+                  <div 
+                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    Drop 1st
+                  </div>
+                </div>
+                <div 
+                  className="absolute top-1/4 left-0 right-0 h-1/4 border-2 border-dashed flex items-center justify-center"
+                  style={{
+                    borderColor: 'var(--color-primary)',
+                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
+                  }}
+                >
+                  <div 
+                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    Drop 2nd
+                  </div>
+                </div>
+                <div 
+                  className="absolute top-2/4 left-0 right-0 h-1/4 border-2 border-dashed flex items-center justify-center"
+                  style={{
+                    borderColor: 'var(--color-primary)',
+                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
+                  }}
+                >
+                  <div 
+                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    Drop 3rd
+                  </div>
+                </div>
+                <div 
+                  className="absolute bottom-0 left-0 right-0 h-1/4 rounded-b-lg border-2 border-dashed flex items-center justify-center"
+                  style={{
+                    borderColor: 'var(--color-primary)',
+                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
+                  }}
+                >
+                  <div 
+                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    Drop 4th
+                  </div>
+                </div>
+              </>
+            ) : (
+              // When at max capacity (4 panels), show swap indicators
+              <>
+                <div 
+                  className="absolute top-0 left-0 right-0 h-1/4 rounded-t-lg border-2 border-dashed flex items-center justify-center"
                   style={{
                     borderColor: 'rgb(251, 146, 60)',
                     backgroundColor: 'rgba(251, 146, 60, 0.1)'
                   }}
                 >
                   <div 
-                    className="px-3 py-1 rounded-full text-xs font-medium text-white"
+                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
                     style={{ backgroundColor: 'rgb(251, 146, 60)' }}
                   >
-                    Swap Bottom
+                    Swap 1st
+                  </div>
+                </div>
+                <div 
+                  className="absolute top-1/4 left-0 right-0 h-1/4 border-2 border-dashed flex items-center justify-center"
+                  style={{
+                    borderColor: 'rgb(251, 146, 60)',
+                    backgroundColor: 'rgba(251, 146, 60, 0.1)'
+                  }}
+                >
+                  <div 
+                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: 'rgb(251, 146, 60)' }}
+                  >
+                    Swap 2nd
+                  </div>
+                </div>
+                <div 
+                  className="absolute top-2/4 left-0 right-0 h-1/4 border-2 border-dashed flex items-center justify-center"
+                  style={{
+                    borderColor: 'rgb(251, 146, 60)',
+                    backgroundColor: 'rgba(251, 146, 60, 0.1)'
+                  }}
+                >
+                  <div 
+                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: 'rgb(251, 146, 60)' }}
+                  >
+                    Swap 3rd
+                  </div>
+                </div>
+                <div 
+                  className="absolute bottom-0 left-0 right-0 h-1/4 rounded-b-lg border-2 border-dashed flex items-center justify-center"
+                  style={{
+                    borderColor: 'rgb(251, 146, 60)',
+                    backgroundColor: 'rgba(251, 146, 60, 0.1)'
+                  }}
+                >
+                  <div 
+                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: 'rgb(251, 146, 60)' }}
+                  >
+                    Swap 4th
                   </div>
                 </div>
               </>
@@ -902,7 +1120,6 @@ export default function Panel({
 
   return (
     <>
-      {/* FIXED: Removed jsx and global attributes that were causing React warnings */}
       <style>{`
         .touch-manipulation {
           touch-action: manipulation;
