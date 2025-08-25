@@ -35,6 +35,13 @@ class User extends Authenticatable
         ];
     }
     
+    // Relationships
+    public function projects()
+    {
+        return $this->hasMany(Project::class);
+    }
+
+    // Scopes
     public function scopeAdmins($query)
     {
         return $query->where('platform_role', 'admin');
@@ -55,5 +62,19 @@ class User extends Authenticatable
     public function getIsAdminAttribute(): bool
     {
         return $this->isAdmin();
+    }
+
+    // Helper methods for projects
+    public function getRecentProjects($limit = 5)
+    {
+        return $this->projects()
+            ->recent()
+            ->limit($limit)
+            ->get();
+    }
+
+    public function getProjectsCount()
+    {
+        return $this->projects()->count();
     }
 }

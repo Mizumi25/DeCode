@@ -257,7 +257,7 @@ export default function Welcome({ auth }) {
               <div className="flex items-center space-x-4">
                 {auth.user ? (
                   <Link
-                    href="/dashboard"
+                    href="/projects"
                     className="btn-primary px-6 py-2 rounded-lg font-medium flex items-center space-x-2"
                   >
                     <span>Dashboard</span>

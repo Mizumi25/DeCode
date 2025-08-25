@@ -4,28 +4,37 @@ import { Plus, ChevronDown, X, Share2, Download, Edit3, Trash2, Copy } from 'luc
 import { Responsive, WidthProvider } from 'react-grid-layout';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useCallback, useRef } from 'react';
+import NewProjectModal from '@/Components/Projects/NewProjectModal';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
-export default function ProjectList() {
+export default function ProjectList({ projects: initialProjects = [] }) {
   const [selectedProject, setSelectedProject] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [layouts, setLayouts] = useState({});
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const dragTimeoutRef = useRef(null);
   const clickTimeoutRef = useRef(null);
   
-  const projects = [
-    { id: '0', title: 'Design Sprint', date: 'July 1, 2025', w: 3, h: 4 },
-    { id: '1', title: 'Mobile UI Kit', date: 'July 2, 2025', w: 3, h: 3 },
-    { id: '2', title: 'Dashboard Redesign', date: 'July 3, 2025', w: 3, h: 5 },
-    { id: '3', title: 'Tablet Layout', date: 'July 4, 2025', w: 3, h: 4 },
-    { id: '4', title: 'Landing Page', date: 'July 5, 2025', w: 3, h: 3 },
-    { id: '5', title: 'Admin Panel', date: 'July 6, 2025', w: 3, h: 4 },
-    { id: '6', title: 'Prototype', date: 'July 7, 2025', w: 3, h: 5 },
-    { id: '7', title: 'UX Case Study', date: 'July 8, 2025', w: 3, h: 3 },
-  ];
+  // Convert projects to the format expected by the grid
+  const projects = initialProjects.map((project, index) => ({
+    id: project.id.toString(),
+    title: project.name,
+    date: new Date(project.updated_at).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    }),
+    description: project.description,
+    type: project.type,
+    status: project.status,
+    componentCount: project.component_count || 0,
+    w: 3,
+    h: Math.random() > 0.5 ? 4 : 5, // Random height for demo
+    project: project // Store the full project data
+  }));
 
   const defaultLayouts = {
     lg: projects.map((p, i) => ({
@@ -74,6 +83,14 @@ export default function ProjectList() {
     setSelectedProject(null);
   }, []);
 
+  const handleNewProject = useCallback(() => {
+    setShowNewProjectModal(true);
+  }, []);
+
+  const handleModalClose = useCallback(() => {
+    setShowNewProjectModal(false);
+  }, []);
+
   // Handle drag events
   const handleDragStart = useCallback((layout, oldItem, newItem, placeholder, e, element) => {
     console.log('Drag started for item:', oldItem.i);
@@ -102,6 +119,19 @@ export default function ProjectList() {
   const handleLayoutChange = useCallback((layout, allLayouts) => {
     setLayouts(allLayouts);
   }, []);
+
+  // Get project type badge color
+  const getProjectTypeBadge = (type) => {
+    const badges = {
+      'website': 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
+      'landing_page': 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
+      'component_library': 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400',
+      'prototype': 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400',
+      'email_template': 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400',
+      'dashboard': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-400'
+    };
+    return badges[type] || 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+  };
 
   // Animation variants
   const containerVariants = {
@@ -284,120 +314,181 @@ export default function ProjectList() {
             {/* Header Controls */}
             <div className="flex justify-between items-center">
               <div className="flex-start items-center flex-col gap-2">
-                <span className="font-bold text-[var(--color-text)] text-sm">All</span>
+                <span className="font-bold text-[var(--color-text)] text-sm">All Projects ({projects.length})</span>
                 <button className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition">
-                  Last viewed by me
+                  Last updated
                   <ChevronDown className="w-4 h-4" />
                 </button>
               </div>
             
-              <button className="bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg text-sm shadow-md flex items-center gap-2 hover:bg-[var(--color-primary-hover)] transition">
+              <button 
+                onClick={handleNewProject}
+                className="bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg text-sm shadow-md flex items-center gap-2 hover:bg-[var(--color-primary-hover)] transition"
+              >
                 <Plus size={16} />
                 New Project
               </button>
             </div>
 
-            {/* Project Grid - Fixed overflow container */}
-            <div className="w-full relative overflow-hidden" style={{ minHeight: '600px', maxWidth: '100%' }}>
-              <ResponsiveGridLayout
-                className="layout"
-                layouts={Object.keys(layouts).length > 0 ? layouts : defaultLayouts}
-                breakpoints={{ lg: 1024, md: 768, sm: 480 }}
-                cols={{ lg: 12, md: 9, sm: 4 }}
-                rowHeight={30}
-                isResizable={false}
-                isDraggable={true}
-                margin={[16, 16]}
-                compactType="vertical"
-                preventCollision={false}
-                isBounded={true}
-                onDragStart={handleDragStart}
-                onDragStop={handleDragStop}
-                onLayoutChange={handleLayoutChange}
-                draggableHandle=".drag-handle-only"
-                style={{ 
-                  position: 'relative',
-                  minHeight: '600px',
-                  maxWidth: '100%',
-                  overflowX: 'hidden'
-                }}
-              >
-                {projects.map((project) => (
-                  <div
-                    key={project.id}
-                    className="project-card relative rounded-xl shadow-md overflow-hidden group"
-                    style={{ 
-                      height: '100%',
-                      width: '100%',
-                      position: 'relative',
-                      backgroundColor: 'var(--color-bg-muted)',
-                      border: '1px solid var(--color-border)'
-                    }}
-                  >
-                    {/* Themed drag handle */}
-                    <div 
-                      className="drag-handle-only drag-handle-themed absolute top-2 right-2 w-6 h-6 cursor-move z-30 rounded transition-all duration-200"
-                      title="Drag to reorder"
-                    >
-                      <div className="w-full h-full flex items-center justify-center">
-                        <div className="drag-icon w-3 h-3 rounded-sm"></div>
-                      </div>
-                    </div>
-                    
-                    {/* Clickable content area */}
-                    <motion.div
-                      variants={projectVariants}
-                      whileHover={{ 
-                        scale: 1.02,
-                        y: -2,
-                        transition: { duration: 0.2 }
-                      }}
-                      whileTap={{ 
-                        scale: 0.98,
-                        transition: { duration: 0.1 }
-                      }}
-                      className="absolute inset-0 cursor-pointer"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        console.log('DIRECT CLICK on project:', project.title);
-                        handleProjectClick(project);
-                      }}
-                      style={{
+            {/* Empty State */}
+            {projects.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mb-6">
+                  <Plus size={32} className="text-gray-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-[var(--color-text)] mb-2">
+                  No projects yet
+                </h3>
+                <p className="text-[var(--color-text-muted)] mb-8 max-w-md">
+                  Get started by creating your first project. Build websites, landing pages, prototypes, and more with our visual editor.
+                </p>
+                <button 
+                  onClick={handleNewProject}
+                  className="bg-[var(--color-primary)] text-white px-6 py-3 rounded-lg font-medium flex items-center gap-2 hover:bg-[var(--color-primary-hover)] transition"
+                >
+                  <Plus size={20} />
+                  Create Your First Project
+                </button>
+              </div>
+            ) : (
+              /* Project Grid - Fixed overflow container */
+              <div className="w-full relative overflow-hidden" style={{ minHeight: '600px', maxWidth: '100%' }}>
+                <ResponsiveGridLayout
+                  className="layout"
+                  layouts={Object.keys(layouts).length > 0 ? layouts : defaultLayouts}
+                  breakpoints={{ lg: 1024, md: 768, sm: 480 }}
+                  cols={{ lg: 12, md: 9, sm: 4 }}
+                  rowHeight={30}
+                  isResizable={false}
+                  isDraggable={true}
+                  margin={[16, 16]}
+                  compactType="vertical"
+                  preventCollision={false}
+                  isBounded={true}
+                  onDragStart={handleDragStart}
+                  onDragStop={handleDragStop}
+                  onLayoutChange={handleLayoutChange}
+                  draggableHandle=".drag-handle-only"
+                  style={{ 
+                    position: 'relative',
+                    minHeight: '600px',
+                    maxWidth: '100%',
+                    overflowX: 'hidden'
+                  }}
+                >
+                  {projects.map((project) => (
+                    <div
+                      key={project.id}
+                      className="project-card relative rounded-xl shadow-md overflow-hidden group"
+                      style={{ 
                         height: '100%',
                         width: '100%',
-                        zIndex: 20
+                        position: 'relative',
+                        backgroundColor: 'var(--color-bg-muted)',
+                        border: '1px solid var(--color-border)'
                       }}
                     >
-                      <div className="absolute bottom-2 left-2 text-xs text-[var(--color-text-muted)] z-20 pointer-events-none">
-                        <div className="font-medium">{project.title}</div>
-                        <div className="text-[10px]">{project.date}</div>
-                      </div>
-        
-                      {/* Themed preview area */}
+                      {/* Themed drag handle */}
                       <div 
-                        className="preview-area w-full h-full flex items-center justify-center text-[var(--color-text-muted)] text-sm rounded-xl"
-                        style={{
-                          background: 'var(--color-surface)',
-                          border: '1px solid var(--color-border)'
-                        }}
+                        className="drag-handle-only drag-handle-themed absolute top-2 right-2 w-6 h-6 cursor-move z-30 rounded transition-all duration-200"
+                        title="Drag to reorder"
                       >
-                        <div className="text-center pointer-events-none">
-                          <div 
-                            className="w-12 h-12 mx-auto mb-2 rounded-lg opacity-60"
-                            style={{
-                              background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))'
-                            }}
-                          ></div>
-                          <p className="text-sm font-medium text-[var(--color-text)]">Preview</p>
-                          <p className="text-xs mt-1 opacity-75 text-[var(--color-text-muted)]">Click anywhere to open</p>
+                        <div className="w-full h-full flex items-center justify-center">
+                          <div className="drag-icon w-3 h-3 rounded-sm"></div>
                         </div>
                       </div>
-                    </motion.div>
-                  </div>
-                ))}
-              </ResponsiveGridLayout>
-            </div>
+                      
+                      {/* Project type badge */}
+                      <div className="absolute top-2 left-2 z-20">
+                        <span className={`px-2 py-1 rounded-md text-xs font-medium ${getProjectTypeBadge(project.type)}`}>
+                          {project.type.replace('_', ' ')}
+                        </span>
+                      </div>
+                      
+                      {/* Status indicator */}
+                      <div className="absolute top-10 left-2 z-20">
+                        <div className={`w-2 h-2 rounded-full ${
+                          project.project.status === 'published' ? 'bg-green-500' :
+                          project.project.status === 'active' ? 'bg-blue-500' :
+                          project.project.status === 'archived' ? 'bg-gray-400' :
+                          'bg-yellow-500'
+                        }`} title={project.project.status}></div>
+                      </div>
+                      
+                      {/* Clickable content area */}
+                      <motion.div
+                        variants={projectVariants}
+                        whileHover={{ 
+                          scale: 1.02,
+                          y: -2,
+                          transition: { duration: 0.2 }
+                        }}
+                        whileTap={{ 
+                          scale: 0.98,
+                          transition: { duration: 0.1 }
+                        }}
+                        className="absolute inset-0 cursor-pointer"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('DIRECT CLICK on project:', project.title);
+                          handleProjectClick(project);
+                        }}
+                        style={{
+                          height: '100%',
+                          width: '100%',
+                          zIndex: 20
+                        }}
+                      >
+                        {/* Project info at bottom */}
+                        <div className="absolute bottom-2 left-2 right-2 text-xs text-[var(--color-text-muted)] z-20 pointer-events-none">
+                          <div className="font-medium text-[var(--color-text)] mb-1 truncate">{project.title}</div>
+                          <div className="text-[10px] opacity-75">{project.date}</div>
+                          {project.description && (
+                            <div className="text-[10px] opacity-60 mt-1 line-clamp-2 text-[var(--color-text-muted)]">
+                              {project.description}
+                            </div>
+                          )}
+                          <div className="text-[10px] opacity-75 mt-1">
+                            {project.componentCount} components
+                          </div>
+                        </div>
+
+                        {/* Themed preview area */}
+                        <div 
+                          className="preview-area w-full h-full flex items-center justify-center text-[var(--color-text-muted)] text-sm rounded-xl"
+                          style={{
+                            background: 'var(--color-surface)',
+                            border: '1px solid var(--color-border)'
+                          }}
+                        >
+                          <div className="text-center pointer-events-none">
+                            {project.project.thumbnail ? (
+                              <img 
+                                src={project.project.thumbnail} 
+                                alt={project.title}
+                                className="w-full h-full object-cover rounded-lg opacity-80"
+                              />
+                            ) : (
+                              <>
+                                <div 
+                                  className="w-12 h-12 mx-auto mb-2 rounded-lg opacity-60"
+                                  style={{
+                                    background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))'
+                                  }}
+                                ></div>
+                                <p className="text-sm font-medium text-[var(--color-text)]">Preview</p>
+                                <p className="text-xs mt-1 opacity-75 text-[var(--color-text-muted)]">Click anywhere to open</p>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    </div>
+                  ))}
+                </ResponsiveGridLayout>
+              </div>
+            )}
           </motion.div>
         ) : (
           <motion.div
@@ -419,9 +510,20 @@ export default function ProjectList() {
                 }}
                 className="flex justify-between items-center p-4 border-b border-[var(--color-border)]"
               >
-                <h2 className="text-lg font-semibold text-[var(--color-text)]">
-                  {selectedProject.title}
-                </h2>
+                <div className="flex items-center gap-4">
+                  <h2 className="text-lg font-semibold text-[var(--color-text)]">
+                    {selectedProject.title}
+                  </h2>
+                  <span className={`px-2 py-1 rounded-md text-xs font-medium ${getProjectTypeBadge(selectedProject.type)}`}>
+                    {selectedProject.type.replace('_', ' ')}
+                  </span>
+                  <span className={`w-2 h-2 rounded-full ${
+                    selectedProject.project.status === 'published' ? 'bg-green-500' :
+                    selectedProject.project.status === 'active' ? 'bg-blue-500' :
+                    selectedProject.project.status === 'archived' ? 'bg-gray-400' :
+                    'bg-yellow-500'
+                  }`} title={selectedProject.project.status}></span>
+                </div>
                 <button
                   onClick={handleClose}
                   className="p-2 hover:bg-[var(--color-bg-muted)] rounded-lg transition-colors"
@@ -443,9 +545,21 @@ export default function ProjectList() {
                       <h3 className="text-2xl font-bold text-[var(--color-text)] mb-2">
                         {selectedProject.title}
                       </h3>
-                      <p className="text-[var(--color-text-muted)]">
+                      <p className="text-[var(--color-text-muted)] mb-2">
                         Created on {selectedProject.date}
                       </p>
+                      {selectedProject.description && (
+                        <p className="text-[var(--color-text-muted)] text-sm max-w-md mx-auto mb-4">
+                          {selectedProject.description}
+                        </p>
+                      )}
+                      <div className="flex items-center justify-center gap-4 text-sm text-[var(--color-text-muted)]">
+                        <span>{selectedProject.componentCount} components</span>
+                        <span>•</span>
+                        <span>{selectedProject.project.status}</span>
+                        <span>•</span>
+                        <span>{selectedProject.project.viewport_width}×{selectedProject.project.viewport_height}px</span>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -457,7 +571,7 @@ export default function ProjectList() {
               variants={toolbarVariants}
               className="hidden lg:flex w-16 bg-[var(--color-bg-muted)] border-l border-[var(--color-border)] flex-col items-center py-4 gap-4"
             >
-              <Link href="/void" className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
+              <Link href={`/void/editor/${selectedProject.project.id}`} className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
                 <Edit3 size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
               </Link>
               <button className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
@@ -481,7 +595,7 @@ export default function ProjectList() {
               className="lg:hidden fixed bottom-0 left-0 right-0 bg-[var(--color-bg-muted)] border-t border-[var(--color-border)] p-4"
             >
               <div className="flex justify-center items-center gap-6">
-                <Link href="/void" className="flex flex-col items-center gap-1 p-2 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
+                <Link href={`/void/editor/${selectedProject.project.id}`} className="flex flex-col items-center gap-1 p-2 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
                   <Edit3 size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
                   <span className="text-xs text-[var(--color-text-muted)]">Edit</span>
                 </Link>
@@ -506,6 +620,12 @@ export default function ProjectList() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* New Project Modal */}
+      <NewProjectModal 
+        show={showNewProjectModal}
+        onClose={handleModalClose}
+      />
     </AuthenticatedLayout>
   );
 }
