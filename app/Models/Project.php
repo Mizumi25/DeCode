@@ -25,7 +25,8 @@ class Project extends Model
         'template_id',
         'viewport_width',
         'viewport_height',
-        'css_framework'
+        'css_framework',
+        'output_format'
     ];
 
     protected $casts = [
@@ -52,11 +53,6 @@ class Project extends Model
     public function projectComponents()
     {
         return $this->hasMany(ProjectComponent::class);
-    }
-
-    public function frames()
-    {
-        return $this->hasMany(Frame::class); // If you plan to have frames/pages
     }
 
     // Scopes
@@ -106,7 +102,22 @@ class Project extends Model
 
     public function getComponentCountAttribute()
     {
-        return $this->projectComponents()->count();
+        // Count components from canvas_data frames
+        $canvasData = $this->canvas_data ?? [];
+        $frames = $canvasData['frames'] ?? [];
+        
+        $totalComponents = 0;
+        foreach ($frames as $frame) {
+            $totalComponents += count($frame['components'] ?? []);
+        }
+        
+        return $totalComponents;
+    }
+
+    public function getFrameCountAttribute()
+    {
+        $canvasData = $this->canvas_data ?? [];
+        return count($canvasData['frames'] ?? []);
     }
 
     // Helper Methods
@@ -120,14 +131,8 @@ class Project extends Model
         $newProject = $this->replicate();
         $newProject->name = $newName ?? ($this->name . ' (Copy)');
         $newProject->last_opened_at = null;
+        $newProject->is_public = false; // Duplicates are always private
         $newProject->save();
-
-        // Copy components
-        foreach ($this->projectComponents as $component) {
-            $newComponent = $component->replicate();
-            $newComponent->project_id = $newProject->id;
-            $newComponent->save();
-        }
 
         return $newProject;
     }
@@ -137,6 +142,44 @@ class Project extends Model
         // Logic to generate thumbnail from canvas_data
         // This could be implemented later with a service
         return null;
+    }
+
+    public function getFrame($frameId)
+    {
+        $canvasData = $this->canvas_data ?? [];
+        $frames = $canvasData['frames'] ?? [];
+        
+        return collect($frames)->firstWhere('id', $frameId);
+    }
+
+    public function updateFrame($frameId, $frameData)
+    {
+        $canvasData = $this->canvas_data ?? ['frames' => []];
+        $frames = $canvasData['frames'] ?? [];
+        
+        $frameIndex = collect($frames)->search(function ($frame) use ($frameId) {
+            return $frame['id'] === $frameId;
+        });
+        
+        if ($frameIndex !== false) {
+            $canvasData['frames'][$frameIndex] = array_merge($frames[$frameIndex], $frameData);
+            $this->update(['canvas_data' => $canvasData]);
+            return true;
+        }
+        
+        return false;
+    }
+
+    public function deleteFrame($frameId)
+    {
+        $canvasData = $this->canvas_data ?? ['frames' => []];
+        $frames = $canvasData['frames'] ?? [];
+        
+        $canvasData['frames'] = array_values(array_filter($frames, function ($frame) use ($frameId) {
+            return $frame['id'] !== $frameId;
+        }));
+        
+        $this->update(['canvas_data' => $canvasData]);
     }
 
     // Default values
@@ -149,18 +192,110 @@ class Project extends Model
             'grid_size' => 10,
             'zoom_level' => 100,
             'show_rulers' => true,
-            'theme' => 'light'
+            'theme' => 'light',
+            'responsive_breakpoints' => [
+                'mobile' => 375,
+                'tablet' => 768,
+                'desktop' => 1440
+            ]
         ];
     }
 
     public static function getDefaultExportSettings()
     {
         return [
-            'format' => 'html',
+            'format' => 'zip',
             'include_css' => true,
-            'minify' => false,
+            'include_js' => true,
+            'minify_code' => false,
             'responsive' => true,
-            'framework' => 'vanilla'
+            'framework' => 'vanilla',
+            'include_assets' => true,
+            'output_structure' => 'standard' // standard, single-file, component-library
         ];
+    }
+
+    public static function getProjectTypeOptions()
+    {
+        return [
+            'website' => [
+                'name' => 'Website',
+                'description' => 'Multi-page website with navigation',
+                'default_frames' => ['Home', 'About', 'Contact'],
+                'suggested_output' => 'html'
+            ],
+            'landing_page' => [
+                'name' => 'Landing Page', 
+                'description' => 'Single page marketing experience',
+                'default_frames' => ['Landing'],
+                'suggested_output' => 'html'
+            ],
+            'component_library' => [
+                'name' => 'Design System',
+                'description' => 'Reusable component collection',
+                'default_frames' => ['Button', 'Card', 'Input'],
+                'suggested_output' => 'react'
+            ],
+            'dashboard' => [
+                'name' => 'Dashboard',
+                'description' => 'Data-driven interface',
+                'default_frames' => ['Overview', 'Analytics', 'Settings'],
+                'suggested_output' => 'react'
+            ],
+            'email_template' => [
+                'name' => 'Email Template',
+                'description' => 'Responsive email template',
+                'default_frames' => ['Email'],
+                'suggested_output' => 'html'
+            ],
+            'prototype' => [
+                'name' => 'Prototype',
+                'description' => 'Interactive prototype',
+                'default_frames' => ['Screen 1'],
+                'suggested_output' => 'html'
+            ]
+        ];
+    }
+
+    public static function getOutputFormatOptions()
+    {
+        return [
+            'html' => [
+                'name' => 'HTML/CSS/JS',
+                'description' => 'Static HTML with CSS and JavaScript',
+                'extensions' => ['html', 'css', 'js'],
+                'frameworks' => ['vanilla', 'tailwind', 'bootstrap']
+            ],
+            'react' => [
+                'name' => 'React',
+                'description' => 'React components with JSX',
+                'extensions' => ['jsx', 'css', 'js'],
+                'frameworks' => ['tailwind', 'styled_components', 'emotion']
+            ],
+            'vue' => [
+                'name' => 'Vue.js',
+                'description' => 'Vue single file components',
+                'extensions' => ['vue', 'css', 'js'],
+                'frameworks' => ['tailwind', 'vuetify']
+            ],
+            'angular' => [
+                'name' => 'Angular',
+                'description' => 'Angular components with TypeScript',
+                'extensions' => ['ts', 'html', 'css'],
+                'frameworks' => ['angular_material', 'tailwind']
+            ]
+        ];
+    }
+
+    public function getCompatibleFrameworks()
+    {
+        $outputFormats = self::getOutputFormatOptions();
+        return $outputFormats[$this->output_format]['frameworks'] ?? ['vanilla'];
+    }
+
+    public function getSuggestedOutputFormat()
+    {
+        $projectTypes = self::getProjectTypeOptions();
+        return $projectTypes[$this->type]['suggested_output'] ?? 'html';
     }
 }

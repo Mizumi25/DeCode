@@ -13,8 +13,10 @@ class DatabaseSeeder extends Seeder
     {
         // Example user
         \App\Models\User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+            'name' => 'Mizumi',
+            'email' => 'mizumi@gmail.com',
+            'password' => 'mizumi123',
+            'platform_role' => 'admin',
         ]);
 
         // Call ComponentSeeder

@@ -29,7 +29,7 @@ return new class extends Migration
             ])->default('draft');
             $table->string('thumbnail')->nullable(); // Path to thumbnail image
             $table->json('settings')->nullable(); // Project-specific settings
-            $table->longText('canvas_data')->nullable(); // Canvas/artboard data
+            $table->longText('canvas_data')->nullable(); // Canvas/artboard data with frames
             $table->json('export_settings')->nullable(); // Export preferences
             $table->timestamp('last_opened_at')->nullable();
             $table->boolean('is_public')->default(false);
@@ -43,9 +43,15 @@ return new class extends Migration
                 'styled_components',
                 'emotion'
             ])->default('tailwind');
+            $table->enum('output_format', [
+                'html',
+                'react', 
+                'vue',
+                'angular'
+            ])->default('html');
             $table->timestamps();
             $table->softDeletes();
-
+            
             // Indexes
             $table->index(['user_id', 'status']);
             $table->index(['user_id', 'type']);
