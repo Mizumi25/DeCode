@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 const ThemeToggle = ({ isDark, onToggle }) => {
   return (
     <div onClick={onToggle} className="ml-1 cursor-pointer">
-      <div className="w-8 h-4 bg-[var(--color-bg-muted)] rounded-full flex items-center px-0.5 relative">
+      <div className="w-8 h-4 bg-[var(--color-bg-muted)] rounded-full flex items-center px-0.5 relative shadow-sm">
         <motion.div
           className="absolute w-3 h-3 rounded-full flex items-center justify-center shadow bg-white"
           layout
