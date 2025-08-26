@@ -5,12 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Project extends Model
 {
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'uuid', // Add this
         'user_id',
         'name',
         'description',
@@ -43,6 +45,21 @@ class Project extends Model
         'deleted_at',
         'last_opened_at'
     ];
+    
+    // This is new
+    public static function boot()
+    {
+        parent::boot();
+        static::creating(function ($model) {
+            $model->uuid = (string) Str::uuid();
+        });
+    }
+
+    // This is new, it tells Laravel to use the 'uuid' column for route model binding
+    public function getRouteKeyName()
+    {
+        return 'uuid';
+    }
 
     // Relationships
     public function user()
@@ -225,7 +242,7 @@ class Project extends Model
                 'suggested_output' => 'html'
             ],
             'landing_page' => [
-                'name' => 'Landing Page', 
+                'name' => 'Landing Page',  
                 'description' => 'Single page marketing experience',
                 'default_frames' => ['Landing'],
                 'suggested_output' => 'html'

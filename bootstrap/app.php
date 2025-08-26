@@ -1,6 +1,7 @@
 <?php
 // bootstrap/app.php - FIXED VERSION
 
+
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -19,9 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
         
-        // Optional: Add API middleware configuration
+        // This is the important change
         $middleware->api(prepend: [
-            // Add any API-specific middleware here if needed
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

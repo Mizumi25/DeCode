@@ -113,14 +113,12 @@ export default function NewProjectModal({ show, onClose }) {
   const handleSubmit = useCallback((e) => {
     e.preventDefault();
     
-    post('/api/projects', {
+    // Changed from '/api/projects' to '/projects' to use the web route
+    post('/projects', {
       onSuccess: (response) => {
+        console.log('Project created successfully:', response);
         handleClose();
-        // Redirect to editor
-        const projectId = response.props?.flash?.data?.id || response.data?.id;
-        if (projectId) {
-          window.location.href = `/void/editor/${projectId}`;
-        }
+        // The redirect will be handled by the Laravel controller
       },
       onError: (errors) => {
         console.error('Project creation failed:', errors);

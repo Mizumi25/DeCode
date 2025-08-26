@@ -1,5 +1,4 @@
 <?php
-
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use Illuminate\Foundation\Application;
@@ -25,36 +24,14 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     
-    // Project list page (Inertia)
-    Route::get('/projects', fn () => Inertia::render('ProjectList'))->name('projects');
-
-    // Extra: ProjectController index (API-based view if needed)
-    Route::get('/projects/list', [ProjectController::class, 'index'])->name('projects.index');
-
-    // Project editor routes
-    Route::get('/projects/{id}/void', fn ($id) => Inertia::render('VoidPage', [
-        'projectId' => $id
-    ]))->name('project.void');
-
-    Route::get('/projects/{id}/forge/{frameId}', fn ($id, $frameId) => Inertia::render('ForgePage', [
-        'projectId' => $id,
-        'frameId' => $frameId
-    ]))->name('project.forge');
-
-    Route::get('/projects/{id}/source/{frameId}', fn ($id, $frameId) => Inertia::render('SourcePage', [
-        'projectId' => $id,
-        'frameId' => $frameId
-    ]))->name('project.source');
-
-    // Optional direct void editor using controller
-    Route::get('/void/editor/{project}', function ($project) {
-        return Inertia::render('Void/Editor', [
-            'project' => Project::findOrFail($project)
-        ]);
-    })->name('void.editor');
-
+    // Project routes - Fixed to use the correct controller methods
+    Route::get('/projects', [ProjectController::class, 'index'])->name('projects');
+    Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
+    
+    // Project editor page using UUID
+    Route::get('/void/{project:uuid}', [ProjectController::class, 'show'])->name('void.index');
+    
     // Temporary demo/testing routes
-    Route::get('/void', fn () => Inertia::render('VoidPage'))->name('project.void');
     Route::get('/forge', fn () => Inertia::render('ForgePage'))->name('project.forge');
     Route::get('/source', fn () => Inertia::render('SourcePage'))->name('project.source');
     

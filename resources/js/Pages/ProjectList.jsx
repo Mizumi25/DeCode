@@ -571,7 +571,7 @@ export default function ProjectList({ projects: initialProjects = [] }) {
               variants={toolbarVariants}
               className="hidden lg:flex w-16 bg-[var(--color-bg-muted)] border-l border-[var(--color-border)] flex-col items-center py-4 gap-4"
             >
-              <Link href={`/void/editor/${selectedProject.project.id}`} className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
+              <Link href={`/void/${selectedProject.project.uuid}`} className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
                 <Edit3 size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
               </Link>
               <button className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
@@ -595,7 +595,7 @@ export default function ProjectList({ projects: initialProjects = [] }) {
               className="lg:hidden fixed bottom-0 left-0 right-0 bg-[var(--color-bg-muted)] border-t border-[var(--color-border)] p-4"
             >
               <div className="flex justify-center items-center gap-6">
-                <Link href={`/void/editor/${selectedProject.project.id}`} className="flex flex-col items-center gap-1 p-2 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
+                <Link href={`/void/${selectedProject.project.uuid}`} className="flex flex-col items-center gap-1 p-2 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
                   <Edit3 size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
                   <span className="text-xs text-[var(--color-text-muted)]">Edit</span>
                 </Link>

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Http\RedirectResponse;
 
 class ProjectController extends Controller
 {
@@ -46,7 +47,8 @@ class ProjectController extends Controller
             ->get()
             ->map(function ($project) {
                 return [
-                    'id' => $project->id,
+                    'id' => $project->id, 
+                    'uuid' => $project->uuid,
                     'name' => $project->name,
                     'description' => $project->description,
                     'type' => $project->type,
@@ -65,7 +67,8 @@ class ProjectController extends Controller
                 ];
             });
 
-        return Inertia::render('Projects/Index', [
+        // Changed from 'Projects/Index' to 'ProjectList' to match your React component
+        return Inertia::render('ProjectList', [
             'projects' => $projects,
             'filters' => [
                 'search' => $search,
@@ -80,7 +83,7 @@ class ProjectController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request): RedirectResponse 
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -165,12 +168,8 @@ class ProjectController extends Controller
             }
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => $project->fresh(),
-            'message' => 'Project created successfully',
-            'redirect_url' => route('void.index', ['project' => $project->id])
-        ], 201);
+        // Redirect to void editor using UUID
+        return redirect()->route('void.index', ['project' => $project->uuid]);
     }
 
     public function show(Project $project): Response
@@ -179,9 +178,9 @@ class ProjectController extends Controller
         if ($project->user_id !== Auth::id() && !$project->is_public) {
             abort(403, 'Access denied to this project.');
         }
-
+        
         $project->updateLastOpened();
-
+        
         return Inertia::render('Projects/Show', [
             'project' => $project->load(['user:id,name,avatar']),
             'canvas_data' => $project->canvas_data,
@@ -268,12 +267,7 @@ class ProjectController extends Controller
         $newProject->is_public = false; // Duplicates are private by default
         $newProject->save();
 
-        return response()->json([
-            'success' => true,
-            'data' => $newProject,
-            'message' => 'Project duplicated successfully',
-            'redirect_url' => route('void.index', ['project' => $newProject->id])
-        ]);
+        return redirect()->route('void.index', ['project' => $newProject->uuid]);
     }
 
     public function templates(): JsonResponse
@@ -287,6 +281,7 @@ class ProjectController extends Controller
             ->map(function ($project) {
                 return [
                     'id' => $project->id,
+                    'uuid' => $project->uuid,
                     'name' => $project->name,
                     'description' => $project->description,
                     'type' => $project->type,
