@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ComponentController;
 use App\Http\Controllers\ProjectComponentController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\VoidController; 
 
 /*
 |--------------------------------------------------------------------------
@@ -38,9 +39,23 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/bulk-update', [ProjectComponentController::class, 'bulkUpdate']);
     });
 
+    // Frame management routes - NEW
+    Route::prefix('frames')->group(function () {
+        Route::get('/', [VoidController::class, 'index']);
+        Route::post('/', [VoidController::class, 'store']);
+        Route::get('/{frame}', [VoidController::class, 'show']);
+        Route::put('/{frame}', [VoidController::class, 'update']);
+        Route::delete('/{frame}', [VoidController::class, 'destroy']);
+        Route::post('/{frame}/duplicate', [VoidController::class, 'duplicate']);
+        Route::put('/{frame}/position', [VoidController::class, 'updatePosition']);
+    });
+
+    // Get frames by project UUID (for void page)
+    Route::get('/projects/{projectUuid}/frames', [VoidController::class, 'getByProject']);
+
     // Projects CRUD & actions
     Route::get('/projects', [ProjectController::class, 'index']);
-    Route::post('/projects', [ProjectController::class, 'store']); // This is the missing POST method
+    Route::post('/projects', [ProjectController::class, 'store']);
     Route::get('/projects/{project}', [ProjectController::class, 'show']);
     Route::put('/projects/{project}', [ProjectController::class, 'update']);
     Route::delete('/projects/{project}', [ProjectController::class, 'destroy']);

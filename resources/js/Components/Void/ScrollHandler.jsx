@@ -13,13 +13,29 @@ export function useScrollHandler({
   onZoom = null
 }) {
   
+  // Check if target should be ignored for scrolling
+  const shouldIgnoreTarget = (target) => {
+    return target.closest('.preview-frame') || 
+           target.closest('.lock-button') || 
+           target.closest('.more-button') || 
+           target.closest('.avatar') ||
+           target.closest('.floating-toolbox') ||
+           target.closest('.floating-tool') ||
+           target.closest('[data-panel]') ||
+           target.closest('.modal') ||
+           target.closest('button') ||
+           target.closest('input') ||
+           target.closest('select') ||
+           target.closest('textarea') ||
+           target.closest('[role="button"]') ||
+           target.closest('.delete-button') ||
+           target.closest('.clickable')
+  }
+  
   // Infinite scroll handlers
   const handlePointerDown = (e) => {
-    // Don't handle if it's a frame or interactive element
-    if (e.target.closest('.preview-frame') || 
-        e.target.closest('.lock-button') || 
-        e.target.closest('.more-button') || 
-        e.target.closest('.avatar')) {
+    // Don't handle if clicking on interactive elements
+    if (shouldIgnoreTarget(e.target)) {
       return
     }
     
@@ -64,6 +80,11 @@ export function useScrollHandler({
   }
 
   const handleWheel = (e) => {
+    // Don't handle wheel on interactive elements
+    if (shouldIgnoreTarget(e.target)) {
+      return
+    }
+    
     // Check for zoom gesture (Ctrl/Cmd + wheel)
     if ((e.ctrlKey || e.metaKey) && onZoom) {
       const zoomDelta = -e.deltaY
@@ -93,6 +114,10 @@ export function useScrollHandler({
 
   // Pinch zoom support for touch devices
   const handleTouchStart = (e) => {
+    if (shouldIgnoreTarget(e.target)) {
+      return
+    }
+    
     if (e.touches.length === 2) {
       // Two-finger touch detected - prepare for pinch zoom
       e.preventDefault()
@@ -123,6 +148,14 @@ export function useScrollHandler({
   // Keyboard shortcuts for zoom
   const handleKeyDown = (e) => {
     if (!onZoom) return
+    
+    // Don't handle if focused on input elements
+    if (document.activeElement && 
+        (document.activeElement.tagName === 'INPUT' ||
+         document.activeElement.tagName === 'TEXTAREA' ||
+         document.activeElement.isContentEditable)) {
+      return
+    }
     
     if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '=')) {
       e.preventDefault()
@@ -164,18 +197,40 @@ export function useScrollHandler({
     const canvas = canvasRef.current
     if (!canvas) return
 
-    // Mouse events
+    // Only attach mouse events to canvas directly
     canvas.addEventListener('mousedown', handlePointerDown)
     canvas.addEventListener('wheel', handleWheel, { passive: false })
-    
-    // Touch events with improved handling
     canvas.addEventListener('touchstart', handleTouchStart, { passive: false })
     
-    // Global events
-    document.addEventListener('mousemove', handlePointerMove)
-    document.addEventListener('mouseup', handlePointerUp)
-    document.addEventListener('touchmove', handleTouchMove, { passive: false })
-    document.addEventListener('touchend', handleTouchEnd)
+    // Global events only for movement and release
+    const handleGlobalMouseMove = (e) => {
+      if (isDragging) {
+        handlePointerMove(e)
+      }
+    }
+    
+    const handleGlobalMouseUp = (e) => {
+      if (isDragging) {
+        handlePointerUp()
+      }
+    }
+    
+    const handleGlobalTouchMove = (e) => {
+      if (isDragging) {
+        handleTouchMove(e)
+      }
+    }
+    
+    const handleGlobalTouchEnd = (e) => {
+      if (isDragging) {
+        handleTouchEnd(e)
+      }
+    }
+    
+    document.addEventListener('mousemove', handleGlobalMouseMove, { passive: false })
+    document.addEventListener('mouseup', handleGlobalMouseUp)
+    document.addEventListener('touchmove', handleGlobalTouchMove, { passive: false })
+    document.addEventListener('touchend', handleGlobalTouchEnd)
     
     // Keyboard shortcuts
     if (onZoom) {
@@ -186,10 +241,10 @@ export function useScrollHandler({
       canvas.removeEventListener('mousedown', handlePointerDown)
       canvas.removeEventListener('wheel', handleWheel)
       canvas.removeEventListener('touchstart', handleTouchStart)
-      document.removeEventListener('mousemove', handlePointerMove)
-      document.removeEventListener('mouseup', handlePointerUp)
-      document.removeEventListener('touchmove', handleTouchMove)
-      document.removeEventListener('touchend', handleTouchEnd)
+      document.removeEventListener('mousemove', handleGlobalMouseMove)
+      document.removeEventListener('mouseup', handleGlobalMouseUp)
+      document.removeEventListener('touchmove', handleGlobalTouchMove)
+      document.removeEventListener('touchend', handleGlobalTouchEnd)
       
       if (onZoom) {
         document.removeEventListener('keydown', handleKeyDown)

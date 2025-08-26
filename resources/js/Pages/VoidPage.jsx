@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useMemo } from 'react'
-import { Head } from '@inertiajs/react'
+import { Head, usePage } from '@inertiajs/react'
 import { Plus, Layers, FolderOpen, Code, Users, Upload, Briefcase } from 'lucide-react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import Panel from '@/Components/Panel'
@@ -7,16 +7,22 @@ import BackgroundLayers from '@/Components/Void/BackgroundLayers'
 import FloatingToolbox from '@/Components/Void/FloatingToolbox'
 import FramesContainer from '@/Components/Void/FramesContainer'
 import DeleteButton from '@/Components/Void/DeleteButton'
+import FrameCreator from '@/Components/Void/FrameCreator'
+import Modal from '@/Components/Modal'
 import { useScrollHandler } from '@/Components/Void/ScrollHandler'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useEditorStore } from '@/stores/useEditorStore'
 
 export default function VoidPage() {
+  const { project } = usePage().props // Get project from Inertia props
   const canvasRef = useRef(null)
   
   // Zustand stores
   const { isDark } = useThemeStore()
   const { panelStates, togglePanel } = useEditorStore()
+  
+  // Modal state
+  const [showFrameCreator, setShowFrameCreator] = useState(false)
   
   // Zoom state
   const [zoom, setZoom] = useState(1)
@@ -27,7 +33,7 @@ export default function VoidPage() {
   const [scrollPosition, setScrollPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [lastPointerPos, setLastPointerPos] = useState({ x: 0, y: 0 })
-  const scrollBounds = { width: 8000, height: 6000 } // INCREASED from 6000x4000
+  const scrollBounds = { width: 8000, height: 6000 }
 
   // Frame state with drag support and collision detection - optimized
   const initialFrames = useMemo(() => [
@@ -114,8 +120,8 @@ export default function VoidPage() {
     setZoom(newZoom)
   }, [zoom, scrollPosition])
 
-  // Enhanced scroll handler with zoom support
-  const enhancedScrollHandler = useScrollHandler({
+  // Enhanced scroll handler with zoom support - Now non-interfering
+  useScrollHandler({
     canvasRef,
     scrollPosition,
     setScrollPosition,
@@ -128,98 +134,6 @@ export default function VoidPage() {
     onZoom: handleZoom
   })
 
-  // Override the wheel handler to include zoom
-  const handleWheel = useCallback((e) => {
-    // Don't handle wheel events on frames
-    if (e.target.closest('.preview-frame')) {
-      return
-    }
-    
-    if (e.ctrlKey || e.metaKey) {
-      // Zoom with Ctrl/Cmd + wheel
-      handleZoom(-e.deltaY, e.clientX, e.clientY)
-    } else {
-      // Regular scroll with zoom-adjusted sensitivity
-      const sensitivity = 0.2 / zoom
-      const deltaX = e.deltaX * sensitivity
-      const deltaY = e.deltaY * sensitivity
-      
-      setScrollPosition(prev => {
-        let newX = prev.x + deltaX
-        let newY = prev.y + deltaY
-        
-        newX = ((newX % scrollBounds.width) + scrollBounds.width) % scrollBounds.width
-        newY = ((newY % scrollBounds.height) + scrollBounds.height) % scrollBounds.height
-        
-        return { x: newX, y: newY }
-      })
-    }
-    e.preventDefault()
-  }, [zoom, scrollBounds, setScrollPosition, handleZoom])
-
-  // Touch handlers that don't interfere with frames
-  const handleTouchStart = (e) => {
-    if (e.target.closest('.preview-frame')) {
-      return
-    }
-    
-    if (e.touches.length === 2) {
-      const distance = getTouchDistance(e.touches)
-      const center = getTouchCenter(e.touches)
-      setTouchDistance(distance)
-      setLastTouchCenter(center)
-      e.preventDefault()
-    }
-  }
-
-  const handleTouchMove = (e) => {
-    if (e.target.closest('.preview-frame')) {
-      return
-    }
-    
-    if (e.touches.length === 2 && touchDistance > 0) {
-      const newDistance = getTouchDistance(e.touches)
-      const newCenter = getTouchCenter(e.touches)
-      
-      // Handle pinch zoom
-      const scale = newDistance / touchDistance
-      const zoomDelta = scale > 1 ? 1 : -1
-      handleZoom(zoomDelta * 10, newCenter.x, newCenter.y)
-      
-      setTouchDistance(newDistance)
-      setLastTouchCenter(newCenter)
-      e.preventDefault()
-    }
-  }
-
-  const handleTouchEnd = (e) => {
-    if (e.touches.length < 2) {
-      setTouchDistance(0)
-    }
-  }
-
-  // Touch pinch zoom handling
-  const [touchDistance, setTouchDistance] = useState(0)
-  const [lastTouchCenter, setLastTouchCenter] = useState({ x: 0, y: 0 })
-
-  const getTouchDistance = (touches) => {
-    const dx = touches[0].clientX - touches[1].clientX
-    const dy = touches[0].clientY - touches[1].clientY
-    return Math.sqrt(dx * dx + dy * dy)
-  }
-
-  const getTouchCenter = (touches) => {
-    return {
-      x: (touches[0].clientX + touches[1].clientX) / 2,
-      y: (touches[0].clientY + touches[1].clientY) / 2
-    }
-  }
-
-  
-
-  
-  
-
   // Panel handlers
   const handlePanelClose = (panelId) => {
     togglePanel(panelId)
@@ -229,20 +143,58 @@ export default function VoidPage() {
     console.log('Maximizing panel:', panelId)
   }
 
+  // Handle tool actions
+  const handleToolAction = useCallback((toolLabel) => {
+    switch (toolLabel) {
+      case 'New Frame':
+        setShowFrameCreator(true)
+        break
+      case 'Frames':
+        togglePanel('frames-panel')
+        break
+      case 'Project Files':
+        togglePanel('files-panel')
+        break
+      default:
+        console.log(`Action for ${toolLabel} not implemented yet`)
+    }
+  }, [togglePanel])
+
+  // Handle frame creation success
+  const handleFrameCreated = useCallback((newFrame) => {
+    // Add the new frame to the frames state
+    const canvasData = newFrame.canvas_data || {}
+    const position = canvasData.position || { x: 400, y: 300 }
+    
+    const frameForState = {
+      id: newFrame.id,
+      title: newFrame.name,
+      fileName: `${newFrame.name}.${newFrame.type}`,
+      x: position.x,
+      y: position.y,
+      isDragging: false,
+      isLoading: false,
+      uuid: newFrame.uuid,
+      type: newFrame.type
+    }
+
+    setFrames(prev => [...prev, frameForState])
+  }, [])
+
   // Floating tools configuration
   const floatingTools = [
-    { icon: Plus, label: 'New Frame', isPrimary: true },
-    { icon: Layers, label: 'Frames', isPrimary: false },
-    { icon: FolderOpen, label: 'Project Files', isPrimary: false },
-    { icon: Code, label: 'Code Handler', isPrimary: false },
-    { icon: Users, label: 'Team Collaborations', isPrimary: false },
-    { icon: Upload, label: 'Import', isPrimary: false },
-    { icon: Briefcase, label: 'Project', isPrimary: false }
+    { icon: Plus, label: 'New Frame', isPrimary: true, action: () => handleToolAction('New Frame') },
+    { icon: Layers, label: 'Frames', isPrimary: false, action: () => handleToolAction('Frames') },
+    { icon: FolderOpen, label: 'Project Files', isPrimary: false, action: () => handleToolAction('Project Files') },
+    { icon: Code, label: 'Code Handler', isPrimary: false, action: () => handleToolAction('Code Handler') },
+    { icon: Users, label: 'Team Collaborations', isPrimary: false, action: () => handleToolAction('Team Collaborations') },
+    { icon: Upload, label: 'Import', isPrimary: false, action: () => handleToolAction('Import') },
+    { icon: Briefcase, label: 'Project', isPrimary: false, action: () => handleToolAction('Project') }
   ]
 
   return (
     <AuthenticatedLayout>
-      <Head title="VoidPage" />
+      <Head title={`Void - ${project?.name || 'Project'}`} />
       <div 
         ref={canvasRef}
         className={`relative w-full h-screen overflow-hidden transition-colors duration-1000 ${
@@ -260,10 +212,6 @@ export default function VoidPage() {
           backfaceVisibility: 'hidden',
           perspective: 1000
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onWheel={handleWheel}
       >
         {/* Zoom indicator - centered and subtle */}
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-black bg-opacity-30 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-mono opacity-60 hover:opacity-90 transition-opacity duration-200">
@@ -273,7 +221,7 @@ export default function VoidPage() {
         {/* Background Layers */}
         <BackgroundLayers isDark={isDark} scrollPosition={scrollPosition} />
 
-        {/* Floating Toolbox */}
+        {/* Floating Toolbox with actions */}
         <FloatingToolbox tools={floatingTools} />
 
         {/* Delete Button - Enhanced */}
@@ -333,7 +281,15 @@ export default function VoidPage() {
               title: 'Frames',
               content: (
                 <div>
-                  <h4 className="font-semibold mb-4 text-[var(--color-text)]">Frame Manager</h4>
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-semibold text-[var(--color-text)]">Frame Manager</h4>
+                    <button
+                      onClick={() => setShowFrameCreator(true)}
+                      className="px-2 py-1 text-xs bg-[var(--color-primary)] text-white rounded hover:opacity-90 transition-opacity"
+                    >
+                      New Frame
+                    </button>
+                  </div>
                   <div className="space-y-2">
                     {frames.map((frame) => (
                       <div key={frame.id} className="p-3 rounded-lg bg-[var(--color-bg-muted)] border border-[var(--color-border)]">
@@ -361,6 +317,22 @@ export default function VoidPage() {
           onPanelClose={handlePanelClose}
           onPanelMaximize={handlePanelMaximize}
         />
+
+        {/* Frame Creator Modal */}
+        <Modal
+          show={showFrameCreator}
+          onClose={() => setShowFrameCreator(false)}
+          title="Create New Frame"
+          maxWidth="lg"
+          closeable={true}
+          blurBackground={true}
+        >
+          <FrameCreator
+            project={project}
+            onFrameCreated={handleFrameCreated}
+            onClose={() => setShowFrameCreator(false)}
+          />
+        </Modal>
       </div>
     </AuthenticatedLayout>
   )

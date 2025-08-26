@@ -40,6 +40,24 @@ export default function FloatingToolbox({ tools }) {
     }
   }, [])
 
+  const handleToolClick = (tool, e) => {
+    e.stopPropagation()
+    
+    // Visual feedback animation
+    gsap.to(e.currentTarget, {
+      scale: 0.9,
+      duration: 0.1,
+      yoyo: true,
+      repeat: 1,
+      ease: "power2.out"
+    })
+
+    // Call the tool's action if it exists
+    if (tool.action && typeof tool.action === 'function') {
+      tool.action()
+    }
+  }
+
   return (
     <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-20">
       <div 
@@ -52,10 +70,12 @@ export default function FloatingToolbox({ tools }) {
             <div key={index} className="flex flex-col items-center group">
               {/* Floating Circle - Made much smaller */}
               <button
+                onClick={(e) => handleToolClick(tool, e)}
                 className={`
                   w-8 h-8 rounded-full flex items-center justify-center
                   transition-all duration-300 ease-out
-                  hover:scale-110 hover:-translate-y-1
+                  hover:scale-110 hover:-translate-y-1 active:scale-95
+                  focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
                   ${tool.isPrimary 
                     ? 'shadow-md hover:shadow-lg' 
                     : 'shadow-sm hover:shadow-md'
@@ -72,6 +92,8 @@ export default function FloatingToolbox({ tools }) {
                     ? 'none' 
                     : `1px solid var(--color-border)`
                 }}
+                title={tool.label}
+                aria-label={tool.label}
               >
                 <Icon 
                   className={`w-3.5 h-3.5 transition-colors duration-300 ${
