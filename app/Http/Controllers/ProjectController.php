@@ -181,7 +181,7 @@ class ProjectController extends Controller
         
         $project->updateLastOpened();
         
-        return Inertia::render('Projects/Show', [
+        return Inertia::render('VoidPage', [
             'project' => $project->load(['user:id,name,avatar']),
             'canvas_data' => $project->canvas_data,
             'frames' => $project->canvas_data['frames'] ?? [],
