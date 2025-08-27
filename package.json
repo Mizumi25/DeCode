@@ -38,6 +38,7 @@
         "monaco-editor": "^0.52.2",
         "nprogress": "^0.2.0",
         "onnxruntime-web": "^1.21.0",
+        "playwright": "^1.55.0",
         "pusher-js": "^8.4.0",
         "rc-dock": "^3.3.2",
         "react": "^19.1.0",
