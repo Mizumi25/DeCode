@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class VoidController extends Controller
 {
@@ -37,7 +38,7 @@ class VoidController extends Controller
     /**
      * Store a newly created frame.
      */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request)
     {
         // Add debugging
         Log::info('Frame creation request:', $request->all());
@@ -63,9 +64,14 @@ class VoidController extends Controller
                     'project_id' => $validated['project_id'],
                     'user_id' => auth()->id()
                 ]);
-                return response()->json([
-                    'message' => 'Project not found or access denied'
-                ], 403);
+                
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'Project not found or access denied'
+                    ], 403);
+                }
+                
+                return back()->withErrors(['project' => 'Project not found or access denied']);
             }
 
             // Create default canvas_data if not provided
@@ -78,34 +84,60 @@ class VoidController extends Controller
                 $validated['settings'] = $this->getDefaultSettings();
             }
 
+            // Generate random position for void placement
+            $validated['canvas_data']['position'] = [
+                'x' => rand(200, 800),
+                'y' => rand(200, 600)
+            ];
+
             Log::info('Creating frame with data:', $validated);
 
             $frame = Frame::create($validated);
+
+            // Generate static thumbnail for now (we'll implement Playwright later)
+            $this->generateStaticThumbnail($frame);
 
             // Load the frame with its project relationship
             $frame->load('project');
 
             Log::info('Frame created successfully:', ['frame_id' => $frame->id]);
 
-            return response()->json([
-                'message' => 'Frame created successfully',
-                'frame' => $frame
-            ], 201);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Frame created successfully',
+                    'frame' => $frame
+                ], 201);
+            }
+
+            // For web requests, redirect back to void page
+            return redirect()->route('void.index', ['project' => $project->uuid])
+                           ->with('success', 'Frame created successfully');
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::error('Validation error:', $e->errors());
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => $e->errors()
+                ], 422);
+            }
+            
+            return back()->withErrors($e->errors())->withInput();
+            
         } catch (\Exception $e) {
             Log::error('Frame creation error:', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            return response()->json([
-                'message' => 'Failed to create frame: ' . $e->getMessage()
-            ], 500);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Failed to create frame: ' . $e->getMessage()
+                ], 500);
+            }
+            
+            return back()->withErrors(['error' => 'Failed to create frame. Please try again.']);
         }
     }
 
@@ -160,6 +192,9 @@ class VoidController extends Controller
             abort(403, 'Unauthorized');
         }
 
+        // Delete thumbnail if exists
+        $this->deleteThumbnail($frame);
+
         $frame->delete();
 
         return response()->json([
@@ -183,7 +218,19 @@ class VoidController extends Controller
 
         $newFrame = $frame->replicate();
         $newFrame->name = $validated['name'] ?? ($frame->name . ' (Copy)');
+        
+        // Generate new position for duplicate
+        $canvasData = $newFrame->canvas_data ?? [];
+        $canvasData['position'] = [
+            'x' => ($canvasData['position']['x'] ?? 400) + 50,
+            'y' => ($canvasData['position']['y'] ?? 300) + 50
+        ];
+        $newFrame->canvas_data = $canvasData;
+        
         $newFrame->save();
+
+        // Generate thumbnail for duplicate
+        $this->generateStaticThumbnail($newFrame);
 
         $newFrame->load('project');
 
@@ -243,6 +290,37 @@ class VoidController extends Controller
     }
 
     /**
+     * Generate thumbnail using Playwright (placeholder for now).
+     */
+    public function generateThumbnail(Request $request, Frame $frame): JsonResponse
+    {
+        // Ensure user owns the project that contains this frame
+        if ($frame->project->user_id !== auth()->id()) {
+            abort(403, 'Unauthorized');
+        }
+
+        try {
+            // For now, generate static thumbnail
+            // TODO: Implement Playwright thumbnail generation
+            $this->generateStaticThumbnail($frame);
+
+            return response()->json([
+                'message' => 'Thumbnail generated successfully',
+                'thumbnail_url' => $this->getThumbnailUrl($frame)
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Thumbnail generation error:', [
+                'frame_id' => $frame->id,
+                'message' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to generate thumbnail'
+            ], 500);
+        }
+    }
+
+    /**
      * Generate default canvas data based on frame type.
      */
     private function getDefaultCanvasData(string $type): array
@@ -267,9 +345,18 @@ class VoidController extends Controller
                     'id' => 'header-' . uniqid(),
                     'type' => 'header',
                     'props' => [
-                        'className' => 'w-full h-16 bg-white border-b'
+                        'className' => 'w-full h-16 bg-white border-b flex items-center px-6'
                     ],
-                    'children' => []
+                    'children' => [
+                        [
+                            'id' => 'logo-' . uniqid(),
+                            'type' => 'div',
+                            'props' => [
+                                'className' => 'text-xl font-bold'
+                            ],
+                            'children' => 'Your Logo'
+                        ]
+                    ]
                 ],
                 [
                     'id' => 'main-' . uniqid(),
@@ -277,7 +364,33 @@ class VoidController extends Controller
                     'props' => [
                         'className' => 'flex-1 p-8'
                     ],
-                    'children' => []
+                    'children' => [
+                        [
+                            'id' => 'hero-' . uniqid(),
+                            'type' => 'div',
+                            'props' => [
+                                'className' => 'text-center py-20'
+                            ],
+                            'children' => [
+                                [
+                                    'id' => 'title-' . uniqid(),
+                                    'type' => 'h1',
+                                    'props' => [
+                                        'className' => 'text-4xl font-bold mb-4'
+                                    ],
+                                    'children' => 'Welcome to Your Page'
+                                ],
+                                [
+                                    'id' => 'subtitle-' . uniqid(),
+                                    'type' => 'p',
+                                    'props' => [
+                                        'className' => 'text-xl text-gray-600'
+                                    ],
+                                    'children' => 'Start building something amazing'
+                                ]
+                            ]
+                        ]
+                    ]
                 ]
             ];
         } elseif ($type === 'component') {
@@ -286,9 +399,35 @@ class VoidController extends Controller
                     'id' => 'root-' . uniqid(),
                     'type' => 'div',
                     'props' => [
-                        'className' => 'p-4 border rounded-lg'
+                        'className' => 'p-6 border rounded-lg bg-white shadow-sm'
                     ],
-                    'children' => []
+                    'children' => [
+                        [
+                            'id' => 'content-' . uniqid(),
+                            'type' => 'div',
+                            'props' => [
+                                'className' => 'space-y-4'
+                            ],
+                            'children' => [
+                                [
+                                    'id' => 'heading-' . uniqid(),
+                                    'type' => 'h3',
+                                    'props' => [
+                                        'className' => 'text-lg font-semibold'
+                                    ],
+                                    'children' => 'Component Title'
+                                ],
+                                [
+                                    'id' => 'description-' . uniqid(),
+                                    'type' => 'p',
+                                    'props' => [
+                                        'className' => 'text-gray-600'
+                                    ],
+                                    'children' => 'This is your new component. Start customizing it!'
+                                ]
+                            ]
+                        ]
+                    ]
                 ]
             ];
         }
@@ -310,7 +449,146 @@ class VoidController extends Controller
             'grid_size' => 10,
             'zoom_level' => 100,
             'auto_save' => true,
-            'show_rulers' => false
+            'show_rulers' => false,
+            'thumbnail_generated' => false
         ];
+    }
+
+    /**
+     * Generate static thumbnail (placeholder until Playwright implementation).
+     */
+    private function generateStaticThumbnail(Frame $frame): void
+    {
+        try {
+            // Create thumbnails directory if it doesn't exist
+            $thumbnailDir = storage_path('app/public/thumbnails/frames');
+            if (!file_exists($thumbnailDir)) {
+                mkdir($thumbnailDir, 0755, true);
+            }
+
+            // Generate a simple SVG thumbnail based on frame type and content
+            $svg = $this->generateStaticSvgThumbnail($frame);
+            
+            $thumbnailPath = $thumbnailDir . '/' . $frame->uuid . '.svg';
+            file_put_contents($thumbnailPath, $svg);
+
+            // Update frame settings to indicate thumbnail was generated
+            $settings = $frame->settings ?? [];
+            $settings['thumbnail_generated'] = true;
+            $settings['thumbnail_path'] = 'thumbnails/frames/' . $frame->uuid . '.svg';
+            
+            $frame->update(['settings' => $settings]);
+
+        } catch (\Exception $e) {
+            Log::error('Static thumbnail generation failed:', [
+                'frame_id' => $frame->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Generate SVG thumbnail based on frame content.
+     */
+    private function generateStaticSvgThumbnail(Frame $frame): string
+    {
+        $type = $frame->type;
+        $elements = $frame->canvas_data['elements'] ?? [];
+        
+        if ($type === 'page') {
+            return $this->generatePageThumbnail($frame, $elements);
+        } else {
+            return $this->generateComponentThumbnail($frame, $elements);
+        }
+    }
+
+    /**
+     * Generate page thumbnail SVG.
+     */
+    private function generatePageThumbnail(Frame $frame, array $elements): string
+    {
+        return '
+        <svg width="320" height="224" viewBox="0 0 320 224" xmlns="http://www.w3.org/2000/svg">
+            <!-- Background -->
+            <rect width="320" height="224" fill="#f8fafc"/>
+            
+            <!-- Header -->
+            <rect x="0" y="0" width="320" height="32" fill="#ffffff" stroke="#e2e8f0"/>
+            <circle cx="16" cy="16" r="4" fill="#ef4444"/>
+            <circle cx="32" cy="16" r="4" fill="#f59e0b"/>
+            <circle cx="48" cy="16" r="4" fill="#10b981"/>
+            <rect x="80" y="12" width="60" height="8" rx="4" fill="#1f2937"/>
+            
+            <!-- Main content area -->
+            <rect x="24" y="56" width="272" height="12" rx="6" fill="#3b82f6"/>
+            <rect x="24" y="80" width="200" height="8" rx="4" fill="#6b7280"/>
+            <rect x="24" y="96" width="240" height="8" rx="4" fill="#6b7280"/>
+            
+            <!-- Content blocks -->
+            <rect x="24" y="120" width="80" height="60" rx="8" fill="#e5e7eb"/>
+            <rect x="120" y="120" width="80" height="60" rx="8" fill="#e5e7eb"/>
+            <rect x="216" y="120" width="80" height="60" rx="8" fill="#e5e7eb"/>
+            
+            <!-- Footer elements -->
+            <rect x="24" y="196" width="40" height="6" rx="3" fill="#d1d5db"/>
+            <rect x="72" y="196" width="60" height="6" rx="3" fill="#d1d5db"/>
+        </svg>';
+    }
+
+    /**
+     * Generate component thumbnail SVG.
+     */
+    private function generateComponentThumbnail(Frame $frame, array $elements): string
+    {
+        return '
+        <svg width="320" height="224" viewBox="0 0 320 224" xmlns="http://www.w3.org/2000/svg">
+            <!-- Background -->
+            <rect width="320" height="224" fill="#ffffff" stroke="#e2e8f0" stroke-width="2" rx="12"/>
+            
+            <!-- Component header -->
+            <rect x="24" y="24" width="120" height="16" rx="8" fill="#1f2937"/>
+            <rect x="24" y="48" width="200" height="10" rx="5" fill="#6b7280"/>
+            
+            <!-- Component content -->
+            <rect x="24" y="72" width="272" height="1" fill="#e5e7eb"/>
+            <rect x="24" y="88" width="80" height="24" rx="4" fill="#3b82f6"/>
+            <rect x="120" y="88" width="80" height="24" rx="4" fill="#10b981"/>
+            <rect x="216" y="88" width="80" height="24" rx="4" fill="#f59e0b"/>
+            
+            <!-- Additional elements -->
+            <circle cx="48" cy="140" r="8" fill="#8b5cf6"/>
+            <rect x="72" y="136" width="60" height="8" rx="4" fill="#ec4899"/>
+            <rect x="72" y="148" width="40" height="6" rx="3" fill="#d1d5db"/>
+            
+            <!-- Component border indicator -->
+            <rect x="8" y="8" width="304" height="208" fill="none" stroke="#3b82f6" stroke-width="2" stroke-dasharray="8 4" rx="8"/>
+        </svg>';
+    }
+
+    /**
+     * Get thumbnail URL for a frame.
+     */
+    private function getThumbnailUrl(Frame $frame): ?string
+    {
+        $settings = $frame->settings ?? [];
+        if (!isset($settings['thumbnail_path'])) {
+            return null;
+        }
+        
+        return asset('storage/' . $settings['thumbnail_path']);
+    }
+
+    /**
+     * Delete thumbnail file for a frame.
+     */
+    private function deleteThumbnail(Frame $frame): void
+    {
+        $settings = $frame->settings ?? [];
+        if (isset($settings['thumbnail_path'])) {
+            $fullPath = storage_path('app/public/' . $settings['thumbnail_path']);
+            if (file_exists($fullPath)) {
+                unlink($fullPath);
+            }
+        }
     }
 }

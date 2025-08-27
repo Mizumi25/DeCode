@@ -30,6 +30,7 @@ export default function PreviewFrame({
   const size = sizes[index % sizes.length]
   const [isLocked, setIsLocked] = useState(true)
   const [showLoadingContent, setShowLoadingContent] = useState(isLoading)
+  const [thumbnailUrl, setThumbnailUrl] = useState(null)
   const frameRef = useRef(null)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [isMouseDown, setIsMouseDown] = useState(false)
@@ -37,6 +38,13 @@ export default function PreviewFrame({
   
   // Dummy avatar colors for stacked avatars
   const avatarColors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500']
+
+  // Load thumbnail URL from frame settings
+  useEffect(() => {
+    if (frame && frame.settings && frame.settings.thumbnail_path) {
+      setThumbnailUrl(`/storage/${frame.settings.thumbnail_path}`)
+    }
+  }, [frame])
 
   // Simulate loading completion after 2-4 seconds
   useEffect(() => {
@@ -281,8 +289,44 @@ export default function PreviewFrame({
             </svg>
             <div className="text-xs opacity-60 font-medium">Loading preview...</div>
           </div>
+        ) : thumbnailUrl ? (
+          /* Show Generated Thumbnail */
+          <div className="w-full h-full relative rounded-lg overflow-hidden">
+            <img 
+              src={thumbnailUrl} 
+              alt={`${title} thumbnail`}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                // Fallback to static content if thumbnail fails to load
+                e.target.style.display = 'none'
+                e.target.nextSibling.style.display = 'block'
+              }}
+            />
+            {/* Fallback static content (hidden by default) */}
+            <div 
+              className="w-full h-full bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900 dark:to-indigo-900 rounded-lg overflow-hidden relative"
+              style={{ display: 'none' }}
+            >
+              <div className="absolute inset-0 p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-2 bg-gray-300 dark:bg-gray-600 rounded w-3/4"></div>
+                  <div className="h-2 bg-gray-300 dark:bg-gray-600 rounded w-1/2"></div>
+                  <div className="h-6 bg-blue-200 dark:bg-blue-800 rounded mt-3"></div>
+                  <div className="grid grid-cols-2 gap-1 mt-2">
+                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : (
-          /* Static Preview Content */
+          /* Static Preview Content (fallback) */
           <div className="w-full h-full bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900 dark:to-indigo-900 rounded-lg overflow-hidden relative">
             {/* Mock webpage content */}
             <div className="absolute inset-0 p-3">

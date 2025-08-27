@@ -70,7 +70,8 @@ export default function VoidPage() {
             y: frame.canvas_data?.position?.y || Math.random() * 600 + 200,
             isDragging: false,
             isLoading: false,
-            type: frame.type
+            type: frame.type,
+            settings: frame.settings // Include settings for thumbnail path
           }))
           setFrames(framesToState)
         }
@@ -189,7 +190,7 @@ export default function VoidPage() {
 
   // Handle frame click for navigation
   const handleFrameClick = useCallback((frame) => {
-    // Navigate to forge page with frame UUID in URL
+    // Navigate to forge page with frame UUID in URL (default to forge mode)
     router.visit(`/void/${project.uuid}/frame=${frame.uuid}/modeForge`)
   }, [project?.uuid])
 
@@ -256,57 +257,64 @@ export default function VoidPage() {
     }
   }, [togglePanel])
 
-  // Handle frame creation success
+  // Handle frame creation success - updated to reload frames properly
   const handleFrameCreated = useCallback(async (newFrame) => {
-    // If newFrame is null, it means we need to reload frames from server
-    if (!newFrame) {
-      // Reload frames from database
-      try {
-        const response = await fetch(`/api/projects/${project.uuid}/frames`, {
-          headers: {
-            'Accept': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-          }
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          const framesToState = data.frames.map(frame => ({
-            id: frame.id,
-            uuid: frame.uuid,
-            title: frame.name,
-            fileName: `${frame.name}.${frame.type}`,
-            x: frame.canvas_data?.position?.x || Math.random() * 1000 + 200,
-            y: frame.canvas_data?.position?.y || Math.random() * 600 + 200,
-            isDragging: false,
-            isLoading: false,
-            type: frame.type
-          }))
-          setFrames(framesToState)
-        }
-      } catch (error) {
-        console.error('Error reloading frames:', error)
-      }
-      return
-    }
-
-    // Original logic for direct frame data
-    const canvasData = newFrame.canvas_data || {}
-    const position = canvasData.position || { x: 400, y: 300 }
+    // Close the modal first
+    setShowFrameCreator(false)
     
-    const frameForState = {
-      id: newFrame.id,
-      uuid: newFrame.uuid,
-      title: newFrame.name,
-      fileName: `${newFrame.name}.${newFrame.type}`,
-      x: position.x,
-      y: position.y,
-      isDragging: false,
-      isLoading: false,
-      type: newFrame.type
-    }
+    // Always reload frames from server to get the latest state
+    try {
+      const response = await fetch(`/api/projects/${project.uuid}/frames`, {
+        headers: {
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        }
+      })
 
-    setFrames(prev => [...prev, frameForState])
+      if (response.ok) {
+        const data = await response.json()
+        const framesToState = data.frames.map(frame => ({
+          id: frame.id,
+          uuid: frame.uuid,
+          title: frame.name,
+          fileName: `${frame.name}.${frame.type}`,
+          x: frame.canvas_data?.position?.x || Math.random() * 1000 + 200,
+          y: frame.canvas_data?.position?.y || Math.random() * 600 + 200,
+          isDragging: false,
+          isLoading: false,
+          type: frame.type,
+          settings: frame.settings // Include settings for thumbnail path
+        }))
+        setFrames(framesToState)
+
+        // Find the newest frame (the one just created) and animate it into view
+        const newestFrame = data.frames[0] // Assuming they're ordered by created_at desc
+        if (newestFrame && newestFrame.canvas_data?.position) {
+          // Smoothly scroll to the new frame position
+          const targetX = newestFrame.canvas_data.position.x - 400 // Center it roughly
+          const targetY = newestFrame.canvas_data.position.y - 300
+          
+          setScrollPosition({ x: targetX, y: targetY })
+          
+          // Optional: Add a brief highlight effect to the new frame
+          setTimeout(() => {
+            const newFrameElement = document.querySelector(`[data-frame-id="${newestFrame.uuid}"]`)
+            if (newFrameElement) {
+              newFrameElement.style.transition = 'all 0.5s ease-out'
+              newFrameElement.style.transform = 'scale(1.05)'
+              newFrameElement.style.boxShadow = '0 0 30px rgba(59, 130, 246, 0.5)'
+              
+              setTimeout(() => {
+                newFrameElement.style.transform = 'scale(1)'
+                newFrameElement.style.boxShadow = ''
+              }, 1000)
+            }
+          }, 100)
+        }
+      }
+    } catch (error) {
+      console.error('Error reloading frames:', error)
+    }
   }, [project?.uuid])
 
   // Floating tools configuration
@@ -425,10 +433,19 @@ export default function VoidPage() {
                   </div>
                   <div className="space-y-2">
                     {frames.map((frame) => (
-                      <div key={frame.id} className="p-3 rounded-lg bg-[var(--color-bg-muted)] border border-[var(--color-border)]">
+                      <div 
+                        key={frame.id} 
+                        className="p-3 rounded-lg bg-[var(--color-bg-muted)] border border-[var(--color-border)] cursor-pointer hover:bg-[var(--color-bg-hover)] transition-colors"
+                        onClick={() => handleFrameClick(frame)}
+                      >
                         <div className="flex items-center gap-2">
                           <Layers className="w-4 h-4 text-[var(--color-primary)]" />
-                          <span className="text-sm text-[var(--color-text)]">{frame.title}</span>
+                          <div className="flex-1">
+                            <span className="text-sm text-[var(--color-text)] font-medium">{frame.title}</span>
+                            <div className="text-xs text-[var(--color-text-muted)] mt-1">
+                              {frame.type} • {frame.fileName}
+                            </div>
+                          </div>
                           {frame.isLoading && (
                             <div className="ml-auto">
                               <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -440,6 +457,13 @@ export default function VoidPage() {
                         </div>
                       </div>
                     ))}
+                    {frames.length === 0 && (
+                      <div className="text-center py-8 text-[var(--color-text-muted)]">
+                        <Layers className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No frames yet</p>
+                        <p className="text-xs">Create your first frame to get started</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ),

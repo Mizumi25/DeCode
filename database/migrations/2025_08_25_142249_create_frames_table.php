@@ -14,6 +14,7 @@ return new class extends Migration {
             $table->enum('type',['page','component'])->default('page');
             $table->json('canvas_data')->nullable();
             $table->json('settings')->nullable();
+            $table->string('thumbnail_path')->nullable()->after('settings');
             $table->timestamps();
         });
     }

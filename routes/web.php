@@ -2,6 +2,9 @@
 
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\VoidController;
+use App\Models\Project;
+use App\Models\Frame;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -31,10 +34,13 @@ Route::middleware('auth')->group(function () {
     // Project editor page using UUID
     Route::get('/void/{project:uuid}', [ProjectController::class, 'show'])->name('void.index');
     
+    // Frame creation route (web route for form submission)
+    Route::post('/frames', [VoidController::class, 'store'])->name('frames.store');
+    
     // Frame-specific routes with the special URL pattern you requested
-    Route::get('/void/{project:uuid}/frame={frame:uuid}/modeForge', function ($project, $frame) {
-        // Verify the frame belongs to the project
-        if ($frame->project_id !== $project->id) {
+    Route::get('/void/{project:uuid}/frame={frame:uuid}/modeForge', function (Project $project, Frame $frame) {
+        // Verify the frame belongs to the project and user owns project
+        if ($frame->project_id !== $project->id || $project->user_id !== auth()->id()) {
             abort(404);
         }
         
@@ -45,9 +51,9 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('frame.forge');
     
-    Route::get('/void/{project:uuid}/frame={frame:uuid}/modeSource', function ($project, $frame) {
-        // Verify the frame belongs to the project
-        if ($frame->project_id !== $project->id) {
+    Route::get('/void/{project:uuid}/frame={frame:uuid}/modeSource', function (Project $project, Frame $frame) {
+        // Verify the frame belongs to the project and user owns project
+        if ($frame->project_id !== $project->id || $project->user_id !== auth()->id()) {
             abort(404);
         }
         

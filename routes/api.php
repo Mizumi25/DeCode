@@ -39,7 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/bulk-update', [ProjectComponentController::class, 'bulkUpdate']);
     });
 
-    // Frame management routes - NEW
+    // Frame management routes
     Route::prefix('frames')->group(function () {
         Route::get('/', [VoidController::class, 'index']);
         Route::post('/', [VoidController::class, 'store']);
@@ -48,6 +48,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{frame}', [VoidController::class, 'destroy']);
         Route::post('/{frame}/duplicate', [VoidController::class, 'duplicate']);
         Route::put('/{frame}/position', [VoidController::class, 'updatePosition']);
+        Route::post('/{frame}/thumbnail', [VoidController::class, 'generateThumbnail']);
     });
 
     // Get frames by project UUID (for void page)

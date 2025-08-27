@@ -9,7 +9,16 @@ use Illuminate\Support\Str;
 class Frame extends Model {
     use HasFactory;
 
-    protected $fillable = ['uuid', 'project_id', 'name', 'type', 'canvas_data', 'settings'];
+    protected $fillable = [
+      'uuid', 
+      'project_id', 
+      'name', 
+      'type', 
+      'canvas_data', 
+      'settings',
+      'thumbnail_path'
+      ];
+      
     protected $casts = ['canvas_data'=>'array','settings'=>'array'];
 
     // This is new
