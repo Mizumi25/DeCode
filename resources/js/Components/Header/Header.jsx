@@ -26,7 +26,7 @@ export default function Header({
 }) {
   const { props } = usePage()
   const user = props.auth?.user
-  const onProjectsPage = isAuthenticated && currentRoute === '/projects'
+  const onProjectsPage = isAuthenticated && (currentRoute === '/projects' || currentRoute.includes('/projects'))
   const onVoidPage = isAuthenticated && (currentRoute === '/void' || currentRoute.includes('/void'))
   const onForgePage = isAuthenticated && (currentRoute === '/forge' || currentRoute.includes('/forge'))
   const onSourcePage = isAuthenticated && (currentRoute === '/source' || currentRoute.includes('/source'))

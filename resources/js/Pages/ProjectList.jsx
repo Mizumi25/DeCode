@@ -1,22 +1,40 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
-import { Plus, ChevronDown, X, Share2, Download, Edit3, Trash2, Copy } from 'lucide-react';
+import { Plus, ChevronDown, X, Share2, Download, Edit3, Trash2, Copy, GripVertical } from 'lucide-react';
 import { Responsive, WidthProvider } from 'react-grid-layout';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import NewProjectModal from '@/Components/Projects/NewProjectModal';
+import { useSearchStore } from '@/stores/useSearchStore';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
-export default function ProjectList({ projects: initialProjects = [] }) {
+export default function ProjectList({ projects: initialProjects = [], filters = {}, stats = {} }) {
   const [selectedProject, setSelectedProject] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [layouts, setLayouts] = useState({});
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const dragTimeoutRef = useRef(null);
   const clickTimeoutRef = useRef(null);
+  
+  // Search store integration
+  const { 
+    searchQuery, 
+    isSearching, 
+    initializeFromUrl, 
+    cleanup 
+  } = useSearchStore();
+  
+  // Initialize search store from URL on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    initializeFromUrl(urlParams);
+    
+    // Cleanup on unmount
+    return () => cleanup();
+  }, [initializeFromUrl, cleanup]);
   
   // Convert projects to the format expected by the grid
   const projects = initialProjects.map((project, index) => ({
@@ -60,7 +78,19 @@ export default function ProjectList({ projects: initialProjects = [] }) {
     })),
   };
 
-  const handleProjectClick = useCallback((project) => {
+  // Initialize layouts on component mount
+  useEffect(() => {
+    if (Object.keys(layouts).length === 0) {
+      setLayouts(defaultLayouts);
+    }
+  }, [projects]);
+
+  const handleProjectClick = useCallback((project, e) => {
+    // Prevent click if the target is the drag handle
+    if (e.target.closest('.drag-handle-only')) {
+      return;
+    }
+    
     console.log('Project clicked:', project.title, 'isDragging:', isDragging);
     
     // Clear any existing timeout
@@ -117,7 +147,11 @@ export default function ProjectList({ projects: initialProjects = [] }) {
   }, []);
 
   const handleLayoutChange = useCallback((layout, allLayouts) => {
+    console.log('Layout changed:', layout);
     setLayouts(allLayouts);
+    
+    // Optional: Save layout to localStorage or backend
+    // localStorage.setItem('projectLayouts', JSON.stringify(allLayouts));
   }, []);
 
   // Get project type badge color
@@ -250,15 +284,24 @@ export default function ProjectList({ projects: initialProjects = [] }) {
     >
       <Head title="Project List" />
       
-      {/* CSS to fix colors and overflow issues */}
+      {/* Enhanced CSS to fix colors, overflow issues, and improve drag handle */}
       <style jsx>{`
         .layout .react-grid-item {
           pointer-events: auto !important;
+          transition: transform 0.2s ease, box-shadow 0.2s ease !important;
         }
+        
+        .layout .react-grid-item.react-draggable-dragging {
+          z-index: 1000 !important;
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1) !important;
+          opacity: 0.9 !important;
+        }
+        
         .layout .react-grid-item .project-content {
           pointer-events: auto !important;
           z-index: 10 !important;
         }
+        
         .layout .react-grid-item .project-content:hover {
           transform: none !important;
         }
@@ -285,19 +328,54 @@ export default function ProjectList({ projects: initialProjects = [] }) {
           background: var(--color-surface) !important;
         }
         
-        /* Fix drag handle colors for theme */
-        .drag-handle-themed {
-          background-color: var(--color-text-muted) !important;
-          opacity: 0.3;
-        }
-        
-        .drag-handle-themed:hover {
-          background-color: var(--color-primary) !important;
-          opacity: 0.8;
-        }
-        
-        .drag-handle-themed .drag-icon {
+        /* Enhanced drag handle styling */
+        .drag-handle-only {
           background-color: var(--color-bg) !important;
+          border: 1px solid var(--color-border) !important;
+          opacity: 0.6 !important;
+          transition: all 0.2s ease !important;
+          cursor: grab !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          border-radius: 6px !important;
+          backdrop-filter: blur(4px) !important;
+        }
+        
+        .drag-handle-only:hover {
+          opacity: 1 !important;
+          background-color: var(--color-primary) !important;
+          color: white !important;
+          border-color: var(--color-primary) !important;
+          transform: scale(1.05) !important;
+        }
+        
+        .drag-handle-only:active,
+        .react-draggable-dragging .drag-handle-only {
+          cursor: grabbing !important;
+          opacity: 1 !important;
+          background-color: var(--color-primary) !important;
+          color: white !important;
+          border-color: var(--color-primary) !important;
+        }
+        
+        .drag-handle-only svg {
+          width: 14px !important;
+          height: 14px !important;
+          transition: all 0.2s ease !important;
+        }
+        
+        /* Visual feedback when dragging */
+        .react-grid-placeholder {
+          background-color: var(--color-primary) !important;
+          opacity: 0.2 !important;
+          border-radius: 12px !important;
+          border: 2px dashed var(--color-primary) !important;
+        }
+        
+        /* Prevent text selection during drag */
+        .layout .react-grid-item.react-draggable-dragging * {
+          user-select: none !important;
         }
       `}</style>
       
@@ -314,9 +392,30 @@ export default function ProjectList({ projects: initialProjects = [] }) {
             {/* Header Controls */}
             <div className="flex justify-between items-center">
               <div className="flex-start items-center flex-col gap-2">
-                <span className="font-bold text-[var(--color-text)] text-sm">All Projects ({projects.length})</span>
+                <div className="flex items-center gap-3">
+                  <span className="font-bold text-[var(--color-text)] text-sm">
+                    {searchQuery ? `Search Results (${projects.length})` : `All Projects (${projects.length})`}
+                  </span>
+                  
+                  {/* Search status indicator */}
+                  {isSearching && (
+                    <span className="text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-muted)] px-2 py-1 rounded-full">
+                      Searching...
+                    </span>
+                  )}
+                  
+                  {/* Active search query */}
+                  {searchQuery && !isSearching && (
+                    <span className="text-xs text-[var(--color-primary)] bg-[var(--color-primary)]/10 px-2 py-1 rounded-full">
+                      "{searchQuery}"
+                    </span>
+                  )}
+                </div>
+                
                 <button className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition">
-                  Last updated
+                  {filters.sort === 'name' ? 'Name' : 
+                   filters.sort === 'created_at' ? 'Date created' : 
+                   'Last updated'}
                   <ChevronDown className="w-4 h-4" />
                 </button>
               </div>
@@ -336,19 +435,39 @@ export default function ProjectList({ projects: initialProjects = [] }) {
                 <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mb-6">
                   <Plus size={32} className="text-gray-400" />
                 </div>
-                <h3 className="text-xl font-semibold text-[var(--color-text)] mb-2">
-                  No projects yet
-                </h3>
-                <p className="text-[var(--color-text-muted)] mb-8 max-w-md">
-                  Get started by creating your first project. Build websites, landing pages, prototypes, and more with our visual editor.
-                </p>
-                <button 
-                  onClick={handleNewProject}
-                  className="bg-[var(--color-primary)] text-white px-6 py-3 rounded-lg font-medium flex items-center gap-2 hover:bg-[var(--color-primary-hover)] transition"
-                >
-                  <Plus size={20} />
-                  Create Your First Project
-                </button>
+                
+                {searchQuery ? (
+                  <>
+                    <h3 className="text-xl font-semibold text-[var(--color-text)] mb-2">
+                      No projects found
+                    </h3>
+                    <p className="text-[var(--color-text-muted)] mb-8 max-w-md">
+                      No projects match your search for "{searchQuery}". Try adjusting your search terms or filters.
+                    </p>
+                    <button 
+                      onClick={() => useSearchStore.getState().clearSearch()}
+                      className="text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] transition font-medium"
+                    >
+                      Clear search and show all projects
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-xl font-semibold text-[var(--color-text)] mb-2">
+                      No projects yet
+                    </h3>
+                    <p className="text-[var(--color-text-muted)] mb-8 max-w-md">
+                      Get started by creating your first project. Build websites, landing pages, prototypes, and more with our visual editor.
+                    </p>
+                    <button 
+                      onClick={handleNewProject}
+                      className="bg-[var(--color-primary)] text-white px-6 py-3 rounded-lg font-medium flex items-center gap-2 hover:bg-[var(--color-primary-hover)] transition"
+                    >
+                      <Plus size={20} />
+                      Create Your First Project
+                    </button>
+                  </>
+                )}
               </div>
             ) : (
               /* Project Grid - Fixed overflow container */
@@ -369,6 +488,8 @@ export default function ProjectList({ projects: initialProjects = [] }) {
                   onDragStop={handleDragStop}
                   onLayoutChange={handleLayoutChange}
                   draggableHandle=".drag-handle-only"
+                  useCSSTransforms={true}
+                  transformScale={1}
                   style={{ 
                     position: 'relative',
                     minHeight: '600px',
@@ -388,25 +509,27 @@ export default function ProjectList({ projects: initialProjects = [] }) {
                         border: '1px solid var(--color-border)'
                       }}
                     >
-                      {/* Themed drag handle */}
+                      {/* Enhanced drag handle with grip icon */}
                       <div 
-                        className="drag-handle-only drag-handle-themed absolute top-2 right-2 w-6 h-6 cursor-move z-30 rounded transition-all duration-200"
+                        className="drag-handle-only absolute top-2 right-2 w-7 h-7 z-30"
                         title="Drag to reorder"
+                        onMouseDown={(e) => {
+                          // Prevent project click when starting drag
+                          e.stopPropagation();
+                        }}
                       >
-                        <div className="w-full h-full flex items-center justify-center">
-                          <div className="drag-icon w-3 h-3 rounded-sm"></div>
-                        </div>
+                        <GripVertical size={14} />
                       </div>
                       
                       {/* Project type badge */}
-                      <div className="absolute top-2 left-2 z-20">
+                      <div className="absolute top-2 left-2 z-20 pointer-events-none">
                         <span className={`px-2 py-1 rounded-md text-xs font-medium ${getProjectTypeBadge(project.type)}`}>
                           {project.type.replace('_', ' ')}
                         </span>
                       </div>
                       
                       {/* Status indicator */}
-                      <div className="absolute top-10 left-2 z-20">
+                      <div className="absolute top-10 left-2 z-20 pointer-events-none">
                         <div className={`w-2 h-2 rounded-full ${
                           project.project.status === 'published' ? 'bg-green-500' :
                           project.project.status === 'active' ? 'bg-blue-500' :
@@ -432,12 +555,12 @@ export default function ProjectList({ projects: initialProjects = [] }) {
                           e.preventDefault();
                           e.stopPropagation();
                           console.log('DIRECT CLICK on project:', project.title);
-                          handleProjectClick(project);
+                          handleProjectClick(project, e);
                         }}
                         style={{
                           height: '100%',
                           width: '100%',
-                          zIndex: 20
+                          zIndex: 15
                         }}
                       >
                         {/* Project info at bottom */}

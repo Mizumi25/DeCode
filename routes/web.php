@@ -1,5 +1,4 @@
 <?php
-
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\VoidController;
@@ -29,6 +28,7 @@ Route::middleware('auth')->group(function () {
     
     // Project routes
     Route::get('/projects', [ProjectController::class, 'index'])->name('projects');
+    Route::get('/projects/search', [ProjectController::class, 'search'])->name('projects.search'); // Add this line here
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
     
     // Project editor page using UUID

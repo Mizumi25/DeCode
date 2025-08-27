@@ -16,7 +16,9 @@ class ProjectController extends Controller
     public function index(Request $request): Response
     {
         $search = $request->input('search');
-        $filter = $request->input('filter', 'all'); // all, recent, draft, published, etc.
+        $filter = $request->input('filter', 'all'); // all, recent, draft, published, archived
+        $type = $request->input('type', 'all'); // all, website, landing_page, etc.
+        $sort = $request->input('sort', 'updated_at'); // updated_at, created_at, name
         
         $query = Auth::user()
             ->projects()
@@ -24,27 +26,51 @@ class ProjectController extends Controller
 
         // Apply search filter
         if ($search) {
-            $query->search($search);
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', '%' . $search . '%')
+                  ->orWhere('description', 'like', '%' . $search . '%');
+            });
         }
 
         // Apply status filter
         switch ($filter) {
             case 'recent':
-                $query->where('last_opened_at', '>', now()->subDays(7));
+                $query->where('updated_at', '>', now()->subDays(7));
                 break;
             case 'draft':
-                $query->byStatus('draft');
+                $query->where('status', 'draft');
                 break;
             case 'published':
-                $query->byStatus('published');
+                $query->where('status', 'published');
+                break;
+            case 'active':
+                $query->where('status', 'active');
                 break;
             case 'archived':
-                $query->byStatus('archived');
+                $query->where('status', 'archived');
                 break;
         }
 
-        $projects = $query->recent()
-            ->get()
+        // Apply type filter
+        if ($type !== 'all') {
+            $query->where('type', $type);
+        }
+
+        // Apply sorting
+        switch ($sort) {
+            case 'name':
+                $query->orderBy('name', 'asc');
+                break;
+            case 'created_at':
+                $query->orderBy('created_at', 'desc');
+                break;
+            case 'updated_at':
+            default:
+                $query->orderBy('updated_at', 'desc');
+                break;
+        }
+
+        $projects = $query->get()
             ->map(function ($project) {
                 return [
                     'id' => $project->id, 
@@ -67,19 +93,115 @@ class ProjectController extends Controller
                 ];
             });
 
-        // Changed from 'Projects/Index' to 'ProjectList' to match your React component
         return Inertia::render('ProjectList', [
             'projects' => $projects,
             'filters' => [
                 'search' => $search,
                 'filter' => $filter,
+                'type' => $type,
+                'sort' => $sort,
             ],
             'stats' => [
                 'total' => Auth::user()->projects()->count(),
-                'draft' => Auth::user()->projects()->byStatus('draft')->count(),
-                'published' => Auth::user()->projects()->byStatus('published')->count(),
-                'recent' => Auth::user()->projects()->where('last_opened_at', '>', now()->subDays(7))->count(),
+                'draft' => Auth::user()->projects()->where('status', 'draft')->count(),
+                'published' => Auth::user()->projects()->where('status', 'published')->count(),
+                'active' => Auth::user()->projects()->where('status', 'active')->count(),
+                'archived' => Auth::user()->projects()->where('status', 'archived')->count(),
+                'recent' => Auth::user()->projects()->where('updated_at', '>', now()->subDays(7))->count(),
+                'by_type' => Auth::user()->projects()
+                    ->select('type', \DB::raw('count(*) as count'))
+                    ->groupBy('type')
+                    ->pluck('count', 'type')
+                    ->toArray(),
             ]
+        ]);
+    }
+
+    /**
+     * Dedicated search API endpoint for faster AJAX requests
+     */
+    public function search(Request $request): JsonResponse
+    {
+        $search = $request->input('q', '');
+        $filter = $request->input('filter', 'all');
+        $type = $request->input('type', 'all');
+        $sort = $request->input('sort', 'updated_at');
+        $limit = $request->input('limit', 20);
+
+        if (strlen($search) < 2) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Search query must be at least 2 characters long'
+            ], 400);
+        }
+
+        $query = Auth::user()
+            ->projects()
+            ->with(['user:id,name,avatar']);
+
+        // Apply search
+        $query->where(function($q) use ($search) {
+            $q->where('name', 'like', '%' . $search . '%')
+              ->orWhere('description', 'like', '%' . $search . '%');
+        });
+
+        // Apply filters (same as index method)
+        switch ($filter) {
+            case 'recent':
+                $query->where('updated_at', '>', now()->subDays(7));
+                break;
+            case 'draft':
+                $query->where('status', 'draft');
+                break;
+            case 'published':
+                $query->where('status', 'published');
+                break;
+            case 'active':
+                $query->where('status', 'active');
+                break;
+            case 'archived':
+                $query->where('status', 'archived');
+                break;
+        }
+
+        if ($type !== 'all') {
+            $query->where('type', $type);
+        }
+
+        // Apply sorting
+        switch ($sort) {
+            case 'name':
+                $query->orderBy('name', 'asc');
+                break;
+            case 'created_at':
+                $query->orderBy('created_at', 'desc');
+                break;
+            case 'updated_at':
+            default:
+                $query->orderBy('updated_at', 'desc');
+                break;
+        }
+
+        $projects = $query->limit($limit)->get()
+            ->map(function ($project) {
+                return [
+                    'id' => $project->id,
+                    'uuid' => $project->uuid,
+                    'name' => $project->name,
+                    'description' => $project->description,
+                    'type' => $project->type,
+                    'status' => $project->status,
+                    'thumbnail' => $project->thumbnail ? asset('storage/' . $project->thumbnail) : null,
+                    'updated_at' => $project->updated_at,
+                    'created_at' => $project->created_at,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => $projects,
+            'total' => $projects->count(),
+            'query' => $search
         ]);
     }
 

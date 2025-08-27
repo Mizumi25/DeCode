@@ -44,7 +44,7 @@ const LeftSection = ({
   interactionMode,
   setInteractionMode
 }) => {
-  const onProjectsPage = currentRoute === '/projects'
+  const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects')
   const onVoidPage = currentRoute === '/void' || currentRoute.includes('/void')
   const onForgePage = currentRoute === '/forge' || currentRoute.includes('/forge')
   const onSourcePage = currentRoute === '/source' || currentRoute.includes('/source')
