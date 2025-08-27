@@ -1,5 +1,5 @@
-import { useRef, useState, useCallback, useMemo } from 'react'
-import { Head, usePage } from '@inertiajs/react'
+import { useRef, useState, useCallback, useMemo, useEffect } from 'react'
+import { Head, usePage, router } from '@inertiajs/react'
 import { Plus, Layers, FolderOpen, Code, Users, Upload, Briefcase } from 'lucide-react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import Panel from '@/Components/Panel'
@@ -8,56 +8,83 @@ import FloatingToolbox from '@/Components/Void/FloatingToolbox'
 import FramesContainer from '@/Components/Void/FramesContainer'
 import DeleteButton from '@/Components/Void/DeleteButton'
 import FrameCreator from '@/Components/Void/FrameCreator'
+import ConfirmationDialog from '@/Components/ConfirmationDialog'
 import Modal from '@/Components/Modal'
 import { useScrollHandler } from '@/Components/Void/ScrollHandler'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useEditorStore } from '@/stores/useEditorStore'
 
 export default function VoidPage() {
-  const { project } = usePage().props // Get project from Inertia props
+  const { project } = usePage().props
   const canvasRef = useRef(null)
   
   // Zustand stores
   const { isDark } = useThemeStore()
   const { panelStates, togglePanel } = useEditorStore()
   
-  // Modal state
+  // Modal states
   const [showFrameCreator, setShowFrameCreator] = useState(false)
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
+  const [frameToDelete, setFrameToDelete] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   
   // Zoom state
   const [zoom, setZoom] = useState(1)
   const minZoom = 0.25
   const maxZoom = 3
   
-  // Infinite scroll state - INCREASED scroll bounds for larger void space
+  // Infinite scroll state
   const [scrollPosition, setScrollPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [lastPointerPos, setLastPointerPos] = useState({ x: 0, y: 0 })
   const scrollBounds = { width: 8000, height: 6000 }
 
-  // Frame state with drag support and collision detection - optimized
-  const initialFrames = useMemo(() => [
-    { id: 1, title: 'Frame1', fileName: 'File1', x: 400, y: 300, isDragging: false, isLoading: true },
-    { id: 2, title: 'Frame2', fileName: 'File2', x: 1200, y: 400, isDragging: false, isLoading: false },
-    { id: 3, title: 'Frame3', fileName: 'File3', x: 800, y: 800, isDragging: false, isLoading: true },
-    { id: 4, title: 'Frame4', fileName: 'File4', x: 1600, y: 600, isDragging: false, isLoading: false },
-    { id: 5, title: 'Frame5', fileName: 'File5', x: 600, y: 1200, isDragging: false, isLoading: true },
-    { id: 6, title: 'Frame6', fileName: 'File6', x: 2400, y: 500, isDragging: false, isLoading: false },
-    { id: 7, title: 'Frame7', fileName: 'File7', x: 2000, y: 1000, isDragging: false, isLoading: true },
-    { id: 8, title: 'Frame8', fileName: 'File8', x: 3000, y: 700, isDragging: false, isLoading: false },
-    { id: 9, title: 'Frame9', fileName: 'File9', x: 1000, y: 1600, isDragging: false, isLoading: false },
-    { id: 10, title: 'Frame10', fileName: 'File10', x: 3500, y: 900, isDragging: false, isLoading: true },
-    { id: 11, title: 'Frame11', fileName: 'File11', x: 2200, y: 1400, isDragging: false, isLoading: false },
-    { id: 12, title: 'Frame12', fileName: 'File12', x: 4000, y: 1100, isDragging: false, isLoading: true },
-  ], [])
-  
-  const [frames, setFrames] = useState(initialFrames)
+  // Frame state
+  const [frames, setFrames] = useState([])
+  const [draggedFrame, setDraggedFrame] = useState(null)
+  const [isFrameDragging, setIsFrameDragging] = useState(false)
 
   // Frame dimensions for collision detection
-  const frameWidth = 320 // 80 * 4
-  const frameHeight = 224 // 56 * 4 (average)
+  const frameWidth = 320
+  const frameHeight = 224
 
-  // Collision detection helper - optimized
+  // Load frames from database
+  useEffect(() => {
+    const loadFrames = async () => {
+      try {
+        const response = await fetch(`/api/projects/${project.uuid}/frames`, {
+          headers: {
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+          }
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const framesToState = data.frames.map(frame => ({
+            id: frame.id,
+            uuid: frame.uuid,
+            title: frame.name,
+            fileName: `${frame.name}.${frame.type}`,
+            x: frame.canvas_data?.position?.x || Math.random() * 1000 + 200,
+            y: frame.canvas_data?.position?.y || Math.random() * 600 + 200,
+            isDragging: false,
+            isLoading: false,
+            type: frame.type
+          }))
+          setFrames(framesToState)
+        }
+      } catch (error) {
+        console.error('Error loading frames:', error)
+      }
+    }
+
+    if (project?.uuid) {
+      loadFrames()
+    }
+  }, [project?.uuid])
+
+  // Collision detection helper
   const checkCollision = useCallback((newX, newY, frameId) => {
     const buffer = 20
     return frames.some(frame => {
@@ -72,17 +99,19 @@ export default function VoidPage() {
     })
   }, [frames, frameWidth, frameHeight])
 
-  // Frame drag handlers - optimized with useCallback
+  // Frame drag handlers
   const handleFrameDragStart = useCallback((frameId) => {
     setFrames(prev => prev.map(frame =>
       frame.id === frameId ? { ...frame, isDragging: true } : frame
     ))
+    setDraggedFrame(frameId)
+    setIsFrameDragging(true)
   }, [])
 
   const handleFrameDrag = useCallback((frameId, newX, newY) => {
     // Check for collision
     if (checkCollision(newX, newY, frameId)) {
-      return // Don't update position if collision detected
+      return
     }
 
     setFrames(prev => prev.map(frame =>
@@ -90,11 +119,79 @@ export default function VoidPage() {
     ))
   }, [checkCollision])
 
-  const handleFrameDragEnd = useCallback((frameId) => {
+  const handleFrameDragEnd = useCallback(async (frameId) => {
     setFrames(prev => prev.map(frame =>
       frame.id === frameId ? { ...frame, isDragging: false } : frame
     ))
-  }, [])
+    setDraggedFrame(null)
+    setIsFrameDragging(false)
+
+    // Update frame position in database
+    const frame = frames.find(f => f.id === frameId)
+    if (frame) {
+      try {
+        await fetch(`/api/frames/${frame.uuid}/position`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+          },
+          body: JSON.stringify({
+            x: frame.x,
+            y: frame.y
+          })
+        })
+      } catch (error) {
+        console.error('Error updating frame position:', error)
+      }
+    }
+  }, [frames])
+
+  // Handle frame drop on delete button
+  const handleFrameDropDelete = useCallback(() => {
+    if (draggedFrame) {
+      const frame = frames.find(f => f.id === draggedFrame)
+      if (frame) {
+        setFrameToDelete(frame)
+        setShowDeleteConfirmation(true)
+      }
+    }
+  }, [draggedFrame, frames])
+
+  // Delete frame confirmation
+  const handleDeleteFrame = async () => {
+    if (!frameToDelete) return
+
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/frames/${frameToDelete.uuid}`, {
+        method: 'DELETE',
+        headers: {
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        }
+      })
+
+      if (response.ok) {
+        setFrames(prev => prev.filter(frame => frame.id !== frameToDelete.id))
+        setShowDeleteConfirmation(false)
+        setFrameToDelete(null)
+      } else {
+        console.error('Failed to delete frame')
+      }
+    } catch (error) {
+      console.error('Error deleting frame:', error)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  // Handle frame click for navigation
+  const handleFrameClick = useCallback((frame) => {
+    // Navigate to forge page with frame UUID in URL
+    router.visit(`/void/${project.uuid}/frame=${frame.uuid}/modeForge`)
+  }, [project?.uuid])
 
   // Zoom handlers
   const handleZoom = useCallback((delta, centerX, centerY) => {
@@ -103,7 +200,6 @@ export default function VoidPage() {
     
     if (newZoom === zoom) return
 
-    // Calculate scroll position to zoom toward the center point
     const canvas = canvasRef.current
     if (canvas) {
       const rect = canvas.getBoundingClientRect()
@@ -120,7 +216,7 @@ export default function VoidPage() {
     setZoom(newZoom)
   }, [zoom, scrollPosition])
 
-  // Enhanced scroll handler with zoom support - Now non-interfering
+  // Scroll handler
   useScrollHandler({
     canvasRef,
     scrollPosition,
@@ -161,25 +257,57 @@ export default function VoidPage() {
   }, [togglePanel])
 
   // Handle frame creation success
-  const handleFrameCreated = useCallback((newFrame) => {
-    // Add the new frame to the frames state
+  const handleFrameCreated = useCallback(async (newFrame) => {
+    // If newFrame is null, it means we need to reload frames from server
+    if (!newFrame) {
+      // Reload frames from database
+      try {
+        const response = await fetch(`/api/projects/${project.uuid}/frames`, {
+          headers: {
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+          }
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const framesToState = data.frames.map(frame => ({
+            id: frame.id,
+            uuid: frame.uuid,
+            title: frame.name,
+            fileName: `${frame.name}.${frame.type}`,
+            x: frame.canvas_data?.position?.x || Math.random() * 1000 + 200,
+            y: frame.canvas_data?.position?.y || Math.random() * 600 + 200,
+            isDragging: false,
+            isLoading: false,
+            type: frame.type
+          }))
+          setFrames(framesToState)
+        }
+      } catch (error) {
+        console.error('Error reloading frames:', error)
+      }
+      return
+    }
+
+    // Original logic for direct frame data
     const canvasData = newFrame.canvas_data || {}
     const position = canvasData.position || { x: 400, y: 300 }
     
     const frameForState = {
       id: newFrame.id,
+      uuid: newFrame.uuid,
       title: newFrame.name,
       fileName: `${newFrame.name}.${newFrame.type}`,
       x: position.x,
       y: position.y,
       isDragging: false,
       isLoading: false,
-      uuid: newFrame.uuid,
       type: newFrame.type
     }
 
     setFrames(prev => [...prev, frameForState])
-  }, [])
+  }, [project?.uuid])
 
   // Floating tools configuration
   const floatingTools = [
@@ -213,7 +341,7 @@ export default function VoidPage() {
           perspective: 1000
         }}
       >
-        {/* Zoom indicator - centered and subtle */}
+        {/* Zoom indicator */}
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-black bg-opacity-30 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-mono opacity-60 hover:opacity-90 transition-opacity duration-200">
           {Math.round(zoom * 100)}%
         </div>
@@ -221,13 +349,17 @@ export default function VoidPage() {
         {/* Background Layers */}
         <BackgroundLayers isDark={isDark} scrollPosition={scrollPosition} />
 
-        {/* Floating Toolbox with actions */}
+        {/* Floating Toolbox */}
         <FloatingToolbox tools={floatingTools} />
 
-        {/* Delete Button - Enhanced */}
-        <DeleteButton zoom={zoom} />
+        {/* Delete Button - Now on the right */}
+        <DeleteButton 
+          zoom={zoom} 
+          onFrameDrop={handleFrameDropDelete}
+          isDragActive={isFrameDragging}
+        />
         
-        {/* Frames Container with zoom and drag support */}
+        {/* Frames Container */}
         <div 
           className="absolute inset-0 z-15" 
           style={{ 
@@ -243,12 +375,13 @@ export default function VoidPage() {
             onFrameDragStart={handleFrameDragStart}
             onFrameDrag={handleFrameDrag}
             onFrameDragEnd={handleFrameDragEnd}
+            onFrameClick={handleFrameClick}
             zoom={zoom}
             isDark={isDark}
           />
         </div>
         
-        {/* Dockable Panel - RIGHT SIDE ONLY with 2 stacked panels */}
+        {/* Dockable Panel */}
         <Panel
           isOpen={true}
           panels={[
@@ -333,6 +466,23 @@ export default function VoidPage() {
             onClose={() => setShowFrameCreator(false)}
           />
         </Modal>
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmationDialog
+          show={showDeleteConfirmation}
+          onClose={() => {
+            setShowDeleteConfirmation(false)
+            setFrameToDelete(null)
+          }}
+          onConfirm={handleDeleteFrame}
+          type="delete"
+          title="Delete Frame"
+          message={`Are you sure you want to delete "${frameToDelete?.title}"? This action cannot be undone and will permanently remove the frame and all its content.`}
+          confirmText="Delete Frame"
+          cancelText="Cancel"
+          variant="danger"
+          isLoading={isDeleting}
+        />
       </div>
     </AuthenticatedLayout>
   )

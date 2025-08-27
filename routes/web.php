@@ -1,10 +1,10 @@
 <?php
+
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use App\Models\Project;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -24,14 +24,41 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     
-    // Project routes - Fixed to use the correct controller methods
+    // Project routes
     Route::get('/projects', [ProjectController::class, 'index'])->name('projects');
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
     
     // Project editor page using UUID
     Route::get('/void/{project:uuid}', [ProjectController::class, 'show'])->name('void.index');
     
-    // Temporary demo/testing routes
+    // Frame-specific routes with the special URL pattern you requested
+    Route::get('/void/{project:uuid}/frame={frame:uuid}/modeForge', function ($project, $frame) {
+        // Verify the frame belongs to the project
+        if ($frame->project_id !== $project->id) {
+            abort(404);
+        }
+        
+        return Inertia::render('ForgePage', [
+            'project' => $project,
+            'frame' => $frame,
+            'mode' => 'forge'
+        ]);
+    })->name('frame.forge');
+    
+    Route::get('/void/{project:uuid}/frame={frame:uuid}/modeSource', function ($project, $frame) {
+        // Verify the frame belongs to the project
+        if ($frame->project_id !== $project->id) {
+            abort(404);
+        }
+        
+        return Inertia::render('SourcePage', [
+            'project' => $project,
+            'frame' => $frame,
+            'mode' => 'source'
+        ]);
+    })->name('frame.source');
+    
+    // Fallback forge and source routes (for temporary demo/testing)
     Route::get('/forge', fn () => Inertia::render('ForgePage'))->name('project.forge');
     Route::get('/source', fn () => Inertia::render('SourcePage'))->name('project.source');
     

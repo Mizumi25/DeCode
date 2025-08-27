@@ -1,6 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { Plug, Lock, Unlock, MoreHorizontal } from 'lucide-react'
-import { router } from '@inertiajs/react'
 
 const sizes = [
   { w: 80, h: 56 },
@@ -17,11 +16,13 @@ export default function PreviewFrame({
   y = 0, 
   fileName = 'File1',
   frameId,
+  frame = null, // Full frame object for navigation
   isDragging = false,
   isLoading = false,
   onDragStart,
   onDrag,
   onDragEnd,
+  onFrameClick, // New prop for handling frame clicks
   zoom = 1,
   isDraggable = true,
   isDark = false
@@ -32,6 +33,7 @@ export default function PreviewFrame({
   const frameRef = useRef(null)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [isMouseDown, setIsMouseDown] = useState(false)
+  const [hasDragged, setHasDragged] = useState(false)
   
   // Dummy avatar colors for stacked avatars
   const avatarColors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500']
@@ -48,17 +50,23 @@ export default function PreviewFrame({
   }, [isLoading])
 
   const handleFrameClick = (e) => {
-    // Prevent navigation if clicking on interactive elements
+    // Prevent navigation if:
+    // 1. Clicking on interactive elements
+    // 2. Currently dragging
+    // 3. Mouse was dragged (not a click)
     if (e.target.closest('.lock-button') || 
         e.target.closest('.more-button') || 
         e.target.closest('.avatar') ||
         isDragging || 
-        isMouseDown) {
+        isMouseDown ||
+        hasDragged) {
       return
     }
     
-    // Navigate to /forge
-    router.visit('/forge')
+    // Call the frame click handler if provided
+    if (onFrameClick && frame) {
+      onFrameClick(frame)
+    }
   }
 
   const handleLockToggle = (e) => {
@@ -67,7 +75,7 @@ export default function PreviewFrame({
     setIsLocked(!isLocked)
   }
 
-  // Drag functionality - simplified and fixed
+  // Drag functionality
   const handleMouseDown = useCallback((e) => {
     // Only allow dragging if not clicking on interactive elements
     if (e.target.closest('.lock-button') || 
@@ -80,7 +88,6 @@ export default function PreviewFrame({
     e.stopPropagation()
     e.preventDefault()
     
-    // Simple offset calculation
     const startX = e.clientX
     const startY = e.clientY
     const startFrameX = x
@@ -91,6 +98,7 @@ export default function PreviewFrame({
       y: startY - startFrameY * zoom 
     })
     setIsMouseDown(true)
+    setHasDragged(false) // Reset drag state
     
     if (onDragStart) {
       onDragStart(frameId)
@@ -103,6 +111,17 @@ export default function PreviewFrame({
     e.preventDefault()
     e.stopPropagation()
     
+    // Mark as dragged if moved more than a threshold
+    if (!hasDragged) {
+      const threshold = 5 // pixels
+      const deltaX = Math.abs(e.clientX - (x * zoom + dragOffset.x))
+      const deltaY = Math.abs(e.clientY - (y * zoom + dragOffset.y))
+      
+      if (deltaX > threshold || deltaY > threshold) {
+        setHasDragged(true)
+      }
+    }
+    
     // Calculate new position
     const newX = (e.clientX - dragOffset.x) / zoom
     const newY = (e.clientY - dragOffset.y) / zoom
@@ -110,7 +129,7 @@ export default function PreviewFrame({
     if (onDrag) {
       onDrag(frameId, Math.max(0, newX), Math.max(0, newY))
     }
-  }, [isMouseDown, isDraggable, dragOffset, zoom, frameId, onDrag])
+  }, [isMouseDown, isDraggable, dragOffset, zoom, frameId, onDrag, x, y, hasDragged])
 
   const handleMouseUp = useCallback(() => {
     if (isMouseDown) {
@@ -118,6 +137,11 @@ export default function PreviewFrame({
       if (onDragEnd) {
         onDragEnd(frameId)
       }
+      
+      // Reset drag state after a short delay to allow click detection
+      setTimeout(() => {
+        setHasDragged(false)
+      }, 10)
     }
   }, [isMouseDown, frameId, onDragEnd])
 
@@ -171,7 +195,7 @@ export default function PreviewFrame({
         
         {/* Right: Lock, Avatars, and More options */}
         <div className="flex items-center gap-2">
-          {/* Lock/Unlock toggle button with enhanced animation */}
+          {/* Lock/Unlock toggle button */}
           <button 
             className="lock-button p-1.5 rounded-lg hover:bg-white hover:bg-opacity-10 transition-all duration-500 ease-out hover:scale-110 group relative overflow-hidden"
             onClick={handleLockToggle}
@@ -201,7 +225,7 @@ export default function PreviewFrame({
                 )}
               </div>
               
-              {/* Animated unlock effect - enhanced */}
+              {/* Animated unlock effect */}
               {!isLocked && (
                 <>
                   <div className="absolute inset-0 bg-blue-400 rounded-full animate-ping opacity-20"></div>
@@ -222,7 +246,7 @@ export default function PreviewFrame({
             </div>
           </button>
           
-          {/* Stacked avatars with enhanced styling */}
+          {/* Stacked avatars */}
           <div className="flex -space-x-1.5">
             {avatarColors.map((color, i) => (
               <div
@@ -236,7 +260,7 @@ export default function PreviewFrame({
             ))}
           </div>
           
-          {/* More options with hover effect */}
+          {/* More options */}
           <button 
             className="more-button p-1.5 rounded-lg hover:bg-white hover:bg-opacity-10 transition-all duration-200 hover:scale-110"
             onClick={(e) => e.stopPropagation()}

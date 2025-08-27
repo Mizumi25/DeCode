@@ -7,6 +7,7 @@ use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Log;
 
 class VoidController extends Controller
 {
@@ -38,38 +39,74 @@ class VoidController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'project_id' => 'required|exists:projects,id',
-            'name' => 'required|string|max:255',
-            'type' => ['required', Rule::in(['page', 'component'])],
-            'canvas_data' => 'nullable|array',
-            'settings' => 'nullable|array',
-        ]);
+        // Add debugging
+        Log::info('Frame creation request:', $request->all());
 
-        // Ensure user owns the project
-        $project = Project::where('id', $validated['project_id'])
-                         ->where('user_id', auth()->id())
-                         ->firstOrFail();
+        try {
+            $validated = $request->validate([
+                'project_id' => 'required|exists:projects,id',
+                'name' => 'required|string|max:255',
+                'type' => ['required', Rule::in(['page', 'component'])],
+                'canvas_data' => 'nullable|array',
+                'settings' => 'nullable|array',
+            ]);
 
-        // Create default canvas_data if not provided
-        if (!isset($validated['canvas_data'])) {
-            $validated['canvas_data'] = $this->getDefaultCanvasData($validated['type']);
+            Log::info('Frame creation validated data:', $validated);
+
+            // Ensure user owns the project
+            $project = Project::where('id', $validated['project_id'])
+                             ->where('user_id', auth()->id())
+                             ->first();
+            
+            if (!$project) {
+                Log::error('Project not found or access denied', [
+                    'project_id' => $validated['project_id'],
+                    'user_id' => auth()->id()
+                ]);
+                return response()->json([
+                    'message' => 'Project not found or access denied'
+                ], 403);
+            }
+
+            // Create default canvas_data if not provided
+            if (!isset($validated['canvas_data'])) {
+                $validated['canvas_data'] = $this->getDefaultCanvasData($validated['type']);
+            }
+
+            // Create default settings if not provided
+            if (!isset($validated['settings'])) {
+                $validated['settings'] = $this->getDefaultSettings();
+            }
+
+            Log::info('Creating frame with data:', $validated);
+
+            $frame = Frame::create($validated);
+
+            // Load the frame with its project relationship
+            $frame->load('project');
+
+            Log::info('Frame created successfully:', ['frame_id' => $frame->id]);
+
+            return response()->json([
+                'message' => 'Frame created successfully',
+                'frame' => $frame
+            ], 201);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation error:', $e->errors());
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Frame creation error:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'message' => 'Failed to create frame: ' . $e->getMessage()
+            ], 500);
         }
-
-        // Create default settings if not provided
-        if (!isset($validated['settings'])) {
-            $validated['settings'] = $this->getDefaultSettings();
-        }
-
-        $frame = Frame::create($validated);
-
-        // Load the frame with its project relationship
-        $frame->load('project');
-
-        return response()->json([
-            'message' => 'Frame created successfully',
-            'frame' => $frame
-        ], 201);
     }
 
     /**

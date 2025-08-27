@@ -8,6 +8,7 @@ export default function FramesContainer({
   onFrameDragStart, 
   onFrameDrag, 
   onFrameDragEnd,
+  onFrameClick, // New prop for frame clicks
   zoom = 1,
   isDark = false
 }) {
@@ -18,14 +19,13 @@ export default function FramesContainer({
   )
 
   return (
-    <div className="absolute inset-0" style={{ willChange: 'transform' }}>
+    <div className="relative w-full h-full">
       {/* Main center instance */}
       <div
-        className="absolute"
+        className="absolute inset-0"
         style={{
           transform: centerTransform,
-          willChange: 'transform',
-          backfaceVisibility: 'hidden'
+          willChange: 'transform'
         }}
       >
         {frames.map((frame, index) => (
@@ -33,18 +33,19 @@ export default function FramesContainer({
             key={frame.id}
             title={frame.title}
             fileName={frame.fileName}
+            frameId={frame.id}
+            frame={frame} // Pass full frame object
             index={index}
             x={frame.x}
             y={frame.y}
-            frameId={frame.id}
             isDragging={frame.isDragging}
             isLoading={frame.isLoading}
             onDragStart={onFrameDragStart}
             onDrag={onFrameDrag}
             onDragEnd={onFrameDragEnd}
+            onFrameClick={onFrameClick} // Pass click handler
             zoom={zoom}
             isDark={isDark}
-            isDraggable={true}
           />
         ))}
       </div>
@@ -54,11 +55,10 @@ export default function FramesContainer({
         <>
           {/* Top duplicate */}
           <div
-            className="absolute"
+            className="absolute inset-0"
             style={{
               transform: `translate3d(${-scrollPosition.x}px, ${-scrollPosition.y - scrollBounds.height}px, 0)`,
-              willChange: 'transform',
-              backfaceVisibility: 'hidden'
+              willChange: 'transform'
             }}
           >
             {frames.map((frame, index) => (
@@ -66,26 +66,30 @@ export default function FramesContainer({
                 key={`top-${frame.id}`}
                 title={frame.title}
                 fileName={frame.fileName}
+                frameId={frame.id}
+                frame={frame}
                 index={index}
                 x={frame.x}
                 y={frame.y}
-                frameId={frame.id}
                 isDragging={false}
                 isLoading={frame.isLoading}
+                onDragStart={onFrameDragStart}
+                onDrag={onFrameDrag}
+                onDragEnd={onFrameDragEnd}
+                onFrameClick={onFrameClick}
                 zoom={zoom}
                 isDark={isDark}
-                isDraggable={false}
+                isDraggable={false} // Disable drag on duplicates
               />
             ))}
           </div>
-          
+
           {/* Bottom duplicate */}
           <div
-            className="absolute"
+            className="absolute inset-0"
             style={{
               transform: `translate3d(${-scrollPosition.x}px, ${-scrollPosition.y + scrollBounds.height}px, 0)`,
-              willChange: 'transform',
-              backfaceVisibility: 'hidden'
+              willChange: 'transform'
             }}
           >
             {frames.map((frame, index) => (
@@ -93,15 +97,20 @@ export default function FramesContainer({
                 key={`bottom-${frame.id}`}
                 title={frame.title}
                 fileName={frame.fileName}
+                frameId={frame.id}
+                frame={frame}
                 index={index}
                 x={frame.x}
                 y={frame.y}
-                frameId={frame.id}
                 isDragging={false}
                 isLoading={frame.isLoading}
+                onDragStart={onFrameDragStart}
+                onDrag={onFrameDrag}
+                onDragEnd={onFrameDragEnd}
+                onFrameClick={onFrameClick}
                 zoom={zoom}
                 isDark={isDark}
-                isDraggable={false}
+                isDraggable={false} // Disable drag on duplicates
               />
             ))}
           </div>
