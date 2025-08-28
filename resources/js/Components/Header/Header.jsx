@@ -24,12 +24,12 @@ export default function Header({
   onPanelToggle, 
   onModeSwitch  
 }) {
-  const { props } = usePage()
+  const { props, url } = usePage() // Add url here
   const user = props.auth?.user
   const onProjectsPage = isAuthenticated && (currentRoute === '/projects' || currentRoute.includes('/projects'))
   const onVoidPage = isAuthenticated && (currentRoute === '/void' || currentRoute.includes('/void'))
-  const onForgePage = isAuthenticated && (currentRoute === '/forge' || currentRoute.includes('/forge'))
-  const onSourcePage = isAuthenticated && (currentRoute === '/source' || currentRoute.includes('/source'))
+  const onForgePage = isAuthenticated && (currentRoute === '/modeForge' || currentRoute.includes('/modeForge'))
+  const onSourcePage = isAuthenticated && (currentRoute === '/modeSource' || currentRoute.includes('/modeSource'))
 
   // Zustand stores
   const { 
@@ -56,7 +56,8 @@ export default function Header({
     setInspectMode,
     setActiveNav,
     togglePanel,
-    resetForPage
+    resetForPage,
+    initializeNavFromUrl // Add this
   } = useEditorStore()
 
   const {
@@ -75,6 +76,11 @@ export default function Header({
     initializeTheme()
     initializeHeader()
   }, [initializeTheme, initializeHeader])
+
+  // Initialize navigation state from URL - ADD THIS
+  useEffect(() => {
+    initializeNavFromUrl(url)
+  }, [url, initializeNavFromUrl])
 
   // Refresh theme when route changes (fixes the blue theme issue)
   useEffect(() => {

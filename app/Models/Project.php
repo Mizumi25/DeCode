@@ -66,6 +66,11 @@ class Project extends Model
     {
         return $this->belongsTo(User::class);
     }
+    
+    public function frames()
+    {
+        return $this->hasMany(Frame::class);
+    }
 
     public function projectComponents()
     {

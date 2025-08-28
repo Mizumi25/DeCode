@@ -43,6 +43,15 @@ const useEditorStore = create((set, get) => ({
     }
   })),
   
+  // Initialize navigation state from URL
+  initializeNavFromUrl: (url) => {
+    if (url.includes('/modeForge')) {
+      set({ activeNav: 'Forge' })
+    } else if (url.includes('/modeSource')) {
+      set({ activeNav: 'Source' })
+    }
+  },
+  
   // Reset states for page transitions
   resetForPage: (pageName) => {
     if (pageName === 'forge') {

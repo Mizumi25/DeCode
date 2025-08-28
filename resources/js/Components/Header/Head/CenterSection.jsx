@@ -35,8 +35,8 @@ const CenterSection = ({
   
   const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects')
   const onVoidPage = currentRoute === '/void' || currentRoute.includes('/void')
-  const onForgePage = currentRoute === '/forge' || currentRoute.includes('/forge')
-  const onSourcePage = currentRoute === '/source' || currentRoute.includes('/source')
+  const onForgePage = currentRoute === '/modeForge' || currentRoute.includes('/modeForge')
+  const onSourcePage = currentRoute === '/modeSource' || currentRoute.includes('/modeSource')
 
   const interactionOptions = [
     { key: 'cursor', icon: MousePointer },

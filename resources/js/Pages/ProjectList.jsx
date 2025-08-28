@@ -3,7 +3,7 @@ import { Head, Link } from '@inertiajs/react';
 import { Plus, ChevronDown, X, Share2, Download, Edit3, Trash2, Copy, GripVertical } from 'lucide-react';
 import { Responsive, WidthProvider } from 'react-grid-layout';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import NewProjectModal from '@/Components/Projects/NewProjectModal';
 import { useSearchStore } from '@/stores/useSearchStore';
 import 'react-grid-layout/css/styles.css';
@@ -37,53 +37,56 @@ export default function ProjectList({ projects: initialProjects = [], filters = 
   }, [initializeFromUrl, cleanup]);
   
   // Convert projects to the format expected by the grid
-  const projects = initialProjects.map((project, index) => ({
-    id: project.id.toString(),
-    title: project.name,
-    date: new Date(project.updated_at).toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric'
-    }),
-    description: project.description,
-    type: project.type,
-    status: project.status,
-    componentCount: project.component_count || 0,
-    w: 3,
-    h: Math.random() > 0.5 ? 4 : 5, // Random height for demo
-    project: project // Store the full project data
-  }));
+  const projects = useMemo(() => {
+    return initialProjects.map((project, index) => ({
+      id: project.id.toString(),
+      title: project.name,
+      date: new Date(project.updated_at).toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
+      }),
+      description: project.description,
+      type: project.type,
+      status: project.status,
+      componentCount: project.component_count || 0,
+      w: 3,
+      h: Math.random() > 0.5 ? 4 : 5, // Random height for demo
+      project: project // Store the full project data
+    }));
+  }, [initialProjects]);
 
-  const defaultLayouts = {
-    lg: projects.map((p, i) => ({
-      i: p.id,
-      x: (i % 4) * 3, 
-      y: Math.floor(i / 4) * 5,
-      w: p.w,
-      h: p.h,
-    })),
-    md: projects.map((p, i) => ({
-      i: p.id,
-      x: (i % 3) * 3,
-      y: Math.floor(i / 3) * 5,
-      w: p.w,
-      h: p.h,
-    })),
-    sm: projects.map((p, i) => ({
-      i: p.id,
-      x: (i % 2) * 2,
-      y: Math.floor(i / 2) * 5,
-      w: 2,
-      h: p.h,
-    })),
-  };
-
-  // Initialize layouts on component mount
-  useEffect(() => {
-    if (Object.keys(layouts).length === 0) {
-      setLayouts(defaultLayouts);
-    }
+  // Generate default layouts based on current projects
+  const defaultLayouts = useMemo(() => {
+    return {
+      lg: projects.map((p, i) => ({
+        i: p.id,
+        x: (i % 4) * 3, 
+        y: Math.floor(i / 4) * 5,
+        w: p.w,
+        h: p.h,
+      })),
+      md: projects.map((p, i) => ({
+        i: p.id,
+        x: (i % 3) * 3,
+        y: Math.floor(i / 3) * 5,
+        w: p.w,
+        h: p.h,
+      })),
+      sm: projects.map((p, i) => ({
+        i: p.id,
+        x: (i % 2) * 2,
+        y: Math.floor(i / 2) * 5,
+        w: 2,
+        h: p.h,
+      })),
+    };
   }, [projects]);
+
+  // Reset layouts when projects change (important for search/clear functionality)
+  useEffect(() => {
+    setLayouts(defaultLayouts);
+  }, [projects.length, searchQuery]); // Reset when project count or search changes
 
   const handleProjectClick = useCallback((project, e) => {
     // Prevent click if the target is the drag handle
@@ -148,11 +151,15 @@ export default function ProjectList({ projects: initialProjects = [], filters = 
 
   const handleLayoutChange = useCallback((layout, allLayouts) => {
     console.log('Layout changed:', layout);
-    setLayouts(allLayouts);
+    
+    // Only update layouts if we have projects to avoid empty state issues
+    if (projects.length > 0) {
+      setLayouts(allLayouts);
+    }
     
     // Optional: Save layout to localStorage or backend
     // localStorage.setItem('projectLayouts', JSON.stringify(allLayouts));
-  }, []);
+  }, [projects.length]);
 
   // Get project type badge color
   const getProjectTypeBadge = (type) => {
@@ -470,11 +477,12 @@ export default function ProjectList({ projects: initialProjects = [], filters = 
                 )}
               </div>
             ) : (
-              /* Project Grid - Fixed overflow container */
+              /* Project Grid - Fixed overflow container with key prop for re-rendering */
               <div className="w-full relative overflow-hidden" style={{ minHeight: '600px', maxWidth: '100%' }}>
                 <ResponsiveGridLayout
+                  key={`grid-${projects.length}-${searchQuery}`} // Force re-render on project changes
                   className="layout"
-                  layouts={Object.keys(layouts).length > 0 ? layouts : defaultLayouts}
+                  layouts={layouts}
                   breakpoints={{ lg: 1024, md: 768, sm: 480 }}
                   cols={{ lg: 12, md: 9, sm: 4 }}
                   rowHeight={30}

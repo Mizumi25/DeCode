@@ -1,7 +1,7 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Menu, X, Lock, MousePointer2, Hand, ChevronLeft } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { router } from '@inertiajs/react'
+import { router, usePage } from '@inertiajs/react'
 import ThemeToggle from './ThemeToggle'
 import ThemeSelector from './ThemeSelector'
 import NavigationDropdown from './NavigationDropdown'
@@ -44,10 +44,20 @@ const LeftSection = ({
   interactionMode,
   setInteractionMode
 }) => {
+  const { url } = usePage() // Add this to get the current URL
   const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects')
   const onVoidPage = currentRoute === '/void' || currentRoute.includes('/void')
-  const onForgePage = currentRoute === '/forge' || currentRoute.includes('/forge')
-  const onSourcePage = currentRoute === '/source' || currentRoute.includes('/source')
+  const onForgePage = currentRoute === '/modeForge' || currentRoute.includes('/modeForge')
+  const onSourcePage = currentRoute === '/modeSource' || currentRoute.includes('/modeSource')
+
+  // Sync activeNav with URL changes - ADD THIS
+  useEffect(() => {
+    if (url.includes('/modeForge') && activeNav !== 'Forge') {
+      setActiveNav('Forge')
+    } else if (url.includes('/modeSource') && activeNav !== 'Source') {
+      setActiveNav('Source')
+    }
+  }, [url, activeNav, setActiveNav])
 
   const interactionOptions = [
     { key: 'cursor', icon: MousePointer2 },
@@ -55,7 +65,13 @@ const LeftSection = ({
   ]
 
   const handleBackToVoid = () => {
-    router.visit('/void')
+    // Get project from usePage props - UPDATED
+    const { project } = usePage().props
+    if (project) {
+      router.visit(`/void/${project.uuid}`)
+    } else {
+      router.visit('/void')
+    }
   }
 
   const handleLogoClick = () => {
