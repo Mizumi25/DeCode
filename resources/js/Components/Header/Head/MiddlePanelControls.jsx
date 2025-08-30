@@ -11,8 +11,8 @@ import {
 import { useHeaderStore } from '@/stores/useHeaderStore'
 
 const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) => {
-  const onForgePage = currentRoute === '/forge'
-  const onSourcePage = currentRoute === '/source'
+  const onForgePage = currentRoute.includes('/modeForge')
+  const onSourcePage = currentRoute.includes('/modeSource')
   const { toggleStyleModal } = useHeaderStore()
 
   return (

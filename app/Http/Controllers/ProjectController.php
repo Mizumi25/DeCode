@@ -294,22 +294,6 @@ class ProjectController extends Controller
         return redirect()->route('void.index', ['project' => $project->uuid]);
     }
 
-    public function show(Project $project): Response
-    {
-        // Check if user can access this project
-        if ($project->user_id !== Auth::id() && !$project->is_public) {
-            abort(403, 'Access denied to this project.');
-        }
-        
-        $project->updateLastOpened();
-        
-        return Inertia::render('VoidPage', [
-            'project' => $project->load(['user:id,name,avatar']),
-            'canvas_data' => $project->canvas_data,
-            'frames' => $project->canvas_data['frames'] ?? [],
-        ]);
-    }
-
     public function update(Request $request, Project $project): JsonResponse
     {
         // Check ownership

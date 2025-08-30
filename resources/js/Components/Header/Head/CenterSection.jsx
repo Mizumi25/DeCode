@@ -34,9 +34,15 @@ const CenterSection = ({
   const { toggleStyleModal } = useHeaderStore()
   
   const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects')
-  const onVoidPage = currentRoute === '/void' || currentRoute.includes('/void')
-  const onForgePage = currentRoute === '/modeForge' || currentRoute.includes('/modeForge')
-  const onSourcePage = currentRoute === '/modeSource' || currentRoute.includes('/modeSource')
+  const onForgePage    = currentRoute.includes('/modeForge')
+  const onSourcePage   = currentRoute.includes('/modeSource')
+  
+  // Pure void page (must have /void but not forge or source)
+  const onVoidPage = 
+    currentRoute.startsWith('/void') &&
+    !onForgePage &&
+    !onSourcePage
+
 
   const interactionOptions = [
     { key: 'cursor', icon: MousePointer },
@@ -73,7 +79,7 @@ const CenterSection = ({
 
         {/* Vertical Divider */}
         <div className="w-px h-4 bg-[var(--color-border)]"></div>
-
+        
         {/* Zoom Controls */}
         <ZoomControls zoomLevel={zoomLevel} onZoomChange={setZoomLevel} />
 

@@ -43,14 +43,25 @@ export default function FloatingToolbox({ tools }) {
   const handleToolClick = (tool, e) => {
     e.stopPropagation()
     
-    // Visual feedback animation
+    // Enhanced visual feedback animation for active states
     gsap.to(e.currentTarget, {
-      scale: 0.9,
+      scale: tool.isActive ? 0.95 : 0.9,
       duration: 0.1,
       yoyo: true,
       repeat: 1,
       ease: "power2.out"
     })
+
+    // Add a subtle pulse effect for panel toggles
+    if (tool.isActive !== undefined) {
+      gsap.to(e.currentTarget.querySelector('.tool-icon'), {
+        scale: 1.1,
+        duration: 0.2,
+        yoyo: true,
+        repeat: 1,
+        ease: "power2.out"
+      })
+    }
 
     // Call the tool's action if it exists
     if (tool.action && typeof tool.action === 'function') {
@@ -66,9 +77,11 @@ export default function FloatingToolbox({ tools }) {
       >
         {tools.map((tool, index) => {
           const Icon = tool.icon
+          const isActive = tool.isActive || false
+          
           return (
             <div key={index} className="flex flex-col items-center group">
-              {/* Floating Circle - Made much smaller */}
+              {/* Floating Circle with enhanced active state support */}
               <button
                 onClick={(e) => handleToolClick(tool, e)}
                 className={`
@@ -76,44 +89,76 @@ export default function FloatingToolbox({ tools }) {
                   transition-all duration-300 ease-out
                   hover:scale-110 hover:-translate-y-1 active:scale-95
                   focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+                  relative overflow-hidden
                   ${tool.isPrimary 
                     ? 'shadow-md hover:shadow-lg' 
                     : 'shadow-sm hover:shadow-md'
+                  }
+                  ${isActive 
+                    ? 'ring-2 ring-blue-400 ring-opacity-60' 
+                    : ''
                   }
                 `}
                 style={{
                   backgroundColor: tool.isPrimary 
                     ? 'var(--color-primary)' 
-                    : 'var(--color-surface)',
+                    : isActive
+                      ? 'var(--color-primary)'
+                      : 'var(--color-surface)',
                   boxShadow: tool.isPrimary 
                     ? 'var(--shadow-md), 0 0 15px rgba(160, 82, 255, 0.2)'
-                    : 'var(--shadow-sm)',
-                  border: tool.isPrimary 
+                    : isActive
+                      ? 'var(--shadow-md), 0 0 10px rgba(59, 130, 246, 0.3)'
+                      : 'var(--shadow-sm)',
+                  border: tool.isPrimary || isActive
                     ? 'none' 
                     : `1px solid var(--color-border)`
                 }}
                 title={tool.label}
                 aria-label={tool.label}
+                aria-pressed={isActive}
               >
+                {/* Active state indicator */}
+                {isActive && !tool.isPrimary && (
+                  <div 
+                    className="absolute inset-0 rounded-full animate-pulse"
+                    style={{
+                      background: 'linear-gradient(45deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.2))'
+                    }}
+                  />
+                )}
+                
+                {/* Icon with enhanced styling */}
                 <Icon 
-                  className={`w-3.5 h-3.5 transition-colors duration-300 ${
-                    tool.isPrimary ? 'text-white' : ''
-                  }`}
+                  className={`
+                    tool-icon w-3.5 h-3.5 transition-all duration-300 relative z-10
+                    ${tool.isPrimary || isActive ? 'text-white' : ''}
+                  `}
                   style={{
-                    color: tool.isPrimary ? 'white' : 'var(--color-text)'
+                    color: tool.isPrimary || isActive ? 'white' : 'var(--color-text)',
+                    filter: isActive && !tool.isPrimary ? 'drop-shadow(0 0 2px rgba(255,255,255,0.3))' : 'none'
                   }}
                 />
               </button>
               
-              {/* Floating Label - Made smaller */}
+              {/* Floating Label with active state indicator */}
               <span 
-                className="mt-1 text-xs font-medium opacity-60 group-hover:opacity-100 transition-opacity duration-300 text-center max-w-[60px]"
+                className={`
+                  mt-1 text-xs font-medium transition-all duration-300 text-center max-w-[60px]
+                  ${isActive ? 'opacity-90 font-semibold' : 'opacity-60 group-hover:opacity-100'}
+                `}
                 style={{
-                  color: 'var(--color-text)',
+                  color: isActive ? 'var(--color-primary)' : 'var(--color-text)',
                   fontSize: '9px'
                 }}
               >
                 {tool.label}
+                {isActive && (
+                  <div 
+                    className="w-1 h-1 rounded-full mx-auto mt-0.5 bg-blue-400 animate-pulse"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  />
+                )}
               </span>
             </div>
           )

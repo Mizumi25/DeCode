@@ -14,13 +14,19 @@ import { useScrollHandler } from '@/Components/Void/ScrollHandler'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useEditorStore } from '@/stores/useEditorStore'
 
+// Import panel components
+import FramesPanel from '@/Components/Void/FramesPanel'
+import ProjectFilesPanel from '@/Components/Void/ProjectFilesPanel'
+import CodeHandlerPanel from '@/Components/Void/CodeHandlerPanel'
+import TeamCollaborationPanel from '@/Components/Void/TeamCollaborationPanel'
+
 export default function VoidPage() {
   const { project } = usePage().props
   const canvasRef = useRef(null)
   
   // Zustand stores
   const { isDark } = useThemeStore()
-  const { panelStates, togglePanel } = useEditorStore()
+  const { panelStates, togglePanel, isPanelOpen, getOpenPanelsCount } = useEditorStore()
   
   // Modal states
   const [showFrameCreator, setShowFrameCreator] = useState(false)
@@ -71,7 +77,7 @@ export default function VoidPage() {
             isDragging: false,
             isLoading: false,
             type: frame.type,
-            settings: frame.settings // Include settings for thumbnail path
+            settings: frame.settings
           }))
           setFrames(framesToState)
         }
@@ -110,7 +116,6 @@ export default function VoidPage() {
   }, [])
 
   const handleFrameDrag = useCallback((frameId, newX, newY) => {
-    // Check for collision
     if (checkCollision(newX, newY, frameId)) {
       return
     }
@@ -127,7 +132,6 @@ export default function VoidPage() {
     setDraggedFrame(null)
     setIsFrameDragging(false)
 
-    // Update frame position in database
     const frame = frames.find(f => f.id === frameId)
     if (frame) {
       try {
@@ -190,7 +194,6 @@ export default function VoidPage() {
 
   // Handle frame click for navigation
   const handleFrameClick = useCallback((frame) => {
-    // Navigate to forge page with frame UUID in URL (default to forge mode)
     router.visit(`/void/${project.uuid}/frame=${frame.uuid}/modeForge`)
   }, [project?.uuid])
 
@@ -240,7 +243,7 @@ export default function VoidPage() {
     console.log('Maximizing panel:', panelId)
   }
 
-  // Handle tool actions
+  // Enhanced tool actions with panel toggling
   const handleToolAction = useCallback((toolLabel) => {
     switch (toolLabel) {
       case 'New Frame':
@@ -252,17 +255,21 @@ export default function VoidPage() {
       case 'Project Files':
         togglePanel('files-panel')
         break
+      case 'Code Handler':
+        togglePanel('code-panel')
+        break
+      case 'Team Collaborations':
+        togglePanel('team-panel')
+        break
       default:
         console.log(`Action for ${toolLabel} not implemented yet`)
     }
   }, [togglePanel])
 
-  // Handle frame creation success - updated to reload frames properly
+  // Handle frame creation success
   const handleFrameCreated = useCallback(async (newFrame) => {
-    // Close the modal first
     setShowFrameCreator(false)
     
-    // Always reload frames from server to get the latest state
     try {
       const response = await fetch(`/api/projects/${project.uuid}/frames`, {
         headers: {
@@ -283,20 +290,17 @@ export default function VoidPage() {
           isDragging: false,
           isLoading: false,
           type: frame.type,
-          settings: frame.settings // Include settings for thumbnail path
+          settings: frame.settings
         }))
         setFrames(framesToState)
 
-        // Find the newest frame (the one just created) and animate it into view
-        const newestFrame = data.frames[0] // Assuming they're ordered by created_at desc
+        const newestFrame = data.frames[0]
         if (newestFrame && newestFrame.canvas_data?.position) {
-          // Smoothly scroll to the new frame position
-          const targetX = newestFrame.canvas_data.position.x - 400 // Center it roughly
+          const targetX = newestFrame.canvas_data.position.x - 400
           const targetY = newestFrame.canvas_data.position.y - 300
           
           setScrollPosition({ x: targetX, y: targetY })
           
-          // Optional: Add a brief highlight effect to the new frame
           setTimeout(() => {
             const newFrameElement = document.querySelector(`[data-frame-id="${newestFrame.uuid}"]`)
             if (newFrameElement) {
@@ -317,16 +321,101 @@ export default function VoidPage() {
     }
   }, [project?.uuid])
 
-  // Floating tools configuration
-  const floatingTools = [
-    { icon: Plus, label: 'New Frame', isPrimary: true, action: () => handleToolAction('New Frame') },
-    { icon: Layers, label: 'Frames', isPrimary: false, action: () => handleToolAction('Frames') },
-    { icon: FolderOpen, label: 'Project Files', isPrimary: false, action: () => handleToolAction('Project Files') },
-    { icon: Code, label: 'Code Handler', isPrimary: false, action: () => handleToolAction('Code Handler') },
-    { icon: Users, label: 'Team Collaborations', isPrimary: false, action: () => handleToolAction('Team Collaborations') },
-    { icon: Upload, label: 'Import', isPrimary: false, action: () => handleToolAction('Import') },
-    { icon: Briefcase, label: 'Project', isPrimary: false, action: () => handleToolAction('Project') }
-  ]
+  // Enhanced floating tools configuration with visual feedback for active panels
+  const floatingTools = useMemo(() => [
+    { 
+      icon: Plus, 
+      label: 'New Frame', 
+      isPrimary: true, 
+      action: () => handleToolAction('New Frame') 
+    },
+    { 
+      icon: Layers, 
+      label: 'Frames', 
+      isPrimary: false, 
+      isActive: isPanelOpen('frames-panel'),
+      action: () => handleToolAction('Frames') 
+    },
+    { 
+      icon: FolderOpen, 
+      label: 'Project Files', 
+      isPrimary: false, 
+      isActive: isPanelOpen('files-panel'),
+      action: () => handleToolAction('Project Files') 
+    },
+    { 
+      icon: Code, 
+      label: 'Code Handler', 
+      isPrimary: false, 
+      isActive: isPanelOpen('code-panel'),
+      action: () => handleToolAction('Code Handler') 
+    },
+    { 
+      icon: Users, 
+      label: 'Team Collaborations', 
+      isPrimary: false, 
+      isActive: isPanelOpen('team-panel'),
+      action: () => handleToolAction('Team Collaborations') 
+    },
+    { 
+      icon: Upload, 
+      label: 'Import', 
+      isPrimary: false, 
+      action: () => handleToolAction('Import') 
+    },
+    { 
+      icon: Briefcase, 
+      label: 'Project', 
+      isPrimary: false, 
+      action: () => handleToolAction('Project') 
+    }
+  ], [handleToolAction, isPanelOpen])
+
+  // Dynamic panel configuration based on state
+  const activePanels = useMemo(() => {
+    const panels = []
+    
+    if (panelStates['frames-panel']) {
+      panels.push({
+        id: 'frames-panel',
+        title: 'Frames',
+        content: <FramesPanel />,
+        closable: true
+      })
+    }
+    
+    if (panelStates['files-panel']) {
+      panels.push({
+        id: 'files-panel', 
+        title: 'Project Files',
+        content: <ProjectFilesPanel />,
+        closable: true
+      })
+    }
+    
+    if (panelStates['code-panel']) {
+      panels.push({
+        id: 'code-panel',
+        title: 'Code Handler', 
+        content: <CodeHandlerPanel />,
+        closable: true
+      })
+    }
+    
+    if (panelStates['team-panel']) {
+      panels.push({
+        id: 'team-panel',
+        title: 'Team Collaboration',
+        content: <TeamCollaborationPanel />,
+        closable: true
+      })
+    }
+    
+    return panels
+  }, [panelStates])
+
+  // Check if any panels are open
+  const hasOpenPanels = getOpenPanelsCount() > 0
 
   return (
     <AuthenticatedLayout>
@@ -354,13 +443,20 @@ export default function VoidPage() {
           {Math.round(zoom * 100)}%
         </div>
 
+        {/* Panel status indicator */}
+        {hasOpenPanels && (
+          <div className="fixed top-4 right-4 z-50 bg-blue-500 bg-opacity-20 backdrop-blur-sm text-blue-200 px-3 py-1 rounded-full text-xs font-medium opacity-70 hover:opacity-100 transition-opacity duration-200">
+            {getOpenPanelsCount()} panel{getOpenPanelsCount() !== 1 ? 's' : ''} open
+          </div>
+        )}
+
         {/* Background Layers */}
         <BackgroundLayers isDark={isDark} scrollPosition={scrollPosition} />
 
         {/* Floating Toolbox */}
         <FloatingToolbox tools={floatingTools} />
 
-        {/* Delete Button - Now on the right */}
+        {/* Delete Button */}
         <DeleteButton 
           zoom={zoom} 
           onFrameDrop={handleFrameDropDelete}
@@ -389,91 +485,16 @@ export default function VoidPage() {
           />
         </div>
         
-        {/* Dockable Panel */}
-        <Panel
-          isOpen={true}
-          panels={[
-            {
-              id: 'files-panel', 
-              title: 'Project Files',
-              content: (
-                <div>
-                  <h4 className="font-semibold mb-4 text-[var(--color-text)]">File Explorer</h4>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 p-2 hover:bg-[var(--color-bg-hover)] rounded cursor-pointer">
-                      <FolderOpen className="w-4 h-4 text-[var(--color-primary)]" />
-                      <span className="text-sm text-[var(--color-text)]">src/</span>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 hover:bg-[var(--color-bg-hover)] rounded cursor-pointer ml-4">
-                      <Code className="w-4 h-4 text-[var(--color-text-muted)]" />
-                      <span className="text-sm text-[var(--color-text)]">components/</span>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 hover:bg-[var(--color-bg-hover)] rounded cursor-pointer ml-4">
-                      <Code className="w-4 h-4 text-[var(--color-text-muted)]" />
-                      <span className="text-sm text-[var(--color-text)]">pages/</span>
-                    </div>
-                  </div>
-                </div>
-              ),
-              closable: true
-            },
-            {
-              id: 'frames-panel',
-              title: 'Frames',
-              content: (
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-semibold text-[var(--color-text)]">Frame Manager</h4>
-                    <button
-                      onClick={() => setShowFrameCreator(true)}
-                      className="px-2 py-1 text-xs bg-[var(--color-primary)] text-white rounded hover:opacity-90 transition-opacity"
-                    >
-                      New Frame
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {frames.map((frame) => (
-                      <div 
-                        key={frame.id} 
-                        className="p-3 rounded-lg bg-[var(--color-bg-muted)] border border-[var(--color-border)] cursor-pointer hover:bg-[var(--color-bg-hover)] transition-colors"
-                        onClick={() => handleFrameClick(frame)}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Layers className="w-4 h-4 text-[var(--color-primary)]" />
-                          <div className="flex-1">
-                            <span className="text-sm text-[var(--color-text)] font-medium">{frame.title}</span>
-                            <div className="text-xs text-[var(--color-text-muted)] mt-1">
-                              {frame.type} • {frame.fileName}
-                            </div>
-                          </div>
-                          {frame.isLoading && (
-                            <div className="ml-auto">
-                              <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {frames.length === 0 && (
-                      <div className="text-center py-8 text-[var(--color-text-muted)]">
-                        <Layers className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">No frames yet</p>
-                        <p className="text-xs">Create your first frame to get started</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ),
-              closable: true
-            }
-          ]}
-          allowedDockPositions={['right']}
-          onPanelClose={handlePanelClose}
-          onPanelMaximize={handlePanelMaximize}
-        />
+        {/* Dynamic Dockable Panel System */}
+        {hasOpenPanels && (
+          <Panel
+            isOpen={true}
+            panels={activePanels}
+            allowedDockPositions={['right']}
+            onPanelClose={handlePanelClose}
+            onPanelMaximize={handlePanelMaximize}
+          />
+        )}
 
         {/* Frame Creator Modal */}
         <Modal

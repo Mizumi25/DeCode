@@ -39,10 +39,17 @@ const NavigationDropdown = ({ activeNav, setActiveNav, onModeSwitch }) => {
       router.visit(newUrl, {
         method: 'get',
         preserveScroll: true,
-        preserveState: true,
+        preserveState: false, // Changed to false to ensure fresh state
       })
     } else {
-      console.error('Project or frame data not available for navigation')
+      // Fallback to old routes if no project/frame data
+      console.warn('Project or frame data not available, using fallback routes')
+      const fallbackUrl = option === 'Forge' ? '/forge' : '/source'
+      router.visit(fallbackUrl, {
+        method: 'get',
+        preserveScroll: true,
+        preserveState: false,
+      })
     }
     
     // Call the mode switch function for any additional logic

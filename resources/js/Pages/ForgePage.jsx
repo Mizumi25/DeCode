@@ -232,19 +232,12 @@ export default function ForgePage({ projectId, frameId }) {
   }
 
   const handlePanelMaximize = (panelType) => {
-    if (panelType === 'source') {
-      router.visit('/source', { preserveState: true })
-    }
-    setPanelStates(prev => ({
-      ...prev,
-      [panelType]: false
-    }))
+    
   }
 
   const handleModeSwitch = (mode) => {
-    if (mode === 'source') {
-      router.visit('/source', { preserveState: true })
-    }
+  
+  
   }
 
   // Component tab handlers

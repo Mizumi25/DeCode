@@ -60,13 +60,7 @@ export default function SourcePage({ projectId, frameId }) {
 
   // Handle panel maximize
   const handlePanelMaximize = (panelType) => {
-    if (panelType === 'forge') {
-      router.visit('/forge', { preserveState: true });
-    }
-    setPanelStates(prev => ({
-      ...prev,
-      [panelType]: false
-    }));
+   
   };
 
   // Handle toggling the visibility of a panel
@@ -79,9 +73,7 @@ export default function SourcePage({ projectId, frameId }) {
 
   // Handle switching between modes
   const handleModeSwitch = (mode) => {
-    if (mode === 'forge') {
-      router.visit('/forge', { preserveState: true });
-    }
+    
   };
 
   return (

@@ -30,9 +30,14 @@ const RightSection = ({
   setProfileDropdownOpen
 }) => {
   const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects')
-  const onVoidPage = currentRoute === '/void' || currentRoute.includes('/void')
-  const onForgePage = currentRoute === '/modeForge' || currentRoute.includes('/modeForge')
-  const onSourcePage = currentRoute === '/modeSource' || currentRoute.includes('/modeSource')
+  const onForgePage    = currentRoute.includes('/modeForge')
+  const onSourcePage   = currentRoute.includes('/modeSource')
+  
+  // Pure void page (must have /void but not forge or source)
+  const onVoidPage = 
+    currentRoute.startsWith('/void') &&
+    !onForgePage &&
+    !onSourcePage
 
   const editOptions = [
     { key: 'edit', icon: Edit3 },

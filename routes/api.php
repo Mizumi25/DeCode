@@ -1,5 +1,4 @@
 <?php
-
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ComponentController;
@@ -43,7 +42,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('frames')->group(function () {
         Route::get('/', [VoidController::class, 'index']);
         Route::post('/', [VoidController::class, 'store']);
-        Route::get('/{frame}', [VoidController::class, 'show']);
+        Route::get('/{frame}', [VoidController::class, 'showFrame']);
         Route::put('/{frame}', [VoidController::class, 'update']);
         Route::delete('/{frame}', [VoidController::class, 'destroy']);
         Route::post('/{frame}/duplicate', [VoidController::class, 'duplicate']);
@@ -57,7 +56,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // Projects CRUD & actions
     Route::get('/projects', [ProjectController::class, 'index']);
     Route::post('/projects', [ProjectController::class, 'store']);
-    Route::get('/projects/{project}', [ProjectController::class, 'show']);
     Route::put('/projects/{project}', [ProjectController::class, 'update']);
     Route::delete('/projects/{project}', [ProjectController::class, 'destroy']);
 

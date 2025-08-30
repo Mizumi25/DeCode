@@ -7,11 +7,33 @@ use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class VoidController extends Controller
 {
+    /**
+     * Display the void page for a project (moved from ProjectController)
+     */
+    public function show(Project $project): Response
+    {
+        // Check if user can access this project
+        if ($project->user_id !== Auth::id() && !$project->is_public) {
+            abort(403, 'Access denied to this project.');
+        }
+        
+        $project->updateLastOpened();
+        
+        return Inertia::render('VoidPage', [
+            'project' => $project,
+            'canvas_data' => $project->canvas_data,
+            'frames' => $project->canvas_data['frames'] ?? [],
+        ]);
+    }
+
     /**
      * Display a listing of frames for a project.
      */
@@ -144,7 +166,7 @@ class VoidController extends Controller
     /**
      * Display the specified frame.
      */
-    public function show(Frame $frame): JsonResponse
+    public function showFrame(Frame $frame): JsonResponse
     {
         // Ensure user owns the project that contains this frame
         if ($frame->project->user_id !== auth()->id()) {

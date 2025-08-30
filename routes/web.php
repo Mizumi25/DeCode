@@ -2,8 +2,8 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\VoidController;
-use App\Models\Project;
-use App\Models\Frame;
+use App\Http\Controllers\ForgeController;
+use App\Http\Controllers\SourceController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -28,41 +28,19 @@ Route::middleware('auth')->group(function () {
     
     // Project routes
     Route::get('/projects', [ProjectController::class, 'index'])->name('projects');
-    Route::get('/projects/search', [ProjectController::class, 'search'])->name('projects.search'); // Add this line here
+    Route::get('/projects/search', [ProjectController::class, 'search'])->name('projects.search');
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
     
-    // Project editor page using UUID
-    Route::get('/void/{project:uuid}', [ProjectController::class, 'show'])->name('void.index');
+    // Void page using UUID (moved to VoidController)
+    Route::get('/void/{project:uuid}', [VoidController::class, 'show'])->name('void.index');
     
     // Frame creation route (web route for form submission)
     Route::post('/frames', [VoidController::class, 'store'])->name('frames.store');
     
     // Frame-specific routes with the special URL pattern you requested
-    Route::get('/void/{project:uuid}/frame={frame:uuid}/modeForge', function (Project $project, Frame $frame) {
-        // Verify the frame belongs to the project and user owns project
-        if ($frame->project_id !== $project->id || $project->user_id !== auth()->id()) {
-            abort(404);
-        }
-        
-        return Inertia::render('ForgePage', [
-            'project' => $project,
-            'frame' => $frame,
-            'mode' => 'forge'
-        ]);
-    })->name('frame.forge');
+    Route::get('/void/{project:uuid}/frame={frame:uuid}/modeForge', [ForgeController::class, 'show'])->name('frame.forge');
     
-    Route::get('/void/{project:uuid}/frame={frame:uuid}/modeSource', function (Project $project, Frame $frame) {
-        // Verify the frame belongs to the project and user owns project
-        if ($frame->project_id !== $project->id || $project->user_id !== auth()->id()) {
-            abort(404);
-        }
-        
-        return Inertia::render('SourcePage', [
-            'project' => $project,
-            'frame' => $frame,
-            'mode' => 'source'
-        ]);
-    })->name('frame.source');
+    Route::get('/void/{project:uuid}/frame={frame:uuid}/modeSource', [SourceController::class, 'show'])->name('frame.source');
     
     // Fallback forge and source routes (for temporary demo/testing)
     Route::get('/forge', fn () => Inertia::render('ForgePage'))->name('project.forge');

@@ -46,9 +46,15 @@ const LeftSection = ({
 }) => {
   const { url } = usePage() // Add this to get the current URL
   const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects')
-  const onVoidPage = currentRoute === '/void' || currentRoute.includes('/void')
-  const onForgePage = currentRoute === '/modeForge' || currentRoute.includes('/modeForge')
-  const onSourcePage = currentRoute === '/modeSource' || currentRoute.includes('/modeSource')
+  const onForgePage    = currentRoute.includes('/modeForge')
+  const onSourcePage   = currentRoute.includes('/modeSource')
+  
+  // Pure void page (must have /void but not forge or source)
+  const onVoidPage = 
+    currentRoute.startsWith('/void') &&
+    !onForgePage &&
+    !onSourcePage
+
 
   // Sync activeNav with URL changes - ADD THIS
   useEffect(() => {
@@ -204,7 +210,7 @@ const LeftSection = ({
       )}
 
       {/* Responsive Mode Toggle - Only on Void Page */}
-      {onVoidPage && (
+      {onVoidPage && !onForgePage && !onSourcePage && (
         <ResponsiveToggle 
           activeMode={responsiveMode} 
           setActiveMode={setResponsiveMode} 

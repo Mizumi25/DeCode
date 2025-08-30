@@ -24,12 +24,19 @@ export default function Header({
   onPanelToggle, 
   onModeSwitch  
 }) {
-  const { props, url } = usePage() // Add url here
+  const { props, url } = usePage()
   const user = props.auth?.user
-  const onProjectsPage = isAuthenticated && (currentRoute === '/projects' || currentRoute.includes('/projects'))
-  const onVoidPage = isAuthenticated && (currentRoute === '/void' || currentRoute.includes('/void'))
-  const onForgePage = isAuthenticated && (currentRoute === '/modeForge' || currentRoute.includes('/modeForge'))
-  const onSourcePage = isAuthenticated && (currentRoute === '/modeSource' || currentRoute.includes('/modeSource'))
+
+  const onProjectsPage = isAuthenticated && url.startsWith('/projects')
+  const onForgePage = isAuthenticated && url.includes('/modeForge')
+  const onSourcePage = isAuthenticated && url.includes('/modeSource')
+
+  // Only "pure" void page (no forge or source)
+  const onVoidPage =
+    isAuthenticated &&
+    url.startsWith('/void') &&
+    !onForgePage &&
+    !onSourcePage
 
   // Zustand stores
   const { 
@@ -91,7 +98,7 @@ export default function Header({
   useEffect(() => {
     if (onForgePage) resetForPage('forge')
     else if (onSourcePage) resetForPage('source')
-    else if (onVoidPage) resetForPage('void')
+    else if (onVoidPage && !onForgePage && !onSourcePage) resetForPage('void')
   }, [onForgePage, onSourcePage, onVoidPage, resetForPage])
 
   // Notify parent component about theme changes
