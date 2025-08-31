@@ -6,51 +6,114 @@ import {
   Layers,
   Grid3X3,
   Settings,
-  EyeOff
+  EyeOff,
+  Eye
 } from 'lucide-react'
 import { useHeaderStore } from '@/stores/useHeaderStore'
+import { useForgeStore } from '@/stores/useForgeStore'
 
 const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) => {
   const onForgePage = currentRoute.includes('/modeForge')
   const onSourcePage = currentRoute.includes('/modeSource')
+  
   const { toggleStyleModal } = useHeaderStore()
+  
+  // Use ForgeStore for Forge page panels
+  const { 
+    toggleForgePanel, 
+    isForgePanelOpen, 
+    toggleAllForgePanels, 
+    allPanelsHidden 
+  } = useForgeStore()
+
+  // Handle panel toggle based on page type
+  const handlePanelToggle = (panelId) => {
+    if (onForgePage) {
+      // Map button positions to panel IDs for Forge page
+      const forgePanelMap = {
+        'components': 'components-panel',
+        'code': 'code-panel', 
+        'layers': 'layers-panel'
+      }
+      
+      const actualPanelId = forgePanelMap[panelId]
+      if (actualPanelId) {
+        toggleForgePanel(actualPanelId)
+      }
+    } else {
+      // Use original onPanelToggle for other pages
+      onPanelToggle && onPanelToggle(panelId)
+    }
+  }
+
+  // Handle hide all panels
+  const handleHideAllPanels = () => {
+    if (onForgePage) {
+      toggleAllForgePanels()
+    } else {
+      onPanelToggle && onPanelToggle('hideAll')
+    }
+  }
+
+  // Check if panel is active based on page type
+  const isPanelActive = (panelId) => {
+    if (onForgePage) {
+      const forgePanelMap = {
+        'components': 'components-panel',
+        'code': 'code-panel',
+        'layers': 'layers-panel'
+      }
+      const actualPanelId = forgePanelMap[panelId]
+      return actualPanelId ? isForgePanelOpen(actualPanelId) : false
+    } else {
+      return panelStates[panelId] || false
+    }
+  }
 
   return (
     <div className="flex items-center gap-1 flex-shrink-0">
-      {/* Forge/Components Panel Toggle - First Icon */}
+      {/* Components Panel Toggle - First Icon */}
       <button 
-        onClick={() => onPanelToggle && onPanelToggle('forge')}
-        className={`p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors ${
-          panelStates.forge ? 'bg-[var(--color-primary)] text-white' : ''
-        }`}
-        title="Toggle Forge Panel"
+        onClick={() => handlePanelToggle('components')}
+        className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+        title="Toggle Components Panel"
       >
-        <Component className={`w-3 h-3 ${onForgePage || panelStates.forge ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'}`} />
+        <Component className={`w-3 h-3 ${
+          isPanelActive('components') ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'
+        }`} />
       </button>
 
-      {/* Source Panel Toggle - Second Icon */}
+      {/* Code Panel Toggle - Second Icon */}
       <button 
-        onClick={() => onPanelToggle && onPanelToggle('source')}
-        className={`p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors ${
-          panelStates.source ? 'bg-[var(--color-primary)] text-white' : ''
-        }`}
-        title="Toggle Source Panel"
+        onClick={() => handlePanelToggle('code')}
+        className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+        title="Toggle Code Panel"
       >
-        <Code className={`w-3 h-3 ${onSourcePage || panelStates.source ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'}`} />
+        <Code className={`w-3 h-3 ${
+          isPanelActive('code') ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'
+        }`} />
       </button>
 
-      {/* Puzzle - Third Icon */}
-      <button className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors">
+      {/* Puzzle - Third Icon (placeholder) */}
+      <button className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+        title="Coming Soon">
         <Puzzle className="w-3 h-3 text-[var(--color-text)]" />
       </button>
 
-      {/* Layers - Fourth Icon */}
-      <button className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors">
-        <Layers className="w-3 h-3 text-[var(--color-text)]" />
+      {/* Layers Panel Toggle - Fourth Icon */}
+      <button 
+        onClick={() => handlePanelToggle('layers')}
+        className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+        title="Toggle Layers Panel"
+      >
+        <Layers className={`w-3 h-3 ${
+          isPanelActive('layers') ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'
+        }`} />
       </button>
 
-      {/* Paneling - Fifth Icon */}
-      <button className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors">
+      {/* Grid3X3 - Fifth Icon (placeholder) */}
+      <button className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+        title="Coming Soon">
         <Grid3X3 className="w-3 h-3 text-[var(--color-text)]" />
       </button>
 
@@ -66,13 +129,17 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
         <Settings className="w-3 h-3 text-[var(--color-text)]" />
       </button>
 
-      {/* Hide All Panels Button */}
+      {/* Hide/Show All Panels Button */}
       <button
-        onClick={() => onPanelToggle && onPanelToggle('hideAll')}
+        onClick={handleHideAllPanels}
         className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
-        title="Hide All Panels"
+        title={onForgePage && allPanelsHidden ? "Show All Panels" : "Hide All Panels"}
       >
-        <EyeOff className="w-3 h-3 text-[var(--color-text)]" />
+        {onForgePage && allPanelsHidden ? (
+          <Eye className="w-3 h-3 text-[var(--color-text)]" />
+        ) : (
+          <EyeOff className="w-3 h-3 text-[var(--color-text)]" />
+        )}
       </button>
     </div>
   )

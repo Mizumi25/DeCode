@@ -443,13 +443,6 @@ export default function VoidPage() {
           {Math.round(zoom * 100)}%
         </div>
 
-        {/* Panel status indicator */}
-        {hasOpenPanels && (
-          <div className="fixed top-4 right-4 z-50 bg-blue-500 bg-opacity-20 backdrop-blur-sm text-blue-200 px-3 py-1 rounded-full text-xs font-medium opacity-70 hover:opacity-100 transition-opacity duration-200">
-            {getOpenPanelsCount()} panel{getOpenPanelsCount() !== 1 ? 's' : ''} open
-          </div>
-        )}
-
         {/* Background Layers */}
         <BackgroundLayers isDark={isDark} scrollPosition={scrollPosition} />
 

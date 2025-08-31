@@ -1,9 +1,10 @@
-// Enhanced ForgePage.jsx - MOBILE RESPONSIVE FIXES for code panel visibility and drag functionality + WindowPanel Integration
+// Enhanced ForgePage.jsx - MOBILE RESPONSIVE FIXES for code panel visibility and drag functionality + WindowPanel Integration + ForgeStore Panel Toggles
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import Panel from '@/Components/Panel';
 import { Square, Code, Layers, User, Settings, ChevronUp, ChevronDown, Copy, RefreshCw, Monitor, PictureInPicture } from 'lucide-react';
+import { useForgeStore } from '@/stores/useForgeStore';
 
 // Import separated forge components
 import ComponentsPanel from '@/Components/Forge/ComponentsPanel';
@@ -23,11 +24,13 @@ import { tooltipDatabase } from '@/Components/Forge/TooltipDatabase';
 import { formatCode, highlightCode, parseCodeAndUpdateComponents } from '@/Components/Forge/CodeUtils';
 
 export default function ForgePage({ projectId, frameId }) {
-  // Panel states
-  const [panelStates, setPanelStates] = useState({
-    forge: false,
-    source: false
-  })
+  // Zustand stores
+  const {
+    toggleForgePanel,
+    isForgePanelOpen,
+    getOpenForgePanelsCount,
+    allPanelsHidden
+  } = useForgeStore()
 
   // Mobile detection
   const [isMobile, setIsMobile] = useState(false)
@@ -188,6 +191,21 @@ export default function ForgePage({ projectId, frameId }) {
     return () => clearTimeout(timeoutId);
   }, [canvasComponents, projectId, frameId, componentsLoaded]);
 
+
+  // Add this useEffect to ForgePage.jsx to ensure proper initialization
+  useEffect(() => {
+    // Force re-render when store is hydrated from persistence
+    // This ensures the UI is in sync with the persisted state
+    const unsubscribe = useForgeStore.subscribe(
+      (state) => state.forgePanelStates,
+      () => {
+        // Force a re-render when panel states change
+        setSelectedComponent(prev => prev); // Trigger re-render without changing value
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
   // Mobile-specific: Force code panel to bottom on mobile
   useEffect(() => {
     if (isMobile && codePanelPosition === 'right') {
@@ -215,21 +233,28 @@ export default function ForgePage({ projectId, frameId }) {
     setHoveredToken(null)
   }
 
-  // Handle panel functions
+  // Panel handlers - Updated to use ForgeStore
   const handlePanelClose = (panelId) => {
-    console.log(`Panel ${panelId} closed`)
+    toggleForgePanel(panelId)
   }
 
   const handlePanelStateChange = useCallback((hasRightPanels) => {
     console.log(`Right panels active: ${hasRightPanels}`)
   }, [])
 
-  const handlePanelToggle = (panelType) => {
-    setPanelStates(prev => ({
-      ...prev,
-      [panelType]: !prev[panelType]
-    }))
-  }
+  const handlePanelToggle = useCallback((panelType) => {
+    // Handle panel toggles from header
+    const panelMap = {
+      'components': 'components-panel',
+      'code': 'code-panel',
+      'layers': 'layers-panel'
+    }
+    
+    const actualPanelId = panelMap[panelType]
+    if (actualPanelId) {
+      toggleForgePanel(actualPanelId)
+    }
+  }, [toggleForgePanel])
 
   const handlePanelMaximize = (panelType) => {
     
@@ -590,9 +615,9 @@ export default function ForgePage({ projectId, frameId }) {
     )
   });
 
-  // Memoize default panels with fallbacks
+  // Memoize default panels with fallbacks - Updated to use ForgeStore visibility
   const defaultPanels = useMemo(() => [
-    createMockPanel('components', 'Components', 
+    createMockPanel('components-panel', 'Components', 
       ComponentsPanel ? (
         <ComponentsPanel
           activeTab={activeComponentTab}
@@ -602,7 +627,7 @@ export default function ForgePage({ projectId, frameId }) {
         />
       ) : null
     ),
-    createMockPanel('layers', 'Layers',
+    createMockPanel('layers-panel', 'Layers',
       LayersPanel ? (
         <LayersPanel
           canvasComponents={canvasComponents}
@@ -611,7 +636,7 @@ export default function ForgePage({ projectId, frameId }) {
         />
       ) : null
     ),
-    createMockPanel('properties', 'Properties',
+    createMockPanel('properties-panel', 'Properties',
       PropertiesPanel ? (
         <PropertiesPanel
           canvasComponents={canvasComponents}
@@ -623,7 +648,7 @@ export default function ForgePage({ projectId, frameId }) {
         />
       ) : null
     ),
-    createMockPanel('assets', 'Assets',
+    createMockPanel('assets-panel', 'Assets',
       AssetsPanel ? <AssetsPanel /> : null
     )
   ], [
@@ -640,7 +665,7 @@ export default function ForgePage({ projectId, frameId }) {
 
   // Memoize the sidebar code panel (only for non-mobile)
   const sidebarCodePanel = useMemo(() => ({
-    id: 'code',
+    id: 'code-panel',
     title: 'Generated Code',
     content: SidebarCodePanel ? (
       <SidebarCodePanel
@@ -684,17 +709,42 @@ export default function ForgePage({ projectId, frameId }) {
     isMobile
   ])
 
-  // Memoize the final panels array
-  const finalPanels = useMemo(() => {
-    const panels = [...defaultPanels]
+  // Filter visible panels based on ForgeStore state
+  const visiblePanels = useMemo(() => {
+    if (allPanelsHidden) return []
     
-    // Add code panel if showing on right and not mobile
-    if (codePanelPosition === 'right' && showCodePanel && !isMobile) {
+    const panels = []
+    
+    // Add default panels if they're open
+    defaultPanels.forEach(panel => {
+      // Always include properties and assets panels
+      if (panel.id === 'properties-panel' || panel.id === 'assets-panel') {
+        panels.push(panel);
+      } else if (isForgePanelOpen(panel.id)) {
+        panels.push(panel);
+      }
+    });
+    
+    // Add code panel if showing on right and not mobile and panel is open
+    if (codePanelPosition === 'right' && !isMobile && isForgePanelOpen('code-panel')) {
       panels.push(sidebarCodePanel)
     }
     
     return panels
-  }, [defaultPanels, sidebarCodePanel, codePanelPosition, showCodePanel, isMobile])
+  }, [defaultPanels, sidebarCodePanel, codePanelPosition, isMobile, isForgePanelOpen, allPanelsHidden])
+
+
+  // Check if any panels are visible
+  // Update hasVisiblePanels to account for always-open panels
+  const hasVisiblePanels = useMemo(() => {
+    if (allPanelsHidden) return false;
+    
+    // Always show panels if properties or assets should be visible
+    const alwaysOpenCount = 2; // properties-panel and assets-panel
+    const toggleablePanelsCount = getOpenForgePanelsCount() - alwaysOpenCount;
+    
+    return alwaysOpenCount > 0 || toggleablePanelsCount > 0;
+  }, [allPanelsHidden, getOpenForgePanelsCount])
 
   // Tab configuration for components panel ONLY
   const componentTabConfig = useMemo(() => ({
@@ -719,7 +769,7 @@ export default function ForgePage({ projectId, frameId }) {
       <AuthenticatedLayout
         headerProps={{
           onPanelToggle: handlePanelToggle,
-          panelStates: panelStates,
+          panelStates: { /* Legacy compatibility - not used for Forge */ },
           onModeSwitch: handleModeSwitch
         }}
       >
@@ -739,7 +789,7 @@ export default function ForgePage({ projectId, frameId }) {
     <AuthenticatedLayout
       headerProps={{
         onPanelToggle: handlePanelToggle,
-        panelStates: panelStates,
+        panelStates: { /* Legacy compatibility - not used for Forge */ },
         onModeSwitch: handleModeSwitch
       }}
     >
@@ -816,11 +866,11 @@ export default function ForgePage({ projectId, frameId }) {
         )}
       </div>
 
-      {/* Enhanced Panel System - Mobile responsive with 3 panels per dock limit */}
-      {Panel && (
+      {/* Enhanced Panel System - Mobile responsive with 3 panels per dock limit - Updated to use ForgeStore */}
+      {Panel && hasVisiblePanels && (
         <Panel
           isOpen={true}
-          initialPanels={finalPanels}
+          initialPanels={visiblePanels}
           allowedDockPositions={isMobile ? ['left'] : ['left', 'right']}
           maxPanelsPerDock={3}
           onPanelClose={handlePanelClose}
