@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { Menu, X, Lock, MousePointer2, Hand, ChevronLeft } from 'lucide-react'
+import { Menu, X, Lock, MousePointer2, Hand, ChevronLeft, Grid3X3 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { router, usePage } from '@inertiajs/react'
 import ThemeToggle from './ThemeToggle'
@@ -42,7 +42,9 @@ const LeftSection = ({
   zoomLevel,
   setZoomLevel,
   interactionMode,
-  setInteractionMode
+  setInteractionMode,
+  gridVisible,
+  setGridVisible
 }) => {
   const { url } = usePage() // Add this to get the current URL
   const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects')
@@ -82,6 +84,12 @@ const LeftSection = ({
 
   const handleLogoClick = () => {
     router.visit('/projects')
+  }
+
+  const handleGridToggle = () => {
+    if (setGridVisible) {
+      setGridVisible(prev => !prev)
+    }
   }
 
   return (
@@ -209,12 +217,28 @@ const LeftSection = ({
         </>
       )}
 
-      {/* Responsive Mode Toggle - Only on Void Page */}
-      {onVoidPage && !onForgePage && !onSourcePage && (
-        <ResponsiveToggle 
-          activeMode={responsiveMode} 
-          setActiveMode={setResponsiveMode} 
-        />
+      {/* Void Page Specific Elements */}
+      {onVoidPage && (
+        <>
+          {/* Responsive Mode Toggle - Only on Void Page */}
+          <ResponsiveToggle 
+            activeMode={responsiveMode} 
+            setActiveMode={setResponsiveMode} 
+          />
+
+          {/* Grid Toggle - Only on Void Page */}
+          <button
+            onClick={handleGridToggle}
+            className={`p-1 rounded transition-colors ${
+              gridVisible 
+                ? 'bg-[var(--color-primary)] text-white' 
+                : 'hover:bg-[var(--color-bg-muted)] text-[var(--color-text)]'
+            }`}
+            title={gridVisible ? "Hide Grid" : "Show Grid"}
+          >
+            <Grid3X3 className="w-3 h-3" />
+          </button>
+        </>
       )}
     </motion.div>
   )

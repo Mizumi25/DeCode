@@ -13,7 +13,7 @@ import CodePanel from './CodePanel';
 
 const BottomCodePanel = ({
   showCodePanel,
-  setShowCodePanel,
+  setShowCodePanel, // UPDATED: This should now be the handleCloseCodePanel function
   codePanelMinimized,
   setCodePanelMinimized,
   codePanelHeight,
@@ -37,7 +37,9 @@ const BottomCodePanel = ({
   downloadCode,
   generateCode,
   canvasComponents,
-  setCodePanelPosition
+  setCodePanelPosition,
+  isMobile,
+  windowDimensions
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartY, setDragStartY] = useState(0);
@@ -97,14 +99,23 @@ const BottomCodePanel = ({
     }
   }, [isDragging, dragStartY, dragStartHeight]);
 
+  // UPDATED: Handle close panel - calls the proper toggle function
+  const handleClosePanel = () => {
+    console.log('BottomCodePanel: Close button clicked');
+    if (setShowCodePanel && typeof setShowCodePanel === 'function') {
+      setShowCodePanel(); // This should now call handleCloseCodePanel which toggles the ForgeStore
+    }
+  };
+
   if (!showCodePanel) return null;
 
   // Responsive height
   const getResponsiveHeight = () => {
-    const vh = window.innerHeight;
-    const isMobile = window.innerWidth < 768;
+    const vh = windowDimensions?.height || window.innerHeight;
+    const isMobileDevice = isMobile || window.innerWidth < 768;
+    
     if (codePanelMinimized) return '60px';
-    if (isMobile) return `${Math.min(codePanelHeight, vh * 0.7)}px`;
+    if (isMobileDevice) return `${Math.min(codePanelHeight, vh * 0.7)}px`;
     return `${Math.min(codePanelHeight, vh * 0.6)}px`;
   };
 
@@ -146,11 +157,13 @@ const BottomCodePanel = ({
         }}
       >
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <GripVertical
-            className="w-4 h-4 sm:w-5 sm:h-5 cursor-move flex-shrink-0"
-            style={{ color: 'var(--color-text-muted)' }}
-            onMouseDown={handleCodePanelDragStart}
-          />
+          {handleCodePanelDragStart && (
+            <GripVertical
+              className="w-4 h-4 sm:w-5 sm:h-5 cursor-move flex-shrink-0"
+              style={{ color: 'var(--color-text-muted)' }}
+              onMouseDown={handleCodePanelDragStart}
+            />
+          )}
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <div className="p-1.5 sm:p-2 rounded-lg flex-shrink-0" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
               <Code2 className="w-4 h-4 sm:w-5 sm:h-5" style={{ color: 'var(--color-primary)' }} />
@@ -168,14 +181,16 @@ const BottomCodePanel = ({
 
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           {/* Move to Sidebar (desktop only) */}
-          <button
-            onClick={moveCodePanelToRightSidebar}
-            className="hidden sm:flex px-3 py-2 text-xs rounded-lg transition-colors text-white items-center gap-2"
-            style={{ backgroundColor: 'var(--color-primary)' }}
-          >
-            <Move className="w-4 h-4" />
-            <span className="hidden md:inline">Move to Sidebar</span>
-          </button>
+          {moveCodePanelToRightSidebar && (
+            <button
+              onClick={moveCodePanelToRightSidebar}
+              className="hidden sm:flex px-3 py-2 text-xs rounded-lg transition-colors text-white items-center gap-2"
+              style={{ backgroundColor: 'var(--color-primary)' }}
+            >
+              <Move className="w-4 h-4" />
+              <span className="hidden md:inline">Move to Sidebar</span>
+            </button>
+          )}
 
           {/* Minimize/Expand */}
           <button
@@ -187,9 +202,9 @@ const BottomCodePanel = ({
             {codePanelMinimized ? <Maximize2 className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
 
-          {/* Close */}
+          {/* Close - UPDATED to use proper handler */}
           <button
-            onClick={() => setShowCodePanel(false)}
+            onClick={handleClosePanel}
             className="p-1.5 sm:p-2 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
             title="Close Panel"
           >
@@ -206,7 +221,7 @@ const BottomCodePanel = ({
             setShowTooltips={setShowTooltips}
             codePanelMinimized={codePanelMinimized}
             setCodePanelMinimized={setCodePanelMinimized}
-            setShowCodePanel={setShowCodePanel}
+            setShowCodePanel={handleClosePanel} // Pass the proper close handler
             codeStyle={codeStyle}
             setCodeStyle={setCodeStyle}
             activeCodeTab={activeCodeTab}
@@ -222,7 +237,7 @@ const BottomCodePanel = ({
             generateCode={generateCode}
             canvasComponents={canvasComponents}
             setCodePanelPosition={setCodePanelPosition}
-            isMobile={window.innerWidth < 768}
+            isMobile={isMobile}
           />
         </div>
       )}

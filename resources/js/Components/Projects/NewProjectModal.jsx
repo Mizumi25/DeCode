@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useForm } from '@inertiajs/react';
 import Modal from '../Modal';
+import RepositoryList from './RepositoryList';
 import { 
   Globe,
   FileText,
@@ -16,9 +17,19 @@ import {
   Loader2,
   X,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Plus,
+  Github
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { GitHubService } from '@/Services/GithubService';
+
+// GitHub Icon Component
+const GitHubIcon = () => (
+  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
+    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+  </svg>
+);
 
 // Framework logos as SVG components
 const TailwindLogo = () => (
@@ -95,6 +106,12 @@ const VIEWPORT_PRESETS = [
 ];
 
 export default function NewProjectModal({ show, onClose }) {
+  const [activeTab, setActiveTab] = useState(0);
+  const [selectedRepo, setSelectedRepo] = useState(null);
+  const [githubConnected, setGithubConnected] = useState(false);
+  const [loadingGitHub, setLoadingGitHub] = useState(false);
+
+  // Regular project form
   const { data, setData, post, processing, errors, reset } = useForm({
     name: '',
     description: '',
@@ -105,20 +122,77 @@ export default function NewProjectModal({ show, onClose }) {
     is_public: false
   });
 
+  // GitHub import form
+  const { data: githubData, setData: setGithubData, post: postGithub, processing: processingGithub, errors: githubErrors, reset: resetGithub } = useForm({
+    name: '',
+    description: '',
+    repository_id: '',
+    repository_name: '',
+    repository_url: '',
+    clone_url: '',
+    type: 'website',
+    css_framework: 'tailwind',
+    viewport_width: 1440,
+    viewport_height: 900,
+    is_public: false
+  });
+
+  // Define tabs
+  const tabs = [
+    {
+      label: 'Create New',
+      icon: Plus
+    },
+    {
+      label: 'Import from GitHub',
+      icon: Github
+    }
+  ];
+
+  // Check GitHub connection status on mount
+  useEffect(() => {
+    if (show) {
+      checkGitHubConnection();
+    }
+  }, [show]);
+
+  const checkGitHubConnection = async () => {
+    try {
+      const response = await GitHubService.checkGitHubConnection();
+      setGithubConnected(response.connected);
+    } catch (error) {
+      console.error('Error checking GitHub connection:', error);
+      setGithubConnected(false);
+    }
+  };
+
   const handleClose = useCallback(() => {
     reset();
+    resetGithub();
+    setSelectedRepo(null);
+    setActiveTab(0);
     onClose();
-  }, [onClose, reset]);
+  }, [onClose, reset, resetGithub]);
 
+  const handleTabChange = useCallback((tabIndex) => {
+    setActiveTab(tabIndex);
+    // Reset forms when switching tabs
+    if (tabIndex === 0) {
+      resetGithub();
+      setSelectedRepo(null);
+    } else {
+      reset();
+    }
+  }, [reset, resetGithub]);
+
+  // Handle regular project creation
   const handleSubmit = useCallback((e) => {
     e.preventDefault();
     
-    // Changed from '/api/projects' to '/projects' to use the web route
     post('/projects', {
       onSuccess: (response) => {
         console.log('Project created successfully:', response);
         handleClose();
-        // The redirect will be handled by the Laravel controller
       },
       onError: (errors) => {
         console.error('Project creation failed:', errors);
@@ -126,366 +200,495 @@ export default function NewProjectModal({ show, onClose }) {
     });
   }, [data, post, handleClose]);
 
+  // Handle GitHub project import
+  const handleGithubSubmit = useCallback((e) => {
+    e.preventDefault();
+    
+    if (!selectedRepo) {
+      return;
+    }
+
+    // Prepare data for GitHub import
+    const importData = {
+      ...githubData,
+      repository_id: selectedRepo.id,
+      repository_name: selectedRepo.name,
+      repository_url: selectedRepo.html_url,
+      clone_url: selectedRepo.clone_url,
+      description: githubData.description || selectedRepo.description || ''
+    };
+
+    setGithubData(importData);
+
+    postGithub('/api/github/import-project', {
+      onSuccess: (response) => {
+        console.log('GitHub project imported successfully:', response);
+        handleClose();
+        if (response.redirect_url) {
+          window.location.href = response.redirect_url;
+        }
+      },
+      onError: (errors) => {
+        console.error('GitHub project import failed:', errors);
+      }
+    });
+  }, [githubData, selectedRepo, postGithub, setGithubData, handleClose]);
+
   const selectViewportPreset = useCallback((preset) => {
-    setData(prev => ({
+    if (activeTab === 0) {
+      setData(prev => ({
+        ...prev,
+        viewport_width: preset.width,
+        viewport_height: preset.height
+      }));
+    } else {
+      setGithubData(prev => ({
+        ...prev,
+        viewport_width: preset.width,
+        viewport_height: preset.height
+      }));
+    }
+  }, [activeTab, setData, setGithubData]);
+
+  const handleRepoSelect = useCallback((repo) => {
+    setSelectedRepo(repo);
+    // Auto-fill some fields based on repository
+    setGithubData(prev => ({
       ...prev,
-      viewport_width: preset.width,
-      viewport_height: preset.height
+      name: repo.name.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      description: repo.description || ''
     }));
-  }, [setData]);
+  }, [setGithubData]);
 
-  const modalVariants = {
-    hidden: { 
-      opacity: 0, 
-      scale: 0.95, 
-      y: 20 
-    },
-    visible: { 
-      opacity: 1, 
-      scale: 1, 
-      y: 0,
-      transition: { 
-        type: "spring", 
-        damping: 25, 
-        stiffness: 300,
-        duration: 0.5
-      }
-    },
-    exit: { 
-      opacity: 0, 
-      scale: 0.95, 
-      y: 20,
-      transition: { duration: 0.2 }
-    }
+  // Connect to GitHub
+  const connectToGitHub = () => {
+    window.location.href = '/auth/github/redirect';
   };
 
-  const contentVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { 
-      opacity: 1, 
-      y: 0,
-      transition: { 
-        delay: 0.1,
-        staggerChildren: 0.05
-      }
-    }
-  };
+  // Tab content
+  const createNewContent = (
+    <motion.form
+      onSubmit={handleSubmit}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-8"
+    >
+      {/* Project Name & Description */}
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-[var(--color-text)]">
+              Project Name
+            </label>
+            <input
+              type="text"
+              value={data.name}
+              onChange={(e) => setData('name', e.target.value)}
+              placeholder="My Awesome Project"
+              className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-colors"
+              required
+            />
+            {errors.name && (
+              <p className="text-sm text-red-500">{errors.name}</p>
+            )}
+          </div>
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: 10 },
-    visible: { opacity: 1, y: 0 }
-  };
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-[var(--color-text)]">
+              Description (optional)
+            </label>
+            <input
+              type="text"
+              value={data.description}
+              onChange={(e) => setData('description', e.target.value)}
+              placeholder="Brief description..."
+              className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-colors"
+            />
+          </div>
+        </div>
+      </div>
 
-  return (
-    <AnimatePresence>
-      {show && (
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          exit="exit"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        >
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={handleClose}
-          />
-          
-          {/* Modal */}
-          <motion.div
-            variants={modalVariants}
-            className="relative w-full max-w-4xl max-h-[90vh] bg-[var(--color-bg)] rounded-2xl shadow-2xl overflow-hidden border border-[var(--color-border)]"
-          >
-            {/* Header */}
-            <div className="relative px-8 py-6 border-b border-[var(--color-border)]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-accent)] flex items-center justify-center">
-                    <Sparkles className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-semibold text-[var(--color-text)]">
-                      Create New Project
-                    </h2>
-                    <p className="text-sm text-[var(--color-text-muted)]">
-                      Start building your next masterpiece
-                    </p>
-                  </div>
+      {/* Project Type */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium text-[var(--color-text)]">Project Type</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {PROJECT_TYPES.map((type) => {
+            const IconComponent = type.icon;
+            const isSelected = data.type === type.id;
+            return (
+              <motion.button
+                key={type.id}
+                type="button"
+                onClick={() => setData('type', type.id)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`relative p-6 rounded-2xl border-2 transition-all text-left group ${
+                  isSelected
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5 shadow-lg'
+                    : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/30 hover:shadow-md'
+                }`}
+              >
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${type.gradient} flex items-center justify-center mb-4`}>
+                  <IconComponent className="w-6 h-6 text-white" />
                 </div>
-                <button
-                  onClick={handleClose}
-                  disabled={processing}
-                  className="p-2 rounded-xl hover:bg-[var(--color-bg-muted)] transition-colors"
+                <h4 className="font-semibold text-[var(--color-text)] mb-2">
+                  {type.name}
+                </h4>
+                <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">
+                  {type.description}
+                </p>
+                {isSelected && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute top-4 right-4 w-6 h-6 rounded-full bg-[var(--color-primary)] flex items-center justify-center"
+                  >
+                    <div className="w-2 h-2 rounded-full bg-white"></div>
+                  </motion.div>
+                )}
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Configuration Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* CSS Framework */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium text-[var(--color-text)]">CSS Framework</h3>
+          <div className="space-y-3">
+            {CSS_FRAMEWORKS.map((framework) => {
+              const LogoComponent = framework.logo;
+              const isSelected = data.css_framework === framework.id;
+              return (
+                <motion.button
+                  key={framework.id}
+                  type="button"
+                  onClick={() => setData('css_framework', framework.id)}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  className={`w-full p-4 rounded-xl border-2 transition-all text-left flex items-center gap-4 ${
+                    isSelected
+                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
+                      : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/30'
+                  }`}
                 >
-                  <X className="w-5 h-5 text-[var(--color-text-muted)]" />
-                </button>
+                  <div className={`w-10 h-10 rounded-lg bg-[var(--color-bg-muted)] flex items-center justify-center ${framework.color}`}>
+                    <LogoComponent />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-[var(--color-text)]">{framework.name}</div>
+                    <div className="text-sm text-[var(--color-text-muted)]">{framework.description}</div>
+                  </div>
+                  {isSelected && (
+                    <div className="w-5 h-5 rounded-full bg-[var(--color-primary)] flex items-center justify-center">
+                      <div className="w-2 h-2 rounded-full bg-white"></div>
+                    </div>
+                  )}
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Default Canvas Size */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium text-[var(--color-text)]">Default Canvas Size</h3>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            {VIEWPORT_PRESETS.map((preset) => {
+              const IconComponent = preset.icon;
+              const isSelected = data.viewport_width === preset.width && data.viewport_height === preset.height;
+              return (
+                <motion.button
+                  key={preset.name}
+                  type="button"
+                  onClick={() => selectViewportPreset(preset)}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`p-3 rounded-xl border-2 transition-all text-center ${
+                    isSelected
+                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
+                      : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/30'
+                  }`}
+                >
+                  <IconComponent className={`w-6 h-6 mx-auto mb-2 ${
+                    isSelected ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)]'
+                  }`} />
+                  <div className="text-xs font-medium text-[var(--color-text)]">{preset.name}</div>
+                  <div className="text-xs text-[var(--color-text-muted)]">
+                    {preset.width}×{preset.height}
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+          
+          {/* Custom Dimensions */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
+                Width
+              </label>
+              <input
+                type="number"
+                value={data.viewport_width}
+                onChange={(e) => setData('viewport_width', parseInt(e.target.value) || 1440)}
+                min="320"
+                max="3840"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
+                Height
+              </label>
+              <input
+                type="number"
+                value={data.viewport_height}
+                onChange={(e) => setData('viewport_height', parseInt(e.target.value) || 900)}
+                min="240"
+                max="2160"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Privacy Toggle */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium text-[var(--color-text)]">Privacy</h3>
+        <div className="flex items-center justify-between p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+          <div className="flex items-center gap-3">
+            {data.is_public ? (
+              <Eye className="w-5 h-5 text-[var(--color-primary)]" />
+            ) : (
+              <EyeOff className="w-5 h-5 text-[var(--color-text-muted)]" />
+            )}
+            <div>
+              <div className="font-medium text-[var(--color-text)]">
+                {data.is_public ? 'Public Project' : 'Private Project'}
+              </div>
+              <div className="text-sm text-[var(--color-text-muted)]">
+                {data.is_public 
+                  ? 'Visible to everyone and can be used as template' 
+                  : 'Only accessible by you'
+                }
               </div>
             </div>
+          </div>
+          <motion.button
+            type="button"
+            onClick={() => setData('is_public', !data.is_public)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              data.is_public ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-bg-muted)]'
+            }`}
+            whileTap={{ scale: 0.95 }}
+          >
+            <motion.span
+              layout
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+                data.is_public ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </motion.button>
+        </div>
+      </div>
 
-            {/* Content */}
-            <form onSubmit={handleSubmit} className="p-8 overflow-y-auto max-h-[calc(90vh-140px)]">
-              <motion.div
-                variants={contentVariants}
-                initial="hidden"
-                animate="visible"
-                className="space-y-8"
-              >
-                {/* Project Name & Description */}
-                <motion.div variants={itemVariants} className="space-y-6">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-[var(--color-text)]">
-                        Project Name
-                      </label>
-                      <input
-                        type="text"
-                        value={data.name}
-                        onChange={(e) => setData('name', e.target.value)}
-                        placeholder="My Awesome Project"
-                        className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-colors"
-                        required
-                      />
-                      {errors.name && (
-                        <p className="text-sm text-red-500">{errors.name}</p>
-                      )}
-                    </div>
+      {/* Submit Button */}
+      <div className="flex justify-end pt-8 border-t border-[var(--color-border)]">
+        <motion.button
+          type="submit"
+          disabled={!data.name || processing}
+          whileHover={{ scale: processing ? 1 : 1.02 }}
+          whileTap={{ scale: processing ? 1 : 0.98 }}
+          className="px-8 py-3 rounded-xl bg-[var(--color-primary)] text-white font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-3"
+        >
+          {processing ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Creating...
+            </>
+          ) : (
+            <>
+              Create Project
+              <ArrowRight className="w-5 h-5" />
+            </>
+          )}
+        </motion.button>
+      </div>
+    </motion.form>
+  );
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-[var(--color-text)]">
-                        Description (optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={data.description}
-                        onChange={(e) => setData('description', e.target.value)}
-                        placeholder="Brief description..."
-                        className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-colors"
-                      />
-                    </div>
+  const githubImportContent = (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-6"
+    >
+      {!githubConnected ? (
+        // GitHub Connection Required
+        <div className="text-center py-12">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-r from-gray-900 to-gray-700 flex items-center justify-center">
+            <GitHubIcon className="text-white" />
+          </div>
+          <h3 className="text-xl font-semibold text-[var(--color-text)] mb-3">
+            Connect to GitHub
+          </h3>
+          <p className="text-[var(--color-text-muted)] mb-8 max-w-md mx-auto">
+            Import your existing repositories and convert them into DeCode projects with our visual editor.
+          </p>
+          <motion.button
+            onClick={connectToGitHub}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="inline-flex items-center gap-3 px-6 py-3 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-medium transition-colors"
+          >
+            <GitHubIcon />
+            Connect GitHub Account
+          </motion.button>
+        </div>
+      ) : (
+        // GitHub Import Form
+        <form onSubmit={handleGithubSubmit} className="space-y-8">
+          {/* Repository Selection */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium text-[var(--color-text)]">Select Repository</h3>
+            <RepositoryList 
+              onSelectRepo={handleRepoSelect}
+              selectedRepo={selectedRepo}
+              disabled={processingGithub}
+            />
+          </div>
+
+          {selectedRepo && (
+            <>
+              {/* Project Configuration */}
+              <div className="space-y-6 pt-6 border-t border-[var(--color-border)]">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-[var(--color-text)]">
+                      Project Name
+                    </label>
+                    <input
+                      type="text"
+                      value={githubData.name}
+                      onChange={(e) => setGithubData('name', e.target.value)}
+                      placeholder="Project name"
+                      className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-colors"
+                      required
+                    />
+                    {githubErrors.name && (
+                      <p className="text-sm text-red-500">{githubErrors.name}</p>
+                    )}
                   </div>
-                </motion.div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-[var(--color-text)]">
+                      Description
+                    </label>
+                    <input
+                      type="text"
+                      value={githubData.description}
+                      onChange={(e) => setGithubData('description', e.target.value)}
+                      placeholder="Project description"
+                      className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-colors"
+                    />
+                  </div>
+                </div>
 
                 {/* Project Type */}
-                <motion.div variants={itemVariants} className="space-y-4">
+                <div className="space-y-4">
                   <h3 className="text-lg font-medium text-[var(--color-text)]">Project Type</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {PROJECT_TYPES.map((type) => {
                       const IconComponent = type.icon;
-                      const isSelected = data.type === type.id;
+                      const isSelected = githubData.type === type.id;
                       return (
                         <motion.button
                           key={type.id}
                           type="button"
-                          onClick={() => setData('type', type.id)}
+                          onClick={() => setGithubData('type', type.id)}
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
-                          className={`relative p-6 rounded-2xl border-2 transition-all text-left group ${
+                          className={`relative p-4 rounded-xl border-2 transition-all text-left group ${
                             isSelected
                               ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5 shadow-lg'
-                              : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/30 hover:shadow-md'
+                              : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/30'
                           }`}
                         >
-                          <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${type.gradient} flex items-center justify-center mb-4`}>
-                            <IconComponent className="w-6 h-6 text-white" />
+                          <div className={`w-8 h-8 rounded-lg bg-gradient-to-r ${type.gradient} flex items-center justify-center mb-3`}>
+                            <IconComponent className="w-4 h-4 text-white" />
                           </div>
-                          <h4 className="font-semibold text-[var(--color-text)] mb-2">
+                          <h4 className="font-medium text-[var(--color-text)] text-sm mb-1">
                             {type.name}
                           </h4>
-                          <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">
+                          <p className="text-xs text-[var(--color-text-muted)]">
                             {type.description}
                           </p>
                           {isSelected && (
                             <motion.div
                               initial={{ scale: 0 }}
                               animate={{ scale: 1 }}
-                              className="absolute top-4 right-4 w-6 h-6 rounded-full bg-[var(--color-primary)] flex items-center justify-center"
+                              className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[var(--color-primary)] flex items-center justify-center"
                             >
-                              <div className="w-2 h-2 rounded-full bg-white"></div>
+                              <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
                             </motion.div>
                           )}
                         </motion.button>
                       );
                     })}
                   </div>
-                </motion.div>
-
-                {/* Configuration Row */}
-                <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  {/* CSS Framework */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-[var(--color-text)]">CSS Framework</h3>
-                    <div className="space-y-3">
-                      {CSS_FRAMEWORKS.map((framework) => {
-                        const LogoComponent = framework.logo;
-                        const isSelected = data.css_framework === framework.id;
-                        return (
-                          <motion.button
-                            key={framework.id}
-                            type="button"
-                            onClick={() => setData('css_framework', framework.id)}
-                            whileHover={{ scale: 1.01 }}
-                            whileTap={{ scale: 0.99 }}
-                            className={`w-full p-4 rounded-xl border-2 transition-all text-left flex items-center gap-4 ${
-                              isSelected
-                                ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
-                                : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/30'
-                            }`}
-                          >
-                            <div className={`w-10 h-10 rounded-lg bg-[var(--color-bg-muted)] flex items-center justify-center ${framework.color}`}>
-                              <LogoComponent />
-                            </div>
-                            <div className="flex-1">
-                              <div className="font-medium text-[var(--color-text)]">{framework.name}</div>
-                              <div className="text-sm text-[var(--color-text-muted)]">{framework.description}</div>
-                            </div>
-                            {isSelected && (
-                              <div className="w-5 h-5 rounded-full bg-[var(--color-primary)] flex items-center justify-center">
-                                <div className="w-2 h-2 rounded-full bg-white"></div>
-                              </div>
-                            )}
-                          </motion.button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Default Canvas Size */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-[var(--color-text)]">Default Canvas Size</h3>
-                    <div className="grid grid-cols-3 gap-3 mb-4">
-                      {VIEWPORT_PRESETS.map((preset) => {
-                        const IconComponent = preset.icon;
-                        const isSelected = data.viewport_width === preset.width && data.viewport_height === preset.height;
-                        return (
-                          <motion.button
-                            key={preset.name}
-                            type="button"
-                            onClick={() => selectViewportPreset(preset)}
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            className={`p-3 rounded-xl border-2 transition-all text-center ${
-                              isSelected
-                                ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
-                                : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/30'
-                            }`}
-                          >
-                            <IconComponent className={`w-6 h-6 mx-auto mb-2 ${
-                              isSelected ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)]'
-                            }`} />
-                            <div className="text-xs font-medium text-[var(--color-text)]">{preset.name}</div>
-                            <div className="text-xs text-[var(--color-text-muted)]">
-                              {preset.width}×{preset.height}
-                            </div>
-                          </motion.button>
-                        );
-                      })}
-                    </div>
-                    
-                    {/* Custom Dimensions */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
-                          Width
-                        </label>
-                        <input
-                          type="number"
-                          value={data.viewport_width}
-                          onChange={(e) => setData('viewport_width', parseInt(e.target.value) || 1440)}
-                          min="320"
-                          max="3840"
-                          className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
-                          Height
-                        </label>
-                        <input
-                          type="number"
-                          value={data.viewport_height}
-                          onChange={(e) => setData('viewport_height', parseInt(e.target.value) || 900)}
-                          min="240"
-                          max="2160"
-                          className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-
-                {/* Privacy Toggle */}
-                <motion.div variants={itemVariants} className="space-y-4">
-                  <h3 className="text-lg font-medium text-[var(--color-text)]">Privacy</h3>
-                  <div className="flex items-center justify-between p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
-                    <div className="flex items-center gap-3">
-                      {data.is_public ? (
-                        <Eye className="w-5 h-5 text-[var(--color-primary)]" />
-                      ) : (
-                        <EyeOff className="w-5 h-5 text-[var(--color-text-muted)]" />
-                      )}
-                      <div>
-                        <div className="font-medium text-[var(--color-text)]">
-                          {data.is_public ? 'Public Project' : 'Private Project'}
-                        </div>
-                        <div className="text-sm text-[var(--color-text-muted)]">
-                          {data.is_public 
-                            ? 'Visible to everyone and can be used as template' 
-                            : 'Only accessible by you'
-                          }
-                        </div>
-                      </div>
-                    </div>
-                    <motion.button
-                      type="button"
-                      onClick={() => setData('is_public', !data.is_public)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        data.is_public ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-bg-muted)]'
-                      }`}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <motion.span
-                        layout
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
-                          data.is_public ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </motion.button>
-                  </div>
-                </motion.div>
-              </motion.div>
+                </div>
+              </div>
 
               {/* Submit Button */}
-              <motion.div 
-                variants={itemVariants}
-                className="flex justify-end pt-8 border-t border-[var(--color-border)] mt-8"
-              >
+              <div className="flex justify-end pt-6 border-t border-[var(--color-border)]">
                 <motion.button
                   type="submit"
-                  disabled={!data.name || processing}
-                  whileHover={{ scale: processing ? 1 : 1.02 }}
-                  whileTap={{ scale: processing ? 1 : 0.98 }}
+                  disabled={!githubData.name || processingGithub}
+                  whileHover={{ scale: processingGithub ? 1 : 1.02 }}
+                  whileTap={{ scale: processingGithub ? 1 : 0.98 }}
                   className="px-8 py-3 rounded-xl bg-[var(--color-primary)] text-white font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-3"
                 >
-                  {processing ? (
+                  {processingGithub ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Creating...
+                      Importing...
                     </>
                   ) : (
                     <>
-                      Create Project
+                      Import Project
                       <ArrowRight className="w-5 h-5" />
                     </>
                   )}
                 </motion.button>
-              </motion.div>
-            </form>
-          </motion.div>
-        </motion.div>
+              </div>
+            </>
+          )}
+        </form>
       )}
-    </AnimatePresence>
+    </motion.div>
+  );
+
+  const tabContent = {
+    0: createNewContent,
+    1: githubImportContent
+  };
+
+  return (
+    <Modal
+      show={show}
+      onClose={handleClose}
+      maxWidth="3xl"
+      title="Create New Project"
+      enableTabs={true}
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={handleTabChange}
+      tabContent={tabContent}
+      isLoading={loadingGitHub && activeTab === 1}
+    />
   );
 }

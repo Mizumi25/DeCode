@@ -4,7 +4,7 @@ import {
   Code,
   Puzzle,
   Layers,
-  Grid3X3,
+  Info,
   Settings,
   EyeOff,
   Eye
@@ -18,16 +18,20 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
   
   const { toggleStyleModal } = useHeaderStore()
   
-  // Use ForgeStore for Forge page panels
+  // Use ForgeStore for Forge page panels with reactive state
   const { 
     toggleForgePanel, 
     isForgePanelOpen, 
     toggleAllForgePanels, 
-    allPanelsHidden 
+    allPanelsHidden,
+    forgePanelStates,
+    _triggerUpdate // Include for reactive updates
   } = useForgeStore()
 
-  // Handle panel toggle based on page type
+  // Handle panel toggle based on page type with enhanced logging
   const handlePanelToggle = (panelId) => {
+    console.log(`MiddlePanelControls: Toggle requested for ${panelId} on ${onForgePage ? 'Forge' : 'Other'} page`);
+    
     if (onForgePage) {
       // Map button positions to panel IDs for Forge page
       const forgePanelMap = {
@@ -37,25 +41,43 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
       }
       
       const actualPanelId = forgePanelMap[panelId]
+      console.log(`MiddlePanelControls: Mapped ${panelId} to ${actualPanelId}`);
+      
       if (actualPanelId) {
+        console.log(`MiddlePanelControls: Calling toggleForgePanel for ${actualPanelId}`);
+        console.log(`MiddlePanelControls: Current state before toggle: ${isForgePanelOpen(actualPanelId)}`);
+        
         toggleForgePanel(actualPanelId)
+        
+        // Log state after toggle (use setTimeout to see the updated state)
+        setTimeout(() => {
+          console.log(`MiddlePanelControls: State after toggle: ${isForgePanelOpen(actualPanelId)}`);
+        }, 0);
       }
     } else {
       // Use original onPanelToggle for other pages
+      console.log(`MiddlePanelControls: Using original onPanelToggle for ${panelId}`);
       onPanelToggle && onPanelToggle(panelId)
     }
   }
 
-  // Handle hide all panels
+  // Handle hide all panels with logging
   const handleHideAllPanels = () => {
+    console.log('MiddlePanelControls: Hide all panels requested');
+    
     if (onForgePage) {
+      console.log(`MiddlePanelControls: Current allPanelsHidden state: ${allPanelsHidden}`);
       toggleAllForgePanels()
+      
+      setTimeout(() => {
+        console.log(`MiddlePanelControls: New allPanelsHidden state: ${allPanelsHidden}`);
+      }, 0);
     } else {
       onPanelToggle && onPanelToggle('hideAll')
     }
   }
 
-  // Check if panel is active based on page type
+  // Check if panel is active based on page type with reactive updates
   const isPanelActive = (panelId) => {
     if (onForgePage) {
       const forgePanelMap = {
@@ -64,11 +86,26 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
         'layers': 'layers-panel'
       }
       const actualPanelId = forgePanelMap[panelId]
-      return actualPanelId ? isForgePanelOpen(actualPanelId) : false
+      const isActive = actualPanelId ? isForgePanelOpen(actualPanelId) : false;
+      
+      // Debug log for active state
+      if (actualPanelId) {
+        console.log(`MiddlePanelControls: Panel ${panelId} (${actualPanelId}) is ${isActive ? 'active' : 'inactive'}`);
+      }
+      
+      return isActive;
     } else {
       return panelStates[panelId] || false
     }
   }
+
+  // Log current state when component renders
+  console.log('MiddlePanelControls: Rendering with states:', {
+    onForgePage,
+    allPanelsHidden,
+    forgePanelStates,
+    triggerUpdate: _triggerUpdate
+  });
 
   return (
     <div className="flex items-center gap-1 flex-shrink-0">
@@ -111,10 +148,10 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
         }`} />
       </button>
 
-      {/* Grid3X3 - Fifth Icon (placeholder) */}
+      {/* Info - Fifth Icon (replaced Grid3X3) */}
       <button className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
-        title="Coming Soon">
-        <Grid3X3 className="w-3 h-3 text-[var(--color-text)]" />
+        title="Information">
+        <Info className="w-3 h-3 text-[var(--color-text)]" />
       </button>
 
       {/* Vertical Divider */}

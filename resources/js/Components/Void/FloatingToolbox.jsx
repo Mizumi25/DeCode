@@ -1,8 +1,13 @@
 import React, { useRef, useEffect } from 'react'
 import gsap from 'gsap'
+import { useEditorStore } from '@/stores/useEditorStore'
 
 export default function FloatingToolbox({ tools }) {
   const floatingToolsRef = useRef(null)
+  
+  // Subscribe to the store to trigger re-renders when panel states change
+  const panelStates = useEditorStore(state => state.panelStates)
+  const isPanelOpen = useEditorStore(state => state.isPanelOpen)
 
   // Floating tools entrance animation
   useEffect(() => {
@@ -77,7 +82,18 @@ export default function FloatingToolbox({ tools }) {
       >
         {tools.map((tool, index) => {
           const Icon = tool.icon
-          const isActive = tool.isActive || false
+          
+          // Determine active state directly from store instead of relying on passed prop
+          let isActive = false
+          if (tool.label === 'Frames') {
+            isActive = isPanelOpen('frames-panel')
+          } else if (tool.label === 'Project Files') {
+            isActive = isPanelOpen('files-panel')
+          } else if (tool.label === 'Code Handler') {
+            isActive = isPanelOpen('code-panel')
+          } else if (tool.label === 'Team Collaborations') {
+            isActive = isPanelOpen('team-panel')
+          }
           
           return (
             <div key={index} className="flex flex-col items-center group">

@@ -1,4 +1,4 @@
-// Enhanced ForgePage.jsx - MOBILE RESPONSIVE FIXES for code panel visibility and drag functionality + WindowPanel Integration + ForgeStore Panel Toggles
+// Enhanced ForgePage.jsx - FIXED Code Panel Toggling + Default Panel Layout
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
@@ -24,12 +24,14 @@ import { tooltipDatabase } from '@/Components/Forge/TooltipDatabase';
 import { formatCode, highlightCode, parseCodeAndUpdateComponents } from '@/Components/Forge/CodeUtils';
 
 export default function ForgePage({ projectId, frameId }) {
-  // Zustand stores
+  // Zustand stores with proper subscriptions
   const {
     toggleForgePanel,
     isForgePanelOpen,
     getOpenForgePanelsCount,
-    allPanelsHidden
+    allPanelsHidden,
+    forgePanelStates,
+    _triggerUpdate // Include trigger for forced re-renders
   } = useForgeStore()
 
   // Mobile detection
@@ -40,7 +42,10 @@ export default function ForgePage({ projectId, frameId }) {
   const [canvasComponents, setCanvasComponents] = useState([])
   const [selectedComponent, setSelectedComponent] = useState(null)
   const [generatedCode, setGeneratedCode] = useState({ html: '', css: '', react: '', tailwind: '' })
-  const [showCodePanel, setShowCodePanel] = useState(false)
+  
+  // FIXED: showCodePanel now controlled by ForgeStore code-panel state
+  const showCodePanel = isForgePanelOpen('code-panel');
+  
   const [codePanelPosition, setCodePanelPosition] = useState('bottom')
   const [activeCodeTab, setActiveCodeTab] = useState('react')
   const [showTooltips, setShowTooltips] = useState(true)
@@ -191,21 +196,14 @@ export default function ForgePage({ projectId, frameId }) {
     return () => clearTimeout(timeoutId);
   }, [canvasComponents, projectId, frameId, componentsLoaded]);
 
-
-  // Add this useEffect to ForgePage.jsx to ensure proper initialization
+  // CRITICAL FIX: Force re-render when ForgeStore state changes
   useEffect(() => {
-    // Force re-render when store is hydrated from persistence
-    // This ensures the UI is in sync with the persisted state
-    const unsubscribe = useForgeStore.subscribe(
-      (state) => state.forgePanelStates,
-      () => {
-        // Force a re-render when panel states change
-        setSelectedComponent(prev => prev); // Trigger re-render without changing value
-      }
-    );
+    console.log('ForgePage: ForgeStore state changed, triggering re-render');
+    console.log('Panel states:', forgePanelStates);
+    console.log('All panels hidden:', allPanelsHidden);
+    console.log('Code panel open:', showCodePanel);
+  }, [forgePanelStates, allPanelsHidden, _triggerUpdate, showCodePanel]);
 
-    return () => unsubscribe();
-  }, []);
   // Mobile-specific: Force code panel to bottom on mobile
   useEffect(() => {
     if (isMobile && codePanelPosition === 'right') {
@@ -233,8 +231,9 @@ export default function ForgePage({ projectId, frameId }) {
     setHoveredToken(null)
   }
 
-  // Panel handlers - Updated to use ForgeStore
+  // Panel handlers - Updated to use ForgeStore with direct logging
   const handlePanelClose = (panelId) => {
+    console.log('ForgePage: Panel close requested for:', panelId);
     toggleForgePanel(panelId)
   }
 
@@ -251,18 +250,19 @@ export default function ForgePage({ projectId, frameId }) {
     }
     
     const actualPanelId = panelMap[panelType]
+    console.log('ForgePage: Header panel toggle requested:', panelType, '-> Panel ID:', actualPanelId);
+    
     if (actualPanelId) {
       toggleForgePanel(actualPanelId)
     }
   }, [toggleForgePanel])
 
   const handlePanelMaximize = (panelType) => {
-    
+    console.log('ForgePage: Panel maximize requested for:', panelType);
   }
 
   const handleModeSwitch = (mode) => {
-  
-  
+    console.log('ForgePage: Mode switch requested:', mode);
   }
 
   // Component tab handlers
@@ -400,14 +400,8 @@ export default function ForgePage({ projectId, frameId }) {
     generateCode(updatedComponents)
   }, [canvasComponents])
 
-  // Code generation with fallback
+  // UPDATED: Code generation - Always generates code when called, no panel showing dependency
   const generateCode = useCallback(async (components) => {
-    if (components.length === 0) {
-      setGeneratedCode({ html: '', css: '', react: '', tailwind: '' })
-      setShowCodePanel(false)
-      return
-    }
-
     try {
       // Mock code generation if service is not available
       if (!componentLibraryService || !componentLibraryService.clientSideCodeGeneration) {
@@ -418,13 +412,11 @@ export default function ForgePage({ projectId, frameId }) {
           tailwind: `<!-- Generated Tailwind -->\n<div class="container">\n  <!-- ${components.length} components -->\n</div>`
         };
         setGeneratedCode(mockCode);
-        setShowCodePanel(true);
         return;
       }
 
       const code = await componentLibraryService.clientSideCodeGeneration(components, codeStyle);
       setGeneratedCode(code);
-      setShowCodePanel(true);
       
       console.log('Code generated successfully:', Object.keys(code));
     } catch (error) {
@@ -437,7 +429,6 @@ export default function ForgePage({ projectId, frameId }) {
         tailwind: `<!-- Error generating code -->`
       };
       setGeneratedCode(mockCode);
-      setShowCodePanel(true);
     }
   }, [codeStyle])
 
@@ -462,6 +453,12 @@ export default function ForgePage({ projectId, frameId }) {
       setCodePanelPosition('right')
     }
   }, [isMobile])
+
+  // UPDATED: Close code panel handler
+  const handleCloseCodePanel = useCallback(() => {
+    console.log('ForgePage: Closing code panel via toggle');
+    toggleForgePanel('code-panel');
+  }, [toggleForgePanel]);
 
   // Copy code to clipboard
   const copyCodeToClipboard = useCallback(async (code) => {
@@ -636,6 +633,7 @@ export default function ForgePage({ projectId, frameId }) {
         />
       ) : null
     ),
+    // UPDATED: Properties panel first (stacked on top in right dock)
     createMockPanel('properties-panel', 'Properties',
       PropertiesPanel ? (
         <PropertiesPanel
@@ -648,6 +646,7 @@ export default function ForgePage({ projectId, frameId }) {
         />
       ) : null
     ),
+    // UPDATED: Assets panel second (stacked below properties in right dock)
     createMockPanel('assets-panel', 'Assets',
       AssetsPanel ? <AssetsPanel /> : null
     )
@@ -709,42 +708,59 @@ export default function ForgePage({ projectId, frameId }) {
     isMobile
   ])
 
-  // Filter visible panels based on ForgeStore state
+  // CRITICAL FIX: Filter visible panels based on ForgeStore state with reactive updates
   const visiblePanels = useMemo(() => {
-    if (allPanelsHidden) return []
+    console.log('ForgePage: Computing visible panels...');
+    console.log('All panels hidden:', allPanelsHidden);
+    console.log('Panel states:', forgePanelStates);
+    
+    if (allPanelsHidden) {
+      console.log('ForgePage: All panels hidden, returning empty array');
+      return []
+    }
     
     const panels = []
     
-    // Add default panels if they're open
+    // Add default panels based on their ForgeStore state
     defaultPanels.forEach(panel => {
-      // Always include properties and assets panels
+      const isOpen = isForgePanelOpen(panel.id);
+      console.log(`Panel ${panel.id}: open = ${isOpen}`);
+      
+      // Always include properties and assets panels (they're always open unless all hidden)
       if (panel.id === 'properties-panel' || panel.id === 'assets-panel') {
         panels.push(panel);
-      } else if (isForgePanelOpen(panel.id)) {
+        console.log(`Added always-open panel: ${panel.id}`);
+      } else if (isOpen) {
         panels.push(panel);
+        console.log(`Added togglable panel: ${panel.id}`);
       }
     });
     
     // Add code panel if showing on right and not mobile and panel is open
     if (codePanelPosition === 'right' && !isMobile && isForgePanelOpen('code-panel')) {
       panels.push(sidebarCodePanel)
+      console.log('Added sidebar code panel');
     }
     
+    console.log(`ForgePage: Final visible panels: ${panels.map(p => p.id).join(', ')}`);
     return panels
-  }, [defaultPanels, sidebarCodePanel, codePanelPosition, isMobile, isForgePanelOpen, allPanelsHidden])
+  }, [
+    defaultPanels, 
+    sidebarCodePanel, 
+    codePanelPosition, 
+    isMobile, 
+    isForgePanelOpen, 
+    allPanelsHidden,
+    forgePanelStates,
+    _triggerUpdate // Include trigger to force re-computation
+  ])
 
-
-  // Check if any panels are visible
-  // Update hasVisiblePanels to account for always-open panels
+  // Check if any panels are visible - Updated to account for always-open panels
   const hasVisiblePanels = useMemo(() => {
-    if (allPanelsHidden) return false;
-    
-    // Always show panels if properties or assets should be visible
-    const alwaysOpenCount = 2; // properties-panel and assets-panel
-    const toggleablePanelsCount = getOpenForgePanelsCount() - alwaysOpenCount;
-    
-    return alwaysOpenCount > 0 || toggleablePanelsCount > 0;
-  }, [allPanelsHidden, getOpenForgePanelsCount])
+    const result = !allPanelsHidden && visiblePanels.length > 0;
+    console.log(`ForgePage: hasVisiblePanels = ${result} (${visiblePanels.length} panels)`);
+    return result;
+  }, [allPanelsHidden, visiblePanels])
 
   // Tab configuration for components panel ONLY
   const componentTabConfig = useMemo(() => ({
@@ -826,12 +842,14 @@ export default function ForgePage({ projectId, frameId }) {
                 <div className="text-lg font-semibold mb-2">Mock Canvas</div>
                 <div className="text-sm">Drop components here</div>
                 <div className="text-xs mt-2">Components: {canvasComponents.length}</div>
+                <div className="text-xs">Panels visible: {hasVisiblePanels ? 'Yes' : 'No'}</div>
+                <div className="text-xs">Code panel open: {showCodePanel ? 'Yes' : 'No'}</div>
               </div>
             </div>
           )}
         </div>
         
-        {/* Fixed Code Generation Panel - Bottom (Mobile Optimized) */}
+        {/* Fixed Code Generation Panel - Bottom (Mobile Optimized) - UPDATED with new close handler */}
         {BottomCodePanel && (
           <BottomCodePanel
             showCodePanel={showCodePanel && (codePanelPosition === 'bottom' || isMobile)}
@@ -841,7 +859,7 @@ export default function ForgePage({ projectId, frameId }) {
             setCodePanelMinimized={setCodePanelMinimized}
             setCodePanelHeight={setCodePanelHeight}
             moveCodePanelToRightSidebar={moveCodePanelToRightSidebar}
-            setShowCodePanel={setShowCodePanel}
+            setShowCodePanel={handleCloseCodePanel}
             // CodePanel props
             showTooltips={showTooltips && !isMobile}
             setShowTooltips={setShowTooltips}
@@ -866,9 +884,10 @@ export default function ForgePage({ projectId, frameId }) {
         )}
       </div>
 
-      {/* Enhanced Panel System - Mobile responsive with 3 panels per dock limit - Updated to use ForgeStore */}
+      {/* Enhanced Panel System - Mobile responsive with 3 panels per dock limit - Updated for default right dock layout */}
       {Panel && hasVisiblePanels && (
         <Panel
+          key={`panel-system-${_triggerUpdate}`} // Force re-render with key
           isOpen={true}
           initialPanels={visiblePanels}
           allowedDockPositions={isMobile ? ['left'] : ['left', 'right']}
@@ -877,7 +896,16 @@ export default function ForgePage({ projectId, frameId }) {
           onPanelStateChange={handlePanelStateChange}
           snapToEdge={false}
           mergePanels={true}
+          // UPDATED: Properties and Assets panels should go to right dock by default
           mergePosition={isMobile ? "left" : "right"}
+          // UPDATED: Force properties and assets panels to right dock
+          defaultDockPosition={{
+            'properties-panel': 'right',
+            'assets-panel': 'right',
+            'components-panel': 'left',
+            'layers-panel': 'left',
+            'code-panel': 'right'
+          }}
           showTabs={true}
           showSearch={!isMobile}
           tabConfig={componentTabConfig}
@@ -919,31 +947,49 @@ export default function ForgePage({ projectId, frameId }) {
         isMobile={isMobile}
       />
 
-      {/* Mobile-specific: Bottom navigation or quick actions */}
-      {isMobile && showCodePanel && (
+      {/* Mobile-specific: Bottom navigation or quick actions - UPDATED to show code panel toggle */}
+      {isMobile && (
         <div className="fixed bottom-2 left-1/2 transform -translate-x-1/2 z-40">
           <div className="flex items-center gap-2 bg-black/80 backdrop-blur-md rounded-full px-4 py-2">
+            {/* Code panel toggle for mobile */}
             <button
-              onClick={() => setCodePanelMinimized(!codePanelMinimized)}
-              className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"
-              title={codePanelMinimized ? 'Expand Code Panel' : 'Minimize Code Panel'}
+              onClick={() => toggleForgePanel('code-panel')}
+              className={`p-2 rounded-full transition-colors ${
+                showCodePanel 
+                  ? 'bg-white/30 text-white' 
+                  : 'text-white/70 hover:bg-white/20'
+              }`}
+              title="Toggle Code Panel"
             >
-              {codePanelMinimized ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              <Code className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => copyCodeToClipboard(generatedCode[activeCodeTab])}
-              className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"
-              title="Copy Code"
-            >
-              <Copy className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => generateCode(canvasComponents)}
-              className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"
-              title="Regenerate Code"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
+            
+            {showCodePanel && (
+              <>
+                <button
+                  onClick={() => setCodePanelMinimized(!codePanelMinimized)}
+                  className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"
+                  title={codePanelMinimized ? 'Expand Code Panel' : 'Minimize Code Panel'}
+                >
+                  {codePanelMinimized ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                <button
+                  onClick={() => copyCodeToClipboard(generatedCode[activeCodeTab])}
+                  className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"
+                  title="Copy Code"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => generateCode(canvasComponents)}
+                  className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"
+                  title="Regenerate Code"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </>
+            )}
+            
             <button
               onClick={handleOpenWindowPanel}
               className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"

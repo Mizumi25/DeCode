@@ -23,6 +23,12 @@ export default function Modal({
   onClose = () => {},
   isLoading = false,
   blurBackground = true,
+  // New tab-related props
+  enableTabs = false,
+  tabs = [],
+  activeTab = 0,
+  onTabChange = () => {},
+  tabContent = {},
 }) {
   const panelRef = useRef(null)
   const backdropRef = useRef(null)
@@ -42,7 +48,7 @@ export default function Modal({
   // Store initial/default sizes for proper restoration
   const [initialSize, setInitialSize] = useState({ width: 'auto', height: 'auto' })
   const [normalSize, setNormalSize] = useState({ width: 'auto', height: 'auto' })
-  const minimizedSize = { width: 400, height: 200 } // Increased minimum size
+  const minimizedSize = { width: 400, height: 200 }
   
   // Draggable instance ref
   const draggableInstance = useRef(null)
@@ -65,7 +71,6 @@ export default function Modal({
       })
 
       if (isMaximized) {
-        // Animate out from maximized state
         tl.to(panelRef.current, {
           scale: 0.8,
           opacity: 0,
@@ -78,7 +83,6 @@ export default function Modal({
           ease: 'power2.in'
         }, '-=0.2')
       } else {
-        // Regular close animation
         tl.to(panelRef.current, {
           scale: 0.7,
           opacity: 0,
@@ -103,15 +107,17 @@ export default function Modal({
     '2xl': 'sm:max-w-2xl',
     '3xl': 'sm:max-w-3xl',
     '4xl': 'sm:max-w-4xl',
+    '5xl': 'sm:max-w-5xl',
   }[maxWidth]
 
   // Handle content changes
   useEffect(() => {
     if (show) {
-      const hasRealContent = children && children !== null && children !== undefined
+      const hasRealContent = (children && children !== null && children !== undefined) || 
+                           (enableTabs && tabContent && Object.keys(tabContent).length > 0)
       setHasContent(hasRealContent)
     }
-  }, [children, show])
+  }, [children, show, enableTabs, tabContent])
 
   // Initialize dragging and resizing
   useEffect(() => {
@@ -172,7 +178,7 @@ export default function Modal({
           },
           onDrag: function() {
             const rect = panelRef.current.getBoundingClientRect()
-            const newWidth = Math.max(350, rect.width + this.deltaX) // Increased minimum width
+            const newWidth = Math.max(350, rect.width + this.deltaX)
             const newHeight = Math.max(200, rect.height + this.deltaY)
             
             gsap.set(panelRef.current, {
@@ -182,7 +188,6 @@ export default function Modal({
             
             const newSize = { width: newWidth, height: newHeight }
             setModalSize(newSize)
-            // Update normal size if we're not in minimized state
             if (!isMinimized) {
               setNormalSize(newSize)
             }
@@ -212,11 +217,9 @@ export default function Modal({
       setIsAnimating(true)
       
       const ctx = gsap.context(() => {
-        // Reset any previous transforms
         gsap.set(panelRef.current, { clearProps: "all" })
         gsap.set(backdropRef.current, { clearProps: "all" })
 
-        // Capture initial size after first render
         setTimeout(() => {
           if (panelRef.current) {
             const rect = panelRef.current.getBoundingClientRect()
@@ -226,18 +229,15 @@ export default function Modal({
           }
         }, 100)
 
-        // Backdrop fade in
         gsap.fromTo(backdropRef.current,
           { opacity: 0 },
           { opacity: 1, duration: 0.3, ease: "power2.out" }
         )
 
-        // Modal entrance animation
         const tl = gsap.timeline({
           onComplete: () => setIsAnimating(false)
         })
 
-        // Initial state - normal size, not minimized
         gsap.set(panelRef.current, {
           scale: 0.8,
           opacity: 0,
@@ -246,7 +246,6 @@ export default function Modal({
           transformOrigin: "center center"
         })
 
-        // Smooth entrance
         tl.to(panelRef.current, {
           scale: 1,
           opacity: 1,
@@ -255,7 +254,6 @@ export default function Modal({
           ease: "back.out(1.4)"
         })
 
-        // Content animation
         if (headerRef.current && contentRef.current) {
           tl.fromTo([headerRef.current, contentRef.current],
             { opacity: 0, y: 10 },
@@ -275,7 +273,6 @@ export default function Modal({
     }
   }, [show])
 
-  // Maximize/Minimize animation
   const toggleMaximize = useCallback(() => {
     if (!panelRef.current || isAnimating) return
     setIsAnimating(true)
@@ -283,7 +280,16 @@ export default function Modal({
     const panel = panelRef.current
     
     const tl = gsap.timeline({
-      defaults: { duration: 0.5, ease: 'power2.inOut' },
+      defaults: { duration: 0.6, ease: 'power3.inOut' },
+      onStart: () => {
+        if (!isMaximized) {
+          const rect = panel.getBoundingClientRect()
+          const currentSize = { width: rect.width, height: rect.height }
+          if (!isMinimized) {
+            setNormalSize(currentSize)
+          }
+        }
+      },
       onComplete: () => {
         setIsMaximized(!isMaximized)
         setIsAnimating(false)
@@ -291,14 +297,7 @@ export default function Modal({
     })
 
     if (!isMaximized) {
-      // Store current size as normal size before maximizing
-      const rect = panel.getBoundingClientRect()
-      const currentSize = { width: rect.width, height: rect.height }
-      if (!isMinimized) {
-        setNormalSize(currentSize)
-      }
-      
-      // Maximize animation
+      // Animate to maximized state
       tl.to(panel, {
         width: '95vw',
         height: '90vh',
@@ -307,12 +306,13 @@ export default function Modal({
         scale: 1,
         borderRadius: '8px',
         transformOrigin: 'center center',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1)'
       })
     } else {
-      // Restore animation - use appropriate size based on previous state
+      // Animate back to normal/minimized state
       const targetSize = isMinimized ? minimizedSize : normalSize
-      const restoreWidth = targetSize.width === 'auto' ? '' : targetSize.width + 'px'
-      const restoreHeight = targetSize.height === 'auto' ? '' : targetSize.height + 'px'
+      const restoreWidth = targetSize.width === 'auto' ? 'auto' : targetSize.width + 'px'
+      const restoreHeight = targetSize.height === 'auto' ? 'auto' : targetSize.height + 'px'
       
       tl.to(panel, {
         width: restoreWidth,
@@ -322,11 +322,11 @@ export default function Modal({
         borderRadius: '16px',
         scale: 1,
         transformOrigin: 'center center',
+        boxShadow: '0 20px 40px -12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05)'
       })
     }
   }, [isMaximized, isMinimized, isAnimating, normalSize, modalPosition])
 
-  // Toggle minimize (for draggable small modal)
   const toggleMinimize = useCallback(() => {
     if (!panelRef.current || isAnimating || isMaximized) return
     setIsAnimating(true)
@@ -342,11 +342,9 @@ export default function Modal({
     })
 
     if (!isMinimized) {
-      // Store current size before minimizing
       const rect = panel.getBoundingClientRect()
       setNormalSize({ width: rect.width, height: rect.height })
       
-      // Minimize to small draggable window
       tl.to(panel, {
         width: minimizedSize.width + 'px',
         height: minimizedSize.height + 'px',
@@ -354,7 +352,6 @@ export default function Modal({
         borderRadius: '12px'
       })
     } else {
-      // Restore to normal size
       const restoreWidth = normalSize.width === 'auto' ? '' : normalSize.width + 'px'
       const restoreHeight = normalSize.height === 'auto' ? '' : normalSize.height + 'px'
       
@@ -368,6 +365,12 @@ export default function Modal({
     }
   }, [isMinimized, isAnimating, normalSize, modalPosition])
 
+  const handleTabClick = (tabIndex) => {
+    if (tabIndex !== activeTab) {
+      onTabChange(tabIndex)
+    }
+  }
+
   return (
     <Transition show={show} leave="duration-300">
       <Dialog
@@ -375,7 +378,6 @@ export default function Modal({
         className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden"
         onClose={close}
       >
-        {/* BACKDROP */}
         <TransitionChild
           enter="ease-out duration-300"
           enterFrom="opacity-0"
@@ -394,7 +396,6 @@ export default function Modal({
           />
         </TransitionChild>
 
-        {/* MODAL PANEL */}
         <TransitionChild
           enter="ease-out duration-400"
           enterFrom="opacity-0 scale-95"
@@ -409,7 +410,7 @@ export default function Modal({
               isMaximized 
                 ? 'w-[95vw] h-[90vh]' 
                 : isMinimized 
-                  ? '' // Remove fixed classes for minimized state
+                  ? '' 
                   : maxWidthClass
             }`}
             style={{
@@ -425,7 +426,6 @@ export default function Modal({
               minWidth: isMaximized ? '95vw' : `${minimizedSize.width}px`,
               minHeight: isMaximized ? '90vh' : `${minimizedSize.height}px`,
               zIndex: isDragging ? 60 : 50,
-              // Set explicit dimensions when minimized
               ...(isMinimized && {
                 width: `${minimizedSize.width}px`,
                 height: `${minimizedSize.height}px`
@@ -438,9 +438,7 @@ export default function Modal({
               className={`flex justify-between items-center px-4 py-3 border-b ${
                 !isMaximized ? 'cursor-move' : ''
               } select-none bg-[var(--color-bg-muted)]/80 backdrop-blur-sm`}
-              style={{
-                borderColor: 'var(--color-border)',
-              }}
+              style={{ borderColor: 'var(--color-border)' }}
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 {!isMaximized && (
@@ -455,7 +453,6 @@ export default function Modal({
               </div>
               
               <div className="flex items-center gap-1 flex-shrink-0">
-                {/* Minimize button */}
                 <button
                   type="button"
                   onClick={toggleMinimize}
@@ -467,7 +464,6 @@ export default function Modal({
                   <div className="w-3 h-0.5 bg-current" />
                 </button>
                 
-                {/* Maximize button */}
                 <button
                   type="button"
                   onClick={toggleMaximize}
@@ -494,16 +490,45 @@ export default function Modal({
               </div>
             </div>
 
+            {/* TABS */}
+            {enableTabs && tabs.length > 0 && (
+              <div className="border-b border-[var(--color-border)]">
+                <div className="flex">
+                  {tabs.map((tab, index) => {
+                    const IconComponent = tab.icon
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => handleTabClick(index)}
+                        className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors font-medium ${
+                          activeTab === index
+                            ? 'border-[var(--color-primary)] text-[var(--color-primary)] bg-[var(--color-primary)]/5'
+                            : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-muted)]'
+                        }`}
+                      >
+                        {IconComponent && <IconComponent className="w-4 h-4" />}
+                        <span className="text-sm">{tab.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* BODY */}
             <div
               ref={contentRef}
               className="overflow-y-auto transition-all duration-300"
               style={{
                 maxHeight: isMaximized 
-                  ? 'calc(90vh - 60px)' 
+                  ? enableTabs && tabs.length > 0 
+                    ? 'calc(90vh - 120px)' 
+                    : 'calc(90vh - 60px)'
                   : isMinimized 
                     ? `${minimizedSize.height - 60}px` 
-                    : '70vh',
+                    : enableTabs && tabs.length > 0
+                      ? 'calc(70vh - 60px)'
+                      : '70vh',
                 backgroundColor: 'var(--color-surface)',
                 opacity: isMinimized ? 0.9 : 1,
               }}
@@ -522,10 +547,14 @@ export default function Modal({
                   </div>
                 )}
 
-                {/* Content */}
+                {/* Tab Content or Regular Content */}
                 {hasContent && !isLoading ? (
                   <div className="p-6">
-                    {children}
+                    {enableTabs && tabContent ? (
+                      tabContent[activeTab] || children
+                    ) : (
+                      children
+                    )}
                   </div>
                 ) : !isLoading && (
                   <div className="flex items-center justify-center p-8 text-center">
@@ -540,7 +569,7 @@ export default function Modal({
               </div>
             </div>
 
-            {/* RESIZE HANDLE - Bottom right corner */}
+            {/* RESIZE HANDLE */}
             {!isMaximized && (
               <div
                 ref={resizeHandleRef}
@@ -549,7 +578,7 @@ export default function Modal({
                   position: 'absolute',
                   bottom: 0,
                   right: 0,
-                  transform: 'none', // Prevent any transforms
+                  transform: 'none',
                   zIndex: 10
                 }}
                 title="Resize modal"

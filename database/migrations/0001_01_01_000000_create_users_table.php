@@ -22,6 +22,12 @@ return new class extends Migration
             $table->string('avatar')->nullable();
             $table->enum('platform_role', ['admin', 'user'])->default('user'); 
             $table->rememberToken();
+            $table->text('github_token')->nullable()->after('github_id');
+            $table->text('github_refresh_token')->nullable()->after('github_token');
+            $table->timestamp('github_token_expires_at')->nullable()->after('github_refresh_token');
+            
+            // Add GitHub user data
+            $table->string('github_username')->nullable()->after('github_token_expires_at');
             $table->timestamps();
         });
 

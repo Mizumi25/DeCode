@@ -5,6 +5,8 @@ use App\Http\Controllers\ComponentController;
 use App\Http\Controllers\ProjectComponentController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\VoidController; 
+use App\Http\Controllers\GitHubRepoController;
+use App\Http\Controllers\Auth\GithubController;
 
 /*
 |--------------------------------------------------------------------------
@@ -65,4 +67,19 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Public templates
     Route::get('/projects/templates', [ProjectController::class, 'templates']);
+    
+    // Check GitHub connection status
+    Route::get('/status', [GitHubRepoController::class, 'checkConnection']);
+    
+    // Get user's repositories
+    Route::get('/repos', [GitHubRepoController::class, 'getUserRepos']);
+    
+    // Refresh repositories (force fetch from GitHub)
+    Route::post('/repos/refresh', [GitHubRepoController::class, 'refreshRepos']);
+    
+    // Get specific repository details
+    Route::get('/repos/{repoId}', [GitHubRepoController::class, 'getRepositoryDetails']);
+    
+    // Import project from GitHub repository
+    Route::post('/import-project', [GitHubRepoController::class, 'importProject']);
 });

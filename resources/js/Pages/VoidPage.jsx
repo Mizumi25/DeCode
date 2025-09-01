@@ -10,6 +10,7 @@ import DeleteButton from '@/Components/Void/DeleteButton'
 import FrameCreator from '@/Components/Void/FrameCreator'
 import ConfirmationDialog from '@/Components/ConfirmationDialog'
 import Modal from '@/Components/Modal'
+import InfiniteGrid from '@/Components/Void/InfiniteGrid'
 import { useScrollHandler } from '@/Components/Void/ScrollHandler'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useEditorStore } from '@/stores/useEditorStore'
@@ -33,6 +34,9 @@ export default function VoidPage() {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
   const [frameToDelete, setFrameToDelete] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  
+  // Grid state
+  const [gridVisible, setGridVisible] = useState(false)
   
   // Zoom state
   const [zoom, setZoom] = useState(1)
@@ -418,7 +422,7 @@ export default function VoidPage() {
   const hasOpenPanels = getOpenPanelsCount() > 0
 
   return (
-    <AuthenticatedLayout>
+    <AuthenticatedLayout gridVisible={gridVisible} setGridVisible={setGridVisible}>
       <Head title={`Void - ${project?.name || 'Project'}`} />
       <div 
         ref={canvasRef}
@@ -445,6 +449,15 @@ export default function VoidPage() {
 
         {/* Background Layers */}
         <BackgroundLayers isDark={isDark} scrollPosition={scrollPosition} />
+
+        {/* Infinite Grid - Below background but above frames */}
+        <InfiniteGrid
+          isVisible={gridVisible}
+          scrollPosition={scrollPosition}
+          zoom={zoom}
+          isDark={isDark}
+          scrollBounds={scrollBounds}
+        />
 
         {/* Floating Toolbox */}
         <FloatingToolbox tools={floatingTools} />
