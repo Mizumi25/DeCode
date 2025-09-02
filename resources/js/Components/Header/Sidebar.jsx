@@ -30,7 +30,7 @@ const sidebarItemsTop = [
 const sidebarItemsBottom = [
   { label: 'All', icon: <FolderKanban /> },
   { label: 'Archive', icon: <Archive /> },
-  { label: 'New Folder', icon: <FolderPlus /> },
+  { label: 'New Workspace', icon: <FolderPlus /> },
 ]
 
 const adminNavItems = [

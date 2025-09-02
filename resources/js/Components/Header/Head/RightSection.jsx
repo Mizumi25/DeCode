@@ -1,7 +1,10 @@
-import React from 'react'
-import { Search, Play, MessageCircle, Share2, Download, Edit3, Eye } from 'lucide-react'
+// @/Components/Header/Head/RightSection.jsx
+import React, { useState } from 'react'
+import { Search, Play, MessageCircle, Share2, Download, Edit3, Eye, Users } from 'lucide-react'
 import { motion } from 'framer-motion'
 import UserDropdown from './UserDropdown'
+import WorkspaceDropdown from './WorkspaceDropdown'
+import InviteModal from '@/Components/Workspaces/InviteModal'
 import StackingAvatars from './StackingAvatars'
 import BinaryToggle from './BinaryToggle'
 
@@ -29,6 +32,9 @@ const RightSection = ({
   profileDropdownOpen,
   setProfileDropdownOpen
 }) => {
+  const [showInviteModal, setShowInviteModal] = useState(false)
+  const [inviteWorkspaceId, setInviteWorkspaceId] = useState(null)
+
   const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects')
   const onForgePage    = currentRoute.includes('/modeForge')
   const onSourcePage   = currentRoute.includes('/modeSource')
@@ -44,96 +50,124 @@ const RightSection = ({
     { key: 'view', icon: Eye }
   ]
 
+  const handleInviteClick = (workspaceId) => {
+    setInviteWorkspaceId(workspaceId)
+    setShowInviteModal(true)
+  }
+
+  const handleCloseInviteModal = () => {
+    setShowInviteModal(false)
+    setInviteWorkspaceId(null)
+  }
+
   return (
-    <motion.div
-      variants={fadeIn}
-      initial="hidden"
-      animate="visible"
-      custom={3}
-      className={`flex items-center relative flex-shrink-0 ${(onVoidPage || onForgePage || onSourcePage) ? 'gap-1' : 'gap-2.5'}`}
-    >
-      {/* === Void, Forge, and Source Page Right Elements === */}
-      {(onVoidPage || onForgePage || onSourcePage) && (
-        <>
-          {/* Stacking Avatars - Only on Forge and Source Pages */}
-          {(onForgePage || onSourcePage) && <StackingAvatars />}
+    <>
+      <motion.div
+        variants={fadeIn}
+        initial="hidden"
+        animate="visible"
+        custom={3}
+        className={`flex items-center relative flex-shrink-0 ${(onVoidPage || onForgePage || onSourcePage) ? 'gap-1' : 'gap-2.5'}`}
+      >
+        {/* === Void, Forge, and Source Page Right Elements === */}
+        {(onVoidPage || onForgePage || onSourcePage) && (
+          <>
+            {/* Stacking Avatars - Only on Forge and Source Pages */}
+            {(onForgePage || onSourcePage) && <StackingAvatars />}
 
-          {/* Saved Indicator */}
-          <div className="px-1.5 py-0.5 bg-[var(--color-bg-muted)] rounded">
-            <span className="text-[8px] text-green-500 font-medium">Saved</span>
-          </div>
-
-          {/* Comments - Only on Void Page */}
-          {onVoidPage && (
-            <div className="flex flex-col items-center gap-0.5">
-              <button className="p-0.5 hover:bg-[var(--color-bg-muted)] rounded transition-colors">
-                <MessageCircle className="w-2.5 h-2.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)]" />
-              </button>
-              <span className="text-[7px] text-[var(--color-text-muted)]">Comments</span>
+            {/* Saved Indicator */}
+            <div className="px-1.5 py-0.5 bg-[var(--color-bg-muted)] rounded">
+              <span className="text-[8px] text-green-500 font-medium">Saved</span>
             </div>
-          )}
 
-          {/* Share - Only on Void Page */}
-          {onVoidPage && (
+            {/* Comments - Only on Void Page */}
+            {onVoidPage && (
+              <div className="flex flex-col items-center gap-0.5">
+                <button className="p-0.5 hover:bg-[var(--color-bg-muted)] rounded transition-colors">
+                  <MessageCircle className="w-2.5 h-2.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)]" />
+                </button>
+                <span className="text-[7px] text-[var(--color-text-muted)]">Comments</span>
+              </div>
+            )}
+
+            {/* Share - Only on Void Page */}
+            {onVoidPage && (
+              <div className="flex flex-col items-center gap-0.5">
+                <button className="p-0.5 hover:bg-[var(--color-bg-muted)] rounded transition-colors">
+                  <Share2 className="w-2.5 h-2.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)]" />
+                </button>
+                <span className="text-[7px] text-[var(--color-text-muted)]">Share</span>
+              </div>
+            )}
+
+            {/* Export */}
             <div className="flex flex-col items-center gap-0.5">
-              <button className="p-0.5 hover:bg-[var(--color-bg-muted)] rounded transition-colors">
-                <Share2 className="w-2.5 h-2.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)]" />
+              <button className="p-0.5 bg-pink-100 dark:bg-pink-900/30 hover:bg-pink-200 dark:hover:bg-pink-900/50 rounded transition-colors">
+                <Download className="w-2.5 h-2.5 text-pink-600 dark:text-pink-400" />
               </button>
-              <span className="text-[7px] text-[var(--color-text-muted)]">Share</span>
+              <span className="text-[7px] text-[var(--color-text-muted)]">Export</span>
             </div>
-          )}
 
-          {/* Export */}
-          <div className="flex flex-col items-center gap-0.5">
-            <button className="p-0.5 bg-pink-100 dark:bg-pink-900/30 hover:bg-pink-200 dark:hover:bg-pink-900/50 rounded transition-colors">
-              <Download className="w-2.5 h-2.5 text-pink-600 dark:text-pink-400" />
+            {/* Edit/View Toggle */}
+            <BinaryToggle 
+              activeMode={editMode} 
+              setActiveMode={setEditMode}
+              options={editOptions}
+            />
+          </>
+        )}
+
+        {/* === Projects Page Right Elements === */}
+        {onProjectsPage && (
+          <>
+            {/* === Workspace Dropdown === */}
+            <WorkspaceDropdown 
+              dropdownOpen={workspaceDropdownOpen}
+              setDropdownOpen={setWorkspaceDropdownOpen}
+              onInviteClick={handleInviteClick}
+            />
+
+            {/* === Invite Button === */}
+            <button
+              onClick={() => handleInviteClick(null)} // null will use current workspace
+              className="hidden md:flex items-center gap-2 px-3 py-2 bg-[var(--color-bg-muted)] hover:bg-[var(--color-bg-hover)] border border-[var(--color-border)] rounded-lg text-[var(--color-text)] transition-colors"
+              title="Invite team members"
+            >
+              <Users className="w-4 h-4" />
+              <span className="text-sm font-medium">Invite</span>
             </button>
-            <span className="text-[7px] text-[var(--color-text-muted)]">Export</span>
-          </div>
 
-          {/* Edit/View Toggle */}
-          <BinaryToggle 
-            activeMode={editMode} 
-            setActiveMode={setEditMode}
-            options={editOptions}
-          />
-        </>
-      )}
+            {/* === Mobile Search Button === */}
+            <button
+              onClick={onMobileSearchToggle}
+              className="md:hidden p-1 rounded-full bg-[var(--color-bg-muted)]"
+            >
+              <Search className="text-[var(--color-text-muted)] w-3.5 h-3.5" />
+            </button>
+          </>
+        )}
 
-      {/* === Projects Page Right Elements === */}
-      {onProjectsPage && (
-        <>
-          {/* === Workspace Dropdown (hidden on mobile) === */}
-          <UserDropdown 
-            user={user} 
-            type="workspace" 
-            dropdownOpen={workspaceDropdownOpen}
-            setDropdownOpen={setWorkspaceDropdownOpen}
-          />
+        {/* === Avatar (always present) === */}
+        <UserDropdown 
+          user={user} 
+          type="profile" 
+          dropdownOpen={profileDropdownOpen}
+          setDropdownOpen={setProfileDropdownOpen}
+        />
 
-          {/* === Mobile Search Button === */}
-          <button
-            onClick={onMobileSearchToggle}
-            className="md:hidden p-1 rounded-full bg-[var(--color-bg-muted)]"
-          >
-            <Search className="text-[var(--color-text-muted)] w-3.5 h-3.5" />
-          </button>
-        </>
-      )}
+        {/* === Preview Button (always present) === */}
+        <button className="bg-[var(--color-primary)] text-white px-2 py-1 rounded-lg flex items-center justify-center shadow-md">
+          <Play className="w-3 h-3" />
+        </button>
+      </motion.div>
 
-      {/* === Avatar (always present) === */}
-      <UserDropdown 
-        user={user} 
-        type="profile" 
-        dropdownOpen={profileDropdownOpen}
-        setDropdownOpen={setProfileDropdownOpen}
+      {/* Invite Modal */}
+      <InviteModal
+        show={showInviteModal}
+        onClose={handleCloseInviteModal}
+        workspaceId={inviteWorkspaceId}
       />
-
-      {/* === Preview Button (always present) === */}
-      <button className="bg-[var(--color-primary)] text-white px-2 py-1 rounded-lg flex items-center justify-center shadow-md">
-        <Play className="w-3 h-3" />
-      </button>
-    </motion.div>
+    </>
   )
 }
 
