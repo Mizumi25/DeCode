@@ -17,26 +17,35 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
-            $table->string('google_id')->nullable()->unique();
-            $table->string('github_id')->nullable()->unique();
-            $table->string('avatar')->nullable();
-            $table->enum('platform_role', ['admin', 'user'])->default('user'); 
-            $table->rememberToken();
-            $table->text('github_token')->nullable()->after('github_id');
-            $table->text('github_refresh_token')->nullable()->after('github_token');
-            $table->timestamp('github_token_expires_at')->nullable()->after('github_refresh_token');
             
-            // Add GitHub user data
-            $table->string('github_username')->nullable()->after('github_token_expires_at');
+            // OAuth providers
+            $table->string('google_id')->nullable();
+            $table->string('github_id')->nullable();
+            $table->string('github_username')->nullable();
+            
+            // GitHub tokens (storing as plain text for now)
+            $table->text('github_token')->nullable();
+            $table->text('github_refresh_token')->nullable();
+            $table->timestamp('github_token_expires_at')->nullable();
+            
+            // User profile
+            $table->string('avatar')->nullable();
+            $table->enum('platform_role', ['admin', 'user'])->default('user');
+            
+            $table->rememberToken();
             $table->timestamps();
+            
+            // Indexes for performance
+            $table->index('github_id');
+            $table->index('google_id');
         });
-
+        
         Schema::create('password_reset_tokens', function (Blueprint $table) {
             $table->string('email')->primary();
             $table->string('token');
             $table->timestamp('created_at')->nullable();
         });
-
+        
         Schema::create('sessions', function (Blueprint $table) {
             $table->string('id')->primary();
             $table->foreignId('user_id')->nullable()->index();

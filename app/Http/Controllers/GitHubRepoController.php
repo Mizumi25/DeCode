@@ -28,16 +28,9 @@ class GitHubRepoController extends Controller
         }
 
         try {
-            // Note: Since you're using Socialite, we might not have stored the access token
-            // In a production app, you'd want to store and use the access token
-            // For now, we'll use the public API which has rate limits
+            $headers = $user->getGitHubApiHeaders();
             
-            $response = Http::withHeaders([
-                'Accept' => 'application/vnd.github.v3+json',
-                'User-Agent' => config('app.name', 'DeCode'),
-                // If you have stored the GitHub token, uncomment this:
-                // 'Authorization' => 'token ' . $user->github_token,
-            ])->timeout(30)->get("https://api.github.com/users/{$user->github_id}/repos", [
+            $response = Http::withHeaders($headers)->timeout(30)->get("https://api.github.com/user/repos", [
                 'sort' => 'updated',
                 'per_page' => 100,
                 'affiliation' => 'owner,collaborator',
@@ -113,13 +106,15 @@ class GitHubRepoController extends Controller
     {
         $user = Auth::user();
         
-        $connected = !empty($user->github_id);
+        $connected = !empty($user->github_id) && $user->isGitHubTokenValid();
         
         return response()->json([
             'connected' => $connected,
             'github_id' => $user->github_id,
+            'github_username' => $user->github_username,
             'avatar' => $user->avatar,
-            'name' => $user->name
+            'name' => $user->name,
+            'token_valid' => $user->isGitHubTokenValid()
         ]);
     }
 
@@ -146,10 +141,10 @@ class GitHubRepoController extends Controller
             $user = Auth::user();
             
             // Check if user is connected to GitHub
-            if (!$user->github_id) {
+            if (!$user->github_id || !$user->isGitHubTokenValid()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'GitHub account not connected'
+                    'message' => 'GitHub account not connected or token expired'
                 ], 401);
             }
             
@@ -241,18 +236,16 @@ class GitHubRepoController extends Controller
     {
         $user = Auth::user();
         
-        if (!$user->github_id) {
+        if (!$user->github_id || !$user->isGitHubTokenValid()) {
             return response()->json([
                 'success' => false,
-                'message' => 'GitHub account not connected'
+                'message' => 'GitHub account not connected or token expired'
             ], 401);
         }
 
         try {
-            $response = Http::withHeaders([
-                'Accept' => 'application/vnd.github.v3+json',
-                'User-Agent' => config('app.name', 'DeCode'),
-            ])->timeout(30)->get("https://api.github.com/repositories/{$repoId}");
+            $headers = $user->getGitHubApiHeaders();
+            $response = Http::withHeaders($headers)->timeout(30)->get("https://api.github.com/repositories/{$repoId}");
 
             if ($response->successful()) {
                 $repository = $response->json();
@@ -320,19 +313,16 @@ class GitHubRepoController extends Controller
     {
         $user = Auth::user();
         
-        if (!$user->github_id) {
+        if (!$user->github_id || !$user->isGitHubTokenValid()) {
             return response()->json([
                 'success' => false,
-                'message' => 'GitHub account not connected'
+                'message' => 'GitHub account not connected or token expired'
             ], 401);
         }
 
         try {
-            // This would be useful for parsing repository structure in the future
-            $response = Http::withHeaders([
-                'Accept' => 'application/vnd.github.v3+json',
-                'User-Agent' => config('app.name', 'DeCode'),
-            ])->timeout(30)->get("https://api.github.com/repositories/{$repoId}/contents/{$path}");
+            $headers = $user->getGitHubApiHeaders();
+            $response = Http::withHeaders($headers)->timeout(30)->get("https://api.github.com/repositories/{$repoId}/contents/{$path}");
 
             if ($response->successful()) {
                 return response()->json([

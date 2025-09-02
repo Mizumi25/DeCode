@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Log;
 
 class User extends Authenticatable
 {
@@ -82,36 +82,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Get decrypted GitHub token
-     */
-    public function getGitHubToken(): ?string
-    {
-        if (!$this->github_token) {
-            return null;
-        }
-
-        try {
-            return Crypt::decryptString($this->github_token);
-        } catch (\Exception $e) {
-            // Token might be corrupted or unencrypted legacy data
-            return null;
-        }
-    }
-
-    /**
-     * Set encrypted GitHub token
-     */
-    public function setGitHubToken(?string $token): void
-    {
-        if ($token) {
-            $this->github_token = Crypt::encryptString($token);
-        } else {
-            $this->github_token = null;
-        }
-    }
-
-    /**
-     * Check if GitHub token is valid (not expired)
+     * Check if GitHub token is valid and not expired
      */
     public function isGitHubTokenValid(): bool
     {
@@ -119,30 +90,57 @@ class User extends Authenticatable
             return false;
         }
 
-        // If we don't have an expiration date, assume it's valid
-        if (!$this->github_token_expires_at) {
-            return true;
+        // If we have an expiration time, check if it's still valid
+        if ($this->github_token_expires_at) {
+            return $this->github_token_expires_at->isFuture();
         }
 
-        return $this->github_token_expires_at->isFuture();
+        // If no expiration time is set, assume token is valid
+        // (GitHub personal access tokens don't expire by default)
+        return true;
     }
 
     /**
-     * Get GitHub API headers with authentication
+     * Get GitHub API headers for authentication
+     * SIMPLIFIED VERSION - no encryption for now
      */
     public function getGitHubApiHeaders(): array
     {
-        $headers = [
+        return [
+            'Authorization' => 'token ' . $this->github_token,
             'Accept' => 'application/vnd.github.v3+json',
-            'User-Agent' => config('app.name', 'DeCode'),
+            'User-Agent' => config('app.name', 'DeCode') . '/1.0'
         ];
+    }
 
-        $token = $this->getGitHubToken();
-        if ($token && $this->isGitHubTokenValid()) {
-            $headers['Authorization'] = 'token ' . $token;
+    /**
+     * Test if the current GitHub token works by making a simple API call
+     */
+    public function testGitHubToken(): bool
+    {
+        if (!$this->github_token) {
+            return false;
         }
 
-        return $headers;
+        try {
+            $response = \Illuminate\Support\Facades\Http::withHeaders($this->getGitHubApiHeaders())
+                ->timeout(10)
+                ->get('https://api.github.com/user');
+            
+            if ($response->successful()) {
+                return true;
+            }
+            
+            // If token is invalid, mark it as expired
+            if ($response->status() === 401) {
+                $this->update(['github_token_expires_at' => now()->subMinute()]);
+            }
+            
+            return false;
+        } catch (\Exception $e) {
+            Log::error('GitHub token test failed: ' . $e->getMessage());
+            return false;
+        }
     }
 
     // Helper methods for projects

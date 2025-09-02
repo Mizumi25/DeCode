@@ -55,7 +55,7 @@ export default function Login({ status, canResetPassword }) {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 max-w-md mx-auto bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md rounded-2xl shadow-xl p-8 mt-20 border border-gray-200/20 dark:border-zinc-700/20"
+        className="relative z-10 max-w-md mx-auto bg-[var(--color-surface)]/80 backdrop-blur-md rounded-2xl shadow-[var(--shadow-lg)] p-8 mt-20 border border-[var(--color-border)]/20"
       >
         {/* Logo */}
         <motion.div
@@ -76,10 +76,10 @@ export default function Login({ status, canResetPassword }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+          <h1 className="text-2xl font-bold text-[var(--color-text)] mb-2">
             Welcome Back
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-[var(--color-text-muted)]">
             Sign in to continue to your account
           </p>
         </motion.div>
@@ -110,7 +110,7 @@ export default function Login({ status, canResetPassword }) {
                 onClick={handleEmailLogin}
                 whileHover={{ scale: 1.02, y: -2 }}
                 whileTap={{ scale: 0.98 }}
-                className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium px-6 py-4 rounded-xl shadow-lg transition-all duration-200 transform hover:shadow-xl"
+                className="w-full flex items-center justify-center gap-3 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white font-medium px-6 py-4 rounded-xl shadow-[var(--shadow-lg)] transition-all duration-200 transform hover:shadow-xl"
               >
                 <Mail className="w-5 h-5" />
                 Sign in with Email
@@ -119,10 +119,10 @@ export default function Login({ status, canResetPassword }) {
               {/* Divider */}
               <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-gray-300 dark:border-zinc-600" />
+                  <span className="w-full border-t border-[var(--color-border)]" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white dark:bg-zinc-900 px-2 text-gray-500 dark:text-gray-400">
+                  <span className="bg-[var(--color-surface)] px-2 text-[var(--color-text-muted)]">
                     Or continue with
                   </span>
                 </div>
@@ -134,7 +134,7 @@ export default function Login({ status, canResetPassword }) {
                 onClick={handleGoogleLogin}
                 whileHover={{ scale: 1.02, y: -2 }}
                 whileTap={{ scale: 0.98 }}
-                className="w-full flex items-center justify-center gap-3 border-2 border-gray-200 dark:border-zinc-700 px-6 py-4 rounded-xl text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+                className="w-full flex items-center justify-center gap-3 border-2 border-[var(--color-border)] px-6 py-4 rounded-xl text-[var(--color-text)] hover:bg-[var(--color-bg-muted)] transition-all duration-200 font-medium shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)]"
               >
                 <svg className="w-5 h-5" viewBox="0 0 533.5 544.3">
                   <path fill="#EA4335" d="M533.5 278.4c0-17.6-1.6-35.1-4.8-52H272v98.5h146.9c-6.4 34.3-25.4 63.2-54.2 82.8v68h87.6c51.1-47.1 81.2-116.5 81.2-197.3z" />
@@ -151,7 +151,7 @@ export default function Login({ status, canResetPassword }) {
                 onClick={handleGithubLogin}
                 whileHover={{ scale: 1.02, y: -2 }}
                 whileTap={{ scale: 0.98 }}
-                className="w-full flex items-center justify-center gap-3 border-2 border-gray-200 dark:border-zinc-700 px-6 py-4 rounded-xl text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+                className="w-full flex items-center justify-center gap-3 border-2 border-[var(--color-border)] px-6 py-4 rounded-xl text-[var(--color-text)] hover:bg-[var(--color-bg-muted)] transition-all duration-200 font-medium shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)]"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                   <path
@@ -178,7 +178,7 @@ export default function Login({ status, canResetPassword }) {
               <motion.button
                 type="button"
                 onClick={() => setShowEmailForm(false)}
-                className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
+                className="flex items-center gap-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors mb-4"
                 whileHover={{ x: -4 }}
               >
                 <ArrowRight className="w-4 h-4 rotate-180" />
@@ -191,7 +191,7 @@ export default function Login({ status, canResetPassword }) {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 }}
               >
-                <label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label htmlFor="email" className="text-sm font-medium text-[var(--color-text)]">
                   Email
                 </label>
                 <div className="relative mt-1">
@@ -201,11 +201,11 @@ export default function Login({ status, canResetPassword }) {
                     value={data.email}
                     autoComplete="username"
                     onChange={(e) => setData('email', e.target.value)}
-                    className="w-full px-4 py-3 pl-12 rounded-xl border border-gray-300 dark:border-zinc-600 bg-white/90 dark:bg-zinc-800/90 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 dark:focus:ring-purple-500 focus:border-transparent outline-none shadow-sm transition-all"
+                    className="w-full px-4 py-3 pl-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none shadow-[var(--shadow-sm)] transition-all"
                     placeholder="Enter your email"
                     required
                   />
-                  <Mail className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
+                  <Mail className="absolute left-4 top-3.5 w-5 h-5 text-[var(--color-text-muted)]" />
                 </div>
                 <InputError message={errors.email} className="mt-2" />
               </motion.div>
@@ -216,7 +216,7 @@ export default function Login({ status, canResetPassword }) {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
               >
-                <label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label htmlFor="password" className="text-sm font-medium text-[var(--color-text)]">
                   Password
                 </label>
                 <div className="relative mt-1">
@@ -226,11 +226,11 @@ export default function Login({ status, canResetPassword }) {
                     value={data.password}
                     onChange={(e) => setData('password', e.target.value)}
                     autoComplete="current-password"
-                    className="w-full px-4 py-3 pl-12 rounded-xl border border-gray-300 dark:border-zinc-600 bg-white/90 dark:bg-zinc-800/90 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 dark:focus:ring-purple-500 focus:border-transparent outline-none shadow-sm transition-all"
+                    className="w-full px-4 py-3 pl-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none shadow-[var(--shadow-sm)] transition-all"
                     placeholder="Enter your password"
                     required
                   />
-                  <Lock className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
+                  <Lock className="absolute left-4 top-3.5 w-5 h-5 text-[var(--color-text-muted)]" />
                 </div>
                 <InputError message={errors.password} className="mt-2" />
               </motion.div>
@@ -248,12 +248,12 @@ export default function Login({ status, canResetPassword }) {
                     checked={data.remember}
                     onChange={(e) => setData('remember', e.target.checked)}
                   />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Remember me</span>
+                  <span className="text-sm text-[var(--color-text)]">Remember me</span>
                 </label>
                 {canResetPassword && (
                   <Link
                     href={route('password.request')}
-                    className="text-sm text-blue-600 dark:text-purple-400 hover:underline transition-colors"
+                    className="text-sm text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] hover:underline transition-colors"
                   >
                     Forgot password?
                   </Link>
@@ -266,7 +266,7 @@ export default function Login({ status, canResetPassword }) {
                 whileHover={{ scale: 1.02, y: -2 }}
                 whileTap={{ scale: 0.98 }}
                 disabled={processing}
-                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium px-6 py-4 rounded-xl shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed transform hover:shadow-xl"
+                className="w-full flex items-center justify-center gap-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white font-medium px-6 py-4 rounded-xl shadow-[var(--shadow-lg)] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed transform hover:shadow-xl"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
@@ -292,7 +292,7 @@ export default function Login({ status, canResetPassword }) {
 
         {/* Register Link */}
         <motion.div
-          className="text-center text-sm text-gray-600 dark:text-gray-400 pt-6 mt-6 border-t border-gray-200 dark:border-zinc-700"
+          className="text-center text-sm text-[var(--color-text-muted)] pt-6 mt-6 border-t border-[var(--color-border)]"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
@@ -300,7 +300,7 @@ export default function Login({ status, canResetPassword }) {
           <span>Don't have an account?</span>{' '}
           <Link
             href={route('register')}
-            className="inline-flex items-center gap-1 font-medium text-blue-600 dark:text-purple-400 hover:underline transition-colors"
+            className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] hover:underline transition-colors"
           >
             Create account
             <ArrowRight className="w-4 h-4" />

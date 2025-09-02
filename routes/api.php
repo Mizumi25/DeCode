@@ -1,4 +1,5 @@
 <?php
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ComponentController;
@@ -67,19 +68,28 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Public templates
     Route::get('/projects/templates', [ProjectController::class, 'templates']);
-    
-    // Check GitHub connection status
-    Route::get('/status', [GitHubRepoController::class, 'checkConnection']);
-    
-    // Get user's repositories
-    Route::get('/repos', [GitHubRepoController::class, 'getUserRepos']);
-    
-    // Refresh repositories (force fetch from GitHub)
-    Route::post('/repos/refresh', [GitHubRepoController::class, 'refreshRepos']);
-    
-    // Get specific repository details
-    Route::get('/repos/{repoId}', [GitHubRepoController::class, 'getRepositoryDetails']);
-    
-    // Import project from GitHub repository
-    Route::post('/import-project', [GitHubRepoController::class, 'importProject']);
+
+    // GitHub Integration Routes
+    Route::prefix('github')->group(function () {
+        // Check GitHub connection status
+        Route::get('/status', [GitHubRepoController::class, 'checkConnection']);
+        
+        // Get user's repositories
+        Route::get('/repos', [GitHubRepoController::class, 'getUserRepos']);
+        
+        // Refresh repositories (force fetch from GitHub)
+        Route::post('/repos/refresh', [GitHubRepoController::class, 'refreshRepos']);
+        
+        // Get specific repository details
+        Route::get('/repos/{repoId}', [GitHubRepoController::class, 'getRepositoryDetails']);
+        
+        // Import project from GitHub repository
+        Route::post('/import-project', [GitHubRepoController::class, 'importProject']);
+        
+        // Get repository contents (for future parsing)
+        Route::get('/repos/{repoId}/contents/{path?}', [GitHubRepoController::class, 'getRepositoryContents'])->where('path', '.*');
+        
+        // Disconnect GitHub account
+        Route::delete('/disconnect', [GithubController::class, 'disconnect']);
+    });
 });

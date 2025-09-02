@@ -45,7 +45,7 @@ export default function Register() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 max-w-md mx-auto bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md rounded-2xl shadow-xl p-8 mt-20 border border-gray-200/20 dark:border-zinc-700/20"
+        className="relative z-10 max-w-md mx-auto bg-[var(--color-surface)]/80 backdrop-blur-md rounded-2xl shadow-[var(--shadow-lg)] p-8 mt-20 border border-[var(--color-border)]/20"
       >
         {/* Logo */}
         <motion.div
@@ -66,10 +66,10 @@ export default function Register() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+          <h1 className="text-2xl font-bold text-[var(--color-text)] mb-2">
             Create Account
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-[var(--color-text-muted)]">
             Join us and start your journey today
           </p>
         </motion.div>
@@ -87,7 +87,7 @@ export default function Register() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.5 }}
           >
-            <label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor="name" className="text-sm font-medium text-[var(--color-text)]">
               Full Name
             </label>
             <div className="relative mt-1">
@@ -97,12 +97,12 @@ export default function Register() {
                 type="text"
                 value={data.name}
                 onChange={(e) => setData('name', e.target.value)}
-                className="w-full px-4 py-3 pl-12 rounded-xl border border-gray-300 dark:border-zinc-600 bg-white/90 dark:bg-zinc-800/90 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 dark:focus:ring-purple-500 focus:border-transparent outline-none shadow-sm transition-all"
+                className="w-full px-4 py-3 pl-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none shadow-[var(--shadow-sm)] transition-all"
                 placeholder="Enter your full name"
                 required
                 autoComplete="name"
               />
-              <User className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
+              <User className="absolute left-4 top-3.5 w-5 h-5 text-[var(--color-text-muted)]" />
             </div>
             <InputError message={errors.name} className="mt-2" />
           </motion.div>
@@ -113,7 +113,7 @@ export default function Register() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.6 }}
           >
-            <label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor="email" className="text-sm font-medium text-[var(--color-text)]">
               Email Address
             </label>
             <div className="relative mt-1">
@@ -124,11 +124,11 @@ export default function Register() {
                 value={data.email}
                 autoComplete="username"
                 onChange={(e) => setData('email', e.target.value)}
-                className="w-full px-4 py-3 pl-12 rounded-xl border border-gray-300 dark:border-zinc-600 bg-white/90 dark:bg-zinc-800/90 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 dark:focus:ring-purple-500 focus:border-transparent outline-none shadow-sm transition-all"
+                className="w-full px-4 py-3 pl-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none shadow-[var(--shadow-sm)] transition-all"
                 placeholder="Enter your email address"
                 required
               />
-              <Mail className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
+              <Mail className="absolute left-4 top-3.5 w-5 h-5 text-[var(--color-text-muted)]" />
             </div>
             <InputError message={errors.email} className="mt-2" />
           </motion.div>
@@ -139,7 +139,7 @@ export default function Register() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.7 }}
           >
-            <label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor="password" className="text-sm font-medium text-[var(--color-text)]">
               Password
             </label>
             <div className="relative mt-1">
@@ -150,11 +150,11 @@ export default function Register() {
                 value={data.password}
                 onChange={(e) => setData('password', e.target.value)}
                 autoComplete="new-password"
-                className="w-full px-4 py-3 pl-12 rounded-xl border border-gray-300 dark:border-zinc-600 bg-white/90 dark:bg-zinc-800/90 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 dark:focus:ring-purple-500 focus:border-transparent outline-none shadow-sm transition-all"
+                className="w-full px-4 py-3 pl-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none shadow-[var(--shadow-sm)] transition-all"
                 placeholder="Create a secure password"
                 required
               />
-              <Lock className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
+              <Lock className="absolute left-4 top-3.5 w-5 h-5 text-[var(--color-text-muted)]" />
             </div>
             <InputError message={errors.password} className="mt-2" />
           </motion.div>
@@ -167,7 +167,7 @@ export default function Register() {
           >
             <label
               htmlFor="password_confirmation"
-              className="text-sm font-medium text-gray-700 dark:text-gray-300"
+              className="text-sm font-medium text-[var(--color-text)]"
             >
               Confirm Password
             </label>
@@ -179,32 +179,32 @@ export default function Register() {
                 value={data.password_confirmation}
                 onChange={(e) => setData('password_confirmation', e.target.value)}
                 autoComplete="new-password"
-                className="w-full px-4 py-3 pl-12 rounded-xl border border-gray-300 dark:border-zinc-600 bg-white/90 dark:bg-zinc-800/90 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 dark:focus:ring-purple-500 focus:border-transparent outline-none shadow-sm transition-all"
+                className="w-full px-4 py-3 pl-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none shadow-[var(--shadow-sm)] transition-all"
                 placeholder="Confirm your password"
                 required
               />
-              <Check className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
+              <Check className="absolute left-4 top-3.5 w-5 h-5 text-[var(--color-text-muted)]" />
             </div>
             <InputError message={errors.password_confirmation} className="mt-2" />
           </motion.div>
 
           {/* Terms and Conditions */}
           <motion.div
-            className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-400"
+            className="flex items-start gap-3 text-sm text-[var(--color-text-muted)]"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.9 }}
           >
             <div className="flex-shrink-0 mt-0.5">
-              <div className="w-2 h-2 bg-blue-500 dark:bg-purple-500 rounded-full"></div>
+              <div className="w-2 h-2 bg-[var(--color-primary)] rounded-full"></div>
             </div>
             <p>
               By creating an account, you agree to our{' '}
-              <Link href="#" className="text-blue-600 dark:text-purple-400 hover:underline">
+              <Link href="#" className="text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] hover:underline">
                 Terms of Service
               </Link>{' '}
               and{' '}
-              <Link href="#" className="text-blue-600 dark:text-purple-400 hover:underline">
+              <Link href="#" className="text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] hover:underline">
                 Privacy Policy
               </Link>
             </p>
@@ -216,7 +216,7 @@ export default function Register() {
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
             disabled={processing}
-            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium px-6 py-4 rounded-xl shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed transform hover:shadow-xl"
+            className="w-full flex items-center justify-center gap-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white font-medium px-6 py-4 rounded-xl shadow-[var(--shadow-lg)] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed transform hover:shadow-xl"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.0 }}
@@ -251,10 +251,10 @@ export default function Register() {
           {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-gray-300 dark:border-zinc-600" />
+              <span className="w-full border-t border-[var(--color-border)]" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white dark:bg-zinc-900 px-2 text-gray-500 dark:text-gray-400">
+              <span className="bg-[var(--color-surface)] px-2 text-[var(--color-text-muted)]">
                 Or sign up with
               </span>
             </div>
@@ -267,7 +267,7 @@ export default function Register() {
               onClick={() => window.location.href = '/auth/google/redirect'}
               whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.98 }}
-              className="flex items-center justify-center gap-2 border-2 border-gray-200 dark:border-zinc-700 px-4 py-3 rounded-xl text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+              className="flex items-center justify-center gap-2 border-2 border-[var(--color-border)] px-4 py-3 rounded-xl text-[var(--color-text)] hover:bg-[var(--color-bg-muted)] transition-all duration-200 font-medium shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)]"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 1.1 }}
@@ -286,7 +286,7 @@ export default function Register() {
               onClick={() => window.location.href = '/auth/github/redirect'}
               whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.98 }}
-              className="flex items-center justify-center gap-2 border-2 border-gray-200 dark:border-zinc-700 px-4 py-3 rounded-xl text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+              className="flex items-center justify-center gap-2 border-2 border-[var(--color-border)] px-4 py-3 rounded-xl text-[var(--color-text)] hover:bg-[var(--color-bg-muted)] transition-all duration-200 font-medium shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)]"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 1.1 }}
@@ -304,7 +304,7 @@ export default function Register() {
 
           {/* Login Link */}
           <motion.div
-            className="text-center text-sm text-gray-600 dark:text-gray-400 pt-6 mt-6 border-t border-gray-200 dark:border-zinc-700"
+            className="text-center text-sm text-[var(--color-text-muted)] pt-6 mt-6 border-t border-[var(--color-border)]"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.2 }}
@@ -312,7 +312,7 @@ export default function Register() {
             <span>Already have an account?</span>{' '}
             <Link
               href={route('login')}
-              className="inline-flex items-center gap-1 font-medium text-blue-600 dark:text-purple-400 hover:underline transition-colors"
+              className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] hover:underline transition-colors"
             >
               Sign in
               <ArrowRight className="w-4 h-4" />

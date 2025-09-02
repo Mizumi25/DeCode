@@ -14,15 +14,24 @@ import {
   Tablet,
   Eye,
   EyeOff,
-  Loader2,
   X,
   ArrowRight,
   Sparkles,
   Plus,
-  Github
+  Github,
+  LogOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GitHubService } from '@/Services/GithubService';
+import axios from 'axios';
+
+// Custom Loading Spinner Component
+const LoadingSpinner = ({ className = "w-5 h-5" }) => (
+  <svg className={`${className} animate-spin`} viewBox="0 0 24 24" fill="none">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+  </svg>
+);
 
 // GitHub Icon Component
 const GitHubIcon = () => (
@@ -110,6 +119,8 @@ export default function NewProjectModal({ show, onClose }) {
   const [selectedRepo, setSelectedRepo] = useState(null);
   const [githubConnected, setGithubConnected] = useState(false);
   const [loadingGitHub, setLoadingGitHub] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [githubUser, setGithubUser] = useState(null);
 
   // Regular project form
   const { data, setData, post, processing, errors, reset } = useForm({
@@ -160,9 +171,17 @@ export default function NewProjectModal({ show, onClose }) {
     try {
       const response = await GitHubService.checkGitHubConnection();
       setGithubConnected(response.connected);
+      if (response.connected) {
+        setGithubUser({
+          github_username: response.github_username,
+          name: response.name,
+          avatar: response.avatar
+        });
+      }
     } catch (error) {
       console.error('Error checking GitHub connection:', error);
       setGithubConnected(false);
+      setGithubUser(null);
     }
   };
 
@@ -260,10 +279,62 @@ export default function NewProjectModal({ show, onClose }) {
     }));
   }, [setGithubData]);
 
-  // Connect to GitHub
+  // Connect to GitHub with modal flag
   const connectToGitHub = () => {
-    window.location.href = '/auth/github/redirect';
+    // Add modal parameter to indicate this is a modal connection
+    window.location.href = '/auth/github/redirect?modal=1';
   };
+
+  // Disconnect from GitHub
+  const disconnectFromGitHub = async () => {
+    try {
+      setDisconnecting(true);
+      const response = await axios.delete('/api/github/disconnect');
+      
+      if (response.data.success) {
+        setGithubConnected(false);
+        setGithubUser(null);
+        setSelectedRepo(null);
+        resetGithub();
+        console.log('GitHub account disconnected successfully');
+      }
+    } catch (error) {
+      console.error('Error disconnecting GitHub:', error);
+      // Handle error - could show a toast notification here
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+  
+  // Also add this useEffect to handle the callback from GitHub
+  useEffect(() => {
+    // Check for GitHub connection success/error messages in URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    if (urlParams.get('github_connected')) {
+      const message = urlParams.get('message');
+      if (message) {
+        // Show success message or handle success
+        console.log('GitHub connected:', decodeURIComponent(message));
+      }
+      // Refresh GitHub connection status
+      checkGitHubConnection();
+      
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    
+    if (urlParams.get('github_error')) {
+      const message = urlParams.get('message');
+      if (message) {
+        // Show error message
+        console.error('GitHub connection failed:', decodeURIComponent(message));
+      }
+      
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [show]); // Run when modal opens
 
   // Tab content
   const createNewContent = (
@@ -507,7 +578,7 @@ export default function NewProjectModal({ show, onClose }) {
         >
           {processing ? (
             <>
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <LoadingSpinner />
               Creating...
             </>
           ) : (
@@ -552,6 +623,47 @@ export default function NewProjectModal({ show, onClose }) {
       ) : (
         // GitHub Import Form
         <form onSubmit={handleGithubSubmit} className="space-y-8">
+          {/* GitHub User Info & Disconnect */}
+          <div className="flex items-center justify-between p-4 bg-[var(--color-bg-muted)] rounded-xl">
+            <div className="flex items-center gap-3">
+              {githubUser?.avatar && (
+                <img 
+                  src={githubUser.avatar} 
+                  alt={githubUser.name}
+                  className="w-10 h-10 rounded-full"
+                />
+              )}
+              <div>
+                <div className="font-medium text-[var(--color-text)]">
+                  Connected as @{githubUser?.github_username}
+                </div>
+                <div className="text-sm text-[var(--color-text-muted)]">
+                  {githubUser?.name}
+                </div>
+              </div>
+            </div>
+            <motion.button
+              type="button"
+              onClick={disconnectFromGitHub}
+              disabled={disconnecting}
+              whileHover={{ scale: disconnecting ? 1 : 1.05 }}
+              whileTap={{ scale: disconnecting ? 1 : 0.95 }}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {disconnecting ? (
+                <>
+                  <LoadingSpinner className="w-4 h-4" />
+                  Disconnecting...
+                </>
+              ) : (
+                <>
+                  <LogOut className="w-4 h-4" />
+                  Disconnect
+                </>
+              )}
+            </motion.button>
+          </div>
+
           {/* Repository Selection */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium text-[var(--color-text)]">Select Repository</h3>
@@ -654,7 +766,7 @@ export default function NewProjectModal({ show, onClose }) {
                 >
                   {processingGithub ? (
                     <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <LoadingSpinner />
                       Importing...
                     </>
                   ) : (

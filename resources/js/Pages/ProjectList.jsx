@@ -32,9 +32,43 @@ export default function ProjectList({ projects: initialProjects = [], filters = 
     const urlParams = new URLSearchParams(window.location.search);
     initializeFromUrl(urlParams);
     
+    // Check if we need to reopen the new project modal after GitHub connection
+    const githubConnected = urlParams.get('github_connected');
+    const githubError = urlParams.get('github_error');
+    const message = urlParams.get('message');
+    
+    if (githubConnected === '1') {
+      // Show success message and reopen modal
+      if (message) {
+        // You could show a toast notification here
+        console.log('GitHub connected:', decodeURIComponent(message));
+      }
+      setShowNewProjectModal(true);
+      setActiveTab(1); // Switch to GitHub import tab
+      
+      // Clean up URL parameters
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+    
+    if (githubError === '1') {
+      // Show error message
+      if (message) {
+        console.error('GitHub connection error:', decodeURIComponent(message));
+        // You could show an error toast here
+      }
+      
+      // Clean up URL parameters
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+    
     // Cleanup on unmount
     return () => cleanup();
   }, [initializeFromUrl, cleanup]);
+
+  // Add state for tracking active tab
+  const [activeTab, setActiveTab] = useState(0);
   
   // Convert projects to the format expected by the grid
   const projects = useMemo(() => {
