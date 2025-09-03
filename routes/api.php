@@ -1,4 +1,5 @@
 <?php
+// routes/api.php
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -6,6 +7,8 @@ use App\Http\Controllers\ComponentController;
 use App\Http\Controllers\ProjectComponentController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\VoidController; 
+use App\Http\Controllers\WorkspaceController; 
+use App\Http\Controllers\InviteController; 
 use App\Http\Controllers\GitHubRepoController;
 use App\Http\Controllers\Auth\GithubController;
 
@@ -17,7 +20,9 @@ use App\Http\Controllers\Auth\GithubController;
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
-        return $request->user();
+        $user = $request->user();
+        $user->load(['ownedWorkspaces', 'workspaces']);
+        return $user;
     });
 
     // Component management routes
@@ -65,9 +70,37 @@ Route::middleware('auth:sanctum')->group(function () {
     // Project actions
     Route::post('/projects/{project}/duplicate', [ProjectController::class, 'duplicate']);
     Route::post('/projects/{project}/thumbnail', [ProjectController::class, 'updateThumbnail']);
+    Route::post('/projects/{project}/frames', [ProjectController::class, 'createFrame']);
+    Route::put('/projects/{project}/move-workspace', [ProjectController::class, 'moveToWorkspace']);
 
     // Public templates
     Route::get('/projects/templates', [ProjectController::class, 'templates']);
+
+    // Workspace management routes
+    Route::prefix('workspaces')->group(function () {
+        Route::get('/', [WorkspaceController::class, 'index']);
+        Route::post('/', [WorkspaceController::class, 'store']);
+        Route::get('/{workspace}', [WorkspaceController::class, 'show']);
+        Route::put('/{workspace}', [WorkspaceController::class, 'update']);
+        Route::delete('/{workspace}', [WorkspaceController::class, 'destroy']);
+        
+        // Workspace user management
+        Route::put('/{workspace}/users/{user}/role', [WorkspaceController::class, 'updateUserRole']);
+        Route::delete('/{workspace}/users/{user}', [WorkspaceController::class, 'removeUser']);
+
+        // Workspace invites
+        Route::get('/{workspace}/invites', [InviteController::class, 'getWorkspaceInvites']);
+    });
+
+    // Invite Management (separate from workspace routes for cleaner organization)
+    Route::prefix('invites')->group(function () {
+        Route::post('/generate-link', [InviteController::class, 'generateLink']);
+        Route::post('/send-email', [InviteController::class, 'sendEmailInvite']);
+        Route::post('/accept/{token}', [InviteController::class, 'acceptInvite']);
+        Route::delete('/{invite}', [InviteController::class, 'revokeInvite']);
+        Route::post('/{invite}/resend', [InviteController::class, 'resendInvite']);
+        Route::post('/cleanup-expired', [InviteController::class, 'cleanupExpired']);
+    });
 
     // GitHub Integration Routes
     Route::prefix('github')->group(function () {

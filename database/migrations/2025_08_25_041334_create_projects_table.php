@@ -50,6 +50,10 @@ return new class extends Migration
                 'vue',
                 'angular'
             ])->default('html');
+            
+            $table->foreignId('workspace_id')->nullable()->constrained()->onDelete('cascade');
+            $table->index(['workspace_id', 'user_id']);
+            
             $table->timestamps();
             $table->softDeletes();
             

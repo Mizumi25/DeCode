@@ -23,10 +23,17 @@ const WorkspaceDropdown = ({
 
   // Initialize workspaces on mount
   useEffect(() => {
-    initializeWorkspaces()
-  }, [initializeWorkspaces])
+    if (workspaces.length === 0) {
+      initializeWorkspaces()
+    }
+  }, [initializeWorkspaces, workspaces.length])
 
   const handleWorkspaceSwitch = (workspace) => {
+    if (!workspace || !workspace.id) {
+      console.error('Invalid workspace selected:', workspace)
+      return
+    }
+    
     setCurrentWorkspace(workspace)
     setDropdownOpen(false)
     
@@ -44,31 +51,38 @@ const WorkspaceDropdown = ({
 
   const handleWorkspaceSettings = () => {
     setDropdownOpen(false)
-    if (currentWorkspace) {
-      router.visit(`/workspaces/${currentWorkspace.id}/settings`)
+    if (currentWorkspace && currentWorkspace.uuid) {
+      router.visit(`/workspaces/${currentWorkspace.uuid}/settings`)
     }
   }
 
   const handleInviteMembers = () => {
     setDropdownOpen(false)
-    if (onInviteClick && currentWorkspace) {
+    if (onInviteClick && currentWorkspace && currentWorkspace.id) {
       onInviteClick(currentWorkspace.id)
+    } else {
+      console.error('Cannot invite members: missing workspace ID or invite handler')
     }
   }
 
   // Get workspace privacy icon
   const getPrivacyIcon = (workspace) => {
-    const isPrivate = workspace.settings?.privacy === 'private' || !workspace.settings?.privacy
+    if (!workspace || !workspace.settings) {
+      return <Lock className="w-3 h-3" />
+    }
+    const isPrivate = workspace.settings.privacy === 'private' || !workspace.settings.privacy
     return isPrivate ? <Lock className="w-3 h-3" /> : <Globe className="w-3 h-3" />
   }
 
   // Get workspace member count
   const getMemberCount = (workspace) => {
-    return workspace.users?.length || 0
+    if (!workspace) return 0
+    return workspace.member_count || (workspace.users?.length || 0) + 1 // +1 for owner
   }
 
   const currentWorkspaceName = currentWorkspace?.name || 'Select Workspace'
   const isPersonalWorkspace = currentWorkspace?.type === 'personal'
+  const hasCurrentWorkspace = currentWorkspace && currentWorkspace.id
 
   return (
     <>
@@ -77,7 +91,7 @@ const WorkspaceDropdown = ({
         onClick={() => setDropdownOpen(!dropdownOpen)}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          {currentWorkspace && (
+          {hasCurrentWorkspace && (
             <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
               {getPrivacyIcon(currentWorkspace)}
             </div>
@@ -99,7 +113,7 @@ const WorkspaceDropdown = ({
             >
               <div className="p-3">
                 {/* Current Workspace Header */}
-                {currentWorkspace && (
+                {hasCurrentWorkspace && (
                   <div className="border-b border-[var(--color-border)] pb-3 mb-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -117,7 +131,7 @@ const WorkspaceDropdown = ({
                         <div className="flex items-center gap-1">
                           <Users className="w-3 h-3 text-[var(--color-text-muted)]" />
                           <span className="text-xs text-[var(--color-text-muted)]">
-                            {getMemberCount(currentWorkspace) + 1}
+                            {getMemberCount(currentWorkspace)}
                           </span>
                         </div>
                       )}
@@ -151,7 +165,7 @@ const WorkspaceDropdown = ({
                     Switch Workspace
                   </div>
                   
-                  {workspaces.map((workspace) => (
+                  {workspaces.filter(workspace => workspace && workspace.id).map((workspace) => (
                     <button
                       key={workspace.id}
                       onClick={() => handleWorkspaceSwitch(workspace)}
@@ -177,11 +191,17 @@ const WorkspaceDropdown = ({
                       {workspace.type !== 'personal' && (
                         <div className="flex items-center gap-1 text-[var(--color-text-muted)]">
                           <Users className="w-3 h-3" />
-                          <span className="text-xs">{getMemberCount(workspace) + 1}</span>
+                          <span className="text-xs">{getMemberCount(workspace)}</span>
                         </div>
                       )}
                     </button>
                   ))}
+                  
+                  {workspaces.length === 0 && !isLoading && (
+                    <div className="text-center py-4 text-[var(--color-text-muted)]">
+                      <p className="text-sm">No workspaces found</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Create New Workspace */}

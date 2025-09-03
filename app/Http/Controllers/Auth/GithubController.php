@@ -115,6 +115,13 @@ class GithubController extends Controller
             'password' => Hash::make(uniqid()),
             'email_verified_at' => now(), // GitHub emails are considered verified
         ]);
+        
+        
+        if ($user->wasRecentlyCreated) {
+            $user->ensurePersonalWorkspace();
+        }
+    
+        return $user;
     }
 
     /**

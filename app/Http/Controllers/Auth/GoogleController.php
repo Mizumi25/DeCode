@@ -20,7 +20,7 @@ class GoogleController extends Controller
     public function callback()
     {
         $googleUser = Socialite::driver('google')->stateless()->user();
-
+        
         $user = User::updateOrCreate([
             'email' => $googleUser->getEmail(),
         ], [
@@ -29,9 +29,12 @@ class GoogleController extends Controller
             'avatar' => $googleUser->getAvatar(),
             'password' => Hash::make(uniqid()),
         ]);
-
+    
+        // Ensure personal workspace exists
+        $user->ensurePersonalWorkspace();
+    
         Auth::login($user);
-
+        
         return redirect('/projects');
     }
 }

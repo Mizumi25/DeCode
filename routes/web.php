@@ -5,6 +5,8 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\VoidController;
 use App\Http\Controllers\ForgeController;
 use App\Http\Controllers\SourceController;
+use App\Http\Controllers\WorkspaceController; 
+use App\Http\Controllers\InviteController; 
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -27,8 +29,15 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     
+    Route::get('/workspaces/{workspace}/settings', [WorkspaceController::class, 'settings'])->name('workspace.settings');
+    
+    // Public invite acceptance page
+    Route::get('/invite/{token}', [InviteController::class, 'showInvite'])->name('invite.show');
+    
+    
     // Project routes
     Route::get('/projects', [ProjectController::class, 'index'])->name('projects');
+    Route::get('/workspaces/{workspace}/projects', [ProjectController::class, 'index'])->name('workspace.projects');
     Route::get('/projects/search', [ProjectController::class, 'search'])->name('projects.search');
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
     

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useHeaderStore } from '@/stores/useHeaderStore'
 import { useForgeStore } from '@/stores/useForgeStore'
+import { useSourceStore } from '@/stores/useSourceStore'
 
 const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) => {
   const onForgePage = currentRoute.includes('/modeForge')
@@ -28,9 +29,19 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
     _triggerUpdate // Include for reactive updates
   } = useForgeStore()
 
+  // Use SourceStore for Source page panels with reactive state
+  const {
+    toggleSourcePanel,
+    isSourcePanelOpen,
+    toggleAllSourcePanels,
+    allSourcePanelsHidden,
+    sourcePanelStates,
+    _sourceTriggerUpdate
+  } = useSourceStore()
+
   // Handle panel toggle based on page type with enhanced logging
   const handlePanelToggle = (panelId) => {
-    console.log(`MiddlePanelControls: Toggle requested for ${panelId} on ${onForgePage ? 'Forge' : 'Other'} page`);
+    console.log(`MiddlePanelControls: Toggle requested for ${panelId} on ${onForgePage ? 'Forge' : onSourcePage ? 'Source' : 'Other'} page`);
     
     if (onForgePage) {
       // Map button positions to panel IDs for Forge page
@@ -41,17 +52,39 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
       }
       
       const actualPanelId = forgePanelMap[panelId]
-      console.log(`MiddlePanelControls: Mapped ${panelId} to ${actualPanelId}`);
+      console.log(`MiddlePanelControls: Mapped ${panelId} to ${actualPanelId} for Forge`);
       
       if (actualPanelId) {
         console.log(`MiddlePanelControls: Calling toggleForgePanel for ${actualPanelId}`);
-        console.log(`MiddlePanelControls: Current state before toggle: ${isForgePanelOpen(actualPanelId)}`);
+        console.log(`MiddlePanelControls: Current Forge state before toggle: ${isForgePanelOpen(actualPanelId)}`);
         
         toggleForgePanel(actualPanelId)
         
         // Log state after toggle (use setTimeout to see the updated state)
         setTimeout(() => {
-          console.log(`MiddlePanelControls: State after toggle: ${isForgePanelOpen(actualPanelId)}`);
+          console.log(`MiddlePanelControls: Forge state after toggle: ${isForgePanelOpen(actualPanelId)}`);
+        }, 0);
+      }
+    } else if (onSourcePage) {
+      // Map button positions to panel IDs for Source page
+      const sourcePanelMap = {
+        'components': 'explorer-panel',  // Maps to explorer (which IS the layers panel)
+        'code': 'terminal-panel',        // Maps to terminal/output
+        'layers': 'explorer-panel'       // Maps to explorer panel (SAME as components)
+      }
+      
+      const actualPanelId = sourcePanelMap[panelId]
+      console.log(`MiddlePanelControls: Mapped ${panelId} to ${actualPanelId} for Source`);
+      
+      if (actualPanelId) {
+        console.log(`MiddlePanelControls: Calling toggleSourcePanel for ${actualPanelId}`);
+        console.log(`MiddlePanelControls: Current Source state before toggle: ${isSourcePanelOpen(actualPanelId)}`);
+        
+        toggleSourcePanel(actualPanelId)
+        
+        // Log state after toggle (use setTimeout to see the updated state)
+        setTimeout(() => {
+          console.log(`MiddlePanelControls: Source state after toggle: ${isSourcePanelOpen(actualPanelId)}`);
         }, 0);
       }
     } else {
@@ -66,11 +99,18 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
     console.log('MiddlePanelControls: Hide all panels requested');
     
     if (onForgePage) {
-      console.log(`MiddlePanelControls: Current allPanelsHidden state: ${allPanelsHidden}`);
+      console.log(`MiddlePanelControls: Current Forge allPanelsHidden state: ${allPanelsHidden}`);
       toggleAllForgePanels()
       
       setTimeout(() => {
-        console.log(`MiddlePanelControls: New allPanelsHidden state: ${allPanelsHidden}`);
+        console.log(`MiddlePanelControls: New Forge allPanelsHidden state: ${allPanelsHidden}`);
+      }, 0);
+    } else if (onSourcePage) {
+      console.log(`MiddlePanelControls: Current Source allSourcePanelsHidden state: ${allSourcePanelsHidden}`);
+      toggleAllSourcePanels()
+      
+      setTimeout(() => {
+        console.log(`MiddlePanelControls: New Source allSourcePanelsHidden state: ${allSourcePanelsHidden}`);
       }, 0);
     } else {
       onPanelToggle && onPanelToggle('hideAll')
@@ -90,7 +130,22 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
       
       // Debug log for active state
       if (actualPanelId) {
-        console.log(`MiddlePanelControls: Panel ${panelId} (${actualPanelId}) is ${isActive ? 'active' : 'inactive'}`);
+        console.log(`MiddlePanelControls: Forge panel ${panelId} (${actualPanelId}) is ${isActive ? 'active' : 'inactive'}`);
+      }
+      
+      return isActive;
+    } else if (onSourcePage) {
+      const sourcePanelMap = {
+        'components': 'explorer-panel',
+        'code': 'terminal-panel',
+        'layers': 'layers-panel'
+      }
+      const actualPanelId = sourcePanelMap[panelId]
+      const isActive = actualPanelId ? isSourcePanelOpen(actualPanelId) : false;
+      
+      // Debug log for active state
+      if (actualPanelId) {
+        console.log(`MiddlePanelControls: Source panel ${panelId} (${actualPanelId}) is ${isActive ? 'active' : 'inactive'}`);
       }
       
       return isActive;
@@ -99,12 +154,22 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
     }
   }
 
+  // Get the appropriate hidden state based on page
+  const getHiddenState = () => {
+    if (onForgePage) return allPanelsHidden;
+    if (onSourcePage) return allSourcePanelsHidden;
+    return false; // Default for other pages
+  }
+
   // Log current state when component renders
   console.log('MiddlePanelControls: Rendering with states:', {
     onForgePage,
-    allPanelsHidden,
-    forgePanelStates,
-    triggerUpdate: _triggerUpdate
+    onSourcePage,
+    forgePanelStates: onForgePage ? forgePanelStates : 'N/A',
+    sourcePanelStates: onSourcePage ? sourcePanelStates : 'N/A',
+    allPanelsHidden: onForgePage ? allPanelsHidden : 'N/A',
+    allSourcePanelsHidden: onSourcePage ? allSourcePanelsHidden : 'N/A',
+    triggerUpdate: onForgePage ? _triggerUpdate : onSourcePage ? _sourceTriggerUpdate : 'N/A'
   });
 
   return (
@@ -113,7 +178,7 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
       <button 
         onClick={() => handlePanelToggle('components')}
         className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
-        title="Toggle Components Panel"
+        title={onSourcePage ? "Toggle Explorer Panel" : "Toggle Components Panel"}
       >
         <Component className={`w-3 h-3 ${
           isPanelActive('components') ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'
@@ -124,7 +189,7 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
       <button 
         onClick={() => handlePanelToggle('code')}
         className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
-        title="Toggle Code Panel"
+        title={onSourcePage ? "Toggle Terminal Panel" : "Toggle Code Panel"}
       >
         <Code className={`w-3 h-3 ${
           isPanelActive('code') ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'
@@ -137,11 +202,11 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
         <Puzzle className="w-3 h-3 text-[var(--color-text)]" />
       </button>
 
-      {/* Layers Panel Toggle - Fourth Icon */}
+      {/* Layers Panel Toggle - Fourth Icon - UPDATED for Source page support */}
       <button 
         onClick={() => handlePanelToggle('layers')}
         className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
-        title="Toggle Layers Panel"
+        title={onSourcePage ? "Toggle Layers Panel (Source)" : "Toggle Layers Panel (Forge)"}
       >
         <Layers className={`w-3 h-3 ${
           isPanelActive('layers') ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'
@@ -166,13 +231,19 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
         <Settings className="w-3 h-3 text-[var(--color-text)]" />
       </button>
 
-      {/* Hide/Show All Panels Button */}
+      {/* Hide/Show All Panels Button - UPDATED for Source page support */}
       <button
         onClick={handleHideAllPanels}
         className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
-        title={onForgePage && allPanelsHidden ? "Show All Panels" : "Hide All Panels"}
+        title={
+          onForgePage 
+            ? (allPanelsHidden ? "Show All Panels" : "Hide All Panels")
+            : onSourcePage 
+            ? (allSourcePanelsHidden ? "Show All Panels" : "Hide All Panels")
+            : "Hide/Show All Panels"
+        }
       >
-        {onForgePage && allPanelsHidden ? (
+        {getHiddenState() ? (
           <Eye className="w-3 h-3 text-[var(--color-text)]" />
         ) : (
           <EyeOff className="w-3 h-3 text-[var(--color-text)]" />

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import Panel from '@/Components/Panel';
@@ -7,10 +7,22 @@ import ExplorerPanel from '@/Components/Source/ExplorerPanel';
 import PreviewPanel from '@/Components/Source/PreviewPanel';
 import CodeEditor from '@/Components/Source/CodeEditor';
 import TerminalPanel from '@/Components/Source/TerminalPanel';
+// Import the new Source store
+import { useSourceStore } from '@/stores/useSourceStore';
 
 export default function SourcePage({ projectId, frameId }) {
-  // Panel states
-  const [panelStates, setPanelStates] = useState({
+  // Use Source Store for panel management
+  const {
+    toggleSourcePanel,
+    isSourcePanelOpen,
+    toggleAllSourcePanels,
+    allSourcePanelsHidden,
+    sourcePanelStates,
+    _sourceTriggerUpdate // Include trigger for reactive updates
+  } = useSourceStore()
+
+  // Legacy panel states for compatibility with other parts (if needed)
+  const [legacyPanelStates, setLegacyPanelStates] = useState({
     forge: false,
     source: false
   });
@@ -22,65 +34,153 @@ export default function SourcePage({ projectId, frameId }) {
   // Use ref to track previous state and avoid console spam
   const previousPanelState = useRef(null);
 
-  // Handler for when a panel is closed
-  const handlePanelClose = (panelId) => {
-    console.log(`Panel ${panelId} closed`);
-    setPanelStates(prev => ({
-      ...prev,
-      [panelId]: false
-    }));
-  };
+  // CRITICAL: Force re-render when SourceStore state changes
+  useEffect(() => {
+    console.log('SourcePage: SourceStore state changed, triggering re-render');
+    console.log('Panel states:', sourcePanelStates);
+    console.log('All panels hidden:', allSourcePanelsHidden);
+    console.log('Explorer panel (layers) open:', isSourcePanelOpen('explorer-panel'));
+  }, [sourcePanelStates, allSourcePanelsHidden, _sourceTriggerUpdate]);
+
+  // Handler for when a panel is closed - Updated to use SourceStore
+  const handlePanelClose = useCallback((panelId) => {
+    console.log(`SourcePage: Panel ${panelId} close requested`);
+    toggleSourcePanel(panelId);
+  }, [toggleSourcePanel]);
 
   // Handler for changes in panel state - with debouncing to prevent spam
-  const handlePanelStateChange = (hasRightPanels) => {
+  const handlePanelStateChange = useCallback((hasRightPanels) => {
     // Only log if the state actually changed
     if (previousPanelState.current !== hasRightPanels) {
-      console.log(`Right panels active: ${hasRightPanels}`);
+      console.log(`SourcePage: Right panels active: ${hasRightPanels}`);
       previousPanelState.current = hasRightPanels;
     }
-  };
-
-  // Define the content for the left-docked panel (Explorer)
-  const explorerPanel = {
-    id: 'explorer',
-    title: 'EXPLORER',
-    content: <ExplorerPanel />
-  };
-
-  // Define the content for the right-docked panel (Preview/Split View)
-  const previewPanel = {
-    id: 'preview',
-    title: 'PREVIEW',
-    content: <PreviewPanel previewMode={previewMode} setPreviewMode={setPreviewMode} />
-  };
-
-  // Default panels configuration
-  const defaultPanels = [explorerPanel];
-  const previewPanels = [previewPanel]; // Always show preview now
+  }, []);
 
   // Handle panel maximize
-  const handlePanelMaximize = (panelType) => {
-   
-  };
+  const handlePanelMaximize = useCallback((panelType) => {
+    console.log('SourcePage: Panel maximize requested for:', panelType);
+  }, []);
 
-  // Handle toggling the visibility of a panel
-  const handlePanelToggle = (panelType) => {
-    setPanelStates(prev => ({
+  // Handle toggling the visibility of a panel - Updated to use SourceStore
+  const handlePanelToggle = useCallback((panelType) => {
+    console.log('SourcePage: Header panel toggle requested:', panelType);
+    
+    // Handle special cases
+    if (panelType === 'hideAll') {
+      toggleAllSourcePanels();
+      return;
+    }
+
+    // Map panel types to actual panel IDs
+    const panelMap = {
+      'explorer': 'explorer-panel',
+      'layers': 'explorer-panel',       // SAME panel as explorer - because explorer IS the layers
+      'preview': 'preview-panel',
+      'terminal': 'terminal-panel',
+      'output': 'output-panel',
+      'problems': 'problems-panel',
+      'debug': 'debug-panel'
+    };
+
+    const actualPanelId = panelMap[panelType];
+    if (actualPanelId) {
+      toggleSourcePanel(actualPanelId);
+    }
+
+    // Update legacy state for compatibility
+    setLegacyPanelStates(prev => ({
       ...prev,
       [panelType]: !prev[panelType]
     }));
-  };
+  }, [toggleSourcePanel, toggleAllSourcePanels]);
 
   // Handle switching between modes
-  const handleModeSwitch = (mode) => {
-    
-  };
+  const handleModeSwitch = useCallback((mode) => {
+    console.log('SourcePage: Mode switch requested:', mode);
+  }, []);
+
+  // Create mock panels with actual components
+  const createSourcePanel = (id, title, content) => ({
+    id,
+    title,
+    content: content || (
+      <div className="p-4 space-y-2">
+        <h3 className="font-semibold">{title}</h3>
+        <p className="text-sm text-gray-600">Mock {title} panel content</p>
+        <div className="space-y-1 text-xs text-gray-500">
+          <div>This is a placeholder for the {title} panel</div>
+          <div>Panel ID: {id}</div>
+        </div>
+      </div>
+    )
+  });
+
+  // Memoize left panels with actual components  
+  const leftPanels = useMemo(() => {
+    const panels = [];
+
+    // Explorer panel (always visible unless all hidden) - This IS the layers panel
+    if (isSourcePanelOpen('explorer-panel')) {
+      panels.push(createSourcePanel('explorer-panel', 'EXPLORER', 
+        ExplorerPanel ? <ExplorerPanel /> : null
+      ));
+    }
+
+    console.log(`SourcePage: Left panels: ${panels.map(p => p.id).join(', ')}`);
+    return panels;
+  }, [isSourcePanelOpen, ExplorerPanel, _sourceTriggerUpdate]);
+
+  // Memoize right panels
+  const rightPanels = useMemo(() => {
+    const panels = [];
+
+    // Preview panel (always visible unless all hidden)
+    if (isSourcePanelOpen('preview-panel')) {
+      panels.push(createSourcePanel('preview-panel', 'PREVIEW',
+        PreviewPanel ? (
+          <PreviewPanel previewMode={previewMode} setPreviewMode={setPreviewMode} />
+        ) : null
+      ));
+    }
+
+    // Debug panel (toggleable)
+    if (isSourcePanelOpen('debug-panel')) {
+      panels.push(createSourcePanel('debug-panel', 'DEBUG',
+        <div className="p-4">
+          <h3 className="font-semibold mb-2">Debug Console</h3>
+          <div className="text-sm space-y-1 font-mono text-green-600">
+            <div>[DEBUG] Source page loaded</div>
+            <div>[DEBUG] Project ID: {projectId || 'N/A'}</div>
+            <div>[DEBUG] Frame ID: {frameId || 'N/A'}</div>
+            <div>[DEBUG] Panels: {Object.keys(sourcePanelStates).filter(k => sourcePanelStates[k]).join(', ')}</div>
+          </div>
+        </div>
+      ));
+    }
+
+    console.log(`SourcePage: Right panels: ${panels.map(p => p.id).join(', ')}`);
+    return panels;
+  }, [isSourcePanelOpen, previewMode, projectId, frameId, sourcePanelStates, _sourceTriggerUpdate]);
+
+  // Check if we have visible panels
+  const hasLeftPanels = !allSourcePanelsHidden && leftPanels.length > 0;
+  const hasRightPanels = !allSourcePanelsHidden && rightPanels.length > 0;
+
+  console.log('SourcePage: Rendering with panel states:', {
+    hasLeftPanels,
+    hasRightPanels,
+    leftPanelCount: leftPanels.length,
+    rightPanelCount: rightPanels.length,
+    allHidden: allSourcePanelsHidden,
+    layersOpen: isSourcePanelOpen('layers-panel')
+  });
 
   return (
     <AuthenticatedLayout
       headerProps={{
         onPanelToggle: handlePanelToggle,
-        panelStates: panelStates,
+        panelStates: legacyPanelStates, // Keep for compatibility
         onModeSwitch: handleModeSwitch
       }}
     >
@@ -94,40 +194,101 @@ export default function SourcePage({ projectId, frameId }) {
         }}
       >
         
-        {/* Left Panel Container - Explorer */}
-        <div className="w-80 flex-shrink-0 shadow-lg">
-          <Panel
-            isOpen={true}
-            initialPanels={defaultPanels}
-            allowedDockPositions={['left']}
-            onPanelClose={handlePanelClose}
-            onPanelStateChange={handlePanelStateChange}
-            snapToEdge={true}
-          />
-        </div>
+        {/* Left Panel Container - Explorer & Layers */}
+        {hasLeftPanels && (
+          <div className="w-80 flex-shrink-0 shadow-lg">
+            <Panel
+              key={`left-panels-${_sourceTriggerUpdate}`} // Force re-render with key
+              isOpen={true}
+              initialPanels={leftPanels}
+              allowedDockPositions={['left']}
+              onPanelClose={handlePanelClose}
+              onPanelStateChange={handlePanelStateChange}
+              snapToEdge={true}
+              mergePanels={true}
+              mergePosition="left"
+              showTabs={leftPanels.length > 1}
+              defaultWidth={320}
+              minWidth={280}
+              maxWidth={400}
+            />
+          </div>
+        )}
 
         {/* Main Code Editor Area */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Code Editor */}
           <div className="flex-1 min-h-0">
-            <CodeEditor />
+            {CodeEditor ? (
+              <CodeEditor />
+            ) : (
+              <div className="h-full flex items-center justify-center bg-[var(--color-bg-muted)]">
+                <div className="text-center">
+                  <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--color-text)' }}>
+                    Code Editor
+                  </h2>
+                  <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                    Mock code editor area
+                  </div>
+                  <div className="text-xs mt-4 space-y-1" style={{ color: 'var(--color-text-muted)' }}>
+                    <div>Project: {projectId || 'No project'}</div>
+                    <div>Frame: {frameId || 'No frame'}</div>
+                    <div>Explorer/Layers panel: {isSourcePanelOpen('explorer-panel') ? 'Open' : 'Closed'}</div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
+          
           {/* Terminal/Output Area */}
-          <TerminalPanel />
+          {isSourcePanelOpen('terminal-panel') && (
+            <div className="h-48 border-t" style={{ borderColor: 'var(--color-border)' }}>
+              {TerminalPanel ? (
+                <TerminalPanel />
+              ) : (
+                <div className="h-full bg-[var(--color-bg-muted)] p-4">
+                  <h3 className="font-semibold mb-2" style={{ color: 'var(--color-text)' }}>Terminal</h3>
+                  <div className="text-sm font-mono" style={{ color: 'var(--color-text-muted)' }}>
+                    Mock terminal/output area
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Right Panel Container - Preview (always visible now) */}
-        <div className="w-80 flex-shrink-0 shadow-lg">
-          <Panel
-            isOpen={true}
-            initialPanels={previewPanels}
-            allowedDockPositions={['right']}
-            onPanelClose={handlePanelClose}
-            onPanelStateChange={handlePanelStateChange}
-            snapToEdge={true}
-          />
-        </div>
+        {/* Right Panel Container - Preview & Debug */}
+        {hasRightPanels && (
+          <div className="w-80 flex-shrink-0 shadow-lg">
+            <Panel
+              key={`right-panels-${_sourceTriggerUpdate}`} // Force re-render with key
+              isOpen={true}
+              initialPanels={rightPanels}
+              allowedDockPositions={['right']}
+              onPanelClose={handlePanelClose}
+              onPanelStateChange={handlePanelStateChange}
+              snapToEdge={true}
+              mergePanels={true}
+              mergePosition="right"
+              showTabs={rightPanels.length > 1}
+              defaultWidth={320}
+              minWidth={280}
+              maxWidth={400}
+            />
+          </div>
+        )}
       </div>
+
+      {/* Debug overlay for development */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed bottom-4 left-4 bg-black bg-opacity-80 text-white p-2 rounded text-xs font-mono z-50">
+          <div>Layers: {isSourcePanelOpen('explorer-panel') ? 'ON' : 'OFF'}</div>
+          <div>Explorer: {isSourcePanelOpen('explorer-panel') ? 'ON' : 'OFF'}</div>
+          <div>Preview: {isSourcePanelOpen('preview-panel') ? 'ON' : 'OFF'}</div>
+          <div>Terminal: {isSourcePanelOpen('terminal-panel') ? 'ON' : 'OFF'}</div>
+          <div>All Hidden: {allSourcePanelsHidden ? 'YES' : 'NO'}</div>
+        </div>
+      )}
     </AuthenticatedLayout>
   );
 }

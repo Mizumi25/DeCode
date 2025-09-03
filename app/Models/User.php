@@ -1,5 +1,5 @@
 <?php
-
+// app/Models/User.php
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -43,11 +43,31 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    protected static function booted()
+    {
+        static::created(function ($user) {
+            // Automatically create a personal workspace for new users
+            $user->createPersonalWorkspace();
+        });
+    }
     
     // Relationships
     public function projects()
     {
         return $this->hasMany(Project::class);
+    }
+
+    public function workspaces()
+    {
+        return $this->belongsToMany(Workspace::class, 'workspace_users')
+                    ->withPivot('role', 'joined_at')
+                    ->withTimestamps();
+    }
+
+    public function ownedWorkspaces()
+    {
+        return $this->hasMany(Workspace::class, 'owner_id');
     }
 
     // Scopes
@@ -141,6 +161,59 @@ class User extends Authenticatable
             Log::error('GitHub token test failed: ' . $e->getMessage());
             return false;
         }
+    }
+
+    // Workspace methods
+    public function getAllWorkspaces()
+    {
+        return Workspace::forUser($this->id)
+                        ->with(['owner', 'users'])
+                        ->orderBy('created_at', 'desc')
+                        ->get();
+    }
+
+    public function getPersonalWorkspace()
+    {
+        return $this->ownedWorkspaces()
+                    ->where('type', 'personal')
+                    ->first();
+    }
+
+    public function createPersonalWorkspace()
+    {
+        $workspace = $this->ownedWorkspaces()->create([
+            'name' => $this->name . "'s Personal Workspace",
+            'type' => 'personal',
+            'description' => 'Personal workspace for ' . $this->name,
+            'settings' => (new Workspace())->getDefaultSettings()
+        ]);
+
+        return $workspace;
+    }
+    
+    // Ensure user has a personal workspace
+    public function ensurePersonalWorkspace()
+    {
+        $personalWorkspace = $this->getPersonalWorkspace();
+        
+        if (!$personalWorkspace) {
+            return $this->createPersonalWorkspace();
+        }
+        
+        return $personalWorkspace;
+    }
+
+    public function getCurrentWorkspace()
+    {
+        // For now, return personal workspace or first available workspace
+        $personalWorkspace = $this->getPersonalWorkspace();
+        
+        if ($personalWorkspace) {
+            return $personalWorkspace;
+        }
+
+        // If no personal workspace, return first workspace user has access to
+        return $this->getAllWorkspaces()->first();
     }
 
     // Helper methods for projects

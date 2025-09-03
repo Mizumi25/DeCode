@@ -1,25 +1,28 @@
-import { useEffect, useState } from 'react'
+// @/Components/Header/Sidebar.jsx
+import React, { useState, useEffect } from 'react'
 import {
   User,
   Settings,
   Mail,
   FolderKanban,
-  Archive,
   FolderPlus,
   LogOut,
   Users,
   Database,
   MessageSquare,
-  Eye
+  Eye,
+  Building
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { router, usePage } from '@inertiajs/react'
+import { useWorkspaceStore } from '@/stores/useWorkspaceStore'
 import Modal from '@/Components/Modal'
 import Edit from '@/Pages/Profile/Edit'
 import FeedbackReportPage from '@/Pages/Admin/FeedbackReportPage'
 import AssetManagerPage from '@/Pages/Admin/AssetManagerPage'
 import UserManagementPage from '@/Pages/Admin/UserManagementPage'
 import ProjectOversightPage from '@/Pages/Admin/ProjectOversightPage'
+import CreateWorkspaceModal from '@/Components/Workspaces/CreateWorkspaceModal'
 
 const sidebarItemsTop = [
   { label: 'Account', icon: <User /> },
@@ -29,7 +32,6 @@ const sidebarItemsTop = [
 
 const sidebarItemsBottom = [
   { label: 'All', icon: <FolderKanban /> },
-  { label: 'Archive', icon: <Archive /> },
   { label: 'New Workspace', icon: <FolderPlus /> },
 ]
 
@@ -63,13 +65,23 @@ const Sidebar = ({ isOpen, onClose }) => {
   const avatarInitial = user?.name?.charAt(0)?.toUpperCase()
   // Now using is_admin (Laravel's snake_case convention)
   const isAdmin = user?.is_admin
+  
   const [showModal, setShowModal] = useState(false)
   const [modalText, setModalText] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showCreateWorkspaceModal, setShowCreateWorkspaceModal] = useState(false)
+
+  const { currentWorkspace } = useWorkspaceStore()
 
   const logout = () => router.post('/logout')
 
   const handleItemClick = (label) => {
+    if (label === 'New Workspace') {
+      setShowCreateWorkspaceModal(true)
+      onClose()
+      return
+    }
+
     setModalText(label)
     setShowModal(true)
     setLoading(true)
@@ -85,6 +97,13 @@ const Sidebar = ({ isOpen, onClose }) => {
     setLoading(true)
     // Simulate loading delay for consistency
     setTimeout(() => setLoading(false), 400)
+  }
+
+  const handleWorkspaceSettings = () => {
+    onClose()
+    if (currentWorkspace) {
+      router.visit(`/workspaces/${currentWorkspace.id}/settings`)
+    }
   }
 
   const renderModalContent = () => {
@@ -138,10 +157,6 @@ const Sidebar = ({ isOpen, onClose }) => {
     )
   }
 
-  // Debug: Log to see what's available
-  console.log('User data:', user)
-  console.log('Is Admin:', isAdmin)
-
   return (
     <>
       <motion.aside
@@ -154,6 +169,30 @@ const Sidebar = ({ isOpen, onClose }) => {
         {/* Scrollable content area */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 pb-4">
           <div className="space-y-6">
+            {/* Current Workspace Info */}
+            {currentWorkspace && (
+              <div className="border-b border-[var(--color-border)] pb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Building className="w-4 h-4 text-[var(--color-text-muted)]" />
+                  <span className="font-medium text-[var(--color-text)] truncate">
+                    {currentWorkspace.name}
+                  </span>
+                  {currentWorkspace.type === 'personal' && (
+                    <span className="text-xs bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] px-2 py-0.5 rounded">
+                      Personal
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={handleWorkspaceSettings}
+                  className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors flex items-center gap-1"
+                >
+                  <Settings className="w-3 h-3" />
+                  Workspace Settings
+                </button>
+              </div>
+            )}
+
             {/* User Navigation Section */}
             <div className="space-y-4">
               <div className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wide">
@@ -212,7 +251,9 @@ const Sidebar = ({ isOpen, onClose }) => {
         {/* Fixed bottom section */}
         <div className="flex-shrink-0 p-6 pt-4 border-t border-gray-200/20">
           <div className="flex items-center justify-between">
-            <div className="text-[var(--color-text-muted)] text-sm">My Workspace</div>
+            <div className="text-[var(--color-text-muted)] text-sm">
+              {currentWorkspace ? currentWorkspace.name : 'My Workspace'}
+            </div>
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-sm overflow-hidden">
                 {avatar ? (
@@ -233,6 +274,12 @@ const Sidebar = ({ isOpen, onClose }) => {
       <Modal show={showModal} title={modalText} onClose={() => setShowModal(false)}>
         {renderModalContent()}
       </Modal>
+
+      {/* Create Workspace Modal */}
+      <CreateWorkspaceModal 
+        show={showCreateWorkspaceModal}
+        onClose={() => setShowCreateWorkspaceModal(false)}
+      />
     </>
   )
 }

@@ -1,11 +1,107 @@
 // @/Components/Workspaces/InviteModal.jsx
-import React, { useState, useEffect } from 'react'
-import { X, Mail, Link as LinkIcon, Copy, Check, Users, Eye, Edit, Plus, AlertCircle } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { X, Mail, Link as LinkIcon, Copy, Check, Users, Eye, Edit, Plus, AlertCircle, ChevronDown } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Modal from '@/Components/Modal'
 import CreateWorkspaceModal from './CreateWorkspaceModal'
-import { useInviteStore, copyToClipboard, validateEmail, WORKSPACE_ROLES } from '@/stores/useInviteStore'
+import { useInviteStore, copyToClipboard, validateEmail } from '@/stores/useInviteStore'
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore'
+
+// Role options
+const WORKSPACE_ROLES = [
+  {
+    value: 'viewer',
+    label: 'Viewer',
+    description: 'Can view projects and workspaces',
+    icon: Eye
+  },
+  {
+    value: 'editor', 
+    label: 'Editor',
+    description: 'Can create, edit, and manage projects',
+    icon: Edit
+  }
+]
+
+// Custom Dropdown Component
+const CustomDropdown = ({ value, onChange, options, placeholder = "Select option" }) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const selectedOption = options.find(option => option.value === value)
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg bg-[var(--color-surface)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent flex items-center justify-between"
+      >
+        <div className="flex items-center gap-2">
+          {selectedOption?.icon && (
+            <selectedOption.icon className="w-4 h-4 text-[var(--color-text-muted)]" />
+          )}
+          <span>{selectedOption?.label || placeholder}</span>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-[var(--color-text-muted)] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute top-full mt-1 w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-xl z-50 max-h-60 overflow-auto"
+          >
+            {options.map((option) => {
+              const IconComponent = option.icon
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(option.value)
+                    setIsOpen(false)
+                  }}
+                  className={`w-full px-3 py-2 text-left hover:bg-[var(--color-bg-muted)] transition-colors first:rounded-t-lg last:rounded-b-lg flex items-start gap-2 ${
+                    value === option.value ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)]' : 'text-[var(--color-text)]'
+                  }`}
+                >
+                  {IconComponent && (
+                    <IconComponent className={`w-4 h-4 mt-0.5 ${
+                      value === option.value ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)]'
+                    }`} />
+                  )}
+                  <div>
+                    <div className="font-medium">{option.label}</div>
+                    {option.description && (
+                      <div className="text-xs text-[var(--color-text-muted)] mt-1">
+                        {option.description}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
 
 const InviteModal = ({ show, onClose, workspaceId }) => {
   const [activeTab, setActiveTab] = useState('email')
@@ -189,20 +285,12 @@ const InviteModal = ({ show, onClose, workspaceId }) => {
                     <label className="block text-sm font-medium text-[var(--color-text)] mb-2">
                       Role
                     </label>
-                    <select
+                    <CustomDropdown
                       value={emailRole}
-                      onChange={(e) => setEmailRole(e.target.value)}
-                      className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg bg-[var(--color-surface)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
-                    >
-                      {WORKSPACE_ROLES.map((role) => (
-                        <option key={role.value} value={role.value}>
-                          {role.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                      {WORKSPACE_ROLES.find(r => r.value === emailRole)?.description}
-                    </p>
+                      onChange={setEmailRole}
+                      options={WORKSPACE_ROLES}
+                      placeholder="Select role"
+                    />
                   </div>
 
                   <button
@@ -242,20 +330,12 @@ const InviteModal = ({ show, onClose, workspaceId }) => {
                     <label className="block text-sm font-medium text-[var(--color-text)] mb-2">
                       Role for Link Users
                     </label>
-                    <select
+                    <CustomDropdown
                       value={linkRole}
-                      onChange={(e) => setLinkRole(e.target.value)}
-                      className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg bg-[var(--color-surface)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
-                    >
-                      {WORKSPACE_ROLES.map((role) => (
-                        <option key={role.value} value={role.value}>
-                          {role.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                      {WORKSPACE_ROLES.find(r => r.value === linkRole)?.description}
-                    </p>
+                      onChange={setLinkRole}
+                      options={WORKSPACE_ROLES}
+                      placeholder="Select role"
+                    />
                   </div>
 
                   {!generatedLink ? (

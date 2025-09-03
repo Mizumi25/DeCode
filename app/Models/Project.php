@@ -28,7 +28,8 @@ class Project extends Model
         'viewport_width',
         'viewport_height',
         'css_framework',
-        'output_format'
+        'output_format',
+        'workspace_id', 
     ];
 
     protected $casts = [
@@ -76,6 +77,11 @@ class Project extends Model
     {
         return $this->hasMany(ProjectComponent::class);
     }
+    
+    public function workspace()
+    {
+        return $this->belongsTo(Workspace::class);
+    }
 
     // Scopes
     public function scopeByUser($query, $userId)
@@ -114,6 +120,22 @@ class Project extends Model
             $q->where('name', 'like', '%' . $search . '%')
               ->orWhere('description', 'like', '%' . $search . '%');
         });
+    }
+    
+    public function scopeForWorkspace($query, $workspaceId)
+    {
+        return $query->where('workspace_id', $workspaceId);
+    }
+
+    public function scopeForUserAndWorkspace($query, $userId, $workspaceId = null)
+    {
+        $query->where('user_id', $userId);
+        
+        if ($workspaceId) {
+            $query->where('workspace_id', $workspaceId);
+        }
+        
+        return $query;
     }
 
     // Mutators & Accessors
