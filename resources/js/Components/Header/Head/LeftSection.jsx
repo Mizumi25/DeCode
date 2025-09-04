@@ -142,7 +142,7 @@ const LeftSection = ({
             `
           }}
         >
-          <AnimatedBlackHoleLogo size={20} />
+          <AnimatedBlackHoleLogo size={25} />
         </div>
 
         {/* Logo Label */}

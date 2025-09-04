@@ -19,6 +19,9 @@ class GithubController extends Controller
             session(['github_connect_modal' => true]);
         }
         
+        // Store that GitHub OAuth is in progress for loading state
+        session(['oauth_in_progress' => 'github']);
+        
         return Socialite::driver('github')
             ->scopes(['repo', 'user:email']) // Request repo access for importing
             ->redirect();
@@ -27,6 +30,9 @@ class GithubController extends Controller
     public function callback()
     {
         try {
+            // Clear OAuth progress indicator
+            session()->forget('oauth_in_progress');
+            
             $githubUser = Socialite::driver('github')->stateless()->user();
             
             // Get current authenticated user or find by email
@@ -48,14 +54,15 @@ class GithubController extends Controller
             // Check if this was a modal connection request
             if (session('github_connect_modal')) {
                 session()->forget('github_connect_modal');
-                // Add this for debugging
-               return redirect('/projects?github_connected=1&message=' . urlencode($message));
-                            
+                return redirect('/projects?github_connected=1&message=' . urlencode($message));
             }
 
             return redirect($redirectUrl)->with('success', $message);
             
         } catch (\Exception $e) {
+            // Clear OAuth progress indicator on error
+            session()->forget('oauth_in_progress');
+            
             Log::error('GitHub OAuth Error: ' . $e->getMessage());
             
             $errorMessage = 'Failed to connect GitHub account. Please try again.';
@@ -74,10 +81,9 @@ class GithubController extends Controller
         $user->update([
             'github_id' => $githubUser->getId(),
             'github_username' => $githubUser->getNickname() ?? $githubUser->getName(),
-            'github_token' => $githubUser->token, // Store as plain text for now
+            'github_token' => $githubUser->token,
             'github_refresh_token' => $githubUser->refreshToken,
             'github_token_expires_at' => $githubUser->expiresIn ? now()->addSeconds($githubUser->expiresIn) : null,
-            // Update avatar if user doesn't have one
             'avatar' => $user->avatar ?: $githubUser->getAvatar(),
         ]);
     }
@@ -88,7 +94,6 @@ class GithubController extends Controller
         $user = User::where('github_id', $githubUser->getId())->first();
         
         if ($user) {
-            // Update GitHub data for existing user
             $this->connectGitHubToUser($user, $githubUser);
             return $user;
         }
@@ -97,25 +102,23 @@ class GithubController extends Controller
         $user = User::where('email', $githubUser->getEmail())->first();
         
         if ($user) {
-            // Connect GitHub to existing email user
             $this->connectGitHubToUser($user, $githubUser);
             return $user;
         }
 
         // Create new user
-        return User::create([
+        $user = User::create([
             'name' => $githubUser->getName() ?: $githubUser->getNickname(),
             'email' => $githubUser->getEmail(),
             'github_id' => $githubUser->getId(),
             'github_username' => $githubUser->getNickname() ?? $githubUser->getName(),
-            'github_token' => $githubUser->token, // Store as plain text for now
+            'github_token' => $githubUser->token,
             'github_refresh_token' => $githubUser->refreshToken,
             'github_token_expires_at' => $githubUser->expiresIn ? now()->addSeconds($githubUser->expiresIn) : null,
             'avatar' => $githubUser->getAvatar(),
             'password' => Hash::make(uniqid()),
-            'email_verified_at' => now(), // GitHub emails are considered verified
+            'email_verified_at' => now(),
         ]);
-        
         
         if ($user->wasRecentlyCreated) {
             $user->ensurePersonalWorkspace();
@@ -124,9 +127,6 @@ class GithubController extends Controller
         return $user;
     }
 
-    /**
-     * Disconnect GitHub account
-     */
     public function disconnect()
     {
         $user = Auth::user();
@@ -145,3 +145,4 @@ class GithubController extends Controller
         ], 404);
     }
 }
+

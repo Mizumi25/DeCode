@@ -7,6 +7,8 @@ use App\Models\Workspace;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -14,7 +16,7 @@ use Illuminate\Http\RedirectResponse;
 
 class ProjectController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
         $user = Auth::user();
         $search = $request->input('search');
@@ -186,6 +188,9 @@ class ProjectController extends Controller
             $workspaceProjectsQuery->where('workspace_id', $currentWorkspace->id);
         }
 
+        // Get clipboard status for copy/paste functionality
+        $clipboardStatus = $this->getClipboardStatus(new Request())->getData();
+
         return Inertia::render('ProjectList', [
             'projects' => $projects,
             'workspaces' => $userWorkspaces,
@@ -213,6 +218,7 @@ class ProjectController extends Controller
                 'user_role' => $currentWorkspace->getUserRole($user->id),
             ] : null,
             'filters' => $request->only(['search', 'sort', 'order', 'workspace', 'filter', 'type']),
+            'clipboardStatus' => $clipboardStatus,
             'stats' => [
                 'total' => $projects->count(),
                 'draft' => $workspaceProjectsQuery->where('status', 'draft')->count(),
@@ -226,6 +232,383 @@ class ProjectController extends Controller
                     ->pluck('count', 'type')
                     ->toArray(),
             ]
+        ]);
+    }
+
+    // NEW: Copy project to clipboard
+    public function copyProject(Request $request, Project $project): JsonResponse
+    {
+        $user = Auth::user();
+        
+        // Check if user can access this project
+        if ($project->user_id !== $user->id && !$project->is_public) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to copy this project'
+            ], 403);
+        }
+
+        // Store project ID in user's clipboard cache
+        $clipboardKey = "user_{$user->id}_clipboard";
+        Cache::put($clipboardKey, [
+            'type' => 'project',
+            'project_id' => $project->id,
+            'project_name' => $project->name,
+            'copied_at' => now()->toISOString(),
+            'source_workspace_id' => $project->workspace_id
+        ], now()->addHours(24)); // Clipboard expires after 24 hours
+
+        return response()->json([
+            'success' => true,
+            'message' => "Project '{$project->name}' copied to clipboard",
+            'clipboard' => [
+                'has_project' => true,
+                'project_name' => $project->name,
+                'copied_at' => now()->toISOString()
+            ]
+        ]);
+    }
+
+    // NEW: Paste project from clipboard
+    public function pasteProject(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        
+        $validated = $request->validate([
+            'workspace_id' => 'required|exists:workspaces,id',
+            'name' => 'nullable|string|max:255'
+        ]);
+
+        $clipboardKey = "user_{$user->id}_clipboard";
+        $clipboard = Cache::get($clipboardKey);
+
+        if (!$clipboard || $clipboard['type'] !== 'project') {
+            return response()->json([
+                'success' => false,
+                'message' => 'No project in clipboard to paste'
+            ], 400);
+        }
+
+        $originalProject = Project::find($clipboard['project_id']);
+        if (!$originalProject) {
+            // Clear invalid clipboard
+            Cache::forget($clipboardKey);
+            return response()->json([
+                'success' => false,
+                'message' => 'Original project no longer exists'
+            ], 404);
+        }
+
+        // Check if user can access the original project
+        if ($originalProject->user_id !== $user->id && !$originalProject->is_public) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You no longer have access to the copied project'
+            ], 403);
+        }
+
+        // Check workspace access
+        $workspace = Workspace::find($validated['workspace_id']);
+        if (!$workspace || !$workspace->hasUser($user->id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have access to the target workspace'
+            ], 403);
+        }
+
+        // Check if user can create projects in workspace
+        $userRole = $workspace->getUserRole($user->id);
+        if (!in_array($userRole, ['owner', 'editor'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to create projects in this workspace'
+            ], 403);
+        }
+
+        try {
+            // Use the existing duplicate method but with new workspace
+            $newProject = $originalProject->duplicate($validated['name'] ?? null);
+            $newProject->user_id = $user->id;
+            $newProject->workspace_id = $workspace->id;
+            $newProject->is_public = false; // Pasted projects are private by default
+            $newProject->save();
+
+            \Log::info('Project pasted successfully', [
+                'original_project_id' => $originalProject->id,
+                'new_project_id' => $newProject->id,
+                'target_workspace_id' => $workspace->id,
+                'user_id' => $user->id
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Project pasted to {$workspace->name}",
+                'data' => [
+                    'project' => [
+                        'id' => $newProject->id,
+                        'uuid' => $newProject->uuid,
+                        'name' => $newProject->name,
+                        'workspace' => [
+                            'id' => $workspace->id,
+                            'name' => $workspace->name
+                        ]
+                    ]
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to paste project', [
+                'original_project_id' => $clipboard['project_id'],
+                'target_workspace_id' => $workspace->id,
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to paste project: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // NEW: Move project to different workspace
+    public function moveProjectToWorkspace(Request $request, Project $project): JsonResponse
+    {
+        $user = Auth::user();
+        
+        // Check ownership
+        if ($project->user_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to move this project'
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'workspace_id' => 'required|exists:workspaces,id'
+        ]);
+
+        $targetWorkspace = Workspace::find($validated['workspace_id']);
+        
+        // Check if user has access to target workspace
+        if (!$targetWorkspace || !$targetWorkspace->hasUser($user->id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have access to the target workspace'
+            ], 403);
+        }
+
+        // Check if moving to same workspace
+        if ($project->workspace_id === $targetWorkspace->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project is already in this workspace'
+            ], 400);
+        }
+
+        // Check if user can create projects in target workspace
+        $userRole = $targetWorkspace->getUserRole($user->id);
+        if (!in_array($userRole, ['owner', 'editor'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to move projects to this workspace'
+            ], 403);
+        }
+
+        try {
+            $oldWorkspace = $project->workspace;
+            $project->update(['workspace_id' => $targetWorkspace->id]);
+
+            \Log::info('Project moved between workspaces', [
+                'project_id' => $project->id,
+                'old_workspace_id' => $oldWorkspace?->id,
+                'old_workspace_name' => $oldWorkspace?->name,
+                'new_workspace_id' => $targetWorkspace->id,
+                'new_workspace_name' => $targetWorkspace->name,
+                'user_id' => $user->id
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Project moved to {$targetWorkspace->name}",
+                'data' => [
+                    'project' => $project->fresh(),
+                    'old_workspace' => $oldWorkspace ? [
+                        'id' => $oldWorkspace->id,
+                        'name' => $oldWorkspace->name
+                    ] : null,
+                    'new_workspace' => [
+                        'id' => $targetWorkspace->id,
+                        'name' => $targetWorkspace->name,
+                        'type' => $targetWorkspace->type,
+                    ]
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to move project between workspaces', [
+                'project_id' => $project->id,
+                'target_workspace_id' => $targetWorkspace->id,
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to move project: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // NEW: Get clipboard status
+    public function getClipboardStatus(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        $clipboardKey = "user_{$user->id}_clipboard";
+        $clipboard = Cache::get($clipboardKey);
+
+        if (!$clipboard || $clipboard['type'] !== 'project') {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'has_project' => false,
+                    'project_name' => null,
+                    'copied_at' => null
+                ]
+            ]);
+        }
+
+        // Verify the project still exists
+        $project = Project::find($clipboard['project_id']);
+        if (!$project) {
+            // Clear invalid clipboard
+            Cache::forget($clipboardKey);
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'has_project' => false,
+                    'project_name' => null,
+                    'copied_at' => null
+                ]
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'has_project' => true,
+                'project_name' => $clipboard['project_name'],
+                'copied_at' => $clipboard['copied_at'],
+                'source_workspace_id' => $clipboard['source_workspace_id'] ?? null
+            ]
+        ]);
+    }
+
+    // NEW: Clear clipboard
+    public function clearClipboard(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        $clipboardKey = "user_{$user->id}_clipboard";
+        
+        Cache::forget($clipboardKey);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Clipboard cleared'
+        ]);
+    }
+
+    // NEW: Refresh projects (for pull-to-refresh)
+    public function refreshProjects(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        
+        // Add artificial delay for better UX
+        sleep(1);
+        
+        $workspaceId = $request->input('workspace_id');
+        $workspace = null;
+        
+        if ($workspaceId) {
+            $workspace = Workspace::find($workspaceId);
+            if (!$workspace || !$workspace->hasUser($user->id)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid workspace'
+                ], 403);
+            }
+        }
+
+        // Get fresh project data
+        $query = Project::with(['workspace', 'workspace.owner'])
+            ->where('user_id', $user->id);
+        
+        if ($workspace) {
+            $query->where('workspace_id', $workspace->id);
+        }
+
+        $projects = $query->orderBy('updated_at', 'desc')
+            ->get()
+            ->map(function ($project) {
+                return [
+                    'id' => $project->id,
+                    'uuid' => $project->uuid,
+                    'name' => $project->name,
+                    'description' => $project->description,
+                    'type' => $project->type,
+                    'status' => $project->status,
+                    'thumbnail' => $project->thumbnail ? asset('storage/' . $project->thumbnail) : null,
+                    'last_opened_at' => $project->last_opened_at,
+                    'formatted_last_opened' => $project->formatted_last_opened,
+                    'component_count' => $project->getComponentCountAttribute(),
+                    'frame_count' => $project->getFrameCountAttribute(),
+                    'created_at' => $project->created_at,
+                    'updated_at' => $project->updated_at,
+                    'viewport_width' => $project->viewport_width,
+                    'viewport_height' => $project->viewport_height,
+                    'css_framework' => $project->css_framework,
+                    'output_format' => $project->output_format,
+                    'is_public' => $project->is_public,
+                    'workspace' => $project->workspace ? [
+                        'id' => $project->workspace->id,
+                        'name' => $project->workspace->name,
+                        'type' => $project->workspace->type,
+                    ] : null,
+                ];
+            });
+
+        // Get updated clipboard status
+        $clipboardStatus = $this->getClipboardStatus(new Request())->getData();
+
+        // Calculate fresh stats
+        $statsQuery = $user->projects();
+        if ($workspace) {
+            $statsQuery->where('workspace_id', $workspace->id);
+        }
+
+        $stats = [
+            'total' => $projects->count(),
+            'draft' => $statsQuery->where('status', 'draft')->count(),
+            'published' => $statsQuery->where('status', 'published')->count(),
+            'active' => $statsQuery->where('status', 'active')->count(),
+            'archived' => $statsQuery->where('status', 'archived')->count(),
+            'recent' => $statsQuery->where('updated_at', '>', now()->subDays(7))->count(),
+            'by_type' => $statsQuery
+                ->select('type', \DB::raw('count(*) as count'))
+                ->groupBy('type')
+                ->pluck('count', 'type')
+                ->toArray(),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'projects' => $projects,
+                'stats' => $stats,
+                'clipboard_status' => $clipboardStatus,
+                'refreshed_at' => now()->toISOString()
+            ],
+            'message' => 'Projects refreshed successfully'
         ]);
     }
 
@@ -473,8 +856,6 @@ class ProjectController extends Controller
         ]);
     }
 
-    // ... rest of your existing methods (update, destroy, duplicate, etc.) remain the same ...
-    
     public function duplicate(Request $request, Project $project): RedirectResponse
     {
         $user = Auth::user();

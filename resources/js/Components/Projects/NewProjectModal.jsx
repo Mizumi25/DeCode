@@ -125,6 +125,8 @@ export default function NewProjectModal({ show, onClose }) {
   const [loadingGitHub, setLoadingGitHub] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [githubUser, setGithubUser] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
+
 
   // Get current workspace from store
   const { currentWorkspace, workspaces } = useWorkspaceStore();
@@ -244,13 +246,15 @@ export default function NewProjectModal({ show, onClose }) {
   }, [data, currentWorkspace, post, handleClose]);
 
   // Handle GitHub project import
-  const handleGithubSubmit = useCallback((e) => {
+  const handleGithubSubmit = useCallback(async (e) => {
     e.preventDefault();
     
     if (!selectedRepo) {
       return;
     }
-
+    
+    setIsImporting(true);
+  
     // Prepare data for GitHub import with current workspace
     const importData = {
       ...githubData,
@@ -261,22 +265,38 @@ export default function NewProjectModal({ show, onClose }) {
       description: githubData.description || selectedRepo.description || '',
       workspace_id: currentWorkspace?.id || githubData.workspace_id
     };
-
-    setGithubData(importData);
-
-    postGithub('/api/github/import-project', {
-      onSuccess: (response) => {
+  
+    try {
+      // Use axios instead of Inertia
+      const response = await axios.post('/api/github/import-project', importData);
+      
+      if (response.data.success) {
         console.log('GitHub project imported successfully to workspace:', currentWorkspace?.name);
         handleClose();
-        if (response.redirect_url) {
-          window.location.href = response.redirect_url;
+        
+        // Handle redirect
+        if (response.data.redirect_url) {
+          window.location.href = response.data.redirect_url;
         }
-      },
-      onError: (errors) => {
-        console.error('GitHub project import failed:', errors);
       }
-    });
-  }, [githubData, selectedRepo, currentWorkspace, postGithub, setGithubData, handleClose]);
+    } catch (error) {
+      console.error('GitHub project import failed:', error);
+      
+      // Handle validation errors
+      if (error.response?.status === 422) {
+        // Set validation errors if needed
+        const errors = error.response.data.errors || {};
+        Object.keys(errors).forEach(key => {
+          setGithubData(key + '_error', errors[key][0]);
+        });
+      }
+    } finally {
+      setIsImporting(false); // Clear loading state
+    }
+  }, [githubData, selectedRepo, currentWorkspace, handleClose]);
+  
+  // Don't forget to import axios at the top of your file:
+  // import axios from 'axios';
 
   const selectViewportPreset = useCallback((preset) => {
     if (activeTab === 0) {
@@ -838,12 +858,12 @@ export default function NewProjectModal({ show, onClose }) {
               <div className="flex justify-end pt-6 border-t border-[var(--color-border)]">
                 <motion.button
                   type="submit"
-                  disabled={!githubData.name || processingGithub || !currentWorkspace}
-                  whileHover={{ scale: processingGithub ? 1 : 1.02 }}
-                  whileTap={{ scale: processingGithub ? 1 : 0.98 }}
+                  disabled={!githubData.name || isImporting || !currentWorkspace}
+                  whileHover={{ scale: isImporting ? 1 : 1.02 }}
+                  whileTap={{ scale: isImporting ? 1 : 0.98 }}
                   className="px-8 py-3 rounded-xl bg-[var(--color-primary)] text-white font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-3"
                 >
-                  {processingGithub ? (
+                  {isImporting ? (
                     <>
                       <LoadingSpinner />
                       Importing...

@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Plus, ChevronDown, X, Share2, Download, Edit3, Trash2, Copy, GripVertical } from 'lucide-react';
+import { Plus, ChevronDown, X, Share2, Download, Edit3, Trash2, Copy, GripVertical, MoreHorizontal, Move, RefreshCw, Check } from 'lucide-react';
 import { Responsive, WidthProvider } from 'react-grid-layout';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
@@ -17,14 +17,31 @@ export default function ProjectList({
   workspaces: initialWorkspaces = [], 
   currentWorkspace: initialCurrentWorkspace = null, 
   filters = {}, 
-  stats = {} 
+  stats = {},
+  clipboardStatus = { has_project: false }
 }) {
   const [selectedProject, setSelectedProject] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [layouts, setLayouts] = useState({});
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [contextMenu, setContextMenu] = useState({ show: false, x: 0, y: 0, project: null });
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const [currentSort, setCurrentSort] = useState(filters.sort || 'updated_at');
+  const [currentFilter, setCurrentFilter] = useState(filters.filter || 'all');
+  const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
+  const [targetWorkspaceAction, setTargetWorkspaceAction] = useState(null); // 'move' or 'copy'
+  const [selectedProjectForAction, setSelectedProjectForAction] = useState(null);
+  
   const dragTimeoutRef = useRef(null);
   const clickTimeoutRef = useRef(null);
+  const filterDropdownRef = useRef(null);
+  const contextMenuRef = useRef(null);
+  const workspaceDropdownRef = useRef(null);
+  const pullStartY = useRef(0);
+  const containerRef = useRef(null);
   
   // Get current user from Inertia
   const { auth } = usePage().props;
@@ -98,6 +115,70 @@ export default function ProjectList({
 
   // Add state for tracking active tab
   const [activeTab, setActiveTab] = useState(0);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target)) {
+        setShowFilterDropdown(false);
+      }
+      if (contextMenuRef.current && !contextMenuRef.current.contains(event.target)) {
+        setContextMenu({ show: false, x: 0, y: 0, project: null });
+      }
+      if (workspaceDropdownRef.current && !workspaceDropdownRef.current.contains(event.target)) {
+        setShowWorkspaceDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Pull-to-refresh touch handlers
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    let startY = 0;
+    let isScrolledToTop = false;
+
+    const handleTouchStart = (e) => {
+      startY = e.touches[0].clientY;
+      isScrolledToTop = container.scrollTop === 0;
+      pullStartY.current = e.touches[0].clientY;
+    };
+
+    const handleTouchMove = (e) => {
+      if (!isScrolledToTop) return;
+      
+      const currentY = e.touches[0].clientY;
+      const deltaY = currentY - startY;
+      
+      if (deltaY > 0 && deltaY < 150) {
+        e.preventDefault();
+        setPullDistance(deltaY);
+        setIsPulling(true);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (pullDistance > 80) {
+        handleRefresh();
+      }
+      setPullDistance(0);
+      setIsPulling(false);
+    };
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [pullDistance]);
   
   // Convert projects to the format expected by the grid
   const projects = useMemo(() => {
@@ -151,6 +232,51 @@ export default function ProjectList({
     setLayouts(defaultLayouts);
   }, [projects.length, searchQuery]); // Reset when project count or search changes
 
+  // Filter options
+  const filterOptions = [
+    { value: 'all', label: 'All Projects', count: stats.total || 0 },
+    { value: 'recent', label: 'Recent', count: stats.recent || 0 },
+    { value: 'draft', label: 'Drafts', count: stats.draft || 0 },
+    { value: 'active', label: 'Active', count: stats.active || 0 },
+    { value: 'published', label: 'Published', count: stats.published || 0 },
+    { value: 'archived', label: 'Archived', count: stats.archived || 0 },
+  ];
+
+  // Sort options
+  const sortOptions = [
+    { value: 'updated_at', label: 'Last Updated' },
+    { value: 'created_at', label: 'Date Created' },
+    { value: 'name', label: 'Name' },
+  ];
+
+  // Handle filter/sort changes
+  const handleFilterChange = (filterValue) => {
+    setCurrentFilter(filterValue);
+    setShowFilterDropdown(false);
+    
+    const params = new URLSearchParams(window.location.search);
+    params.set('filter', filterValue);
+    if (currentWorkspace) params.set('workspace', currentWorkspace.id);
+    
+    router.visit(`/projects?${params.toString()}`, {
+      preserveState: true,
+      replace: true,
+    });
+  };
+
+  const handleSortChange = (sortValue) => {
+    setCurrentSort(sortValue);
+    
+    const params = new URLSearchParams(window.location.search);
+    params.set('sort', sortValue);
+    if (currentWorkspace) params.set('workspace', currentWorkspace.id);
+    
+    router.visit(`/projects?${params.toString()}`, {
+      preserveState: true,
+      replace: true,
+    });
+  };
+
   // Handle workspace switching
   const handleWorkspaceSwitch = useCallback((workspace) => {
     if (!workspace || !workspace.id) {
@@ -177,9 +303,153 @@ export default function ProjectList({
     });
   }, [currentUser?.id, setCurrentWorkspace]);
 
+  // Handle context menu
+  const handleContextMenu = (e, project) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    setContextMenu({
+      show: true,
+      x: e.clientX,
+      y: e.clientY,
+      project: project
+    });
+  };
+
+  // Handle long press for mobile
+  const handleTouchStart = (e, project) => {
+    const touchTimer = setTimeout(() => {
+      const touch = e.touches[0];
+      setContextMenu({
+        show: true,
+        x: touch.clientX,
+        y: touch.clientY,
+        project: project
+      });
+    }, 500); // 500ms long press
+
+    const handleTouchEnd = () => {
+      clearTimeout(touchTimer);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+
+    document.addEventListener('touchend', handleTouchEnd);
+  };
+
+  // Project actions
+  const handleCopyProject = async (project) => {
+    try {
+      const response = await fetch(`/api/projects/${project.project.id}/copy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Project copied to clipboard:', data.message);
+        // Update clipboard status in parent or refresh
+        router.reload({ only: ['clipboardStatus'] });
+      } else {
+        console.error('Failed to copy project');
+      }
+    } catch (error) {
+      console.error('Error copying project:', error);
+    }
+    setContextMenu({ show: false, x: 0, y: 0, project: null });
+  };
+
+  const handlePasteProject = async (workspaceId, projectName = null) => {
+    try {
+      const response = await fetch('/api/projects/paste', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+        },
+        body: JSON.stringify({
+          workspace_id: workspaceId,
+          name: projectName,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Project pasted:', data.message);
+        // Refresh the projects list
+        router.reload();
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to paste project:', errorData.message);
+      }
+    } catch (error) {
+      console.error('Error pasting project:', error);
+    }
+    setContextMenu({ show: false, x: 0, y: 0, project: null });
+    setShowWorkspaceDropdown(false);
+  };
+
+  const handleMoveProject = async (project, targetWorkspaceId) => {
+    try {
+      const response = await fetch(`/api/projects/${project.project.id}/move-to-workspace`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+        },
+        body: JSON.stringify({
+          workspace_id: targetWorkspaceId,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Project moved:', data.message);
+        // Refresh the projects list
+        router.reload();
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to move project:', errorData.message);
+      }
+    } catch (error) {
+      console.error('Error moving project:', error);
+    }
+    setContextMenu({ show: false, x: 0, y: 0, project: null });
+    setShowWorkspaceDropdown(false);
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const response = await fetch('/api/projects/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+        },
+        body: JSON.stringify({
+          workspace_id: currentWorkspace?.id,
+        }),
+      });
+
+      if (response.ok) {
+        // Refresh the entire page to get updated data
+        router.reload();
+      }
+    } catch (error) {
+      console.error('Error refreshing projects:', error);
+    } finally {
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 1000); // Minimum loading time for better UX
+    }
+  };
+
   const handleProjectClick = useCallback((project, e) => {
-    // Prevent click if the target is the drag handle
-    if (e.target.closest('.drag-handle-only')) {
+    // Prevent click if the target is the drag handle or context menu trigger
+    if (e.target.closest('.drag-handle-only') || e.target.closest('.context-menu-trigger')) {
       return;
     }
     
@@ -480,8 +750,38 @@ export default function ProjectList({
         .layout .react-grid-item.react-draggable-dragging * {
           user-select: none !important;
         }
+
+        /* Pull to refresh animation */
+        .pull-to-refresh-container {
+          transform: translateY(${pullDistance}px);
+          transition: ${isPulling ? 'none' : 'transform 0.3s ease'};
+        }
       `}</style>
       
+      {/* Pull to refresh indicator */}
+      {isPulling && (
+        <div 
+          className="fixed top-0 left-0 right-0 flex justify-center items-center z-50 bg-[var(--color-bg)]/80 backdrop-blur-sm"
+          style={{ 
+            height: `${Math.min(pullDistance + 60, 120)}px`,
+            transform: `translateY(-${Math.max(0, 60 - pullDistance)}px)` 
+          }}
+        >
+          <div className="flex flex-col items-center">
+            <RefreshCw 
+              className={`w-6 h-6 text-[var(--color-primary)] ${pullDistance > 80 ? 'animate-spin' : ''}`}
+              style={{ 
+                transform: `rotate(${pullDistance * 2}deg)`,
+                opacity: Math.min(pullDistance / 80, 1)
+              }}
+            />
+            <span className="text-xs text-[var(--color-text-muted)] mt-1">
+              {pullDistance > 80 ? 'Release to refresh' : 'Pull to refresh'}
+            </span>
+          </div>
+        </div>
+      )}
+
       <AnimatePresence mode="wait">
         {!selectedProject ? (
           <motion.div
@@ -490,8 +790,23 @@ export default function ProjectList({
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="p-8 space-y-6 min-h-screen"
+            className={`p-8 space-y-6 min-h-screen pull-to-refresh-container ${isRefreshing ? 'opacity-50' : ''}`}
+            ref={containerRef}
+            style={{
+              transform: `translateY(${pullDistance}px)`,
+              transition: isPulling ? 'none' : 'transform 0.3s ease, opacity 0.3s ease'
+            }}
           >
+            {/* Loading overlay */}
+            {isRefreshing && (
+              <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 flex items-center justify-center">
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 flex items-center gap-3 shadow-lg">
+                  <RefreshCw className="w-5 h-5 text-[var(--color-primary)] animate-spin" />
+                  <span className="text-[var(--color-text)]">Refreshing projects...</span>
+                </div>
+              </div>
+            )}
+
             {/* Header Controls */}
             <div className="flex justify-between items-center">
               <div className="flex-start items-center flex-col gap-2">
@@ -513,14 +828,76 @@ export default function ProjectList({
                       "{searchQuery}"
                     </span>
                   )}
+
+                  {/* Clipboard status indicator */}
+                  {clipboardStatus?.has_project && (
+                    <span className="text-xs text-green-600 bg-green-100 dark:bg-green-900/20 dark:text-green-400 px-2 py-1 rounded-full flex items-center gap-1">
+                      <Copy size={10} />
+                      Clipboard
+                    </span>
+                  )}
                 </div>
                 
-                <button className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition">
-                  {filters.sort === 'name' ? 'Name' : 
-                   filters.sort === 'created_at' ? 'Date created' : 
-                   'Last updated'}
-                  <ChevronDown className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Filter Dropdown */}
+                  <div className="relative" ref={filterDropdownRef}>
+                    <button 
+                      onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                      className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition bg-[var(--color-bg-muted)] px-3 py-1.5 rounded-lg border border-[var(--color-border)]"
+                    >
+                      {filterOptions.find(f => f.value === currentFilter)?.label || 'All Projects'}
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+
+                    {showFilterDropdown && (
+                      <div className="absolute top-full left-0 mt-1 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg shadow-lg z-50 min-w-[180px]">
+                        {filterOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() => handleFilterChange(option.value)}
+                            className={`w-full text-left px-3 py-2 text-sm hover:bg-[var(--color-bg-muted)] transition flex items-center justify-between ${
+                              currentFilter === option.value ? 'text-[var(--color-primary)] bg-[var(--color-primary)]/5' : 'text-[var(--color-text)]'
+                            }`}
+                          >
+                            <span>{option.label}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-[var(--color-text-muted)]">{option.count}</span>
+                              {currentFilter === option.value && <Check size={12} className="text-[var(--color-primary)]" />}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Sort Dropdown */}
+                  <button 
+                    className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition"
+                    onClick={() => {
+                      const currentIndex = sortOptions.findIndex(s => s.value === currentSort);
+                      const nextIndex = (currentIndex + 1) % sortOptions.length;
+                      handleSortChange(sortOptions[nextIndex].value);
+                    }}
+                  >
+                    {sortOptions.find(s => s.value === currentSort)?.label || 'Last Updated'}
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+
+                  {/* Paste button (shown when clipboard has content) */}
+                  {clipboardStatus?.has_project && (
+                    <button
+                      onClick={() => {
+                        if (currentWorkspace) {
+                          handlePasteProject(currentWorkspace.id);
+                        }
+                      }}
+                      className="text-xs bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400 px-3 py-1.5 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/30 transition flex items-center gap-1"
+                    >
+                      <Copy size={12} />
+                      Paste "{clipboardStatus.project_name}"
+                    </button>
+                  )}
+                </div>
               </div>
             
               <button 
@@ -623,6 +1000,19 @@ export default function ProjectList({
                         }}
                       >
                         <GripVertical size={14} />
+                      </div>
+
+                      {/* Context menu trigger (three dots) */}
+                      <div 
+                        className="context-menu-trigger absolute top-2 right-10 w-7 h-7 z-30 bg-[var(--color-bg)] border border-[var(--color-border)] rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:bg-[var(--color-bg-muted)] flex items-center justify-center"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleContextMenu(e, project);
+                        }}
+                        onTouchStart={(e) => handleTouchStart(e, project)}
+                        title="More options"
+                      >
+                        <MoreHorizontal size={14} className="text-[var(--color-text-muted)]" />
                       </div>
                       
                       {/* Project type badge */}
@@ -801,7 +1191,10 @@ export default function ProjectList({
               <Link href={`/void/${selectedProject.project.uuid}`} className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
                 <Edit3 size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
               </Link>
-              <button className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
+              <button 
+                onClick={() => handleCopyProject(selectedProject)}
+                className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group"
+              >
                 <Copy size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
               </button>
               <button className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
@@ -826,7 +1219,10 @@ export default function ProjectList({
                   <Edit3 size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
                   <span className="text-xs text-[var(--color-text-muted)]">Edit</span>
                 </Link>
-                <button className="flex flex-col items-center gap-1 p-2 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
+                <button 
+                  onClick={() => handleCopyProject(selectedProject)}
+                  className="flex flex-col items-center gap-1 p-2 hover:bg-[var(--color-bg)] rounded-lg transition-colors group"
+                >
                   <Copy size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
                   <span className="text-xs text-[var(--color-text-muted)]">Copy</span>
                 </button>
@@ -847,6 +1243,145 @@ export default function ProjectList({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Context Menu */}
+      {contextMenu.show && (
+        <div
+          ref={contextMenuRef}
+          className="fixed bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg shadow-lg z-50 py-1 min-w-[160px]"
+          style={{
+            left: Math.min(contextMenu.x, window.innerWidth - 160),
+            top: Math.min(contextMenu.y, window.innerHeight - 200),
+          }}
+        >
+          <button
+            onClick={() => handleCopyProject(contextMenu.project)}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--color-bg-muted)] transition flex items-center gap-2 text-[var(--color-text)]"
+          >
+            <Copy size={14} />
+            Copy Project
+          </button>
+          
+          {clipboardStatus?.has_project && (
+            <button
+              onClick={() => {
+                if (currentWorkspace) {
+                  handlePasteProject(currentWorkspace.id);
+                }
+              }}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--color-bg-muted)] transition flex items-center gap-2 text-[var(--color-text)]"
+            >
+              <Copy size={14} className="rotate-180" />
+              Paste Project
+            </button>
+          )}
+
+          {/* Move to workspace - only show if user has access to multiple workspaces */}
+          {workspaces && workspaces.length > 1 && (
+            <button
+              onClick={() => {
+                setSelectedProjectForAction(contextMenu.project);
+                setTargetWorkspaceAction('move');
+                setShowWorkspaceDropdown(true);
+                setContextMenu({ show: false, x: 0, y: 0, project: null });
+              }}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--color-bg-muted)] transition flex items-center gap-2 text-[var(--color-text)]"
+            >
+              <Move size={14} />
+              Move to Workspace
+            </button>
+          )}
+
+          <div className="border-t border-[var(--color-border)] my-1"></div>
+          
+          <Link
+            href={`/void/${contextMenu.project.project.uuid}`}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--color-bg-muted)] transition flex items-center gap-2 text-[var(--color-text)]"
+            onClick={() => setContextMenu({ show: false, x: 0, y: 0, project: null })}
+          >
+            <Edit3 size={14} />
+            Edit Project
+          </Link> 
+          
+          <button
+            className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--color-bg-muted)] transition flex items-center gap-2 text-[var(--color-text)]"
+          >
+            <Share2 size={14} />
+            Share
+          </button>
+          
+          <div className="border-t border-[var(--color-border)] my-1"></div>
+          
+          <button
+            className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition flex items-center gap-2 text-red-600"
+          >
+            <Trash2 size={14} />
+            Delete
+          </button>
+        </div>
+      )}
+
+      {/* Workspace Selection Dropdown */}
+      {showWorkspaceDropdown && targetWorkspaceAction && selectedProjectForAction && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div ref={workspaceDropdownRef} className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg shadow-xl w-full max-w-md">
+            <div className="p-4 border-b border-[var(--color-border)]">
+              <h3 className="font-semibold text-[var(--color-text)]">
+                {targetWorkspaceAction === 'move' ? 'Move' : 'Copy'} "{selectedProjectForAction.title}" to:
+              </h3>
+              <p className="text-sm text-[var(--color-text-muted)] mt-1">
+                Select a workspace to {targetWorkspaceAction} this project
+              </p>
+            </div>
+            <div className="max-h-60 overflow-y-auto">
+              {workspaces
+                ?.filter(ws => ws.id !== currentWorkspace?.id) // Don't show current workspace for move
+                ?.map((workspace) => (
+                  <button
+                    key={workspace.id}
+                    onClick={() => {
+                      if (targetWorkspaceAction === 'move') {
+                        handleMoveProject(selectedProjectForAction, workspace.id);
+                      } else {
+                        // For copy, first copy to clipboard then paste to target workspace
+                        handleCopyProject(selectedProjectForAction).then(() => {
+                          setTimeout(() => handlePasteProject(workspace.id), 500);
+                        });
+                      }
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-[var(--color-bg-muted)] transition border-b border-[var(--color-border)] last:border-b-0"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-[var(--color-text)]">{workspace.name}</div>
+                        <div className="text-sm text-[var(--color-text-muted)]">
+                          {workspace.type} • {workspace.project_count || 0} projects
+                        </div>
+                      </div>
+                      {workspace.type === 'personal' && (
+                        <span className="text-xs bg-[var(--color-primary)]/10 text-[var(--color-primary)] px-2 py-1 rounded">
+                          Personal
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+            </div>
+            <div className="p-4 border-t border-[var(--color-border)]">
+              <button
+                onClick={() => {
+                  setShowWorkspaceDropdown(false);
+                  setTargetWorkspaceAction(null);
+                  setSelectedProjectForAction(null);
+                }}
+                className="w-full px-4 py-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* New Project Modal - Pass current workspace for project creation */}
       <NewProjectModal 

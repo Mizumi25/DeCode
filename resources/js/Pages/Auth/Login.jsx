@@ -11,6 +11,8 @@ import 'nprogress/nprogress.css'
 
 export default function Login({ status, canResetPassword }) {
   const [showEmailForm, setShowEmailForm] = useState(false)
+  const [socialLoading, setSocialLoading] = useState(null) // Track which social login is loading
+  
   const { data, setData, post, processing, errors, reset } = useForm({
     email: '',
     password: '',
@@ -30,23 +32,57 @@ export default function Login({ status, canResetPassword }) {
 
   const handleGoogleLogin = (e) => {
     e.preventDefault()
+    setSocialLoading('google')
     NProgress.start()
-    window.location.href = '/auth/google/redirect'
+    
+    // Small delay to show the loading state before redirect
+    setTimeout(() => {
+      window.location.href = '/auth/google/redirect'
+    }, 100)
   }
 
   const handleGithubLogin = (e) => {
     e.preventDefault()
+    setSocialLoading('github')
     NProgress.start()
-    window.location.href = '/auth/github/redirect'
+    
+    // Small delay to show the loading state before redirect
+    setTimeout(() => {
+      window.location.href = '/auth/github/redirect'
+    }, 100)
   }
 
   const handleEmailLogin = () => {
     setShowEmailForm(true)
   }
 
+  // Reset loading state when component unmounts or user returns
   useEffect(() => {
     NProgress.configure({ showSpinner: false })
+    
+    // Clear loading state if user comes back to the page
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setSocialLoading(null)
+        NProgress.done()
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      setSocialLoading(null)
+      NProgress.done()
+    }
   }, [])
+
+  const LoadingSpinner = () => (
+    <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+    </svg>
+  )
 
   return (
     <GuestLayout>
@@ -108,9 +144,10 @@ export default function Login({ status, canResetPassword }) {
               {/* Email Login Button */}
               <motion.button
                 onClick={handleEmailLogin}
-                whileHover={{ scale: 1.02, y: -2 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full flex items-center justify-center gap-3 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white font-medium px-6 py-4 rounded-xl shadow-[var(--shadow-lg)] transition-all duration-200 transform hover:shadow-xl"
+                disabled={socialLoading}
+                whileHover={{ scale: socialLoading ? 1 : 1.02, y: socialLoading ? 0 : -2 }}
+                whileTap={{ scale: socialLoading ? 1 : 0.98 }}
+                className="w-full flex items-center justify-center gap-3 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white font-medium px-6 py-4 rounded-xl shadow-[var(--shadow-lg)] transition-all duration-200 transform hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Mail className="w-5 h-5" />
                 Sign in with Email
@@ -132,39 +169,59 @@ export default function Login({ status, canResetPassword }) {
               <motion.button
                 type="button"
                 onClick={handleGoogleLogin}
-                whileHover={{ scale: 1.02, y: -2 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full flex items-center justify-center gap-3 border-2 border-[var(--color-border)] px-6 py-4 rounded-xl text-[var(--color-text)] hover:bg-[var(--color-bg-muted)] transition-all duration-200 font-medium shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)]"
+                disabled={socialLoading}
+                whileHover={{ scale: socialLoading ? 1 : 1.02, y: socialLoading ? 0 : -2 }}
+                whileTap={{ scale: socialLoading ? 1 : 0.98 }}
+                className="w-full flex items-center justify-center gap-3 border-2 border-[var(--color-border)] px-6 py-4 rounded-xl text-[var(--color-text)] hover:bg-[var(--color-bg-muted)] transition-all duration-200 font-medium shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <svg className="w-5 h-5" viewBox="0 0 533.5 544.3">
-                  <path fill="#EA4335" d="M533.5 278.4c0-17.6-1.6-35.1-4.8-52H272v98.5h146.9c-6.4 34.3-25.4 63.2-54.2 82.8v68h87.6c51.1-47.1 81.2-116.5 81.2-197.3z" />
-                  <path fill="#34A853" d="M272 544.3c73.6 0 135.4-24.3 180.5-66.1l-87.6-68c-24.3 16.3-55.3 25.8-92.9 25.8-71.4 0-131.9-48.1-153.7-112.9H27.3v70.9c45.5 89.8 138.7 150.3 244.7 150.3z" />
-                  <path fill="#4A90E2" d="M118.3 323.1c-10.7-31.5-10.7-65.6 0-97.1V155.1H27.3c-38.5 76.9-38.5 166.8 0 243.7l91-70.9z" />
-                  <path fill="#FBBC05" d="M272 107.1c39.9-.6 78.2 13.7 107.8 39.8l80.8-80.8C409.7 24.4 343.6-.1 272 0 166 0 72.8 60.5 27.3 150.3l91 70.9C140.1 155.1 200.6 107.1 272 107.1z" />
-                </svg>
-                Continue with Google
+                {socialLoading === 'google' ? (
+                  <>
+                    <LoadingSpinner />
+                    Connecting to Google...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" viewBox="0 0 533.5 544.3">
+                      <path fill="#EA4335" d="M533.5 278.4c0-17.6-1.6-35.1-4.8-52H272v98.5h146.9c-6.4 34.3-25.4 63.2-54.2 82.8v68h87.6c51.1-47.1 81.2-116.5 81.2-197.3z" />
+                      <path fill="#34A853" d="M272 544.3c73.6 0 135.4-24.3 180.5-66.1l-87.6-68c-24.3 16.3-55.3 25.8-92.9 25.8-71.4 0-131.9-48.1-153.7-112.9H27.3v70.9c45.5 89.8 138.7 150.3 244.7 150.3z" />
+                      <path fill="#4A90E2" d="M118.3 323.1c-10.7-31.5-10.7-65.6 0-97.1V155.1H27.3c-38.5 76.9-38.5 166.8 0 243.7l91-70.9z" />
+                      <path fill="#FBBC05" d="M272 107.1c39.9-.6 78.2 13.7 107.8 39.8l80.8-80.8C409.7 24.4 343.6-.1 272 0 166 0 72.8 60.5 27.3 150.3l91 70.9C140.1 155.1 200.6 107.1 272 107.1z" />
+                    </svg>
+                    Continue with Google
+                  </>
+                )}
               </motion.button>
               
               {/* GitHub Login */}
               <motion.button
                 type="button"
                 onClick={handleGithubLogin}
-                whileHover={{ scale: 1.02, y: -2 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full flex items-center justify-center gap-3 border-2 border-[var(--color-border)] px-6 py-4 rounded-xl text-[var(--color-text)] hover:bg-[var(--color-bg-muted)] transition-all duration-200 font-medium shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)]"
+                disabled={socialLoading}
+                whileHover={{ scale: socialLoading ? 1 : 1.02, y: socialLoading ? 0 : -2 }}
+                whileTap={{ scale: socialLoading ? 1 : 0.98 }}
+                className="w-full flex items-center justify-center gap-3 border-2 border-[var(--color-border)] px-6 py-4 rounded-xl text-[var(--color-text)] hover:bg-[var(--color-bg-muted)] transition-all duration-200 font-medium shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path
-                    fillRule="evenodd"
-                    clipRule="evenodd"
-                    d="M12 0C5.371 0 0 5.371 0 12C0 17.303 3.438 21.8 8.207 23.385C8.805 23.495 9.025 23.145 9.025 22.845C9.025 22.575 9.015 21.855 9.009 20.955C5.672 21.675 4.968 19.455 4.968 19.455C4.422 18.105 3.633 17.745 3.633 17.745C2.546 17.025 3.714 17.04 3.714 17.04C4.922 17.13 5.555 18.285 5.555 18.285C6.623 20.055 8.385 19.575 9.05 19.275C9.155 18.495 9.47 17.955 9.82 17.64C7.158 17.325 4.344 16.29 4.344 11.61C4.344 10.29 4.803 9.225 5.58 8.4C5.454 8.085 5.049 6.825 5.694 5.115C5.694 5.115 6.693 4.785 8.994 6.36C9.933 6.09 10.941 5.955 11.949 5.949C12.957 5.955 13.965 6.09 14.907 6.36C17.205 4.785 18.204 5.115 18.204 5.115C18.849 6.825 18.444 8.085 18.318 8.4C19.095 9.225 19.548 10.29 19.548 11.61C19.548 16.305 16.728 17.319 14.058 17.631C14.499 18.015 14.889 18.78 14.889 20.01C14.889 21.735 14.871 22.455 14.871 22.845C14.871 23.145 15.087 23.499 15.693 23.385C20.46 21.798 24 17.301 24 12C24 5.371 18.627 0 12 0Z"
-                  />
-                </svg>
-                Continue with GitHub
+                {socialLoading === 'github' ? (
+                  <>
+                    <LoadingSpinner />
+                    Connecting to GitHub...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                      <path
+                        fillRule="evenodd"
+                        clipRule="evenodd"
+                        d="M12 0C5.371 0 0 5.371 0 12C0 17.303 3.438 21.8 8.207 23.385C8.805 23.495 9.025 23.145 9.025 22.845C9.025 22.575 9.015 21.855 9.009 20.955C5.672 21.675 4.968 19.455 4.968 19.455C4.422 18.105 3.633 17.745 3.633 17.745C2.546 17.025 3.714 17.04 3.714 17.04C4.922 17.13 5.555 18.285 5.555 18.285C6.623 20.055 8.385 19.575 9.05 19.275C9.155 18.495 9.47 17.955 9.82 17.64C7.158 17.325 4.344 16.29 4.344 11.61C4.344 10.29 4.803 9.225 5.58 8.4C5.454 8.085 5.049 6.825 5.694 5.115C5.694 5.115 6.693 4.785 8.994 6.36C9.933 6.09 10.941 5.955 11.949 5.949C12.957 5.955 13.965 6.09 14.907 6.36C17.205 4.785 18.204 5.115 18.204 5.115C18.849 6.825 18.444 8.085 18.318 8.4C19.095 9.225 19.548 10.29 19.548 11.61C19.548 16.305 16.728 17.319 14.058 17.631C14.499 18.015 14.889 18.78 14.889 20.01C14.889 21.735 14.871 22.455 14.871 22.845C14.871 23.145 15.087 23.499 15.693 23.385C20.46 21.798 24 17.301 24 12C24 5.371 18.627 0 12 0Z"
+                      />
+                    </svg>
+                    Continue with GitHub
+                  </>
+                )}
               </motion.button>
             </motion.div>
           ) : (
-            // Email Form
+            // Email Form (unchanged, keeping original content)
             <motion.form
               key="email-form"
               onSubmit={submit}
@@ -178,8 +235,9 @@ export default function Login({ status, canResetPassword }) {
               <motion.button
                 type="button"
                 onClick={() => setShowEmailForm(false)}
-                className="flex items-center gap-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors mb-4"
-                whileHover={{ x: -4 }}
+                disabled={socialLoading}
+                className="flex items-center gap-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors mb-4 disabled:opacity-50"
+                whileHover={{ x: socialLoading ? 0 : -4 }}
               >
                 <ArrowRight className="w-4 h-4 rotate-180" />
                 Back to login options
@@ -265,7 +323,7 @@ export default function Login({ status, canResetPassword }) {
                 type="submit"
                 whileHover={{ scale: 1.02, y: -2 }}
                 whileTap={{ scale: 0.98 }}
-                disabled={processing}
+                disabled={processing || socialLoading}
                 className="w-full flex items-center justify-center gap-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white font-medium px-6 py-4 rounded-xl shadow-[var(--shadow-lg)] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed transform hover:shadow-xl"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -273,10 +331,7 @@ export default function Login({ status, canResetPassword }) {
               >
                 {processing ? (
                   <>
-                    <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                    </svg>
+                    <LoadingSpinner />
                     Logging in...
                   </>
                 ) : (

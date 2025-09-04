@@ -14,6 +14,7 @@ import {
   Play,
   Check
 } from 'lucide-react';
+import AnimatedBlackHoleLogo from '@/Components/AnimatedBlackHoleLogo';
 
 export default function Welcome({ auth }) {
   const heroRef = useRef(null);
@@ -242,8 +243,18 @@ export default function Welcome({ auth }) {
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center">
-                  <Code2 className="w-5 h-5 text-white" />
+               {/* Animated Logo with Glow Wrapper */}
+                <div 
+                  className="relative flex items-center justify-center"
+                  style={{
+                    filter: `
+                      drop-shadow(0 0 8px rgba(255, 255, 255, 0.3))
+                      drop-shadow(0 0 16px rgba(139, 92, 246, 0.4))
+                      drop-shadow(0 0 24px rgba(147, 51, 234, 0.3))
+                    `
+                  }}
+                >
+                  <AnimatedBlackHoleLogo size={30} />
                 </div>
                 <span className="text-xl font-bold">DeCode</span>
               </div>

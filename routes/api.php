@@ -73,6 +73,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/projects/{project}/frames', [ProjectController::class, 'createFrame']);
     Route::put('/projects/{project}/move-workspace', [ProjectController::class, 'moveToWorkspace']);
     
+    // NEW: Project copy/paste/move operations
+    Route::post('/projects/{project}/copy', [ProjectController::class, 'copyProject']);
+    Route::post('/projects/paste', [ProjectController::class, 'pasteProject']);
+    Route::post('/projects/{project}/move-to-workspace', [ProjectController::class, 'moveProjectToWorkspace']);
+    Route::get('/projects/clipboard-status', [ProjectController::class, 'getClipboardStatus']);
+    Route::delete('/projects/clear-clipboard', [ProjectController::class, 'clearClipboard']);
+    
+    // NEW: Pull to refresh endpoint
+    Route::post('/projects/refresh', [ProjectController::class, 'refreshProjects']);
+    
     // Public templates
     Route::get('/projects/templates', [ProjectController::class, 'templates']);
     

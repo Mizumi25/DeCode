@@ -36,7 +36,7 @@ class AuthenticatedSessionController extends Controller
         $user = Auth::user();
         $user->ensurePersonalWorkspace();
 
-        return redirect()->intended(route('projects', absolute: false));
+        return redirect()->intended(route('projects.index', absolute: false));
     }
 
     /**
