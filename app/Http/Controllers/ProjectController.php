@@ -23,26 +23,59 @@ class ProjectController extends Controller
         $sort = $request->input('sort', 'updated_at'); // updated_at, created_at, name
         $workspaceId = $request->input('workspace');
         
-        $query = Project::with(['workspace', 'workspace.owner'])
-            ->where('user_id', $user->id);
-            
-        // Handle workspace filtering
+        // Initialize workspace and validation
+        $currentWorkspace = null;
+        
         if ($workspaceId) {
+            // User specifically requested a workspace
             $workspace = Workspace::find($workspaceId);
             
-            // Check if user has access to this workspace
-            if (!$workspace || !$workspace->hasUser($user->id)) {
-                abort(403, 'You do not have access to this workspace');
+            if (!$workspace) {
+                // Workspace doesn't exist, redirect to projects without workspace filter
+                return redirect()->route('projects.index')->with('error', 'Workspace not found');
             }
             
-            $query->where('workspace_id', $workspace->id);
+            if (!$workspace->hasUser($user->id)) {
+                // User doesn't have access, redirect to their personal workspace
+                $personalWorkspace = $user->getPersonalWorkspace();
+                if ($personalWorkspace) {
+                    return redirect()->route('projects.index', ['workspace' => $personalWorkspace->id])
+                        ->with('error', 'You do not have access to the requested workspace');
+                }
+                return redirect()->route('projects.index')->with('error', 'Access denied to workspace');
+            }
+            
             $currentWorkspace = $workspace;
         } else {
-            // If no specific workspace, get user's current workspace
+            // No specific workspace requested, try to get user's current workspace
             $currentWorkspace = $user->getCurrentWorkspace();
-            if ($currentWorkspace) {
-                $query->where('workspace_id', $currentWorkspace->id);
+            
+            // If no current workspace or user doesn't have access, fall back to personal workspace
+            if (!$currentWorkspace || !$currentWorkspace->hasUser($user->id)) {
+                $currentWorkspace = $user->getPersonalWorkspace();
+                
+                // If still no workspace, ensure user has a personal workspace
+                if (!$currentWorkspace) {
+                    $currentWorkspace = $user->ensurePersonalWorkspace();
+                }
             }
+            
+            // Redirect to include workspace parameter for consistency
+            if ($currentWorkspace) {
+                return redirect()->route('projects.index', array_merge(
+                    $request->only(['search', 'filter', 'type', 'sort']),
+                    ['workspace' => $currentWorkspace->id]
+                ));
+            }
+        }
+        
+        // Build the projects query with workspace filtering
+        $query = Project::with(['workspace', 'workspace.owner'])
+            ->where('user_id', $user->id);
+        
+        // Apply workspace filter - this is the key fix
+        if ($currentWorkspace) {
+            $query->where('workspace_id', $currentWorkspace->id);
         }
         
         // Apply search filter
@@ -120,16 +153,38 @@ class ProjectController extends Controller
                 ];
             });
 
-        // Get user's workspaces for dropdown
-        $userWorkspaces = $user->getAllWorkspaces()->map(function ($workspace) {
+        // Get user's accessible workspaces for dropdown
+        $userWorkspaces = $user->getAllWorkspaces()->map(function ($workspace) use ($user) {
             return [
                 'id' => $workspace->id,
                 'uuid' => $workspace->uuid,
                 'name' => $workspace->name,
                 'type' => $workspace->type,
                 'settings' => $workspace->settings,
+                'member_count' => $workspace->users->count() + 1, // +1 for owner
+                'project_count' => $workspace->projects()->count(),
+                'owner' => [
+                    'id' => $workspace->owner->id,
+                    'name' => $workspace->owner->name,
+                    'email' => $workspace->owner->email,
+                ],
+                'users' => $workspace->users->map(function ($workspaceUser) {
+                    return [
+                        'id' => $workspaceUser->id,
+                        'name' => $workspaceUser->name,
+                        'email' => $workspaceUser->email,
+                        'role' => $workspaceUser->pivot->role,
+                    ];
+                }),
+                'user_role' => $workspace->getUserRole($user->id),
             ];
         });
+
+        // Calculate stats for current workspace only
+        $workspaceProjectsQuery = $user->projects();
+        if ($currentWorkspace) {
+            $workspaceProjectsQuery->where('workspace_id', $currentWorkspace->id);
+        }
 
         return Inertia::render('ProjectList', [
             'projects' => $projects,
@@ -140,16 +195,32 @@ class ProjectController extends Controller
                 'name' => $currentWorkspace->name,
                 'type' => $currentWorkspace->type,
                 'settings' => $currentWorkspace->settings,
+                'member_count' => $currentWorkspace->users->count() + 1,
+                'project_count' => $currentWorkspace->projects()->count(),
+                'owner' => [
+                    'id' => $currentWorkspace->owner->id,
+                    'name' => $currentWorkspace->owner->name,
+                    'email' => $currentWorkspace->owner->email,
+                ],
+                'users' => $currentWorkspace->users->map(function ($workspaceUser) {
+                    return [
+                        'id' => $workspaceUser->id,
+                        'name' => $workspaceUser->name,
+                        'email' => $workspaceUser->email,
+                        'role' => $workspaceUser->pivot->role,
+                    ];
+                }),
+                'user_role' => $currentWorkspace->getUserRole($user->id),
             ] : null,
             'filters' => $request->only(['search', 'sort', 'order', 'workspace', 'filter', 'type']),
             'stats' => [
                 'total' => $projects->count(),
-                'draft' => $user->projects()->where('status', 'draft')->count(),
-                'published' => $user->projects()->where('status', 'published')->count(),
-                'active' => $user->projects()->where('status', 'active')->count(),
-                'archived' => $user->projects()->where('status', 'archived')->count(),
-                'recent' => $user->projects()->where('updated_at', '>', now()->subDays(7))->count(),
-                'by_type' => $user->projects()
+                'draft' => $workspaceProjectsQuery->where('status', 'draft')->count(),
+                'published' => $workspaceProjectsQuery->where('status', 'published')->count(),
+                'active' => $workspaceProjectsQuery->where('status', 'active')->count(),
+                'archived' => $workspaceProjectsQuery->where('status', 'archived')->count(),
+                'recent' => $workspaceProjectsQuery->where('updated_at', '>', now()->subDays(7))->count(),
+                'by_type' => $workspaceProjectsQuery
                     ->select('type', \DB::raw('count(*) as count'))
                     ->groupBy('type')
                     ->pluck('count', 'type')
@@ -158,8 +229,152 @@ class ProjectController extends Controller
         ]);
     }
 
+    public function store(Request $request): RedirectResponse 
+    {
+        $user = Auth::user();
+        
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:1000',
+            'type' => [
+                'required',
+                Rule::in(['website', 'landing_page', 'component_library', 'prototype', 'email_template', 'dashboard'])
+            ],
+            'viewport_width' => 'nullable|integer|min:320|max:3840',
+            'viewport_height' => 'nullable|integer|min:240|max:2160',
+            'css_framework' => [
+                'nullable',
+                Rule::in(['tailwind', 'bootstrap', 'vanilla', 'styled_components', 'emotion'])
+            ],
+            'output_format' => [
+                'nullable',
+                Rule::in(['html', 'react', 'vue', 'angular'])
+            ],
+            'responsive_breakpoints' => 'nullable|array',
+            'responsive_breakpoints.mobile' => 'nullable|integer|min:320|max:768',
+            'responsive_breakpoints.tablet' => 'nullable|integer|min:768|max:1024', 
+            'responsive_breakpoints.desktop' => 'nullable|integer|min:1024|max:3840',
+            'is_public' => 'boolean',
+            'template_id' => 'nullable|integer|exists:projects,id',
+            'workspace_id' => 'required|integer|exists:workspaces,id' // Make workspace_id required
+        ]);
+
+        // Enhanced workspace validation
+        $workspaceId = $validated['workspace_id'];
+        $workspace = Workspace::find($workspaceId);
+        
+        if (!$workspace) {
+            return redirect()->back()->withErrors([
+                'workspace_id' => 'The specified workspace does not exist.'
+            ]);
+        }
+
+        // Check if user has access to the workspace
+        if (!$workspace->hasUser($user->id)) {
+            return redirect()->back()->withErrors([
+                'workspace_id' => 'You do not have access to this workspace.'
+            ]);
+        }
+
+        // Check if user can create projects in this workspace
+        $userRole = $workspace->getUserRole($user->id);
+        if (!in_array($userRole, ['owner', 'editor'])) {
+            return redirect()->back()->withErrors([
+                'workspace_id' => 'You do not have permission to create projects in this workspace.'
+            ]);
+        }
+
+        // Set defaults and prepare project data
+        $validated['user_id'] = $user->id;
+        $validated['workspace_id'] = $workspaceId;
+        $validated['settings'] = array_merge(Project::getDefaultSettings(), [
+            'responsive_breakpoints' => $validated['responsive_breakpoints'] ?? [
+                'mobile' => 375,
+                'tablet' => 768,
+                'desktop' => 1440
+            ]
+        ]);
+        $validated['export_settings'] = Project::getDefaultExportSettings();
+        $validated['status'] = 'draft';
+        $validated['last_opened_at'] = now();
+
+        // Set viewport defaults if not provided
+        $validated['viewport_width'] = $validated['viewport_width'] ?? 1440;
+        $validated['viewport_height'] = $validated['viewport_height'] ?? 900;
+        $validated['css_framework'] = $validated['css_framework'] ?? 'tailwind';
+        $validated['output_format'] = $validated['output_format'] ?? 'html';
+
+        // Initialize canvas data with default frame structure
+        $validated['canvas_data'] = [
+            'frames' => [
+                [
+                    'id' => 'frame_' . uniqid(),
+                    'name' => 'Home Page',
+                    'type' => 'page',
+                    'width' => $validated['viewport_width'],
+                    'height' => $validated['viewport_height'],
+                    'x' => 0,
+                    'y' => 0,
+                    'background' => '#ffffff',
+                    'components' => [],
+                    'created_at' => now()->toISOString(),
+                ]
+            ],
+            'zoom' => 1,
+            'pan' => ['x' => 0, 'y' => 0],
+            'selected_frame' => null,
+            'grid_settings' => [
+                'enabled' => true,
+                'size' => 10,
+                'snap' => true
+            ]
+        ];
+
+        try {
+            $project = Project::create($validated);
+
+            // If created from template, copy canvas data and settings
+            if (isset($validated['template_id'])) {
+                $template = Project::find($validated['template_id']);
+                if ($template && ($template->is_public || $template->user_id === $user->id)) {
+                    $project->update([
+                        'canvas_data' => $template->canvas_data,
+                        'settings' => array_merge($project->settings, $template->settings ?? [])
+                    ]);
+                }
+            }
+
+            // Log project creation for debugging
+            \Log::info('Project created successfully', [
+                'project_id' => $project->id,
+                'project_name' => $project->name,
+                'workspace_id' => $project->workspace_id,
+                'workspace_name' => $workspace->name,
+                'user_id' => $user->id
+            ]);
+
+            // Redirect to void editor using UUID, include workspace context
+            return redirect()->route('void.index', [
+                'project' => $project->uuid,
+                'workspace' => $workspace->id
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to create project', [
+                'user_id' => $user->id,
+                'workspace_id' => $workspaceId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return redirect()->back()->withErrors([
+                'general' => 'Failed to create project. Please try again.'
+            ])->withInput();
+        }
+    }
+
     /**
-     * Dedicated search API endpoint for faster AJAX requests
+     * Dedicated search API endpoint for faster AJAX requests with workspace filtering
      */
     public function search(Request $request): JsonResponse
     {
@@ -180,7 +395,7 @@ class ProjectController extends Controller
 
         $query = $user->projects()->with(['workspace']);
 
-        // Handle workspace filtering
+        // Apply workspace filtering in search
         if ($workspaceId) {
             $workspace = Workspace::find($workspaceId);
             if ($workspace && $workspace->hasUser($user->id)) {
@@ -258,39 +473,24 @@ class ProjectController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse 
+    // ... rest of your existing methods (update, destroy, duplicate, etc.) remain the same ...
+    
+    public function duplicate(Request $request, Project $project): RedirectResponse
     {
         $user = Auth::user();
         
+        // Check if user can access this project
+        if ($project->user_id !== $user->id && !$project->is_public) {
+            abort(403, 'You do not have permission to duplicate this project');
+        }
+
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:1000',
-            'type' => [
-                'required',
-                Rule::in(['website', 'landing_page', 'component_library', 'prototype', 'email_template', 'dashboard'])
-            ],
-            'viewport_width' => 'nullable|integer|min:320|max:3840',
-            'viewport_height' => 'nullable|integer|min:240|max:2160',
-            'css_framework' => [
-                'nullable',
-                Rule::in(['tailwind', 'bootstrap', 'vanilla', 'styled_components', 'emotion'])
-            ],
-            'output_format' => [
-                'nullable',
-                Rule::in(['html', 'react', 'vue', 'angular'])
-            ],
-            'responsive_breakpoints' => 'nullable|array',
-            'responsive_breakpoints.mobile' => 'nullable|integer|min:320|max:768',
-            'responsive_breakpoints.tablet' => 'nullable|integer|min:768|max:1024', 
-            'responsive_breakpoints.desktop' => 'nullable|integer|min:1024|max:3840',
-            'is_public' => 'boolean',
-            'template_id' => 'nullable|integer|exists:projects,id',
+            'name' => 'nullable|string|max:255',
             'workspace_id' => 'nullable|exists:workspaces,id'
         ]);
 
-        // Determine workspace
+        // Enhanced workspace validation for duplication
         $workspaceId = $validated['workspace_id'] ?? null;
-        
         if ($workspaceId) {
             $workspace = Workspace::find($workspaceId);
             if (!$workspace || !$workspace->hasUser($user->id)) {
@@ -298,79 +498,60 @@ class ProjectController extends Controller
                     'workspace_id' => 'You do not have access to this workspace'
                 ]);
             }
+            
+            // Check if user can create projects in this workspace
+            $userRole = $workspace->getUserRole($user->id);
+            if (!in_array($userRole, ['owner', 'editor'])) {
+                return redirect()->back()->withErrors([
+                    'workspace_id' => 'You do not have permission to create projects in this workspace'
+                ]);
+            }
         } else {
-            // Use user's current workspace or personal workspace
+            // Use current workspace or personal workspace
             $workspace = $user->getCurrentWorkspace();
-            if (!$workspace) {
-                $workspace = $user->ensurePersonalWorkspace();
+            if (!$workspace || !$workspace->hasUser($user->id)) {
+                $workspace = $user->getPersonalWorkspace() ?? $user->ensurePersonalWorkspace();
             }
             $workspaceId = $workspace->id;
         }
 
-        // Set defaults
-        $validated['user_id'] = $user->id;
-        $validated['workspace_id'] = $workspaceId;
-        $validated['settings'] = array_merge(Project::getDefaultSettings(), [
-            'responsive_breakpoints' => $validated['responsive_breakpoints'] ?? [
-                'mobile' => 375,
-                'tablet' => 768,
-                'desktop' => 1440
-            ]
-        ]);
-        $validated['export_settings'] = Project::getDefaultExportSettings();
-        $validated['status'] = 'draft';
-        $validated['last_opened_at'] = now();
+        try {
+            $newProject = $project->duplicate($validated['name'] ?? null);
+            $newProject->user_id = $user->id; // Set current user as owner
+            $newProject->workspace_id = $workspaceId; // Set workspace
+            $newProject->is_public = false; // Duplicates are private by default
+            $newProject->save();
 
-        // Set viewport defaults if not provided
-        $validated['viewport_width'] = $validated['viewport_width'] ?? 1440;
-        $validated['viewport_height'] = $validated['viewport_height'] ?? 900;
-        $validated['css_framework'] = $validated['css_framework'] ?? 'tailwind';
-        $validated['output_format'] = $validated['output_format'] ?? 'html';
+            \Log::info('Project duplicated successfully', [
+                'original_project_id' => $project->id,
+                'new_project_id' => $newProject->id,
+                'workspace_id' => $workspaceId,
+                'user_id' => $user->id
+            ]);
 
-        // Initialize canvas data with default frame structure
-        $validated['canvas_data'] = [
-            'frames' => [
-                [
-                    'id' => 'frame_' . uniqid(),
-                    'name' => 'Home Page',
-                    'type' => 'page',
-                    'width' => $validated['viewport_width'],
-                    'height' => $validated['viewport_height'],
-                    'x' => 0,
-                    'y' => 0,
-                    'background' => '#ffffff',
-                    'components' => [],
-                    'created_at' => now()->toISOString(),
-                ]
-            ],
-            'zoom' => 1,
-            'pan' => ['x' => 0, 'y' => 0],
-            'selected_frame' => null,
-            'grid_settings' => [
-                'enabled' => true,
-                'size' => 10,
-                'snap' => true
-            ]
-        ];
+            return redirect()->route('void.index', [
+                'project' => $newProject->uuid,
+                'workspace' => $workspaceId
+            ]);
 
-        $project = Project::create($validated);
+        } catch (\Exception $e) {
+            \Log::error('Failed to duplicate project', [
+                'original_project_id' => $project->id,
+                'workspace_id' => $workspaceId,
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
 
-        // If created from template, copy canvas data and settings
-        if (isset($validated['template_id'])) {
-            $template = Project::find($validated['template_id']);
-            if ($template && ($template->is_public || $template->user_id === $user->id)) {
-                $project->update([
-                    'canvas_data' => $template->canvas_data,
-                    'settings' => array_merge($project->settings, $template->settings ?? [])
-                ]);
-            }
+            return redirect()->back()->withErrors([
+                'general' => 'Failed to duplicate project. Please try again.'
+            ]);
         }
-
-        // Redirect to void editor using UUID
-        return redirect()->route('void.index', ['project' => $project->uuid]);
     }
 
-    public function update(Request $request, Project $project): JsonResponse
+    /**
+     * Move project to different workspace
+     */
+    public function moveToWorkspace(Request $request, Project $project): JsonResponse
     {
         $user = Auth::user();
         
@@ -378,56 +559,69 @@ class ProjectController extends Controller
         if ($project->user_id !== $user->id) {
             return response()->json([
                 'success' => false,
-                'message' => 'You do not have permission to update this project'
+                'message' => 'You do not have permission to move this project'
             ], 403);
         }
 
         $validated = $request->validate([
-            'name' => 'sometimes|string|max:255',
-            'description' => 'sometimes|nullable|string|max:1000',
-            'type' => [
-                'sometimes',
-                Rule::in(['website', 'landing_page', 'component_library', 'prototype', 'email_template', 'dashboard'])
-            ],
-            'status' => [
-                'sometimes',
-                Rule::in(['draft', 'active', 'archived', 'published'])
-            ],
-            'settings' => 'sometimes|array',
-            'canvas_data' => 'sometimes|array',
-            'export_settings' => 'sometimes|array',
-            'viewport_width' => 'sometimes|integer|min:320|max:3840',
-            'viewport_height' => 'sometimes|integer|min:240|max:2160',
-            'css_framework' => [
-                'sometimes',
-                Rule::in(['tailwind', 'bootstrap', 'vanilla', 'styled_components', 'emotion'])
-            ],
-            'output_format' => [
-                'sometimes',
-                Rule::in(['html', 'react', 'vue', 'angular'])
-            ],
-            'is_public' => 'sometimes|boolean',
-            'workspace_id' => 'sometimes|exists:workspaces,id'
+            'workspace_id' => 'required|exists:workspaces,id'
         ]);
 
-        // If changing workspace, verify access
-        if (isset($validated['workspace_id'])) {
-            $workspace = Workspace::find($validated['workspace_id']);
-            if (!$workspace || !$workspace->hasUser($user->id)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You do not have access to the specified workspace'
-                ], 403);
-            }
+        $workspace = Workspace::find($validated['workspace_id']);
+        
+        // Check if user has access to target workspace
+        if (!$workspace || !$workspace->hasUser($user->id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have access to the target workspace'
+            ], 403);
         }
 
-        $project->update($validated);
+        // Check if user can create projects in target workspace
+        $userRole = $workspace->getUserRole($user->id);
+        if (!in_array($userRole, ['owner', 'editor'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to move projects to this workspace'
+            ], 403);
+        }
 
-        return response()->json([
-            'success' => true,
-            'data' => $project->fresh(),
-            'message' => 'Project updated successfully'
-        ]);
+        try {
+            $project->update(['workspace_id' => $workspace->id]);
+
+            \Log::info('Project moved to workspace', [
+                'project_id' => $project->id,
+                'old_workspace_id' => $project->getOriginal('workspace_id'),
+                'new_workspace_id' => $workspace->id,
+                'user_id' => $user->id
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'project' => $project->fresh(),
+                    'workspace' => [
+                        'id' => $workspace->id,
+                        'name' => $workspace->name,
+                        'type' => $workspace->type,
+                    ]
+                ],
+                'message' => 'Project moved successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to move project to workspace', [
+                'project_id' => $project->id,
+                'workspace_id' => $workspace->id,
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to move project: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function destroy(Project $project): JsonResponse
@@ -453,46 +647,6 @@ class ProjectController extends Controller
             'success' => true,
             'message' => 'Project deleted successfully'
         ]);
-    }
-
-    public function duplicate(Request $request, Project $project): RedirectResponse
-    {
-        $user = Auth::user();
-        
-        // Check if user can access this project
-        if ($project->user_id !== $user->id && !$project->is_public) {
-            abort(403, 'You do not have permission to duplicate this project');
-        }
-
-        $validated = $request->validate([
-            'name' => 'nullable|string|max:255',
-            'workspace_id' => 'nullable|exists:workspaces,id'
-        ]);
-
-        // Determine workspace for the duplicate
-        $workspaceId = $validated['workspace_id'] ?? null;
-        if ($workspaceId) {
-            $workspace = Workspace::find($workspaceId);
-            if (!$workspace || !$workspace->hasUser($user->id)) {
-                return redirect()->back()->withErrors([
-                    'workspace_id' => 'You do not have access to this workspace'
-                ]);
-            }
-        } else {
-            $workspace = $user->getCurrentWorkspace();
-            if (!$workspace) {
-                $workspace = $user->ensurePersonalWorkspace();
-            }
-            $workspaceId = $workspace->id;
-        }
-
-        $newProject = $project->duplicate($validated['name'] ?? null);
-        $newProject->user_id = $user->id; // Set current user as owner
-        $newProject->workspace_id = $workspaceId; // Set workspace
-        $newProject->is_public = false; // Duplicates are private by default
-        $newProject->save();
-
-        return redirect()->route('void.index', ['project' => $newProject->uuid]);
     }
 
     public function templates(): JsonResponse
@@ -621,10 +775,7 @@ class ProjectController extends Controller
         ]);
     }
 
-    /**
-     * Move project to different workspace
-     */
-    public function moveToWorkspace(Request $request, Project $project): JsonResponse
+    public function update(Request $request, Project $project): JsonResponse
     {
         $user = Auth::user();
         
@@ -632,36 +783,55 @@ class ProjectController extends Controller
         if ($project->user_id !== $user->id) {
             return response()->json([
                 'success' => false,
-                'message' => 'You do not have permission to move this project'
+                'message' => 'You do not have permission to update this project'
             ], 403);
         }
 
         $validated = $request->validate([
-            'workspace_id' => 'required|exists:workspaces,id'
+            'name' => 'sometimes|string|max:255',
+            'description' => 'sometimes|nullable|string|max:1000',
+            'type' => [
+                'sometimes',
+                Rule::in(['website', 'landing_page', 'component_library', 'prototype', 'email_template', 'dashboard'])
+            ],
+            'status' => [
+                'sometimes',
+                Rule::in(['draft', 'active', 'archived', 'published'])
+            ],
+            'settings' => 'sometimes|array',
+            'canvas_data' => 'sometimes|array',
+            'export_settings' => 'sometimes|array',
+            'viewport_width' => 'sometimes|integer|min:320|max:3840',
+            'viewport_height' => 'sometimes|integer|min:240|max:2160',
+            'css_framework' => [
+                'sometimes',
+                Rule::in(['tailwind', 'bootstrap', 'vanilla', 'styled_components', 'emotion'])
+            ],
+            'output_format' => [
+                'sometimes',
+                Rule::in(['html', 'react', 'vue', 'angular'])
+            ],
+            'is_public' => 'sometimes|boolean',
+            'workspace_id' => 'sometimes|exists:workspaces,id'
         ]);
 
-        $workspace = Workspace::find($validated['workspace_id']);
-        
-        // Check if user has access to target workspace
-        if (!$workspace || !$workspace->hasUser($user->id)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You do not have access to the target workspace'
-            ], 403);
+        // If changing workspace, verify access
+        if (isset($validated['workspace_id'])) {
+            $workspace = Workspace::find($validated['workspace_id']);
+            if (!$workspace || !$workspace->hasUser($user->id)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You do not have access to the specified workspace'
+                ], 403);
+            }
         }
 
-        $project->update(['workspace_id' => $workspace->id]);
+        $project->update($validated);
 
         return response()->json([
             'success' => true,
-            'data' => [
-                'project' => $project->fresh(),
-                'workspace' => [
-                    'id' => $workspace->id,
-                    'name' => $workspace->name,
-                ]
-            ],
-            'message' => 'Project moved successfully'
+            'data' => $project->fresh(),
+            'message' => 'Project updated successfully'
         ]);
     }
 }

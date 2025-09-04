@@ -34,9 +34,8 @@ Route::middleware('auth')->group(function () {
     // Public invite acceptance page
     Route::get('/invite/{token}', [InviteController::class, 'showInvite'])->name('invite.show');
     
-    
-    // Project routes
-    Route::get('/projects', [ProjectController::class, 'index'])->name('projects');
+    // Project routes - UPDATED to handle workspace filtering properly
+    Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
     Route::get('/workspaces/{workspace}/projects', [ProjectController::class, 'index'])->name('workspace.projects');
     Route::get('/projects/search', [ProjectController::class, 'search'])->name('projects.search');
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
@@ -64,3 +63,4 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+

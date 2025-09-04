@@ -19,10 +19,14 @@ import {
   Sparkles,
   Plus,
   Github,
-  LogOut
+  LogOut,
+  Building,
+  Users,
+  Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GitHubService } from '@/Services/GithubService';
+import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 import axios from 'axios';
 
 // Custom Loading Spinner Component
@@ -122,7 +126,10 @@ export default function NewProjectModal({ show, onClose }) {
   const [disconnecting, setDisconnecting] = useState(false);
   const [githubUser, setGithubUser] = useState(null);
 
-  // Regular project form
+  // Get current workspace from store
+  const { currentWorkspace, workspaces } = useWorkspaceStore();
+
+  // Regular project form - Include workspace_id from current workspace
   const { data, setData, post, processing, errors, reset } = useForm({
     name: '',
     description: '',
@@ -130,10 +137,11 @@ export default function NewProjectModal({ show, onClose }) {
     viewport_width: 1440,
     viewport_height: 900,
     css_framework: 'tailwind',
-    is_public: false
+    is_public: false,
+    workspace_id: currentWorkspace?.id || null // Set current workspace ID
   });
 
-  // GitHub import form
+  // GitHub import form - Include workspace_id from current workspace
   const { data: githubData, setData: setGithubData, post: postGithub, processing: processingGithub, errors: githubErrors, reset: resetGithub } = useForm({
     name: '',
     description: '',
@@ -145,8 +153,17 @@ export default function NewProjectModal({ show, onClose }) {
     css_framework: 'tailwind',
     viewport_width: 1440,
     viewport_height: 900,
-    is_public: false
+    is_public: false,
+    workspace_id: currentWorkspace?.id || null // Set current workspace ID
   });
+
+  // Update workspace_id when currentWorkspace changes
+  useEffect(() => {
+    if (currentWorkspace?.id) {
+      setData('workspace_id', currentWorkspace.id);
+      setGithubData('workspace_id', currentWorkspace.id);
+    }
+  }, [currentWorkspace?.id, setData, setGithubData]);
 
   // Define tabs
   const tabs = [
@@ -208,16 +225,23 @@ export default function NewProjectModal({ show, onClose }) {
   const handleSubmit = useCallback((e) => {
     e.preventDefault();
     
+    // Ensure workspace_id is set
+    const projectData = {
+      ...data,
+      workspace_id: currentWorkspace?.id || data.workspace_id
+    };
+    
     post('/projects', {
+      data: projectData,
       onSuccess: (response) => {
-        console.log('Project created successfully:', response);
+        console.log('Project created successfully in workspace:', currentWorkspace?.name);
         handleClose();
       },
       onError: (errors) => {
         console.error('Project creation failed:', errors);
       }
     });
-  }, [data, post, handleClose]);
+  }, [data, currentWorkspace, post, handleClose]);
 
   // Handle GitHub project import
   const handleGithubSubmit = useCallback((e) => {
@@ -227,21 +251,22 @@ export default function NewProjectModal({ show, onClose }) {
       return;
     }
 
-    // Prepare data for GitHub import
+    // Prepare data for GitHub import with current workspace
     const importData = {
       ...githubData,
       repository_id: selectedRepo.id,
       repository_name: selectedRepo.name,
       repository_url: selectedRepo.html_url,
       clone_url: selectedRepo.clone_url,
-      description: githubData.description || selectedRepo.description || ''
+      description: githubData.description || selectedRepo.description || '',
+      workspace_id: currentWorkspace?.id || githubData.workspace_id
     };
 
     setGithubData(importData);
 
     postGithub('/api/github/import-project', {
       onSuccess: (response) => {
-        console.log('GitHub project imported successfully:', response);
+        console.log('GitHub project imported successfully to workspace:', currentWorkspace?.name);
         handleClose();
         if (response.redirect_url) {
           window.location.href = response.redirect_url;
@@ -251,7 +276,7 @@ export default function NewProjectModal({ show, onClose }) {
         console.error('GitHub project import failed:', errors);
       }
     });
-  }, [githubData, selectedRepo, postGithub, setGithubData, handleClose]);
+  }, [githubData, selectedRepo, currentWorkspace, postGithub, setGithubData, handleClose]);
 
   const selectViewportPreset = useCallback((preset) => {
     if (activeTab === 0) {
@@ -281,7 +306,6 @@ export default function NewProjectModal({ show, onClose }) {
 
   // Connect to GitHub with modal flag
   const connectToGitHub = () => {
-    // Add modal parameter to indicate this is a modal connection
     window.location.href = '/auth/github/redirect?modal=1';
   };
 
@@ -300,41 +324,48 @@ export default function NewProjectModal({ show, onClose }) {
       }
     } catch (error) {
       console.error('Error disconnecting GitHub:', error);
-      // Handle error - could show a toast notification here
     } finally {
       setDisconnecting(false);
     }
   };
   
-  // Also add this useEffect to handle the callback from GitHub
+  // Handle GitHub connection success/error messages
   useEffect(() => {
-    // Check for GitHub connection success/error messages in URL params
     const urlParams = new URLSearchParams(window.location.search);
     
     if (urlParams.get('github_connected')) {
       const message = urlParams.get('message');
       if (message) {
-        // Show success message or handle success
         console.log('GitHub connected:', decodeURIComponent(message));
       }
-      // Refresh GitHub connection status
       checkGitHubConnection();
-      
-      // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
     }
     
     if (urlParams.get('github_error')) {
       const message = urlParams.get('message');
       if (message) {
-        // Show error message
         console.error('GitHub connection failed:', decodeURIComponent(message));
       }
-      
-      // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [show]); // Run when modal opens
+  }, [show]);
+
+  // Get workspace icon
+  const getWorkspaceIcon = (workspace) => {
+    if (!workspace) return <Building className="w-4 h-4" />;
+    
+    switch (workspace.type) {
+      case 'personal':
+        return <Lock className="w-4 h-4" />;
+      case 'team':
+        return <Users className="w-4 h-4" />;
+      case 'company':
+        return <Building className="w-4 h-4" />;
+      default:
+        return <Building className="w-4 h-4" />;
+    }
+  };
 
   // Tab content
   const createNewContent = (
@@ -344,6 +375,30 @@ export default function NewProjectModal({ show, onClose }) {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-8"
     >
+      {/* Current Workspace Info */}
+      {currentWorkspace && (
+        <div className="p-4 bg-[var(--color-bg-muted)] rounded-xl border border-[var(--color-border)]">
+          <div className="flex items-center gap-3">
+            <div className="text-[var(--color-text-muted)]">
+              {getWorkspaceIcon(currentWorkspace)}
+            </div>
+            <div>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Creating project in workspace:
+              </p>
+              <p className="font-medium text-[var(--color-text)]">
+                {currentWorkspace.name}
+                {currentWorkspace.type === 'personal' && (
+                  <span className="ml-2 text-xs bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] px-2 py-0.5 rounded">
+                    Personal
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Project Name & Description */}
       <div className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -544,7 +599,7 @@ export default function NewProjectModal({ show, onClose }) {
               <div className="text-sm text-[var(--color-text-muted)]">
                 {data.is_public 
                   ? 'Visible to everyone and can be used as template' 
-                  : 'Only accessible by you'
+                  : 'Only accessible by workspace members'
                 }
               </div>
             </div>
@@ -571,7 +626,7 @@ export default function NewProjectModal({ show, onClose }) {
       <div className="flex justify-end pt-8 border-t border-[var(--color-border)]">
         <motion.button
           type="submit"
-          disabled={!data.name || processing}
+          disabled={!data.name || processing || !currentWorkspace}
           whileHover={{ scale: processing ? 1 : 1.02 }}
           whileTap={{ scale: processing ? 1 : 0.98 }}
           className="px-8 py-3 rounded-xl bg-[var(--color-primary)] text-white font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-3"
@@ -602,7 +657,7 @@ export default function NewProjectModal({ show, onClose }) {
         // GitHub Connection Required
         <div className="text-center py-12">
           <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-r from-gray-900 to-gray-700 flex items-center justify-center">
-            <GitHubIcon className="text-white" />
+            <GitHubIcon />
           </div>
           <h3 className="text-xl font-semibold text-[var(--color-text)] mb-3">
             Connect to GitHub
@@ -623,6 +678,30 @@ export default function NewProjectModal({ show, onClose }) {
       ) : (
         // GitHub Import Form
         <form onSubmit={handleGithubSubmit} className="space-y-8">
+          {/* Current Workspace Info */}
+          {currentWorkspace && (
+            <div className="p-4 bg-[var(--color-bg-muted)] rounded-xl border border-[var(--color-border)]">
+              <div className="flex items-center gap-3">
+                <div className="text-[var(--color-text-muted)]">
+                  {getWorkspaceIcon(currentWorkspace)}
+                </div>
+                <div>
+                  <p className="text-sm text-[var(--color-text-muted)]">
+                    Importing to workspace:
+                  </p>
+                  <p className="font-medium text-[var(--color-text)]">
+                    {currentWorkspace.name}
+                    {currentWorkspace.type === 'personal' && (
+                      <span className="ml-2 text-xs bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] px-2 py-0.5 rounded">
+                        Personal
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* GitHub User Info & Disconnect */}
           <div className="flex items-center justify-between p-4 bg-[var(--color-bg-muted)] rounded-xl">
             <div className="flex items-center gap-3">
@@ -759,7 +838,7 @@ export default function NewProjectModal({ show, onClose }) {
               <div className="flex justify-end pt-6 border-t border-[var(--color-border)]">
                 <motion.button
                   type="submit"
-                  disabled={!githubData.name || processingGithub}
+                  disabled={!githubData.name || processingGithub || !currentWorkspace}
                   whileHover={{ scale: processingGithub ? 1 : 1.02 }}
                   whileTap={{ scale: processingGithub ? 1 : 0.98 }}
                   className="px-8 py-3 rounded-xl bg-[var(--color-primary)] text-white font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-3"

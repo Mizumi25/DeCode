@@ -1,6 +1,6 @@
 // @/Components/Workspaces/InviteModal.jsx
 import React, { useState, useEffect, useRef } from 'react'
-import { X, Mail, Link as LinkIcon, Copy, Check, Users, Eye, Edit, Plus, AlertCircle, ChevronDown } from 'lucide-react'
+import { X, Mail, Link as LinkIcon, Copy, Check, Users, Eye, Edit, Plus, AlertCircle, ChevronDown, ArrowRight, Zap, Home } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Modal from '@/Components/Modal'
 import CreateWorkspaceModal from './CreateWorkspaceModal'
@@ -103,7 +103,79 @@ const CustomDropdown = ({ value, onChange, options, placeholder = "Select option
   )
 }
 
-const InviteModal = ({ show, onClose, workspaceId }) => {
+// Personal Workspace Notice Component
+const PersonalWorkspaceNotice = ({ workspace, onConvert, onCreateNew, isConverting }) => {
+  return (
+    <div className="p-6 text-center">
+      <div className="mb-6">
+        <div className="w-16 h-16 bg-[var(--color-bg-muted)] rounded-full flex items-center justify-center mx-auto mb-4">
+          <Home className="w-8 h-8 text-[var(--color-text-muted)]" />
+        </div>
+        <h3 className="text-lg font-semibold text-[var(--color-text)] mb-2">
+          Personal Workspace
+        </h3>
+        <p className="text-[var(--color-text-muted)] mb-4">
+          You can't invite members to a personal workspace. Choose an option below to enable team collaboration.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        {/* Convert Personal Workspace */}
+        <div className="p-4 border border-[var(--color-border)] rounded-lg">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <Zap className="w-5 h-5 text-[var(--color-primary)]" />
+              <div className="text-left">
+                <div className="font-medium text-[var(--color-text)]">Convert to Team Workspace</div>
+                <div className="text-sm text-[var(--color-text-muted)]">
+                  Transform "{workspace?.name}" into a collaborative workspace
+                </div>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-[var(--color-text-muted)]" />
+          </div>
+          <button
+            onClick={onConvert}
+            disabled={isConverting}
+            className="w-full bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg font-medium hover:bg-[var(--color-primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isConverting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Converting...
+              </>
+            ) : (
+              'Convert to Team Workspace'
+            )}
+          </button>
+          <p className="text-xs text-[var(--color-text-muted)] mt-2">
+            A new personal workspace will be created automatically
+          </p>
+        </div>
+
+        {/* Create New Workspace */}
+        <div className="p-4 border border-dashed border-[var(--color-border)] rounded-lg">
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <Plus className="w-4 h-4 text-[var(--color-text-muted)]" />
+            <span className="text-[var(--color-text)] font-medium">Create New Team Workspace</span>
+          </div>
+          <button
+            onClick={onCreateNew}
+            disabled={isConverting}
+            className="w-full bg-[var(--color-bg-muted)] text-[var(--color-text)] px-4 py-2 rounded-lg font-medium hover:bg-[var(--color-bg-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Create New Workspace
+          </button>
+          <p className="text-xs text-[var(--color-text-muted)] mt-2">
+            Keep your personal workspace and create a separate team workspace
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const InviteModal = ({ show, onClose, workspaceId, forceInviteMode = false }) => {
   const [activeTab, setActiveTab] = useState('email')
   const [emailInput, setEmailInput] = useState('')
   const [emailRole, setEmailRole] = useState('viewer')
@@ -112,6 +184,7 @@ const InviteModal = ({ show, onClose, workspaceId }) => {
   const [copied, setCopied] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
   const [showCreateWorkspace, setShowCreateWorkspace] = useState(false)
+  const [isConverting, setIsConverting] = useState(false)
 
   const {
     isLoading,
@@ -124,8 +197,15 @@ const InviteModal = ({ show, onClose, workspaceId }) => {
   const { 
     currentWorkspace,
     workspaces,
-    createWorkspace 
+    createWorkspace,
+    updateWorkspace,
+    initializeWorkspaces,
+    setCurrentWorkspace
   } = useWorkspaceStore()
+
+  // Get the workspace (either from prop or current)
+  const workspace = workspaces.find(w => w.id === workspaceId) || currentWorkspace
+  const isPersonalWorkspace = workspace?.type === 'personal' && !forceInviteMode
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -135,6 +215,7 @@ const InviteModal = ({ show, onClose, workspaceId }) => {
       setGeneratedLink('')
       setCopied(false)
       clearError()
+      setIsConverting(false)
     }
   }, [show, clearError])
 
@@ -143,6 +224,24 @@ const InviteModal = ({ show, onClose, workspaceId }) => {
     clearError()
   }, [activeTab, clearError])
 
+  // Listen for workspace conversion events
+  useEffect(() => {
+    const handleWorkspaceConverted = (event) => {
+      const { shouldOpenInviteModal } = event.detail
+      console.log('InviteModal: Workspace conversion event received', event.detail)
+      
+      if (shouldOpenInviteModal && !show) {
+        console.log('InviteModal: Opening in invite mode after conversion')
+        // This will be handled by the parent component
+      }
+    }
+
+    window.addEventListener('workspace-converted', handleWorkspaceConverted)
+    return () => {
+      window.removeEventListener('workspace-converted', handleWorkspaceConverted)
+    }
+  }, [show])
+
   const handleEmailInvite = async (e) => {
     e.preventDefault()
     
@@ -150,7 +249,14 @@ const InviteModal = ({ show, onClose, workspaceId }) => {
       return
     }
 
-    const result = await sendEmailInvite(workspaceId, emailInput, emailRole)
+    // Ensure we have a valid workspace ID
+    const targetWorkspaceId = workspaceId || workspace?.id
+    if (!targetWorkspaceId) {
+      console.error('No workspace ID available for invite')
+      return
+    }
+
+    const result = await sendEmailInvite(targetWorkspaceId, emailInput, emailRole)
     
     if (result.success) {
       setEmailSent(true)
@@ -160,7 +266,14 @@ const InviteModal = ({ show, onClose, workspaceId }) => {
   }
 
   const handleGenerateLink = async () => {
-    const result = await generateInviteLink(workspaceId, linkRole)
+    // Ensure we have a valid workspace ID
+    const targetWorkspaceId = workspaceId || workspace?.id
+    if (!targetWorkspaceId) {
+      console.error('No workspace ID available for invite')
+      return
+    }
+
+    const result = await generateInviteLink(targetWorkspaceId, linkRole)
     
     if (result.success) {
       setGeneratedLink(result.link)
@@ -174,23 +287,88 @@ const InviteModal = ({ show, onClose, workspaceId }) => {
     }
   }
 
-  const handleCreateWorkspace = async (workspaceData) => {
+  const handleConvertPersonalWorkspace = async () => {
+    if (!workspace) return
+
+    setIsConverting(true)
     try {
-      const newWorkspace = await createWorkspace(workspaceData)
-      setShowCreateWorkspace(false)
-      // The workspace dropdown will automatically switch to the new workspace
+      console.log('Converting personal workspace to team:', workspace.id)
+
+      // Convert the current workspace to team - backend will handle creating new personal workspace
+      const result = await updateWorkspace(workspace.id, {
+        type: 'team',
+        settings: {
+          ...workspace.settings,
+          privacy: 'private' // Default to private for converted workspaces
+        }
+      })
+
+      console.log('Conversion result:', result)
+
+      if (result.converted) {
+        // Close this modal first
+        onClose()
+        
+        // Small delay to ensure state is updated
+        setTimeout(() => {
+          console.log('Re-opening modal in invite mode after conversion')
+          // The parent component will handle re-opening the modal
+        }, 500)
+      }
+
     } catch (error) {
-      console.error('Failed to create workspace:', error)
+      console.error('Failed to convert workspace:', error)
+      // Show error to user but don't close modal
+    } finally {
+      setIsConverting(false)
     }
   }
 
-  const workspace = workspaces.find(w => w.id === workspaceId) || currentWorkspace
+  const handleCreateNewWorkspace = () => {
+    setShowCreateWorkspace(true)
+  }
+
+  const handleClose = () => {
+    setEmailInput('')
+    setEmailSent(false)
+    setGeneratedLink('')
+    setCopied(false)
+    setIsConverting(false)
+    clearError()
+    onClose()
+  }
+
+  // If it's a personal workspace and not forced to invite mode, show the conversion options instead
+  if (isPersonalWorkspace) {
+    return (
+      <>
+        <Modal 
+          show={show} 
+          onClose={handleClose}
+          maxWidth="md"
+          title="Invite to Workspace"
+        >
+          <PersonalWorkspaceNotice
+            workspace={workspace}
+            onConvert={handleConvertPersonalWorkspace}
+            onCreateNew={handleCreateNewWorkspace}
+            isConverting={isConverting}
+          />
+        </Modal>
+
+        <CreateWorkspaceModal 
+          show={showCreateWorkspace}
+          onClose={() => setShowCreateWorkspace(false)}
+        />
+      </>
+    )
+  }
 
   return (
     <>
       <Modal 
         show={show} 
-        onClose={onClose}
+        onClose={handleClose}
         maxWidth="md"
         title="Invite to Workspace"
       >
@@ -201,9 +379,14 @@ const InviteModal = ({ show, onClose, workspaceId }) => {
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-[var(--color-text-muted)]" />
                 <span className="font-medium text-[var(--color-text)]">{workspace.name}</span>
-                {workspace.type === 'personal' && (
-                  <span className="text-xs bg-[var(--color-bg)] text-[var(--color-text-muted)] px-2 py-0.5 rounded">
-                    Personal
+                {workspace.type === 'team' && (
+                  <span className="text-xs bg-[var(--color-primary)]/10 text-[var(--color-primary)] px-2 py-0.5 rounded border border-[var(--color-primary)]/20">
+                    Team
+                  </span>
+                )}
+                {workspace.type === 'company' && (
+                  <span className="text-xs bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">
+                    Company
                   </span>
                 )}
               </div>

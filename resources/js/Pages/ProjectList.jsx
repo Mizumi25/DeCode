@@ -1,23 +1,34 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Plus, ChevronDown, X, Share2, Download, Edit3, Trash2, Copy, GripVertical } from 'lucide-react';
 import { Responsive, WidthProvider } from 'react-grid-layout';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import NewProjectModal from '@/Components/Projects/NewProjectModal';
 import { useSearchStore } from '@/stores/useSearchStore';
+import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
-export default function ProjectList({ projects: initialProjects = [], filters = {}, stats = {} }) {
+export default function ProjectList({ 
+  projects: initialProjects = [], 
+  workspaces: initialWorkspaces = [], 
+  currentWorkspace: initialCurrentWorkspace = null, 
+  filters = {}, 
+  stats = {} 
+}) {
   const [selectedProject, setSelectedProject] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [layouts, setLayouts] = useState({});
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const dragTimeoutRef = useRef(null);
   const clickTimeoutRef = useRef(null);
+  
+  // Get current user from Inertia
+  const { auth } = usePage().props;
+  const currentUser = auth.user;
   
   // Search store integration
   const { 
@@ -26,6 +37,26 @@ export default function ProjectList({ projects: initialProjects = [], filters = 
     initializeFromUrl, 
     cleanup 
   } = useSearchStore();
+  
+  // Workspace store integration
+  const {
+    currentWorkspace,
+    workspaces,
+    setCurrentWorkspace,
+    setWorkspaces,
+    getUserWorkspaces
+  } = useWorkspaceStore();
+  
+  // Initialize workspaces and current workspace on mount
+  useEffect(() => {
+    if (initialWorkspaces && initialWorkspaces.length > 0) {
+      setWorkspaces(initialWorkspaces);
+    }
+    
+    if (initialCurrentWorkspace) {
+      setCurrentWorkspace(initialCurrentWorkspace);
+    }
+  }, [initialWorkspaces, initialCurrentWorkspace, setWorkspaces, setCurrentWorkspace]);
   
   // Initialize search store from URL on mount
   useEffect(() => {
@@ -40,7 +71,6 @@ export default function ProjectList({ projects: initialProjects = [], filters = 
     if (githubConnected === '1') {
       // Show success message and reopen modal
       if (message) {
-        // You could show a toast notification here
         console.log('GitHub connected:', decodeURIComponent(message));
       }
       setShowNewProjectModal(true);
@@ -55,7 +85,6 @@ export default function ProjectList({ projects: initialProjects = [], filters = 
       // Show error message
       if (message) {
         console.error('GitHub connection error:', decodeURIComponent(message));
-        // You could show an error toast here
       }
       
       // Clean up URL parameters
@@ -121,6 +150,32 @@ export default function ProjectList({ projects: initialProjects = [], filters = 
   useEffect(() => {
     setLayouts(defaultLayouts);
   }, [projects.length, searchQuery]); // Reset when project count or search changes
+
+  // Handle workspace switching
+  const handleWorkspaceSwitch = useCallback((workspace) => {
+    if (!workspace || !workspace.id) {
+      console.error('Invalid workspace selected:', workspace);
+      return;
+    }
+    
+    // Double-check user has access to this workspace
+    const hasAccess = workspace.owner?.id === currentUser?.id || 
+                     workspace.users?.some(user => user.id === currentUser?.id);
+    
+    if (!hasAccess) {
+      console.error('User does not have access to workspace:', workspace.id);
+      return;
+    }
+    
+    setCurrentWorkspace(workspace);
+    
+    // Navigate to projects page with workspace parameter
+    // This will trigger a page refresh with the new workspace's projects
+    router.visit(`/projects?workspace=${workspace.id}`, {
+      preserveState: false, // Force refresh to load workspace-specific projects
+      replace: true
+    });
+  }, [currentUser?.id, setCurrentWorkspace]);
 
   const handleProjectClick = useCallback((project, e) => {
     // Prevent click if the target is the drag handle
@@ -313,6 +368,13 @@ export default function ProjectList({ projects: initialProjects = [], filters = 
     }
   };
 
+  // Get current workspace name for header
+  const currentWorkspaceName = (currentWorkspace && currentWorkspace.name) || 'Select Workspace';
+  const projectCountText = `${projects.length} project${projects.length === 1 ? '' : 's'}`;
+  const workspaceText = currentWorkspace 
+    ? `${currentWorkspaceName} • ${projectCountText}` 
+    : projectCountText;
+
   return (
     <AuthenticatedLayout
       header={
@@ -323,7 +385,7 @@ export default function ProjectList({ projects: initialProjects = [], filters = 
         </div>
       }
     >
-      <Head title="Project List" />
+      <Head title="Projects" />
       
       {/* Enhanced CSS to fix colors, overflow issues, and improve drag handle */}
       <style jsx>{`
@@ -435,7 +497,7 @@ export default function ProjectList({ projects: initialProjects = [], filters = 
               <div className="flex-start items-center flex-col gap-2">
                 <div className="flex items-center gap-3">
                   <span className="font-bold text-[var(--color-text)] text-sm">
-                    {searchQuery ? `Search Results (${projects.length})` : `All Projects (${projects.length})`}
+                    {searchQuery ? `Search Results (${projects.length})` : workspaceText}
                   </span>
                   
                   {/* Search status indicator */}
@@ -483,7 +545,7 @@ export default function ProjectList({ projects: initialProjects = [], filters = 
                       No projects found
                     </h3>
                     <p className="text-[var(--color-text-muted)] mb-8 max-w-md">
-                      No projects match your search for "{searchQuery}". Try adjusting your search terms or filters.
+                      No projects match your search for "{searchQuery}" in {currentWorkspaceName}. Try adjusting your search terms or filters.
                     </p>
                     <button 
                       onClick={() => useSearchStore.getState().clearSearch()}
@@ -495,10 +557,10 @@ export default function ProjectList({ projects: initialProjects = [], filters = 
                 ) : (
                   <>
                     <h3 className="text-xl font-semibold text-[var(--color-text)] mb-2">
-                      No projects yet
+                      No projects in {currentWorkspaceName}
                     </h3>
                     <p className="text-[var(--color-text-muted)] mb-8 max-w-md">
-                      Get started by creating your first project. Build websites, landing pages, prototypes, and more with our visual editor.
+                      Get started by creating your first project in this workspace. Build websites, landing pages, prototypes, and more with our visual editor.
                     </p>
                     <button 
                       onClick={handleNewProject}
@@ -514,7 +576,7 @@ export default function ProjectList({ projects: initialProjects = [], filters = 
               /* Project Grid - Fixed overflow container with key prop for re-rendering */
               <div className="w-full relative overflow-hidden" style={{ minHeight: '600px', maxWidth: '100%' }}>
                 <ResponsiveGridLayout
-                  key={`grid-${projects.length}-${searchQuery}`} // Force re-render on project changes
+                  key={`grid-${projects.length}-${searchQuery}-${currentWorkspace?.id || 'no-workspace'}`}
                   className="layout"
                   layouts={layouts}
                   breakpoints={{ lg: 1024, md: 768, sm: 480 }}
@@ -786,10 +848,12 @@ export default function ProjectList({ projects: initialProjects = [], filters = 
         )}
       </AnimatePresence>
 
-      {/* New Project Modal */}
+      {/* New Project Modal - Pass current workspace for project creation */}
       <NewProjectModal 
         show={showNewProjectModal}
         onClose={handleModalClose}
+        currentWorkspace={currentWorkspace}
+        workspaces={initialWorkspaces}
       />
     </AuthenticatedLayout>
   );

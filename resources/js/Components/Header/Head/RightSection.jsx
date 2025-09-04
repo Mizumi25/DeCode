@@ -32,8 +32,12 @@ const RightSection = ({
   profileDropdownOpen,
   setProfileDropdownOpen
 }) => {
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteWorkspaceId, setInviteWorkspaceId] = useState(null)
+  const [forceInviteMode, setForceInviteMode] = useState(false)
+
+  
 
   const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects')
   const onForgePage    = currentRoute.includes('/modeForge')
@@ -50,14 +54,17 @@ const RightSection = ({
     { key: 'view', icon: Eye }
   ]
 
-  const handleInviteClick = (workspaceId) => {
+  const handleInviteClick = (workspaceId, forceMode = false) => {
+    console.log('Header: Opening invite modal for workspace:', workspaceId, 'forceMode:', forceMode)
     setInviteWorkspaceId(workspaceId)
+    setForceInviteMode(forceMode)
     setShowInviteModal(true)
   }
 
   const handleCloseInviteModal = () => {
     setShowInviteModal(false)
     setInviteWorkspaceId(null)
+    setForceInviteMode(false)
   }
 
   return (
@@ -121,9 +128,9 @@ const RightSection = ({
         {onProjectsPage && (
           <>
             {/* === Workspace Dropdown === */}
-            <WorkspaceDropdown 
-              dropdownOpen={workspaceDropdownOpen}
-              setDropdownOpen={setWorkspaceDropdownOpen}
+            <WorkspaceDropdown
+              dropdownOpen={dropdownOpen}
+              setDropdownOpen={setDropdownOpen}
               onInviteClick={handleInviteClick}
             />
 
@@ -166,6 +173,7 @@ const RightSection = ({
         show={showInviteModal}
         onClose={handleCloseInviteModal}
         workspaceId={inviteWorkspaceId}
+        forceInviteMode={forceInviteMode}
       />
     </>
   )

@@ -60,22 +60,22 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Get frames by project UUID (for void page)
     Route::get('/projects/{projectUuid}/frames', [VoidController::class, 'getByProject']);
-
+    
     // Projects CRUD & actions
     Route::get('/projects', [ProjectController::class, 'index']);
     Route::post('/projects', [ProjectController::class, 'store']);
     Route::put('/projects/{project}', [ProjectController::class, 'update']);
     Route::delete('/projects/{project}', [ProjectController::class, 'destroy']);
-
+    
     // Project actions
     Route::post('/projects/{project}/duplicate', [ProjectController::class, 'duplicate']);
     Route::post('/projects/{project}/thumbnail', [ProjectController::class, 'updateThumbnail']);
     Route::post('/projects/{project}/frames', [ProjectController::class, 'createFrame']);
     Route::put('/projects/{project}/move-workspace', [ProjectController::class, 'moveToWorkspace']);
-
+    
     // Public templates
     Route::get('/projects/templates', [ProjectController::class, 'templates']);
-
+    
     // Workspace management routes
     Route::prefix('workspaces')->group(function () {
         Route::get('/', [WorkspaceController::class, 'index']);
@@ -87,7 +87,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Workspace user management
         Route::put('/{workspace}/users/{user}/role', [WorkspaceController::class, 'updateUserRole']);
         Route::delete('/{workspace}/users/{user}', [WorkspaceController::class, 'removeUser']);
-
+        
         // Workspace invites
         Route::get('/{workspace}/invites', [InviteController::class, 'getWorkspaceInvites']);
     });

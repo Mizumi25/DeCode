@@ -55,12 +55,15 @@ const useWorkspaceStore = create(
             }
 
             set({ currentWorkspace })
+            
+            return { workspaces, currentWorkspace }
           } else {
             throw new Error(response.data.message || 'Failed to fetch workspaces')
           }
         } catch (error) {
           console.error('Failed to fetch workspaces:', error)
           set({ error: error.response?.data?.message || error.message || 'Failed to fetch workspaces' })
+          return { workspaces: [], currentWorkspace: null }
         } finally {
           set({ isLoading: false })
         }
@@ -98,24 +101,44 @@ const useWorkspaceStore = create(
         }
       },
 
-      // Update workspace
+      // Update workspace with better handling for conversion
       updateWorkspace: async (workspaceId, updateData) => {
         set({ isLoading: true, error: null })
         
         try {
+          console.log('Updating workspace:', workspaceId, updateData)
+          
           const response = await axios.put(`/api/workspaces/${workspaceId}`, updateData)
           
           if (response.data.success) {
             const updatedWorkspace = response.data.data
             const { workspaces, currentWorkspace } = get()
+            const wasConverted = response.data.converted
+            const newPersonalWorkspace = response.data.new_personal_workspace
             
-            const updatedWorkspaces = workspaces.map(w => 
+            console.log('Workspace updated successfully:', updatedWorkspace)
+            console.log('Was converted:', wasConverted, 'New personal workspace:', newPersonalWorkspace)
+            
+            // Update the workspace in the workspaces array
+            let updatedWorkspaces = workspaces.map(w => 
               w.id === workspaceId ? updatedWorkspace : w
             )
             
-            const newCurrentWorkspace = currentWorkspace?.id === workspaceId 
-              ? updatedWorkspace 
-              : currentWorkspace
+            // If backend created a new personal workspace during conversion, add it to the list
+            if (newPersonalWorkspace) {
+              console.log('Adding new personal workspace to list:', newPersonalWorkspace)
+              updatedWorkspaces.push(newPersonalWorkspace)
+            }
+            
+            // For workspace conversion, set the converted workspace as current
+            let newCurrentWorkspace = currentWorkspace
+            if (wasConverted && updatedWorkspace) {
+              newCurrentWorkspace = updatedWorkspace
+              localStorage.setItem('currentWorkspaceId', updatedWorkspace.id.toString())
+              console.log('Set converted workspace as current:', updatedWorkspace.id)
+            } else if (currentWorkspace?.id === workspaceId) {
+              newCurrentWorkspace = updatedWorkspace
+            }
             
             set({ 
               workspaces: updatedWorkspaces,
@@ -123,12 +146,29 @@ const useWorkspaceStore = create(
               isLoading: false
             })
             
-            return updatedWorkspace
+            // Dispatch custom event for conversion to trigger invite modal
+            if (wasConverted) {
+              console.log('Dispatching workspace-converted event')
+              window.dispatchEvent(new CustomEvent('workspace-converted', { 
+                detail: { 
+                  convertedWorkspaceId: updatedWorkspace.id,
+                  newType: updatedWorkspace.type,
+                  shouldOpenInviteModal: true
+                }
+              }))
+            }
+            
+            return {
+              workspace: updatedWorkspace,
+              converted: wasConverted,
+              newPersonalWorkspace
+            }
           } else {
             throw new Error(response.data.message || 'Failed to update workspace')
           }
         } catch (error) {
           const errorMessage = error.response?.data?.message || error.message || 'Failed to update workspace'
+          console.error('Update workspace error:', errorMessage, error)
           set({ error: errorMessage, isLoading: false })
           throw new Error(errorMessage)
         }
@@ -173,8 +213,8 @@ const useWorkspaceStore = create(
         }
       },
 
-      // Get workspace details
-      getWorkspaceDetails: async (workspaceId) => {
+      // Get workspace details with forced refresh
+      getWorkspaceDetails: async (workspaceId, forceRefresh = false) => {
         set({ isLoading: true, error: null })
         
         try {
@@ -182,14 +222,24 @@ const useWorkspaceStore = create(
           
           if (response.data.success) {
             const workspace = response.data.data
-            const { workspaces } = get()
+            const { workspaces, currentWorkspace } = get()
             
             // Update the workspace in the list
             const updatedWorkspaces = workspaces.map(w => 
               w.id === workspaceId ? { ...w, ...workspace } : w
             )
             
-            set({ workspaces: updatedWorkspaces, isLoading: false })
+            // Update current workspace if it's the one being fetched
+            const newCurrentWorkspace = currentWorkspace?.id === workspaceId 
+              ? { ...currentWorkspace, ...workspace }
+              : currentWorkspace
+            
+            set({ 
+              workspaces: updatedWorkspaces,
+              currentWorkspace: newCurrentWorkspace,
+              isLoading: false 
+            })
+            
             return workspace
           } else {
             throw new Error(response.data.message || 'Failed to fetch workspace details')
@@ -210,7 +260,7 @@ const useWorkspaceStore = create(
           
           if (response.data.success) {
             // Refresh workspace details
-            await get().getWorkspaceDetails(workspaceId)
+            await get().getWorkspaceDetails(workspaceId, true)
             return true
           } else {
             throw new Error(response.data.message || 'Failed to update user role')
@@ -231,7 +281,7 @@ const useWorkspaceStore = create(
           
           if (response.data.success) {
             // Refresh workspace details
-            await get().getWorkspaceDetails(workspaceId)
+            await get().getWorkspaceDetails(workspaceId, true)
             return true
           } else {
             throw new Error(response.data.message || 'Failed to remove user')
@@ -240,6 +290,17 @@ const useWorkspaceStore = create(
           const errorMessage = error.response?.data?.message || error.message || 'Failed to remove user'
           set({ error: errorMessage })
           throw new Error(errorMessage)
+        }
+      },
+
+      // Helper method to refresh all workspace data
+      refreshWorkspaces: async () => {
+        try {
+          const result = await get().initializeWorkspaces()
+          return result
+        } catch (error) {
+          console.error('Failed to refresh workspaces:', error)
+          return { workspaces: [], currentWorkspace: null }
         }
       },
 
@@ -252,6 +313,22 @@ const useWorkspaceStore = create(
       getPersonalWorkspace: () => {
         const { workspaces } = get()
         return workspaces.find(w => w.type === 'personal')
+      },
+
+      // Get workspaces where user has access (owner or member)
+      getUserWorkspaces: (userId) => {
+        const { workspaces } = get()
+        return workspaces.filter(workspace => {
+          // User is owner
+          if (workspace.owner?.id === userId) {
+            return true
+          }
+          // User is a member
+          if (workspace.users?.some(user => user.id === userId)) {
+            return true
+          }
+          return false
+        })
       },
 
       canUserInvite: (workspaceId, userId) => {

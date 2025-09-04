@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react'
 import { ChevronDown, Plus, Settings, Users, Globe, Lock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { router } from '@inertiajs/react'
+import { router, usePage } from '@inertiajs/react'
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore'
 import CreateWorkspaceModal from '@/Components/Workspaces/CreateWorkspaceModal'
 
@@ -11,15 +11,25 @@ const WorkspaceDropdown = ({
   setDropdownOpen,
   onInviteClick
 }) => {
+  const { auth } = usePage().props // Get current user from Inertia
+  const currentUser = auth.user
+
   const {
     currentWorkspace,
     workspaces,
     setCurrentWorkspace,
     initializeWorkspaces,
-    isLoading
+    isLoading,
+    getUserWorkspaces,
+    error,
+    clearError
   } = useWorkspaceStore()
 
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [switchingWorkspace, setSwitchingWorkspace] = useState(false)
+
+  // Get only workspaces the current user has access to
+  const userWorkspaces = getUserWorkspaces(currentUser?.id)
 
   // Initialize workspaces on mount
   useEffect(() => {
@@ -28,20 +38,102 @@ const WorkspaceDropdown = ({
     }
   }, [initializeWorkspaces, workspaces.length])
 
-  const handleWorkspaceSwitch = (workspace) => {
+  // Listen for workspace conversion events and handle invite modal auto-opening
+  useEffect(() => {
+    const handleWorkspaceConverted = async (event) => {
+      const { convertedWorkspaceId, newType, shouldOpenInviteModal } = event.detail
+      console.log('WorkspaceDropdown: Workspace converted event received:', { 
+        convertedWorkspaceId, 
+        newType, 
+        shouldOpenInviteModal 
+      })
+      
+      // Clear any existing errors first
+      clearError()
+      
+      // Refresh workspaces to get latest data
+      try {
+        await initializeWorkspaces()
+        
+        // Find and set the converted workspace as current (only if user has access)
+        const convertedWorkspace = getUserWorkspaces(currentUser?.id).find(w => w.id === convertedWorkspaceId)
+        if (convertedWorkspace) {
+          console.log('WorkspaceDropdown: Setting converted workspace as current:', convertedWorkspace.id)
+          setCurrentWorkspace(convertedWorkspace)
+          
+          // Auto-open invite modal after conversion
+          if (shouldOpenInviteModal && onInviteClick) {
+            console.log('WorkspaceDropdown: Auto-opening invite modal for converted workspace')
+            setTimeout(() => {
+              onInviteClick(convertedWorkspace.id, true) // Pass forceInviteMode = true
+            }, 300) // Small delay to ensure UI is ready
+          }
+        }
+      } catch (error) {
+        console.error('Failed to refresh workspaces after conversion:', error)
+      }
+    }
+
+    window.addEventListener('workspace-converted', handleWorkspaceConverted)
+    return () => {
+      window.removeEventListener('workspace-converted', handleWorkspaceConverted)
+    }
+  }, [initializeWorkspaces, getUserWorkspaces, currentUser?.id, setCurrentWorkspace, onInviteClick, clearError])
+
+  const handleWorkspaceSwitch = async (workspace) => {
     if (!workspace || !workspace.id) {
       console.error('Invalid workspace selected:', workspace)
       return
     }
     
-    setCurrentWorkspace(workspace)
-    setDropdownOpen(false)
+    // Double-check user has access to this workspace
+    const hasAccess = workspace.owner?.id === currentUser?.id || 
+                     workspace.users?.some(user => user.id === currentUser?.id)
     
-    // Refresh the projects page for the new workspace
-    router.visit(`/projects?workspace=${workspace.id}`, {
-      preserveState: false, // Force refresh to load workspace-specific projects
-      replace: true
-    })
+    if (!hasAccess) {
+      console.error('User does not have access to workspace:', workspace.id)
+      return
+    }
+    
+    // If already current workspace, just close dropdown
+    if (currentWorkspace?.id === workspace.id) {
+      setDropdownOpen(false)
+      return
+    }
+    
+    setSwitchingWorkspace(true)
+    clearError()
+    
+    try {
+      // Update current workspace in store first
+      setCurrentWorkspace(workspace)
+      setDropdownOpen(false)
+      
+      // Navigate to projects page with workspace parameter
+      // Use replace: true to avoid back button issues
+      await router.visit(`/projects?workspace=${workspace.id}`, {
+        preserveState: false, // Force refresh to load workspace-specific projects
+        replace: true,
+        onStart: () => {
+          console.log('Starting workspace switch navigation...')
+        },
+        onSuccess: () => {
+          console.log('Workspace switch successful')
+          setSwitchingWorkspace(false)
+        },
+        onError: (errors) => {
+          console.error('Workspace switch failed:', errors)
+          setSwitchingWorkspace(false)
+          // Don't revert workspace change as the error might be temporary
+        },
+        onFinish: () => {
+          setSwitchingWorkspace(false)
+        }
+      })
+    } catch (error) {
+      console.error('Failed to switch workspace:', error)
+      setSwitchingWorkspace(false)
+    }
   }
 
   const handleCreateWorkspace = () => {
@@ -59,9 +151,18 @@ const WorkspaceDropdown = ({
   const handleInviteMembers = () => {
     setDropdownOpen(false)
     if (onInviteClick && currentWorkspace && currentWorkspace.id) {
-      onInviteClick(currentWorkspace.id)
+      onInviteClick(currentWorkspace.id, false) // forceInviteMode = false for normal invite
     } else {
       console.error('Cannot invite members: missing workspace ID or invite handler')
+    }
+  }
+
+  const handleRefreshWorkspaces = async () => {
+    clearError()
+    try {
+      await initializeWorkspaces()
+    } catch (error) {
+      console.error('Failed to refresh workspaces:', error)
     }
   }
 
@@ -80,9 +181,38 @@ const WorkspaceDropdown = ({
     return workspace.member_count || (workspace.users?.length || 0) + 1 // +1 for owner
   }
 
-  const currentWorkspaceName = currentWorkspace?.name || 'Select Workspace'
+  // Check if user has access to current workspace
+  const hasCurrentWorkspaceAccess = currentWorkspace && (
+    currentWorkspace.owner?.id === currentUser?.id || 
+    currentWorkspace.users?.some(user => user.id === currentUser?.id)
+  )
+
+  // If current workspace is not accessible, switch to a workspace the user has access to
+  useEffect(() => {
+    if (currentWorkspace && !hasCurrentWorkspaceAccess && userWorkspaces.length > 0) {
+      const personalWorkspace = userWorkspaces.find(w => w.type === 'personal')
+      const fallbackWorkspace = personalWorkspace || userWorkspaces[0]
+      
+      console.log('Current workspace not accessible, switching to fallback:', fallbackWorkspace.name)
+      handleWorkspaceSwitch(fallbackWorkspace)
+    }
+  }, [currentWorkspace, hasCurrentWorkspaceAccess, userWorkspaces])
+
+  const currentWorkspaceName = (hasCurrentWorkspaceAccess ? currentWorkspace?.name : null) || 'Select Workspace'
   const isPersonalWorkspace = currentWorkspace?.type === 'personal'
-  const hasCurrentWorkspace = currentWorkspace && currentWorkspace.id
+  const hasCurrentWorkspace = currentWorkspace && currentWorkspace.id && hasCurrentWorkspaceAccess
+
+  // Show loading state when switching workspaces
+  if (switchingWorkspace) {
+    return (
+      <div className="hidden md:flex items-center gap-2 cursor-not-allowed relative bg-[var(--color-bg-muted)] rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
+          <div className="w-4 h-4 animate-spin rounded-full border-2 border-[var(--color-primary)] border-t-transparent"></div>
+          <span className="text-sm">Switching...</span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -112,6 +242,21 @@ const WorkspaceDropdown = ({
               className="absolute top-full mt-2 right-0 w-72 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl z-50"
             >
               <div className="p-3">
+                {/* Error Display */}
+                {error && (
+                  <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+                      <button
+                        onClick={clearError}
+                        className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Current Workspace Header */}
                 {hasCurrentWorkspace && (
                   <div className="border-b border-[var(--color-border)] pb-3 mb-3">
@@ -124,6 +269,16 @@ const WorkspaceDropdown = ({
                         {isPersonalWorkspace && (
                           <span className="text-xs bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] px-2 py-0.5 rounded">
                             Personal
+                          </span>
+                        )}
+                        {currentWorkspace.type === 'team' && (
+                          <span className="text-xs bg-[var(--color-primary)]/10 text-[var(--color-primary)] px-2 py-0.5 rounded border border-[var(--color-primary)]/20">
+                            Team
+                          </span>
+                        )}
+                        {currentWorkspace.type === 'company' && (
+                          <span className="text-xs bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">
+                            Company
                           </span>
                         )}
                       </div>
@@ -159,19 +314,29 @@ const WorkspaceDropdown = ({
                   </div>
                 )}
 
-                {/* Workspace List */}
+                {/* Workspace List - Only show workspaces user has access to */}
                 <div className="space-y-1 max-h-48 overflow-y-auto">
-                  <div className="text-xs text-[var(--color-text-muted)] font-medium px-2 py-1">
-                    Switch Workspace
+                  <div className="flex items-center justify-between px-2 py-1">
+                    <span className="text-xs text-[var(--color-text-muted)] font-medium">
+                      Switch Workspace ({userWorkspaces.length})
+                    </span>
+                    <button
+                      onClick={handleRefreshWorkspaces}
+                      className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors disabled:opacity-50"
+                      title="Refresh workspaces"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? '...' : '↻'}
+                    </button>
                   </div>
                   
-                  {workspaces.filter(workspace => workspace && workspace.id).map((workspace) => (
+                  {userWorkspaces.filter(workspace => workspace && workspace.id).map((workspace) => (
                     <button
                       key={workspace.id}
                       onClick={() => handleWorkspaceSwitch(workspace)}
                       className={`w-full flex items-center justify-between p-2 rounded-lg text-left transition-colors ${
                         currentWorkspace?.id === workspace.id
-                          ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+                          ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)] cursor-default'
                           : 'hover:bg-[var(--color-bg-muted)] text-[var(--color-text)]'
                       }`}
                       disabled={currentWorkspace?.id === workspace.id}
@@ -186,20 +351,49 @@ const WorkspaceDropdown = ({
                             Personal
                           </span>
                         )}
+                        {workspace.type === 'team' && (
+                          <span className="text-xs bg-[var(--color-primary)]/10 text-[var(--color-primary)] px-1.5 py-0.5 rounded">
+                            Team
+                          </span>
+                        )}
+                        {workspace.type === 'company' && (
+                          <span className="text-xs bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded">
+                            Company
+                          </span>
+                        )}
+                        {currentWorkspace?.id === workspace.id && (
+                          <span className="text-xs text-[var(--color-primary)]">✓</span>
+                        )}
                       </div>
                       
-                      {workspace.type !== 'personal' && (
-                        <div className="flex items-center gap-1 text-[var(--color-text-muted)]">
-                          <Users className="w-3 h-3" />
-                          <span className="text-xs">{getMemberCount(workspace)}</span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
+                        {workspace.type !== 'personal' && (
+                          <div className="flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            <span className="text-xs">{getMemberCount(workspace)}</span>
+                          </div>
+                        )}
+                        <span className="text-xs">{workspace.project_count || 0} proj</span>
+                      </div>
                     </button>
                   ))}
                   
-                  {workspaces.length === 0 && !isLoading && (
+                  {userWorkspaces.length === 0 && !isLoading && (
                     <div className="text-center py-4 text-[var(--color-text-muted)]">
                       <p className="text-sm">No workspaces found</p>
+                      <button
+                        onClick={handleRefreshWorkspaces}
+                        className="text-xs text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] mt-1"
+                      >
+                        Try refreshing
+                      </button>
+                    </div>
+                  )}
+                  
+                  {isLoading && userWorkspaces.length === 0 && (
+                    <div className="text-center py-4">
+                      <div className="w-6 h-6 mx-auto animate-spin rounded-full border-2 border-[var(--color-primary)] border-t-transparent"></div>
+                      <p className="text-xs text-[var(--color-text-muted)] mt-2">Loading workspaces...</p>
                     </div>
                   )}
                 </div>

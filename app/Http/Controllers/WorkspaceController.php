@@ -6,6 +6,7 @@ use App\Models\Workspace;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
@@ -211,6 +212,7 @@ class WorkspaceController extends Controller
         $validated = $request->validate([
             'name' => 'sometimes|required|string|min:2|max:50',
             'description' => 'nullable|string|max:200',
+            'type' => 'sometimes|required|in:personal,team,company',
             'settings' => 'nullable|array',
             'settings.privacy' => 'nullable|in:private,public',
             'settings.allow_public_projects' => 'nullable|boolean',
@@ -218,7 +220,45 @@ class WorkspaceController extends Controller
         ]);
 
         try {
+            DB::beginTransaction();
+
             $updateData = [];
+            $wasPersonal = $workspace->type === 'personal';
+            $isBecomingTeam = isset($validated['type']) && $validated['type'] !== 'personal' && $wasPersonal;
+            
+            // Handle personal workspace to team/company conversion
+            if ($isBecomingTeam) {
+                // Only owner can convert personal workspace
+                if ($workspace->owner_id !== $user->id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Only the workspace owner can convert a personal workspace'
+                    ], 403);
+                }
+
+                // Create a new personal workspace for the user
+                $newPersonalWorkspace = Workspace::create([
+                    'owner_id' => $user->id,
+                    'name' => 'My Personal Workspace',
+                    'description' => 'Personal workspace for individual projects',
+                    'type' => 'personal',
+                    'settings' => [
+                        'privacy' => 'private',
+                        'allow_public_projects' => false,
+                        'default_project_privacy' => 'private',
+                        'invite_permissions' => [
+                            'editors_can_invite' => true,
+                            'viewers_can_invite' => false
+                        ]
+                    ]
+                ]);
+
+                \Log::info('Created new personal workspace', [
+                    'user_id' => $user->id,
+                    'new_workspace_id' => $newPersonalWorkspace->id,
+                    'old_workspace_id' => $workspace->id
+                ]);
+            }
             
             if (isset($validated['name'])) {
                 $updateData['name'] = $validated['name'];
@@ -226,6 +266,10 @@ class WorkspaceController extends Controller
             
             if (array_key_exists('description', $validated)) {
                 $updateData['description'] = $validated['description'];
+            }
+
+            if (isset($validated['type'])) {
+                $updateData['type'] = $validated['type'];
             }
             
             if (isset($validated['settings'])) {
@@ -237,6 +281,15 @@ class WorkspaceController extends Controller
 
             $workspace->update($updateData);
             $workspace->load(['owner', 'users']);
+
+            \Log::info('Updated workspace', [
+                'workspace_id' => $workspace->id,
+                'was_personal' => $wasPersonal,
+                'is_becoming_team' => $isBecomingTeam,
+                'new_type' => $workspace->type
+            ]);
+
+            DB::commit();
 
             // Transform for frontend
             $workspaceData = [
@@ -269,13 +322,47 @@ class WorkspaceController extends Controller
                 'updated_at' => $workspace->updated_at,
             ];
 
-            return response()->json([
+            $response = [
                 'success' => true,
                 'data' => $workspaceData,
                 'message' => 'Workspace updated successfully'
-            ]);
+            ];
+
+            // If we created a new personal workspace, include it in the response
+            if ($isBecomingTeam && isset($newPersonalWorkspace)) {
+                $response['new_personal_workspace'] = [
+                    'id' => $newPersonalWorkspace->id,
+                    'uuid' => $newPersonalWorkspace->uuid,
+                    'name' => $newPersonalWorkspace->name,
+                    'description' => $newPersonalWorkspace->description,
+                    'type' => $newPersonalWorkspace->type,
+                    'settings' => $newPersonalWorkspace->settings,
+                    'owner' => [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'avatar' => $user->avatar,
+                    ],
+                    'users' => [],
+                    'user_role' => 'owner',
+                    'member_count' => 1,
+                    'project_count' => 0,
+                    'created_at' => $newPersonalWorkspace->created_at,
+                    'updated_at' => $newPersonalWorkspace->updated_at,
+                ];
+            }
+
+            return response()->json($response);
 
         } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Failed to update workspace', [
+                'workspace_id' => $workspace->id,
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update workspace: ' . $e->getMessage()
