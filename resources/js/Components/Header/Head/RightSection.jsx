@@ -80,7 +80,7 @@ const RightSection = ({
         {(onVoidPage || onForgePage || onSourcePage) && (
           <>
             {/* Stacking Avatars - Only on Forge and Source Pages */}
-            {(onForgePage || onSourcePage) && <StackingAvatars />}
+            {(onForgePage || onSourcePage || onVoidPage) && <StackingAvatars />}
 
             {/* Saved Indicator */}
             <div className="px-1.5 py-0.5 bg-[var(--color-bg-muted)] rounded">
