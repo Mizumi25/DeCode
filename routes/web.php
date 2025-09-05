@@ -9,6 +9,7 @@ use App\Http\Controllers\WorkspaceController;
 use App\Http\Controllers\InviteController; 
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Broadcast;
 use Inertia\Inertia;
 
 Route::get('/', function () {
@@ -60,6 +61,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/asset-management', fn () => Inertia::render('Admin/AssetManagerPage'))->name('admin.asset');
     Route::get('/feedback-report', fn () => Inertia::render('Admin/FeedbackReportPage'))->name('admin.feedback');
     Route::get('/project-oversight', fn () => Inertia::render('Admin/ProjectOversightPage'))->name('admin.oversight');
+    
+    
+    Broadcast::routes();
 });
 
 require __DIR__.'/auth.php';

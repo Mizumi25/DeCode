@@ -135,14 +135,17 @@ class Invite extends Model
     }
 
     // Validation methods
-    public static function createEmailInvite($workspaceId, $email, $role, $invitedBy = null)
+    public static function createEmailInvite($workspaceIdentifier, $email, $role, $invitedBy = null)
     {
         try {
-            // Validate inputs
-            if (empty($workspaceId) || !is_numeric($workspaceId)) {
-                throw new \InvalidArgumentException('Valid workspace ID is required');
+            // Find workspace by ID or UUID
+            $workspace = static::findWorkspace($workspaceIdentifier);
+            
+            if (!$workspace) {
+                throw new \InvalidArgumentException('Workspace not found');
             }
 
+            // Validate inputs
             if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 throw new \InvalidArgumentException('Valid email address is required');
             }
@@ -151,14 +154,8 @@ class Invite extends Model
                 throw new \InvalidArgumentException('Valid role (editor or viewer) is required');
             }
 
-            // Check if workspace exists
-            $workspace = Workspace::find($workspaceId);
-            if (!$workspace) {
-                throw new \InvalidArgumentException('Workspace not found');
-            }
-
             // Check if there's already a pending invite for this email/workspace
-            $existingInvite = static::where('workspace_id', $workspaceId)
+            $existingInvite = static::where('workspace_id', $workspace->id)
                                    ->where('email', $email)
                                    ->pending()
                                    ->first();
@@ -174,7 +171,7 @@ class Invite extends Model
             }
 
             return static::create([
-                'workspace_id' => $workspaceId,
+                'workspace_id' => $workspace->id,
                 'email' => $email,
                 'role' => $role,
                 'invited_by' => $invitedBy,
@@ -184,7 +181,7 @@ class Invite extends Model
 
         } catch (\Exception $e) {
             Log::error('Failed to create email invite', [
-                'workspace_id' => $workspaceId,
+                'workspace_identifier' => $workspaceIdentifier,
                 'email' => $email,
                 'role' => $role,
                 'error' => $e->getMessage()
@@ -193,26 +190,22 @@ class Invite extends Model
         }
     }
 
-    public static function createLinkInvite($workspaceId, $role, $invitedBy = null)
+    public static function createLinkInvite($workspaceIdentifier, $role, $invitedBy = null)
     {
         try {
-            // Validate inputs
-            if (empty($workspaceId) || !is_numeric($workspaceId)) {
-                throw new \InvalidArgumentException('Valid workspace ID is required');
+            // Find workspace by ID or UUID
+            $workspace = static::findWorkspace($workspaceIdentifier);
+            
+            if (!$workspace) {
+                throw new \InvalidArgumentException('Workspace not found');
             }
 
             if (!in_array($role, ['editor', 'viewer'])) {
                 throw new \InvalidArgumentException('Valid role (editor or viewer) is required');
             }
 
-            // Check if workspace exists
-            $workspace = Workspace::find($workspaceId);
-            if (!$workspace) {
-                throw new \InvalidArgumentException('Workspace not found');
-            }
-
             return static::create([
-                'workspace_id' => $workspaceId,
+                'workspace_id' => $workspace->id,
                 'email' => null, // Link invites don't have specific emails
                 'role' => $role,
                 'invited_by' => $invitedBy,
@@ -222,7 +215,7 @@ class Invite extends Model
 
         } catch (\Exception $e) {
             Log::error('Failed to create link invite', [
-                'workspace_id' => $workspaceId,
+                'workspace_identifier' => $workspaceIdentifier,
                 'role' => $role,
                 'error' => $e->getMessage()
             ]);
@@ -250,19 +243,31 @@ class Invite extends Model
     }
 
     // Get invite statistics for a workspace
-    public static function getWorkspaceStats($workspaceId)
+    public static function getWorkspaceStats($workspaceIdentifier)
     {
         try {
+            $workspace = static::findWorkspace($workspaceIdentifier);
+            
+            if (!$workspace) {
+                return [
+                    'total' => 0,
+                    'pending' => 0,
+                    'accepted' => 0,
+                    'expired' => 0,
+                    'revoked' => 0,
+                ];
+            }
+
             return [
-                'total' => static::where('workspace_id', $workspaceId)->count(),
-                'pending' => static::where('workspace_id', $workspaceId)->pending()->count(),
-                'accepted' => static::where('workspace_id', $workspaceId)->where('status', 'accepted')->count(),
-                'expired' => static::where('workspace_id', $workspaceId)->where('status', 'expired')->count(),
-                'revoked' => static::where('workspace_id', $workspaceId)->where('status', 'revoked')->count(),
+                'total' => static::where('workspace_id', $workspace->id)->count(),
+                'pending' => static::where('workspace_id', $workspace->id)->pending()->count(),
+                'accepted' => static::where('workspace_id', $workspace->id)->where('status', 'accepted')->count(),
+                'expired' => static::where('workspace_id', $workspace->id)->where('status', 'expired')->count(),
+                'revoked' => static::where('workspace_id', $workspace->id)->where('status', 'revoked')->count(),
             ];
         } catch (\Exception $e) {
             Log::error('Failed to get workspace invite stats', [
-                'workspace_id' => $workspaceId,
+                'workspace_identifier' => $workspaceIdentifier,
                 'error' => $e->getMessage()
             ]);
             return [
@@ -273,5 +278,21 @@ class Invite extends Model
                 'revoked' => 0,
             ];
         }
+    }
+
+    /**
+     * Helper method to find workspace by UUID or ID
+     */
+    private static function findWorkspace($identifier): ?Workspace
+    {
+        // First try to find by UUID
+        $workspace = Workspace::where('uuid', $identifier)->first();
+        
+        // If not found and identifier looks like an integer, try by ID
+        if (!$workspace && is_numeric($identifier)) {
+            $workspace = Workspace::find((int) $identifier);
+        }
+        
+        return $workspace;
     }
 }

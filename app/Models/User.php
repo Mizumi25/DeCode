@@ -94,6 +94,39 @@ class User extends Authenticatable
     }
 
     /**
+     * Get user initials for avatar display
+     */
+    public function getInitials(): string
+    {
+        $words = explode(' ', trim($this->name));
+        if (count($words) >= 2) {
+            return strtoupper(substr($words[0], 0, 1) . substr($words[1], 0, 1));
+        }
+        return strtoupper(substr($this->name, 0, 2));
+    }
+
+    /**
+     * Get consistent avatar color based on user ID
+     */
+    public function getAvatarColor(): string
+    {
+        $colors = [
+            'from-blue-500 to-blue-600',
+            'from-emerald-500 to-emerald-600', 
+            'from-purple-500 to-purple-600',
+            'from-orange-500 to-orange-600',
+            'from-pink-500 to-pink-600',
+            'from-indigo-500 to-indigo-600',
+            'from-red-500 to-red-600',
+            'from-yellow-500 to-yellow-600',
+            'from-green-500 to-green-600',
+            'from-cyan-500 to-cyan-600',
+        ];
+        
+        return $colors[$this->id % count($colors)];
+    }
+
+    /**
      * Check if user has GitHub connected
      */
     public function hasGitHubConnected(): bool

@@ -242,20 +242,24 @@ const InviteModal = ({ show, onClose, workspaceId, forceInviteMode = false }) =>
     }
   }, [show])
 
+    // Fixed handleEmailInvite function in InviteModal.jsx
   const handleEmailInvite = async (e) => {
     e.preventDefault()
     
     if (!validateEmail(emailInput)) {
       return
     }
-
-    // Ensure we have a valid workspace ID
-    const targetWorkspaceId = workspaceId || workspace?.id
+  
+    // Use the workspace UUID if available, otherwise fall back to the workspaceId prop
+    const targetWorkspaceId = workspace?.uuid || workspaceId
+    
+    console.log('Sending invite with workspace ID:', targetWorkspaceId) // Debug log
+    
     if (!targetWorkspaceId) {
       console.error('No workspace ID available for invite')
       return
     }
-
+  
     const result = await sendEmailInvite(targetWorkspaceId, emailInput, emailRole)
     
     if (result.success) {
@@ -264,15 +268,19 @@ const InviteModal = ({ show, onClose, workspaceId, forceInviteMode = false }) =>
       setTimeout(() => setEmailSent(false), 3000)
     }
   }
-
+  
+  // Also fix the handleGenerateLink function
   const handleGenerateLink = async () => {
-    // Ensure we have a valid workspace ID
-    const targetWorkspaceId = workspaceId || workspace?.id
+    // Use the workspace UUID if available, otherwise fall back to the workspaceId prop  
+    const targetWorkspaceId = workspace?.uuid || workspaceId
+    
+    console.log('Generating link with workspace ID:', targetWorkspaceId) // Debug log
+    
     if (!targetWorkspaceId) {
       console.error('No workspace ID available for invite')
       return
     }
-
+  
     const result = await generateInviteLink(targetWorkspaceId, linkRole)
     
     if (result.success) {

@@ -2,10 +2,11 @@
 import React, { useState } from 'react'
 import { Search, Play, MessageCircle, Share2, Download, Edit3, Eye, Users } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { usePage } from '@inertiajs/react'
 import UserDropdown from './UserDropdown'
 import WorkspaceDropdown from './WorkspaceDropdown'
 import InviteModal from '@/Components/Workspaces/InviteModal'
-import StackingAvatars from './StackingAvatars'
+import RealTimeStackingAvatars from './RealTimeStackingAvatars'
 import BinaryToggle from './BinaryToggle'
 
 const fadeIn = {
@@ -32,22 +33,32 @@ const RightSection = ({
   profileDropdownOpen,
   setProfileDropdownOpen
 }) => {
+  const { props, url } = usePage()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteWorkspaceId, setInviteWorkspaceId] = useState(null)
   const [forceInviteMode, setForceInviteMode] = useState(false)
 
-  
+  // Get current frame and project from page props
+  const currentFrame = props.frame
+  const currentProject = props.project
 
   const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects')
-  const onForgePage    = currentRoute.includes('/modeForge')
-  const onSourcePage   = currentRoute.includes('/modeSource')
+  const onForgePage = currentRoute.includes('/modeForge')
+  const onSourcePage = currentRoute.includes('/modeSource')
   
   // Pure void page (must have /void but not forge or source)
   const onVoidPage = 
     currentRoute.startsWith('/void') &&
     !onForgePage &&
     !onSourcePage
+
+  // Determine current mode for avatar component
+  const getCurrentMode = () => {
+    if (onForgePage) return 'forge'
+    if (onSourcePage) return 'source'
+    return 'forge' // default
+  }
 
   const editOptions = [
     { key: 'edit', icon: Edit3 },
@@ -74,13 +85,28 @@ const RightSection = ({
         initial="hidden"
         animate="visible"
         custom={3}
-        className={`flex items-center relative flex-shrink-0 ${(onVoidPage || onForgePage || onSourcePage) ? 'gap-1' : 'gap-2.5'}`}
+        className={`flex items-center relative flex-shrink-0 ${(onVoidPage || onForgePage || onSourcePage) ? 'gap-2' : 'gap-2.5'}`}
       >
         {/* === Void, Forge, and Source Page Right Elements === */}
         {(onVoidPage || onForgePage || onSourcePage) && (
           <>
-            {/* Stacking Avatars - Only on Forge and Source Pages */}
-            {(onForgePage || onSourcePage || onVoidPage) && <StackingAvatars />}
+            {/* Real-time Stacking Avatars - Only on Forge and Source Pages */}
+            {(onForgePage || onSourcePage) && currentFrame && (
+              <div className="flex items-center">
+                <RealTimeStackingAvatars 
+                  frameId={currentFrame.uuid}
+                  currentMode={getCurrentMode()}
+                />
+              </div>
+            )}
+
+            {/* Connection Status Indicator */}
+            {(onForgePage || onSourcePage) && currentFrame && (
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Connected"></div>
+                <span className="text-[8px] text-green-500 font-medium">Live</span>
+              </div>
+            )}
 
             {/* Saved Indicator */}
             <div className="px-1.5 py-0.5 bg-[var(--color-bg-muted)] rounded">
@@ -163,7 +189,7 @@ const RightSection = ({
         />
 
         {/* === Preview Button (always present) === */}
-        <button className="bg-[var(--color-primary)] text-white px-2 py-1 rounded-lg flex items-center justify-center shadow-md">
+        <button className="bg-[var(--color-primary)] text-white px-2 py-1 rounded-lg flex items-center justify-center shadow-md hover:bg-[var(--color-primary-hover)] transition-colors">
           <Play className="w-3 h-3" />
         </button>
       </motion.div>

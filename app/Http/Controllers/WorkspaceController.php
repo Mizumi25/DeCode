@@ -225,6 +225,7 @@ class WorkspaceController extends Controller
             $updateData = [];
             $wasPersonal = $workspace->type === 'personal';
             $isBecomingTeam = isset($validated['type']) && $validated['type'] !== 'personal' && $wasPersonal;
+            $converted = false;
             
             // Handle personal workspace to team/company conversion
             if ($isBecomingTeam) {
@@ -253,10 +254,14 @@ class WorkspaceController extends Controller
                     ]
                 ]);
 
+                $converted = true;
+
                 \Log::info('Created new personal workspace', [
                     'user_id' => $user->id,
                     'new_workspace_id' => $newPersonalWorkspace->id,
-                    'old_workspace_id' => $workspace->id
+                    'new_workspace_uuid' => $newPersonalWorkspace->uuid,
+                    'old_workspace_id' => $workspace->id,
+                    'old_workspace_uuid' => $workspace->uuid
                 ]);
             }
             
@@ -284,6 +289,7 @@ class WorkspaceController extends Controller
 
             \Log::info('Updated workspace', [
                 'workspace_id' => $workspace->id,
+                'workspace_uuid' => $workspace->uuid,
                 'was_personal' => $wasPersonal,
                 'is_becoming_team' => $isBecomingTeam,
                 'new_type' => $workspace->type
@@ -325,11 +331,12 @@ class WorkspaceController extends Controller
             $response = [
                 'success' => true,
                 'data' => $workspaceData,
-                'message' => 'Workspace updated successfully'
+                'message' => 'Workspace updated successfully',
+                'converted' => $converted
             ];
 
             // If we created a new personal workspace, include it in the response
-            if ($isBecomingTeam && isset($newPersonalWorkspace)) {
+            if ($converted && isset($newPersonalWorkspace)) {
                 $response['new_personal_workspace'] = [
                     'id' => $newPersonalWorkspace->id,
                     'uuid' => $newPersonalWorkspace->uuid,
@@ -358,6 +365,7 @@ class WorkspaceController extends Controller
             DB::rollBack();
             \Log::error('Failed to update workspace', [
                 'workspace_id' => $workspace->id,
+                'workspace_uuid' => $workspace->uuid,
                 'user_id' => $user->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()

@@ -11,10 +11,11 @@ use App\Http\Controllers\WorkspaceController;
 use App\Http\Controllers\InviteController; 
 use App\Http\Controllers\GitHubRepoController;
 use App\Http\Controllers\Auth\GithubController;
+use App\Http\Controllers\FramePresenceController;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes
+| API Routes - All using UUIDs for resource identification
 |--------------------------------------------------------------------------
 */
 
@@ -30,10 +31,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [ComponentController::class, 'index']);
         Route::get('/search', [ComponentController::class, 'search']);
         Route::get('/letter', [ComponentController::class, 'getByLetter']);
-        Route::get('/{component}', [ComponentController::class, 'show']);
+        Route::get('/{component:uuid}', [ComponentController::class, 'show']);
         Route::post('/', [ComponentController::class, 'store']);
-        Route::put('/{component}', [ComponentController::class, 'update']);
-        Route::delete('/{component}', [ComponentController::class, 'destroy']);
+        Route::put('/{component:uuid}', [ComponentController::class, 'update']);
+        Route::delete('/{component:uuid}', [ComponentController::class, 'destroy']);
         Route::post('/generate-code', [ComponentController::class, 'generateCode']);
     });
 
@@ -41,8 +42,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('project-components')->group(function () {
         Route::get('/', [ProjectComponentController::class, 'index']);
         Route::post('/', [ProjectComponentController::class, 'store']);
-        Route::put('/{projectComponent}', [ProjectComponentController::class, 'update']);
-        Route::delete('/{projectComponent}', [ProjectComponentController::class, 'destroy']);
+        Route::put('/{projectComponent:uuid}', [ProjectComponentController::class, 'update']);
+        Route::delete('/{projectComponent:uuid}', [ProjectComponentController::class, 'destroy']);
         Route::post('/bulk-update', [ProjectComponentController::class, 'bulkUpdate']);
     });
 
@@ -50,56 +51,65 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('frames')->group(function () {
         Route::get('/', [VoidController::class, 'index']);
         Route::post('/', [VoidController::class, 'store']);
-        Route::get('/{frame}', [VoidController::class, 'showFrame']);
-        Route::put('/{frame}', [VoidController::class, 'update']);
-        Route::delete('/{frame}', [VoidController::class, 'destroy']);
-        Route::post('/{frame}/duplicate', [VoidController::class, 'duplicate']);
-        Route::put('/{frame}/position', [VoidController::class, 'updatePosition']);
-        Route::post('/{frame}/thumbnail', [VoidController::class, 'generateThumbnail']);
+        Route::get('/{frame:uuid}', [VoidController::class, 'showFrame']);
+        Route::put('/{frame:uuid}', [VoidController::class, 'update']);
+        Route::delete('/{frame:uuid}', [VoidController::class, 'destroy']);
+        Route::post('/{frame:uuid}/duplicate', [VoidController::class, 'duplicate']);
+        Route::put('/{frame:uuid}/position', [VoidController::class, 'updatePosition']);
+        Route::post('/{frame:uuid}/thumbnail', [VoidController::class, 'generateThumbnail']);
+        
+        // Frame presence routes
+        Route::prefix('{frame:uuid}/presence')->group(function () {
+            Route::post('/join', [FramePresenceController::class, 'join']);
+            Route::post('/leave', [FramePresenceController::class, 'leave']);
+            Route::put('/mode', [FramePresenceController::class, 'updateMode']);
+            Route::post('/heartbeat', [FramePresenceController::class, 'heartbeat']);
+            Route::get('/', [FramePresenceController::class, 'index']);
+        });
     });
 
     // Get frames by project UUID (for void page)
-    Route::get('/projects/{projectUuid}/frames', [VoidController::class, 'getByProject']);
+    Route::get('/projects/{project:uuid}/frames', [VoidController::class, 'getByProject']);
     
     // Projects CRUD & actions
     Route::get('/projects', [ProjectController::class, 'index']);
     Route::post('/projects', [ProjectController::class, 'store']);
-    Route::put('/projects/{project}', [ProjectController::class, 'update']);
-    Route::delete('/projects/{project}', [ProjectController::class, 'destroy']);
+    Route::put('/projects/{project:uuid}', [ProjectController::class, 'update']);
+    Route::delete('/projects/{project:uuid}', [ProjectController::class, 'destroy']);
     
     // Project actions
-    Route::post('/projects/{project}/duplicate', [ProjectController::class, 'duplicate']);
-    Route::post('/projects/{project}/thumbnail', [ProjectController::class, 'updateThumbnail']);
-    Route::post('/projects/{project}/frames', [ProjectController::class, 'createFrame']);
-    Route::put('/projects/{project}/move-workspace', [ProjectController::class, 'moveToWorkspace']);
+    Route::post('/projects/{project:uuid}/duplicate', [ProjectController::class, 'duplicate']);
+    Route::post('/projects/{project:uuid}/thumbnail', [ProjectController::class, 'updateThumbnail']);
+    Route::post('/projects/{project:uuid}/frames', [ProjectController::class, 'createFrame']);
+    Route::put('/projects/{project:uuid}/move-workspace', [ProjectController::class, 'moveToWorkspace']);
     
-    // NEW: Project copy/paste/move operations
-    Route::post('/projects/{project}/copy', [ProjectController::class, 'copyProject']);
+    // Project copy/paste/move operations
+    Route::post('/projects/{project:uuid}/copy', [ProjectController::class, 'copyProject']);
     Route::post('/projects/paste', [ProjectController::class, 'pasteProject']);
-    Route::post('/projects/{project}/move-to-workspace', [ProjectController::class, 'moveProjectToWorkspace']);
+    Route::post('/projects/{project:uuid}/move-to-workspace', [ProjectController::class, 'moveProjectToWorkspace']);
     Route::get('/projects/clipboard-status', [ProjectController::class, 'getClipboardStatus']);
     Route::delete('/projects/clear-clipboard', [ProjectController::class, 'clearClipboard']);
     
-    // NEW: Pull to refresh endpoint
+    // Pull to refresh endpoint
     Route::post('/projects/refresh', [ProjectController::class, 'refreshProjects']);
     
     // Public templates
     Route::get('/projects/templates', [ProjectController::class, 'templates']);
     
-    // Workspace management routes
+    // Workspace management routes - ALL using UUIDs
     Route::prefix('workspaces')->group(function () {
         Route::get('/', [WorkspaceController::class, 'index']);
         Route::post('/', [WorkspaceController::class, 'store']);
-        Route::get('/{workspace}', [WorkspaceController::class, 'show']);
-        Route::put('/{workspace}', [WorkspaceController::class, 'update']);
-        Route::delete('/{workspace}', [WorkspaceController::class, 'destroy']);
+        Route::get('/{workspace:uuid}', [WorkspaceController::class, 'show']);
+        Route::put('/{workspace:uuid}', [WorkspaceController::class, 'update']);
+        Route::delete('/{workspace:uuid}', [WorkspaceController::class, 'destroy']);
         
         // Workspace user management
-        Route::put('/{workspace}/users/{user}/role', [WorkspaceController::class, 'updateUserRole']);
-        Route::delete('/{workspace}/users/{user}', [WorkspaceController::class, 'removeUser']);
+        Route::put('/{workspace:uuid}/users/{user}', [WorkspaceController::class, 'updateUserRole']);
+        Route::delete('/{workspace:uuid}/users/{user}', [WorkspaceController::class, 'removeUser']);
         
         // Workspace invites
-        Route::get('/{workspace}/invites', [InviteController::class, 'getWorkspaceInvites']);
+        Route::get('/{workspace:uuid}/invites', [InviteController::class, 'getWorkspaceInvites']);
     });
 
     // Invite Management (separate from workspace routes for cleaner organization)
@@ -135,4 +145,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Disconnect GitHub account
         Route::delete('/disconnect', [GithubController::class, 'disconnect']);
     });
+    
+    // Cleanup route (can be called via scheduled task)
+    Route::post('/presence/cleanup', [FramePresenceController::class, 'cleanup']);
 });

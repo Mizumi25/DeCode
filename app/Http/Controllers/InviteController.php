@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Workspace;
 use App\Models\Invite;
 use App\Models\User;
+use App\Mail\WorkspaceInviteMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
@@ -20,11 +21,21 @@ class InviteController extends Controller
     {
         try {
             $validated = $request->validate([
-                'workspace_id' => 'required|integer|exists:workspaces,id',
+                'workspace_id' => 'required|string',
                 'role' => 'required|string|in:editor,viewer'
             ]);
 
-            $workspace = Workspace::findOrFail($validated['workspace_id']);
+            // Try to find workspace by UUID first, then by ID as fallback
+            $workspace = $this->findWorkspace($validated['workspace_id']);
+            
+            if (!$workspace) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Workspace not found',
+                    'error' => 'Workspace not found'
+                ], 404);
+            }
+
             $user = Auth::user();
 
             // Check if user can invite to this workspace
@@ -80,12 +91,22 @@ class InviteController extends Controller
     {
         try {
             $validated = $request->validate([
-                'workspace_id' => 'required|integer|exists:workspaces,id',
+                'workspace_id' => 'required|string',
                 'email' => 'required|email|max:255',
                 'role' => 'required|string|in:editor,viewer'
             ]);
 
-            $workspace = Workspace::findOrFail($validated['workspace_id']);
+            // Try to find workspace by UUID first, then by ID as fallback
+            $workspace = $this->findWorkspace($validated['workspace_id']);
+            
+            if (!$workspace) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Workspace not found',
+                    'error' => 'Workspace not found'
+                ], 404);
+            }
+
             $user = Auth::user();
 
             // Check if user can invite to this workspace
@@ -104,8 +125,20 @@ class InviteController extends Controller
                 $user->id
             );
 
-            // TODO: Send actual email
-            // Mail::to($validated['email'])->send(new WorkspaceInviteMail($invite));
+            // Send the email invitation
+            try {
+                Mail::to($validated['email'])->send(new WorkspaceInviteMail($invite, $workspace, $user));
+            } catch (\Exception $mailException) {
+                \Log::error('Failed to send invite email', [
+                    'invite_id' => $invite->id,
+                    'email' => $validated['email'],
+                    'workspace_id' => $workspace->id,
+                    'error' => $mailException->getMessage()
+                ]);
+                
+                // Don't fail the request if email sending fails
+                // The invite is still created and can be resent
+            }
 
             return response()->json([
                 'success' => true,
@@ -213,6 +246,7 @@ class InviteController extends Controller
                 'token' => $invite->token,
                 'workspace' => [
                     'id' => $invite->workspace->id,
+                    'uuid' => $invite->workspace->uuid,
                     'name' => $invite->workspace->name,
                     'description' => $invite->workspace->description,
                     'type' => $invite->workspace->type,
@@ -300,7 +334,7 @@ class InviteController extends Controller
                     'role' => $invite->role
                 ],
                 'message' => 'Successfully joined workspace!',
-                'redirect_url' => route('projects', ['workspace' => $workspace->id])
+                'redirect_url' => route('projects', ['workspace' => $workspace->uuid])
             ], 200);
 
         } catch (\Exception $e) {
@@ -365,6 +399,7 @@ class InviteController extends Controller
             \Log::error('Get workspace invites failed', [
                 'user_id' => Auth::id(),
                 'workspace_id' => $workspace->id,
+                'workspace_uuid' => $workspace->uuid,
                 'error' => $e->getMessage()
             ]);
 
@@ -438,13 +473,27 @@ class InviteController extends Controller
 
             // For email invites, resend the email
             if ($invite->email) {
-                // TODO: Send actual email
-                // Mail::to($invite->email)->send(new WorkspaceInviteMail($invite));
-                
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Invitation resent successfully'
-                ], 200);
+                try {
+                    Mail::to($invite->email)->send(new WorkspaceInviteMail($invite, $workspace, $user));
+                    
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Invitation resent successfully'
+                    ], 200);
+                } catch (\Exception $mailException) {
+                    \Log::error('Failed to resend invite email', [
+                        'invite_id' => $invite->id,
+                        'email' => $invite->email,
+                        'workspace_id' => $workspace->id,
+                        'error' => $mailException->getMessage()
+                    ]);
+                    
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Failed to send email invitation',
+                        'error' => 'Email sending failed'
+                    ], 500);
+                }
             } else {
                 return response()->json([
                     'success' => false,
@@ -491,5 +540,21 @@ class InviteController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Helper method to find workspace by UUID or ID
+     */
+    private function findWorkspace($identifier): ?Workspace
+    {
+        // First try to find by UUID
+        $workspace = Workspace::where('uuid', $identifier)->first();
+        
+        // If not found and identifier looks like an integer, try by ID
+        if (!$workspace && is_numeric($identifier)) {
+            $workspace = Workspace::find((int) $identifier);
+        }
+        
+        return $workspace;
     }
 }
