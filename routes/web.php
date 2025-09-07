@@ -1,5 +1,4 @@
 <?php
-
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\VoidController;
@@ -25,15 +24,16 @@ Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
+// Public invite routes - MUST be outside auth middleware
+Route::get('/invite/{token}', [InviteController::class, 'showInvite'])->name('invite.show');
+Route::post('/invite/{token}/accept', [InviteController::class, 'acceptInviteWeb'])->name('invite.accept');
+
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     
     Route::get('/workspaces/{workspace}/settings', [WorkspaceController::class, 'settings'])->name('workspace.settings');
-    
-    // Public invite acceptance page
-    Route::get('/invite/{token}', [InviteController::class, 'showInvite'])->name('invite.show');
     
     // Project routes - UPDATED to handle workspace filtering properly
     Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
@@ -62,9 +62,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/feedback-report', fn () => Inertia::render('Admin/FeedbackReportPage'))->name('admin.feedback');
     Route::get('/project-oversight', fn () => Inertia::render('Admin/ProjectOversightPage'))->name('admin.oversight');
     
-    
     Broadcast::routes();
 });
 
 require __DIR__.'/auth.php';
-

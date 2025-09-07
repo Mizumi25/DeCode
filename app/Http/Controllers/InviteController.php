@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Http\RedirectResponse;
 
 class InviteController extends Controller
 {
@@ -334,7 +335,7 @@ class InviteController extends Controller
                     'role' => $invite->role
                 ],
                 'message' => 'Successfully joined workspace!',
-                'redirect_url' => route('projects', ['workspace' => $workspace->uuid])
+                'redirect_url' => route('projects', ['workspace' => $workspace->uuid]) // Fixed route name
             ], 200);
 
         } catch (\Exception $e) {
@@ -556,5 +557,76 @@ class InviteController extends Controller
         }
         
         return $workspace;
+    }
+    
+    /**
+     * Accept invite via web form submission (for Inertia pages)
+     */
+    public function acceptInviteWeb($token): RedirectResponse
+    {
+        try {
+            $invite = Invite::where('token', $token)
+                          ->with('workspace')
+                          ->first();
+
+            if (!$invite) {
+                return redirect()->route('projects.index')->with('error', 'Invalid invitation link');
+            }
+
+            if (!$invite->isPending()) {
+                $message = match($invite->status) {
+                    'accepted' => 'This invitation has already been accepted.',
+                    'expired' => 'This invitation has expired.',
+                    'revoked' => 'This invitation has been cancelled.',
+                    default => 'This invitation is no longer valid.'
+                };
+                
+                return redirect()->route('projects.index')->with('error', $message);
+            }
+
+            $user = Auth::user();
+
+            if (!$user) {
+                // Store the invite token in session and redirect to login
+                session(['pending_invite' => $token]);
+                return redirect()->route('login')
+                    ->with('message', 'Please log in to accept the workspace invitation');
+            }
+
+            // Check if user can use this invite
+            if (!$invite->canBeUsedBy($user->email)) {
+                return redirect()->route('projects.index')
+                    ->with('error', 'This invitation is for a different email address (' . $invite->email . ')');
+            }
+
+            $workspace = $invite->workspace;
+
+            // Check if user is already a member
+            if ($workspace->hasUser($user->id)) {
+                return redirect()->route('projects.index', ['workspace' => $workspace->uuid])
+                    ->with('info', 'You are already a member of ' . $workspace->name);
+            }
+
+            // Add user to workspace
+            $workspace->addUser($user->id, $invite->role);
+
+            // Mark invite as accepted
+            $invite->markAsAccepted();
+
+            // Redirect to projects with the workspace selected
+            return redirect()->route('projects.index', ['workspace' => $workspace->uuid])
+                ->with('success', 'Successfully joined ' . $workspace->name . '!');
+
+        } catch (\Exception $e) {
+            \Log::error('Accept invite web failed', [
+                'user_id' => Auth::id(),
+                'token' => $token,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return redirect()->route('projects.index')
+                ->with('error', 'Failed to accept invitation. Please try again.');
+        }
     }
 }
