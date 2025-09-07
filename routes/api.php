@@ -96,21 +96,19 @@ Route::middleware('auth:sanctum')->group(function () {
     // Public templates
     Route::get('/projects/templates', [ProjectController::class, 'templates']);
     
-    // Workspace management routes - ALL using UUIDs
-    Route::prefix('workspaces')->group(function () {
-        Route::get('/', [WorkspaceController::class, 'index']);
-        Route::post('/', [WorkspaceController::class, 'store']);
-        Route::get('/{workspace:uuid}', [WorkspaceController::class, 'show']);
-        Route::put('/{workspace:uuid}', [WorkspaceController::class, 'update']);
-        Route::delete('/{workspace:uuid}', [WorkspaceController::class, 'destroy']);
-        
-        // Workspace user management
-        Route::put('/{workspace:uuid}/users/{user}', [WorkspaceController::class, 'updateUserRole']);
-        Route::delete('/{workspace:uuid}/users/{user}', [WorkspaceController::class, 'removeUser']);
-        
-        // Workspace invites
-        Route::get('/{workspace:uuid}/invites', [InviteController::class, 'getWorkspaceInvites']);
-    });
+    // Workspace management routes - FIXED: Remove double prefix
+    Route::get('/workspaces', [WorkspaceController::class, 'index']);
+    Route::post('/workspaces', [WorkspaceController::class, 'store']);
+    Route::get('/workspaces/{workspace:uuid}', [WorkspaceController::class, 'show']);
+    Route::put('/workspaces/{workspace:uuid}', [WorkspaceController::class, 'update']);
+    Route::delete('/workspaces/{workspace:uuid}', [WorkspaceController::class, 'destroy']);
+    
+    // Workspace user management
+    Route::put('/workspaces/{workspace:uuid}/users/{user}', [WorkspaceController::class, 'updateUserRole']);
+    Route::delete('/workspaces/{workspace:uuid}/users/{user}', [WorkspaceController::class, 'removeUser']);
+    
+    // Workspace invites
+    Route::get('/workspaces/{workspace:uuid}/invites', [InviteController::class, 'getWorkspaceInvites']);
 
     // Invite Management (separate from workspace routes for cleaner organization)
     Route::prefix('invites')->group(function () {

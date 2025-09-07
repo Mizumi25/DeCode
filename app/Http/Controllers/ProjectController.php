@@ -30,7 +30,8 @@ class ProjectController extends Controller
         
         if ($workspaceId) {
             // User specifically requested a workspace
-            $workspace = Workspace::find($workspaceId);
+            $workspace = Workspace::where('uuid', $workspaceId)->first() ?? Workspace::find($workspaceId);
+    
             
             if (!$workspace) {
                 // Workspace doesn't exist, redirect to projects without workspace filter
@@ -66,7 +67,7 @@ class ProjectController extends Controller
             if ($currentWorkspace) {
                 return redirect()->route('projects.index', array_merge(
                     $request->only(['search', 'filter', 'type', 'sort']),
-                    ['workspace' => $currentWorkspace->id]
+                    ['workspace' => $currentWorkspace->uuid] // Use UUID for consistency
                 ));
             }
         }

@@ -295,38 +295,31 @@ const InviteModal = ({ show, onClose, workspaceId, forceInviteMode = false }) =>
     }
   }
 
-  const handleConvertPersonalWorkspace = async () => {
+   const handleConvertPersonalWorkspace = async () => {
     if (!workspace) return
-
+  
     setIsConverting(true)
     try {
-      console.log('Converting personal workspace to team:', workspace.id)
-
-      // Convert the current workspace to team - backend will handle creating new personal workspace
-      const result = await updateWorkspace(workspace.id, {
+      console.log('Converting personal workspace to team:', workspace.uuid)
+  
+      // Use the workspace UUID for the API call
+      const result = await updateWorkspace(workspace.uuid, {
         type: 'team',
         settings: {
           ...workspace.settings,
-          privacy: 'private' // Default to private for converted workspaces
+          privacy: 'private'
         }
       })
-
+  
       console.log('Conversion result:', result)
-
+  
       if (result.converted) {
-        // Close this modal first
         onClose()
-        
-        // Small delay to ensure state is updated
-        setTimeout(() => {
-          console.log('Re-opening modal in invite mode after conversion')
-          // The parent component will handle re-opening the modal
-        }, 500)
+        console.log('Conversion successful, event dispatched')
       }
-
+  
     } catch (error) {
       console.error('Failed to convert workspace:', error)
-      // Show error to user but don't close modal
     } finally {
       setIsConverting(false)
     }

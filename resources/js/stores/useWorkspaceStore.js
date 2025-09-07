@@ -23,6 +23,31 @@ const useWorkspaceStore = create(
         }
       },
       
+      // Helper methods
+      getWorkspaceById: (id) => {
+        const { workspaces } = get()
+        return workspaces.find(w => w.id === id)
+      },
+      
+      getWorkspaceByUuid: (uuid) => {
+        const { workspaces } = get()
+        return workspaces.find(w => w.uuid === uuid)
+      },
+      
+      // Update existing helper method
+      getUserWorkspaces: (userId) => {
+        const { workspaces } = get()
+        return workspaces.filter(workspace => {
+          if (workspace.owner?.id === userId) {
+            return true
+          }
+          if (workspace.users?.some(user => user.id === userId)) {
+            return true
+          }
+          return false
+        })
+      },
+      
       setLoading: (isLoading) => set({ isLoading }),
       setError: (error) => set({ error }),
       clearError: () => set({ error: null }),
@@ -102,13 +127,14 @@ const useWorkspaceStore = create(
       },
 
       // Update workspace with better handling for conversion
-      updateWorkspace: async (workspaceId, updateData) => {
+      updateWorkspace: async (workspaceUuid, updateData) => { // Changed parameter name for clarity
         set({ isLoading: true, error: null })
         
         try {
-          console.log('Updating workspace:', workspaceId, updateData)
+          console.log('Updating workspace:', workspaceUuid, updateData)
           
-          const response = await axios.put(`/api/workspaces/${workspaceId}`, updateData)
+          // Use UUID in the API call
+          const response = await axios.put(`/api/workspaces/${workspaceUuid}`, updateData)
           
           if (response.data.success) {
             const updatedWorkspace = response.data.data
@@ -119,9 +145,9 @@ const useWorkspaceStore = create(
             console.log('Workspace updated successfully:', updatedWorkspace)
             console.log('Was converted:', wasConverted, 'New personal workspace:', newPersonalWorkspace)
             
-            // Update the workspace in the workspaces array
+            // Update the workspace in the workspaces array - match by UUID now
             let updatedWorkspaces = workspaces.map(w => 
-              w.id === workspaceId ? updatedWorkspace : w
+              w.uuid === updatedWorkspace.uuid ? updatedWorkspace : w
             )
             
             // If backend created a new personal workspace during conversion, add it to the list
@@ -134,9 +160,10 @@ const useWorkspaceStore = create(
             let newCurrentWorkspace = currentWorkspace
             if (wasConverted && updatedWorkspace) {
               newCurrentWorkspace = updatedWorkspace
+              // Store the ID for internal tracking, but use UUID for API calls
               localStorage.setItem('currentWorkspaceId', updatedWorkspace.id.toString())
               console.log('Set converted workspace as current:', updatedWorkspace.id)
-            } else if (currentWorkspace?.id === workspaceId) {
+            } else if (currentWorkspace?.uuid === updatedWorkspace.uuid) {
               newCurrentWorkspace = updatedWorkspace
             }
             
@@ -152,6 +179,7 @@ const useWorkspaceStore = create(
               window.dispatchEvent(new CustomEvent('workspace-converted', { 
                 detail: { 
                   convertedWorkspaceId: updatedWorkspace.id,
+                  convertedWorkspaceUuid: updatedWorkspace.uuid,
                   newType: updatedWorkspace.type,
                   shouldOpenInviteModal: true
                 }
@@ -173,21 +201,21 @@ const useWorkspaceStore = create(
           throw new Error(errorMessage)
         }
       },
-
-      // Delete workspace
-      deleteWorkspace: async (workspaceId) => {
+      
+      // Also update these methods to use UUID:
+      deleteWorkspace: async (workspaceUuid) => {
         set({ isLoading: true, error: null })
         
         try {
-          const response = await axios.delete(`/api/workspaces/${workspaceId}`)
+          const response = await axios.delete(`/api/workspaces/${workspaceUuid}`)
           
           if (response.data.success) {
             const { workspaces, currentWorkspace } = get()
-            const updatedWorkspaces = workspaces.filter(w => w.id !== workspaceId)
+            const updatedWorkspaces = workspaces.filter(w => w.uuid !== workspaceUuid)
             
             // If deleting current workspace, switch to personal workspace
             let newCurrentWorkspace = currentWorkspace
-            if (currentWorkspace?.id === workspaceId) {
+            if (currentWorkspace?.uuid === workspaceUuid) {
               newCurrentWorkspace = updatedWorkspaces.find(w => w.type === 'personal') || updatedWorkspaces[0]
               if (newCurrentWorkspace) {
                 localStorage.setItem('currentWorkspaceId', newCurrentWorkspace.id.toString())
@@ -212,13 +240,12 @@ const useWorkspaceStore = create(
           throw new Error(errorMessage)
         }
       },
-
-      // Get workspace details with forced refresh
-      getWorkspaceDetails: async (workspaceId, forceRefresh = false) => {
+      
+      getWorkspaceDetails: async (workspaceUuid, forceRefresh = false) => {
         set({ isLoading: true, error: null })
         
         try {
-          const response = await axios.get(`/api/workspaces/${workspaceId}`)
+          const response = await axios.get(`/api/workspaces/${workspaceUuid}`)
           
           if (response.data.success) {
             const workspace = response.data.data
@@ -226,11 +253,11 @@ const useWorkspaceStore = create(
             
             // Update the workspace in the list
             const updatedWorkspaces = workspaces.map(w => 
-              w.id === workspaceId ? { ...w, ...workspace } : w
+              w.uuid === workspaceUuid ? { ...w, ...workspace } : w
             )
             
             // Update current workspace if it's the one being fetched
-            const newCurrentWorkspace = currentWorkspace?.id === workspaceId 
+            const newCurrentWorkspace = currentWorkspace?.uuid === workspaceUuid 
               ? { ...currentWorkspace, ...workspace }
               : currentWorkspace
             

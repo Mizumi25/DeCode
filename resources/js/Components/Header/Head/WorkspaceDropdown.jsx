@@ -41,39 +41,43 @@ const WorkspaceDropdown = ({
   // Listen for workspace conversion events and handle invite modal auto-opening
   useEffect(() => {
     const handleWorkspaceConverted = async (event) => {
-      const { convertedWorkspaceId, newType, shouldOpenInviteModal } = event.detail
-      console.log('WorkspaceDropdown: Workspace converted event received:', { 
-        convertedWorkspaceId, 
-        newType, 
-        shouldOpenInviteModal 
-      })
+      const { convertedWorkspaceId, convertedWorkspaceUuid, newType, shouldOpenInviteModal } = event.detail
+      console.log('WorkspaceDropdown: Workspace converted event received:', event.detail)
       
       // Clear any existing errors first
       clearError()
       
-      // Refresh workspaces to get latest data
       try {
+        // Refresh workspaces to get latest data
         await initializeWorkspaces()
         
-        // Find and set the converted workspace as current (only if user has access)
+        // Find and set the converted workspace as current using ID
         const convertedWorkspace = getUserWorkspaces(currentUser?.id).find(w => w.id === convertedWorkspaceId)
         if (convertedWorkspace) {
           console.log('WorkspaceDropdown: Setting converted workspace as current:', convertedWorkspace.id)
           setCurrentWorkspace(convertedWorkspace)
           
+          // Navigate to projects with the converted workspace using UUID
+          await router.visit(`/projects?workspace=${convertedWorkspace.uuid}`, {
+            preserveState: false,
+            replace: true
+          })
+          
           // Auto-open invite modal after conversion
           if (shouldOpenInviteModal && onInviteClick) {
             console.log('WorkspaceDropdown: Auto-opening invite modal for converted workspace')
             setTimeout(() => {
-              onInviteClick(convertedWorkspace.id, true) // Pass forceInviteMode = true
-            }, 300) // Small delay to ensure UI is ready
+              onInviteClick(convertedWorkspace.id, true) // Pass ID for internal tracking
+            }, 1000)
           }
+        } else {
+          console.error('Could not find converted workspace with ID:', convertedWorkspaceId)
         }
       } catch (error) {
         console.error('Failed to refresh workspaces after conversion:', error)
       }
     }
-
+  
     window.addEventListener('workspace-converted', handleWorkspaceConverted)
     return () => {
       window.removeEventListener('workspace-converted', handleWorkspaceConverted)
@@ -109,27 +113,27 @@ const WorkspaceDropdown = ({
       setCurrentWorkspace(workspace)
       setDropdownOpen(false)
       
-      // Navigate to projects page with workspace parameter
-      // Use replace: true to avoid back button issues
-      await router.visit(`/projects?workspace=${workspace.id}`, {
-        preserveState: false, // Force refresh to load workspace-specific projects
-        replace: true,
-        onStart: () => {
-          console.log('Starting workspace switch navigation...')
-        },
-        onSuccess: () => {
-          console.log('Workspace switch successful')
-          setSwitchingWorkspace(false)
-        },
-        onError: (errors) => {
-          console.error('Workspace switch failed:', errors)
-          setSwitchingWorkspace(false)
-          // Don't revert workspace change as the error might be temporary
-        },
-        onFinish: () => {
-          setSwitchingWorkspace(false)
-        }
-      })
+    // Navigate to projects page with workspace parameter
+    // Use UUID for the workspace parameter to match backend routing
+    await router.visit(`/projects?workspace=${workspace.uuid}`, {
+      preserveState: false, // Force refresh to load workspace-specific projects
+      replace: true,
+      onStart: () => {
+        console.log('Starting workspace switch navigation...')
+      },
+      onSuccess: () => {
+        console.log('Workspace switch successful')
+        setSwitchingWorkspace(false)
+      },
+      onError: (errors) => {
+        console.error('Workspace switch failed:', errors)
+        setSwitchingWorkspace(false)
+        // Don't revert workspace change as the error might be temporary
+      },
+      onFinish: () => {
+        setSwitchingWorkspace(false)
+      }
+    })
     } catch (error) {
       console.error('Failed to switch workspace:', error)
       setSwitchingWorkspace(false)

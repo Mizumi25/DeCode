@@ -236,11 +236,11 @@ class WorkspaceController extends Controller
                         'message' => 'Only the workspace owner can convert a personal workspace'
                     ], 403);
                 }
-
+            
                 // Create a new personal workspace for the user
                 $newPersonalWorkspace = Workspace::create([
                     'owner_id' => $user->id,
-                    'name' => 'My Personal Workspace',
+                    'name' => $user->name . "'s Personal Workspace",
                     'description' => 'Personal workspace for individual projects',
                     'type' => 'personal',
                     'settings' => [
@@ -253,9 +253,9 @@ class WorkspaceController extends Controller
                         ]
                     ]
                 ]);
-
+            
                 $converted = true;
-
+            
                 \Log::info('Created new personal workspace', [
                     'user_id' => $user->id,
                     'new_workspace_id' => $newPersonalWorkspace->id,
@@ -328,38 +328,46 @@ class WorkspaceController extends Controller
                 'updated_at' => $workspace->updated_at,
             ];
 
-            $response = [
-                'success' => true,
-                'data' => $workspaceData,
-                'message' => 'Workspace updated successfully',
-                'converted' => $converted
-            ];
-
-            // If we created a new personal workspace, include it in the response
-            if ($converted && isset($newPersonalWorkspace)) {
-                $response['new_personal_workspace'] = [
-                    'id' => $newPersonalWorkspace->id,
-                    'uuid' => $newPersonalWorkspace->uuid,
-                    'name' => $newPersonalWorkspace->name,
-                    'description' => $newPersonalWorkspace->description,
-                    'type' => $newPersonalWorkspace->type,
-                    'settings' => $newPersonalWorkspace->settings,
-                    'owner' => [
-                        'id' => $user->id,
-                        'name' => $user->name,
-                        'email' => $user->email,
-                        'avatar' => $user->avatar,
-                    ],
-                    'users' => [],
-                    'user_role' => 'owner',
-                    'member_count' => 1,
-                    'project_count' => 0,
-                    'created_at' => $newPersonalWorkspace->created_at,
-                    'updated_at' => $newPersonalWorkspace->updated_at,
-                ];
-            }
-
-            return response()->json($response);
+                      $response = [
+              'success' => true,
+              'data' => $workspaceData,
+              'message' => 'Workspace updated successfully',
+              'converted' => $converted
+          ];
+          
+          // If we created a new personal workspace, include it in the response
+          if ($converted && isset($newPersonalWorkspace)) {
+              $response['new_personal_workspace'] = [
+                  'id' => $newPersonalWorkspace->id,
+                  'uuid' => $newPersonalWorkspace->uuid,
+                  'name' => $newPersonalWorkspace->name,
+                  'description' => $newPersonalWorkspace->description,
+                  'type' => $newPersonalWorkspace->type,
+                  'settings' => $newPersonalWorkspace->settings,
+                  'owner' => [
+                      'id' => $user->id,
+                      'name' => $user->name,
+                      'email' => $user->email,
+                      'avatar' => $user->avatar,
+                  ],
+                  'users' => [],
+                  'user_role' => 'owner',
+                  'member_count' => 1,
+                  'project_count' => 0,
+                  'created_at' => $newPersonalWorkspace->created_at,
+                  'updated_at' => $newPersonalWorkspace->updated_at,
+              ];
+              
+              // Add conversion details for frontend
+              $response['conversion_details'] = [
+                  'converted_workspace_id' => $workspace->id,
+                  'converted_workspace_uuid' => $workspace->uuid,
+                  'new_personal_workspace_id' => $newPersonalWorkspace->id,
+                  'should_open_invite_modal' => true
+              ];
+          }
+          
+          return response()->json($response);
 
         } catch (\Exception $e) {
             DB::rollBack();
