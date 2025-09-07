@@ -13,6 +13,7 @@ use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Http\RedirectResponse;
+use App\Events\ProjectCreated;
 
 class ProjectController extends Controller
 {
@@ -73,12 +74,14 @@ class ProjectController extends Controller
         }
         
         // Build the projects query with workspace filtering
-        $query = Project::with(['workspace', 'workspace.owner'])
-            ->where('user_id', $user->id);
+       $query = Project::with(['workspace', 'workspace.owner', 'user']);
         
         // Apply workspace filter - this is the key fix
         if ($currentWorkspace) {
             $query->where('workspace_id', $currentWorkspace->id);
+        } else {
+            // If no workspace, show only user's own projects
+            $query->where('user_id', $user->id);
         }
         
         // Apply search filter

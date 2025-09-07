@@ -20,17 +20,28 @@ class VoidController extends Controller
      */
     public function show(Project $project): Response
     {
-        // Check if user can access this project
-        if ($project->user_id !== Auth::id() && !$project->is_public) {
-            abort(403, 'Access denied to this project.');
+        $user = Auth::user();
+        
+        // Enhanced access control: Check both ownership AND workspace access
+        if ($project->user_id !== $user->id && !$project->is_public) {
+            // If user doesn't own the project, check workspace access
+            if (!$project->workspace || !$project->workspace->hasUser($user->id)) {
+                abort(403, 'Access denied to this project.');
+            }
+        }
+        
+        // Additional check: ensure workspace access even for public projects
+        if ($project->workspace && !$project->workspace->hasUser($user->id)) {
+            abort(403, 'You do not have access to this workspace.');
         }
         
         $project->updateLastOpened();
         
         return Inertia::render('VoidPage', [
-            'project' => $project,
+            'project' => $project->load('workspace'),
             'canvas_data' => $project->canvas_data,
             'frames' => $project->canvas_data['frames'] ?? [],
+            'userRole' => $project->workspace ? $project->workspace->getUserRole($user->id) : 'owner',
         ]);
     }
 

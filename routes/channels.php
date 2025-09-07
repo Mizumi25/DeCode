@@ -77,3 +77,8 @@ Broadcast::channel('project.{projectUuid}', function ($user, $projectUuid) {
     
     return false;
 });
+
+Broadcast::channel('workspace.{workspaceId}', function ($user, $workspaceId) {
+    $workspace = Workspace::find($workspaceId);
+    return $workspace && $workspace->hasUser($user->id) ? $user : null;
+});
