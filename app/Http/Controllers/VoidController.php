@@ -18,21 +18,26 @@ class VoidController extends Controller
     /**
      * Display the void page for a project (moved from ProjectController)
      */
-    public function show(Project $project): Response
+     public function show(Project $project): Response
     {
         $user = Auth::user();
         
-        // Enhanced access control: Check both ownership AND workspace access
-        if ($project->user_id !== $user->id && !$project->is_public) {
-            // If user doesn't own the project, check workspace access
-            if (!$project->workspace || !$project->workspace->hasUser($user->id)) {
-                abort(403, 'Access denied to this project.');
-            }
+        // Enhanced access control: Check ownership OR workspace access
+        $hasAccess = false;
+        
+        if ($project->user_id === $user->id) {
+            // User owns the project
+            $hasAccess = true;
+        } elseif ($project->is_public) {
+            // Project is public
+            $hasAccess = true;
+        } elseif ($project->workspace) {
+            // Check workspace access
+            $hasAccess = $project->workspace->hasUser($user->id);
         }
         
-        // Additional check: ensure workspace access even for public projects
-        if ($project->workspace && !$project->workspace->hasUser($user->id)) {
-            abort(403, 'You do not have access to this workspace.');
+        if (!$hasAccess) {
+            abort(403, 'Access denied to this project.');
         }
         
         $project->updateLastOpened();
@@ -42,6 +47,7 @@ class VoidController extends Controller
             'canvas_data' => $project->canvas_data,
             'frames' => $project->canvas_data['frames'] ?? [],
             'userRole' => $project->workspace ? $project->workspace->getUserRole($user->id) : 'owner',
+            'canEdit' => $project->user_id === $user->id || ($project->workspace && $project->workspace->canUserEdit($user->id)),
         ]);
     }
 
@@ -75,7 +81,7 @@ class VoidController extends Controller
     {
         // Add debugging
         Log::info('Frame creation request:', $request->all());
-
+    
         try {
             $validated = $request->validate([
                 'project_id' => 'required|exists:projects,id',
@@ -84,68 +90,112 @@ class VoidController extends Controller
                 'canvas_data' => 'nullable|array',
                 'settings' => 'nullable|array',
             ]);
-
+    
             Log::info('Frame creation validated data:', $validated);
-
-            // Ensure user owns the project
-            $project = Project::where('id', $validated['project_id'])
-                             ->where('user_id', auth()->id())
-                             ->first();
+    
+            // Enhanced access control: Check ownership OR workspace access
+            $project = Project::with('workspace')->find($validated['project_id']);
+            $user = Auth::user();
             
             if (!$project) {
-                Log::error('Project not found or access denied', [
+                Log::error('Project not found', [
                     'project_id' => $validated['project_id'],
-                    'user_id' => auth()->id()
+                    'user_id' => $user->id
                 ]);
                 
                 if ($request->expectsJson()) {
                     return response()->json([
-                        'message' => 'Project not found or access denied'
+                        'message' => 'Project not found'
+                    ], 404);
+                }
+                
+                return back()->withErrors(['project' => 'Project not found']);
+            }
+            
+            // Check access permissions
+            $hasAccess = false;
+            $canEdit = false;
+            
+            if ($project->user_id === $user->id) {
+                // User owns the project
+                $hasAccess = true;
+                $canEdit = true;
+            } elseif ($project->workspace && $project->workspace->hasUser($user->id)) {
+                // User is in the workspace
+                $hasAccess = true;
+                $canEdit = $project->workspace->canUserEdit($user->id);
+            }
+            
+            if (!$hasAccess) {
+                Log::error('Project access denied', [
+                    'project_id' => $project->id,
+                    'user_id' => $user->id
+                ]);
+                
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'Access denied to this project'
                     ], 403);
                 }
                 
-                return back()->withErrors(['project' => 'Project not found or access denied']);
+                return back()->withErrors(['project' => 'Access denied to this project']);
             }
-
+            
+            if (!$canEdit) {
+                Log::error('Frame creation permission denied', [
+                    'project_id' => $project->id,
+                    'user_id' => $user->id,
+                    'user_role' => $project->workspace ? $project->workspace->getUserRole($user->id) : null
+                ]);
+                
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'You do not have permission to create frames in this project'
+                    ], 403);
+                }
+                
+                return back()->withErrors(['project' => 'You do not have permission to create frames in this project']);
+            }
+    
             // Create default canvas_data if not provided
             if (!isset($validated['canvas_data'])) {
                 $validated['canvas_data'] = $this->getDefaultCanvasData($validated['type']);
             }
-
+    
             // Create default settings if not provided
             if (!isset($validated['settings'])) {
                 $validated['settings'] = $this->getDefaultSettings();
             }
-
+    
             // Generate random position for void placement
             $validated['canvas_data']['position'] = [
                 'x' => rand(200, 800),
                 'y' => rand(200, 600)
             ];
-
+    
             Log::info('Creating frame with data:', $validated);
-
+    
             $frame = Frame::create($validated);
-
+    
             // Generate static thumbnail for now (we'll implement Playwright later)
             $this->generateStaticThumbnail($frame);
-
+    
             // Load the frame with its project relationship
             $frame->load('project');
-
+    
             Log::info('Frame created successfully:', ['frame_id' => $frame->id]);
-
+    
             if ($request->expectsJson()) {
                 return response()->json([
                     'message' => 'Frame created successfully',
                     'frame' => $frame
                 ], 201);
             }
-
+    
             // For web requests, redirect back to void page
             return redirect()->route('void.index', ['project' => $project->uuid])
                            ->with('success', 'Frame created successfully');
-
+    
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::error('Validation error:', $e->errors());
             
@@ -179,76 +229,186 @@ class VoidController extends Controller
      */
     public function showFrame(Frame $frame): JsonResponse
     {
-        // Ensure user owns the project that contains this frame
-        if ($frame->project->user_id !== auth()->id()) {
-            abort(403, 'Unauthorized');
+        $user = Auth::user();
+        $project = $frame->project;
+        
+        // Enhanced access control: Check ownership OR workspace access
+        $hasAccess = false;
+        
+        if ($project->user_id === $user->id) {
+            // User owns the project
+            $hasAccess = true;
+        } elseif ($project->is_public) {
+            // Project is public
+            $hasAccess = true;
+        } elseif ($project->workspace) {
+            // Check workspace access
+            $hasAccess = $project->workspace->hasUser($user->id);
         }
-
+        
+        if (!$hasAccess) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied to this project'
+            ], 403);
+        }
+    
         $frame->load('project');
-
+    
         return response()->json(['frame' => $frame]);
     }
-
+    
+    /**
+     * Get frames by project UUID (for void page).
+     */
+    public function getByProject(string $projectUuid): JsonResponse
+    {
+        $user = Auth::user();
+        
+        $project = Project::where('uuid', $projectUuid)
+                         ->with('workspace')
+                         ->firstOrFail();
+        
+        // Enhanced access control: Check ownership OR workspace access
+        $hasAccess = false;
+        
+        if ($project->user_id === $user->id) {
+            // User owns the project
+            $hasAccess = true;
+        } elseif ($project->is_public) {
+            // Project is public
+            $hasAccess = true;
+        } elseif ($project->workspace) {
+            // Check workspace access
+            $hasAccess = $project->workspace->hasUser($user->id);
+        }
+        
+        if (!$hasAccess) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied to this project'
+            ], 403);
+        }
+    
+        $frames = Frame::where('project_id', $project->id)
+                      ->orderBy('created_at', 'desc')
+                      ->get();
+    
+        return response()->json([
+            'frames' => $frames,
+            'total' => $frames->count(),
+            'canEdit' => $project->user_id === $user->id || ($project->workspace && $project->workspace->canUserEdit($user->id))
+        ]);
+    }
+    
     /**
      * Update the specified frame.
      */
     public function update(Request $request, Frame $frame): JsonResponse
     {
-        // Ensure user owns the project that contains this frame
-        if ($frame->project->user_id !== auth()->id()) {
-            abort(403, 'Unauthorized');
+        $user = Auth::user();
+        $project = $frame->project;
+        
+        // Enhanced access control: Check ownership OR workspace edit access
+        $canEdit = false;
+        
+        if ($project->user_id === $user->id) {
+            // User owns the project
+            $canEdit = true;
+        } elseif ($project->workspace && $project->workspace->hasUser($user->id)) {
+            // Check workspace edit permissions
+            $canEdit = $project->workspace->canUserEdit($user->id);
         }
-
+        
+        if (!$canEdit) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to edit this frame'
+            ], 403);
+        }
+    
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
             'type' => ['sometimes', Rule::in(['page', 'component'])],
             'canvas_data' => 'sometimes|array',
             'settings' => 'sometimes|array',
         ]);
-
+    
         $frame->update($validated);
         $frame->load('project');
-
+    
         return response()->json([
             'message' => 'Frame updated successfully',
             'frame' => $frame
         ]);
     }
-
+    
     /**
      * Remove the specified frame.
      */
     public function destroy(Frame $frame): JsonResponse
     {
-        // Ensure user owns the project that contains this frame
-        if ($frame->project->user_id !== auth()->id()) {
-            abort(403, 'Unauthorized');
+        $user = Auth::user();
+        $project = $frame->project;
+        
+        // Enhanced access control: Check ownership OR workspace edit access
+        $canEdit = false;
+        
+        if ($project->user_id === $user->id) {
+            // User owns the project
+            $canEdit = true;
+        } elseif ($project->workspace && $project->workspace->hasUser($user->id)) {
+            // Check workspace edit permissions
+            $canEdit = $project->workspace->canUserEdit($user->id);
         }
-
+        
+        if (!$canEdit) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to delete this frame'
+            ], 403);
+        }
+    
         // Delete thumbnail if exists
         $this->deleteThumbnail($frame);
-
+    
         $frame->delete();
-
+    
         return response()->json([
             'message' => 'Frame deleted successfully'
         ]);
     }
-
+    
     /**
      * Duplicate a frame.
      */
     public function duplicate(Request $request, Frame $frame): JsonResponse
     {
-        // Ensure user owns the project that contains this frame
-        if ($frame->project->user_id !== auth()->id()) {
-            abort(403, 'Unauthorized');
+        $user = Auth::user();
+        $project = $frame->project;
+        
+        // Enhanced access control: Check ownership OR workspace edit access
+        $canEdit = false;
+        
+        if ($project->user_id === $user->id) {
+            // User owns the project
+            $canEdit = true;
+        } elseif ($project->workspace && $project->workspace->hasUser($user->id)) {
+            // Check workspace edit permissions
+            $canEdit = $project->workspace->canUserEdit($user->id);
         }
-
+        
+        if (!$canEdit) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to duplicate this frame'
+            ], 403);
+        }
+    
         $validated = $request->validate([
             'name' => 'nullable|string|max:255',
         ]);
-
+    
         $newFrame = $frame->replicate();
         $newFrame->name = $validated['name'] ?? ($frame->name . ' (Copy)');
         
@@ -261,64 +421,61 @@ class VoidController extends Controller
         $newFrame->canvas_data = $canvasData;
         
         $newFrame->save();
-
+    
         // Generate thumbnail for duplicate
         $this->generateStaticThumbnail($newFrame);
-
+    
         $newFrame->load('project');
-
+    
         return response()->json([
             'message' => 'Frame duplicated successfully',
             'frame' => $newFrame
         ], 201);
     }
-
+    
     /**
      * Update frame position in the void.
      */
     public function updatePosition(Request $request, Frame $frame): JsonResponse
     {
-        // Ensure user owns the project that contains this frame
-        if ($frame->project->user_id !== auth()->id()) {
-            abort(403, 'Unauthorized');
+        $user = Auth::user();
+        $project = $frame->project;
+        
+        // Enhanced access control: Check ownership OR workspace edit access
+        $canEdit = false;
+        
+        if ($project->user_id === $user->id) {
+            // User owns the project
+            $canEdit = true;
+        } elseif ($project->workspace && $project->workspace->hasUser($user->id)) {
+            // Check workspace edit permissions
+            $canEdit = $project->workspace->canUserEdit($user->id);
         }
-
+        
+        if (!$canEdit) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to move this frame'
+            ], 403);
+        }
+    
         $validated = $request->validate([
             'x' => 'required|numeric',
             'y' => 'required|numeric',
         ]);
-
+    
         // Update the canvas_data with new position
         $canvasData = $frame->canvas_data ?? [];
         $canvasData['position'] = [
             'x' => $validated['x'],
             'y' => $validated['y']
         ];
-
+    
         $frame->update(['canvas_data' => $canvasData]);
-
+    
         return response()->json([
             'message' => 'Frame position updated successfully',
             'frame' => $frame
-        ]);
-    }
-
-    /**
-     * Get frames by project UUID (for void page).
-     */
-    public function getByProject(string $projectUuid): JsonResponse
-    {
-        $project = Project::where('uuid', $projectUuid)
-                         ->where('user_id', auth()->id())
-                         ->firstOrFail();
-
-        $frames = Frame::where('project_id', $project->id)
-                      ->orderBy('created_at', 'desc')
-                      ->get();
-
-        return response()->json([
-            'frames' => $frames,
-            'total' => $frames->count()
         ]);
     }
 
