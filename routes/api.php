@@ -12,6 +12,7 @@ use App\Http\Controllers\InviteController;
 use App\Http\Controllers\GitHubRepoController;
 use App\Http\Controllers\Auth\GithubController;
 use App\Http\Controllers\FramePresenceController;
+use App\Http\Controllers\FrameLockController;
 
 /*
 |--------------------------------------------------------------------------
@@ -66,6 +67,22 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/heartbeat', [FramePresenceController::class, 'heartbeat']);
             Route::get('/', [FramePresenceController::class, 'index']);
         });
+    });
+    
+    // Frame lock system routes
+    Route::prefix('frames/{frame:uuid}/lock')->group(function () {
+        Route::post('/toggle', [FrameLockController::class, 'toggleLock']);
+        Route::post('/request', [FrameLockController::class, 'requestAccess']);
+        Route::get('/status', [FrameLockController::class, 'getLockStatus']);
+        Route::post('/force-unlock', [FrameLockController::class, 'forceUnlock']);
+    });
+    
+    // Frame lock request management
+    Route::prefix('lock-requests')->group(function () {
+        Route::get('/pending', [FrameLockController::class, 'getPendingRequests']);
+        Route::post('/{lockRequest:uuid}/respond', [FrameLockController::class, 'respondToRequest']);
+        Route::delete('/{lockRequest:uuid}/cancel', [FrameLockController::class, 'cancelRequest']);
+        Route::post('/cleanup-expired', [FrameLockController::class, 'cleanupExpired']);
     });
 
     // Get frames by project UUID (for void page)

@@ -16,6 +16,18 @@ return new class extends Migration {
             $table->json('settings')->nullable();
             $table->string('thumbnail_path')->nullable()->after('settings');
             $table->timestamps();
+            
+            $table->boolean('is_locked')->default(false);
+            $table->unsignedBigInteger('locked_by_user_id')->nullable();
+            $table->timestamp('locked_at')->nullable();
+            $table->string('locked_mode')->nullable(); // 'forge' or 'source'
+            $table->text('lock_reason')->nullable(); // Optional reason for lock
+            
+            // Foreign key for locked_by_user_id
+            $table->foreign('locked_by_user_id')->references('id')->on('users')->onDelete('set null');
+            
+            // Index for performance
+            $table->index(['is_locked', 'locked_by_user_id']);
         });
     }
     public function down(): void {
