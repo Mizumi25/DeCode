@@ -1,5 +1,9 @@
+
+
+
 import React, { useState, useRef, useCallback, useEffect } from 'react'
-import { Plug, Lock, Unlock, MoreHorizontal } from 'lucide-react'
+import { Plug, Lock, Unlock, MoreHorizontal, Github, FileCode, Layers } from 'lucide-react'
+
 
 const sizes = [
   { w: 80, h: 56 },
@@ -169,6 +173,7 @@ export default function PreviewFrame({
   return (
     <div
       ref={frameRef}
+      data-frame-uuid={frame?.uuid} // Add this line
       className={`preview-frame absolute rounded-xl p-3 cursor-pointer transition-all duration-300 ease-out flex flex-col group ${
         isDragging ? 'shadow-2xl scale-105 z-50' : 'shadow-lg hover:shadow-xl hover:-translate-y-1'
       } ${isLocked ? '' : 'ring-2 ring-blue-400 ring-opacity-50'}`}
@@ -191,93 +196,119 @@ export default function PreviewFrame({
       onClick={handleFrameClick}
       onMouseDown={handleMouseDown}
     >
-      {/* Top Header with Frame Info and Controls */}
-      <div className="flex items-center justify-between mb-3 -mt-1">
-        {/* Left: Frame name and file connection */}
-        <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          <span className="font-semibold text-sm">{title}</span>
-          <span className="opacity-60">•</span>
-          <span className="opacity-80">({fileName})</span>
-          <Plug className="w-3.5 h-3.5 opacity-60" />
+
+
+
+<div className="flex items-center justify-between mb-3 -mt-1">
+  {/* Left: Frame name, file connection, and GitHub indicator */}
+  <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+    <span className="font-semibold text-sm">{title}</span>
+    <span className="opacity-60">•</span>
+    <span className="opacity-80">({fileName})</span>
+    
+    {/* GitHub import indicator */}
+    {frame?.isGithubImport ? (
+      <div className="flex items-center gap-1">
+        <Github className="w-3 h-3 text-green-600" />
+        <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">
+          {frame.githubExtension?.toUpperCase() || 'GH'}
+        </span>
+      </div>
+    ) : (
+      <Plug className="w-3.5 h-3.5 opacity-60" />
+    )}
+  </div>
+  
+  {/* Right: Lock, Avatars, and More options */}
+  <div className="flex items-center gap-2">
+    {/* GitHub complexity indicator */}
+    {frame?.isGithubImport && frame.complexity && (
+      <div className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+        frame.complexity === 'high' ? 'bg-red-100 text-red-700' :
+        frame.complexity === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+        'bg-blue-100 text-blue-700'
+      }`}>
+        {frame.complexity}
+      </div>
+    )}
+    
+    {/* Lock/Unlock toggle button */}
+    <button 
+      className="lock-button p-1.5 rounded-lg hover:bg-white hover:bg-opacity-10 transition-all duration-500 ease-out hover:scale-110 group relative overflow-hidden"
+      onClick={handleLockToggle}
+      title={isLocked ? 'Unlock frame' : 'Lock frame'}
+      style={{
+        background: isLocked 
+          ? 'transparent' 
+          : 'linear-gradient(145deg, #3b82f6, #1d4ed8)',
+        transform: `rotate(${isLocked ? 0 : -15}deg)`,
+        boxShadow: isLocked 
+          ? 'none' 
+          : '0 4px 15px rgba(59, 130, 246, 0.3)',
+      }}
+    >
+      <div className="relative z-10">
+        <div 
+          className="transition-all duration-500 ease-out"
+          style={{
+            transform: `scale(${isLocked ? 1 : 1.1}) rotate(${isLocked ? 0 : 10}deg)`
+          }}
+        >
+          {isLocked ? (
+            <Lock className="w-3.5 h-3.5 transition-all duration-500" 
+                  style={{ color: 'var(--color-text-muted)' }} />
+          ) : (
+            <Unlock className="w-3.5 h-3.5 text-white transition-all duration-500" />
+          )}
         </div>
         
-        {/* Right: Lock, Avatars, and More options */}
-        <div className="flex items-center gap-2">
-          {/* Lock/Unlock toggle button */}
-          <button 
-            className="lock-button p-1.5 rounded-lg hover:bg-white hover:bg-opacity-10 transition-all duration-500 ease-out hover:scale-110 group relative overflow-hidden"
-            onClick={handleLockToggle}
-            title={isLocked ? 'Unlock frame' : 'Lock frame'}
-            style={{
-              background: isLocked 
-                ? 'transparent' 
-                : 'linear-gradient(145deg, #3b82f6, #1d4ed8)',
-              transform: `rotate(${isLocked ? 0 : -15}deg)`,
-              boxShadow: isLocked 
-                ? 'none' 
-                : '0 4px 15px rgba(59, 130, 246, 0.3)',
-            }}
-          >
-            <div className="relative z-10">
-              <div 
-                className="transition-all duration-500 ease-out"
-                style={{
-                  transform: `scale(${isLocked ? 1 : 1.1}) rotate(${isLocked ? 0 : 10}deg)`
-                }}
-              >
-                {isLocked ? (
-                  <Lock className="w-3.5 h-3.5 transition-all duration-500" 
-                        style={{ color: 'var(--color-text-muted)' }} />
-                ) : (
-                  <Unlock className="w-3.5 h-3.5 text-white transition-all duration-500" />
-                )}
-              </div>
-              
-              {/* Animated unlock effect */}
-              {!isLocked && (
-                <>
-                  <div className="absolute inset-0 bg-blue-400 rounded-full animate-ping opacity-20"></div>
-                  <div 
-                    className="absolute inset-0 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full opacity-30 animate-pulse"
-                    style={{ animationDuration: '2s' }}
-                  ></div>
-                </>
-              )}
-              
-              {/* Smooth background transition */}
-              <div 
-                className={`absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg transition-all duration-500 ease-out ${
-                  isLocked ? 'scale-0 opacity-0' : 'scale-100 opacity-100'
-                }`}
-                style={{ zIndex: -1 }}
-              ></div>
-            </div>
-          </button>
-          
-          {/* Stacked avatars */}
-          <div className="flex -space-x-1.5">
-            {avatarColors.map((color, i) => (
-              <div
-                key={i}
-                className={`avatar w-5 h-5 rounded-full border-2 border-white ${color} flex items-center justify-center shadow-sm hover:scale-110 transition-transform duration-200 cursor-pointer`}
-                style={{ fontSize: '9px', color: 'white', fontWeight: 'bold' }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {String.fromCharCode(65 + i)}
-              </div>
-            ))}
-          </div>
-          
-          {/* More options */}
-          <button 
-            className="more-button p-1.5 rounded-lg hover:bg-white hover:bg-opacity-10 transition-all duration-200 hover:scale-110"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <MoreHorizontal className="w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
-          </button>
-        </div>
+        {/* Animated unlock effect */}
+        {!isLocked && (
+          <>
+            <div className="absolute inset-0 bg-blue-400 rounded-full animate-ping opacity-20"></div>
+            <div 
+              className="absolute inset-0 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full opacity-30 animate-pulse"
+              style={{ animationDuration: '2s' }}
+            ></div>
+          </>
+        )}
+        
+        {/* Smooth background transition */}
+        <div 
+          className={`absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg transition-all duration-500 ease-out ${
+            isLocked ? 'scale-0 opacity-0' : 'scale-100 opacity-100'
+          }`}
+          style={{ zIndex: -1 }}
+        ></div>
       </div>
-      
+    </button>
+    
+    {/* Stacked avatars */}
+    <div className="flex -space-x-1.5">
+      {avatarColors.map((color, i) => (
+        <div
+          key={i}
+          className={`avatar w-5 h-5 rounded-full border-2 border-white ${color} flex items-center justify-center shadow-sm hover:scale-110 transition-transform duration-200 cursor-pointer`}
+          style={{ fontSize: '9px', color: 'white', fontWeight: 'bold' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {String.fromCharCode(65 + i)}
+        </div>
+      ))}
+    </div>
+    
+    {/* More options */}
+    <button 
+      className="more-button p-1.5 rounded-lg hover:bg-white hover:bg-opacity-10 transition-all duration-200 hover:scale-110"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <MoreHorizontal className="w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
+    </button>
+  </div>
+</div>
+
+
+
       {/* Content Area */}
       <div className="rounded-lg mb-3 flex-1 relative overflow-hidden">
         {showLoadingContent ? (

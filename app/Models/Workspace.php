@@ -133,33 +133,43 @@ class Workspace extends Model
         return $this->users()->updateExistingPivot($userId, ['role' => $role]);
     }
 
-    public function hasUser($userId)
+    public function hasUser($userId): bool
     {
-        return $this->owner_id === $userId || $this->users()->where('user_id', $userId)->exists();
+        // Check if user is owner
+        if ($this->owner_id === $userId) {
+            return true;
+        }
+        
+        // Check if user is in workspace_users
+        return $this->users()->where('user_id', $userId)->exists();
     }
 
-    public function getUserRole($userId)
+    public function getUserRole($userId): ?string
     {
+        // Check if user is the owner
         if ($this->owner_id === $userId) {
             return 'owner';
         }
-
-        $user = $this->users()->where('user_id', $userId)->first();
-        return $user ? $user->pivot->role : null;
+        
+        // Check workspace_users pivot table
+        $workspaceUser = $this->users()->where('user_id', $userId)->first();
+        
+        return $workspaceUser?->pivot?->role ?? 'viewer'; // Default to viewer if not found
     }
-
+    
     public function canUserInvite($userId)
     {
         $role = $this->getUserRole($userId);
         return in_array($role, ['owner', 'editor']);
     }
 
-    public function canUserEdit($userId)
-    {
-        $role = $this->getUserRole($userId);
-        return in_array($role, ['owner', 'editor']);
-    }
-
+   public function canUserEdit($userId): bool
+  {
+      $userRole = $this->getUserRole($userId);
+      $editableRoles = ['owner', 'admin', 'editor', 'contributor'];
+      return in_array($userRole, $editableRoles);
+  }
+    
     public function canUserView($userId)
     {
         return $this->hasUser($userId);

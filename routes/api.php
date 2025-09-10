@@ -142,6 +142,9 @@ Route::middleware('auth:sanctum')->group(function () {
         
         // Disconnect GitHub account
         Route::delete('/disconnect', [GithubController::class, 'disconnect']);
+        
+        Route::get('/repos/{repoId}/analyze', [GitHubRepoController::class, 'analyzeRepository']);
+        Route::get('/repos/{repoId}/contents/{path?}', [GitHubRepoController::class, 'getRepositoryContents'])->where('path', '.*');
     });
     
     // Cleanup route (can be called via scheduled task)

@@ -616,6 +616,8 @@ class ProjectController extends Controller
         ]);
     }
 
+    
+
     public function store(Request $request): RedirectResponse 
     {
         $user = Auth::user();
@@ -643,7 +645,7 @@ class ProjectController extends Controller
             'responsive_breakpoints.desktop' => 'nullable|integer|min:1024|max:3840',
             'is_public' => 'boolean',
             'template_id' => 'nullable|integer|exists:projects,id',
-            'workspace_id' => 'required|integer|exists:workspaces,id' // Make workspace_id required
+            'workspace_id' => 'required|integer|exists:workspaces,id'
         ]);
 
         // Enhanced workspace validation
@@ -731,6 +733,23 @@ class ProjectController extends Controller
                 }
             }
 
+            // BROADCAST PROJECT CREATION
+            try {
+                broadcast(new ProjectCreated($project, $workspace, $user))->toOthers();
+                
+                \Log::info('Project creation broadcasted successfully', [
+                    'project_id' => $project->id,
+                    'workspace_id' => $workspace->id,
+                    'user_id' => $user->id
+                ]);
+            } catch (\Exception $e) {
+                // Log broadcast failure but don't fail the project creation
+                \Log::warning('Failed to broadcast project creation', [
+                    'project_id' => $project->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+            
             // Log project creation for debugging
             \Log::info('Project created successfully', [
                 'project_id' => $project->id,

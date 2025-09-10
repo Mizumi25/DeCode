@@ -12,27 +12,27 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Events\FrameCreated;
+use App\Events\FrameUpdated;
+use App\Events\FrameDeleted;
 
 class VoidController extends Controller
 {
     /**
      * Display the void page for a project (moved from ProjectController)
      */
-     public function show(Project $project): Response
+    public function show(Project $project): Response
     {
         $user = Auth::user();
         
-        // Enhanced access control: Check ownership OR workspace access
+        // Enhanced access control
         $hasAccess = false;
         
         if ($project->user_id === $user->id) {
-            // User owns the project
             $hasAccess = true;
         } elseif ($project->is_public) {
-            // Project is public
             $hasAccess = true;
         } elseif ($project->workspace) {
-            // Check workspace access
             $hasAccess = $project->workspace->hasUser($user->id);
         }
         
@@ -73,6 +73,7 @@ class VoidController extends Controller
             'total' => $frames->count()
         ]);
     }
+
 
     /**
      * Store a newly created frame.
@@ -123,40 +124,52 @@ class VoidController extends Controller
             } elseif ($project->workspace && $project->workspace->hasUser($user->id)) {
                 // User is in the workspace
                 $hasAccess = true;
+                $userRole = $project->workspace->getUserRole($user->id);
+                
+                // Allow owner, editor, and contributor roles to create frames
+                // Only restrict viewers from creating content
                 $canEdit = $project->workspace->canUserEdit($user->id);
+                
+                // Log the role for debugging
+                Log::info('User workspace role check', [
+                    'user_id' => $user->id,
+                    'workspace_id' => $project->workspace->id,
+                    'user_role' => $userRole,
+                    'can_edit' => $canEdit
+                ]);
             }
             
             if (!$hasAccess) {
-                Log::error('Project access denied', [
-                    'project_id' => $project->id,
-                    'user_id' => $user->id
-                ]);
-                
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'message' => 'Access denied to this project'
-                    ], 403);
-                }
-                
-                return back()->withErrors(['project' => 'Access denied to this project']);
-            }
-            
-            if (!$canEdit) {
-                Log::error('Frame creation permission denied', [
-                    'project_id' => $project->id,
-                    'user_id' => $user->id,
-                    'user_role' => $project->workspace ? $project->workspace->getUserRole($user->id) : null
-                ]);
-                
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'message' => 'You do not have permission to create frames in this project'
-                    ], 403);
-                }
-                
-                return back()->withErrors(['project' => 'You do not have permission to create frames in this project']);
-            }
-    
+              Log::error('Project access denied', [
+                  'project_id' => $project->id,
+                  'user_id' => $user->id
+              ]);
+              
+              if ($request->expectsJson()) {
+                  return response()->json([
+                      'message' => 'Access denied to this project'
+                  ], 403);
+              }
+              
+              return back()->withErrors(['project' => 'Access denied to this project']);
+          }
+          
+          if (!$canEdit) {
+              Log::error('Frame creation permission denied', [
+                  'project_id' => $project->id,
+                  'user_id' => $user->id,
+                  'user_role' => $project->workspace ? $project->workspace->getUserRole($user->id) : null
+              ]);
+              
+              if ($request->expectsJson()) {
+                  return response()->json([
+                      'message' => 'You do not have permission to create frames in this project. Your role: ' . ($project->workspace ? $project->workspace->getUserRole($user->id) : 'none')
+                  ], 403);
+              }
+              
+              return back()->withErrors(['project' => 'You do not have permission to create frames in this project']);
+          }
+          
             // Create default canvas_data if not provided
             if (!isset($validated['canvas_data'])) {
                 $validated['canvas_data'] = $this->getDefaultCanvasData($validated['type']);
@@ -182,6 +195,27 @@ class VoidController extends Controller
     
             // Load the frame with its project relationship
             $frame->load('project');
+    
+            // BROADCAST FRAME CREATION
+            try {
+                if ($project->workspace) {
+                    broadcast(new FrameCreated($frame, $project->workspace))->toOthers();
+                    
+                    Log::info('Frame creation broadcasted successfully', [
+                        'frame_id' => $frame->id,
+                        'project_id' => $project->id,
+                        'workspace_id' => $project->workspace->id,
+                        'user_id' => $user->id
+                    ]);
+                }
+            } catch (\Exception $e) {
+                // Log broadcast failure but don't fail the frame creation
+                Log::warning('Failed to broadcast frame creation', [
+                    'frame_id' => $frame->id,
+                    'project_id' => $project->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
     
             Log::info('Frame created successfully:', ['frame_id' => $frame->id]);
     
@@ -309,14 +343,11 @@ class VoidController extends Controller
         $user = Auth::user();
         $project = $frame->project;
         
-        // Enhanced access control: Check ownership OR workspace edit access
         $canEdit = false;
         
         if ($project->user_id === $user->id) {
-            // User owns the project
             $canEdit = true;
         } elseif ($project->workspace && $project->workspace->hasUser($user->id)) {
-            // Check workspace edit permissions
             $canEdit = $project->workspace->canUserEdit($user->id);
         }
         
@@ -326,17 +357,37 @@ class VoidController extends Controller
                 'message' => 'You do not have permission to edit this frame'
             ], 403);
         }
-    
+
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
             'type' => ['sometimes', Rule::in(['page', 'component'])],
             'canvas_data' => 'sometimes|array',
             'settings' => 'sometimes|array',
         ]);
-    
+
+        // Store original data for change tracking
+        $originalData = $frame->toArray();
+        
         $frame->update($validated);
         $frame->load('project');
-    
+        // BROADCAST FRAME UPDATE
+        if ($project->workspace) {
+            try {
+                broadcast(new FrameUpdated($frame, $project->workspace))->toOthers();
+                Log::info('Frame update broadcasted successfully', [
+                    'frame_id' => $frame->id,
+                    'project_id' => $project->id,
+                    'workspace_id' => $project->workspace->id,
+                    'user_id' => $user->id
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to broadcast frame update', [
+                    'frame_id' => $frame->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
         return response()->json([
             'message' => 'Frame updated successfully',
             'frame' => $frame
@@ -351,14 +402,11 @@ class VoidController extends Controller
         $user = Auth::user();
         $project = $frame->project;
         
-        // Enhanced access control: Check ownership OR workspace edit access
         $canEdit = false;
         
         if ($project->user_id === $user->id) {
-            // User owns the project
             $canEdit = true;
         } elseif ($project->workspace && $project->workspace->hasUser($user->id)) {
-            // Check workspace edit permissions
             $canEdit = $project->workspace->canUserEdit($user->id);
         }
         
@@ -368,12 +416,36 @@ class VoidController extends Controller
                 'message' => 'You do not have permission to delete this frame'
             ], 403);
         }
-    
+
+        // Store frame data for broadcasting before deletion
+        $frameUuid = $frame->uuid;
+        $frameName = $frame->name;
+        $projectUuid = $project->uuid;
+        $workspace = $project->workspace;
+
         // Delete thumbnail if exists
         $this->deleteThumbnail($frame);
-    
+
         $frame->delete();
-    
+        
+        // BROADCAST FRAME DELETION
+        if ($workspace) {
+            try {
+                broadcast(new FrameDeleted($frameUuid, $frameName, $projectUuid, $workspace))->toOthers();
+                Log::info('Frame deletion broadcasted successfully', [
+                    'frame_uuid' => $frameUuid,
+                    'project_uuid' => $projectUuid,
+                    'workspace_id' => $workspace->id,
+                    'user_id' => $user->id
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to broadcast frame deletion', [
+                    'frame_uuid' => $frameUuid,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
         return response()->json([
             'message' => 'Frame deleted successfully'
         ]);
@@ -387,14 +459,11 @@ class VoidController extends Controller
         $user = Auth::user();
         $project = $frame->project;
         
-        // Enhanced access control: Check ownership OR workspace edit access
         $canEdit = false;
         
         if ($project->user_id === $user->id) {
-            // User owns the project
             $canEdit = true;
         } elseif ($project->workspace && $project->workspace->hasUser($user->id)) {
-            // Check workspace edit permissions
             $canEdit = $project->workspace->canUserEdit($user->id);
         }
         
@@ -404,11 +473,11 @@ class VoidController extends Controller
                 'message' => 'You do not have permission to duplicate this frame'
             ], 403);
         }
-    
+
         $validated = $request->validate([
             'name' => 'nullable|string|max:255',
         ]);
-    
+
         $newFrame = $frame->replicate();
         $newFrame->name = $validated['name'] ?? ($frame->name . ' (Copy)');
         
@@ -421,12 +490,30 @@ class VoidController extends Controller
         $newFrame->canvas_data = $canvasData;
         
         $newFrame->save();
-    
+        
         // Generate thumbnail for duplicate
         $this->generateStaticThumbnail($newFrame);
-    
         $newFrame->load('project');
-    
+
+        // BROADCAST FRAME CREATION (for the duplicate)
+        if ($project->workspace) {
+            try {
+                broadcast(new FrameCreated($newFrame, $project->workspace))->toOthers();
+                Log::info('Frame duplication broadcasted successfully', [
+                    'original_frame_id' => $frame->id,
+                    'new_frame_id' => $newFrame->id,
+                    'project_id' => $project->id,
+                    'workspace_id' => $project->workspace->id,
+                    'user_id' => $user->id
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to broadcast frame duplication', [
+                    'new_frame_id' => $newFrame->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
         return response()->json([
             'message' => 'Frame duplicated successfully',
             'frame' => $newFrame
@@ -441,14 +528,11 @@ class VoidController extends Controller
         $user = Auth::user();
         $project = $frame->project;
         
-        // Enhanced access control: Check ownership OR workspace edit access
         $canEdit = false;
         
         if ($project->user_id === $user->id) {
-            // User owns the project
             $canEdit = true;
         } elseif ($project->workspace && $project->workspace->hasUser($user->id)) {
-            // Check workspace edit permissions
             $canEdit = $project->workspace->canUserEdit($user->id);
         }
         
@@ -458,26 +542,44 @@ class VoidController extends Controller
                 'message' => 'You do not have permission to move this frame'
             ], 403);
         }
-    
+
         $validated = $request->validate([
             'x' => 'required|numeric',
             'y' => 'required|numeric',
         ]);
-    
+
         // Update the canvas_data with new position
         $canvasData = $frame->canvas_data ?? [];
         $canvasData['position'] = [
             'x' => $validated['x'],
             'y' => $validated['y']
         ];
-    
+        
         $frame->update(['canvas_data' => $canvasData]);
-    
+
+        // BROADCAST FRAME UPDATE (position change)
+        if ($project->workspace) {
+            try {
+                broadcast(new FrameUpdated($frame, $project->workspace))->toOthers();
+                Log::info('Frame position update broadcasted successfully', [
+                    'frame_id' => $frame->id,
+                    'new_position' => $canvasData['position'],
+                    'user_id' => $user->id
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to broadcast frame position update', [
+                    'frame_id' => $frame->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
         return response()->json([
             'message' => 'Frame position updated successfully',
             'frame' => $frame
         ]);
     }
+
 
     /**
      * Generate thumbnail using Playwright (placeholder for now).

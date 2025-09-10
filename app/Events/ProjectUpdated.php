@@ -1,33 +1,29 @@
 <?php
+// app/Events/ProjectUpdated.php
 namespace App\Events;
 
 use App\Models\Project;
 use App\Models\Workspace;
-use App\Models\User;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class ProjectCreated implements ShouldBroadcast
+class ProjectUpdated implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public $project;
     public $workspace;
-    public $createdBy; // Store user info instead of relying on auth()
+    public $changes;
 
-    public function __construct(Project $project, Workspace $workspace, User $user = null)
+    public function __construct(Project $project, Workspace $workspace, array $changes = [])
     {
         $this->project = $project->load('workspace');
         $this->workspace = $workspace;
-        
-        // Store the user who created the project
-        // Fallback to project owner if user not provided
-        $this->createdBy = $user ?: $project->user;
+        $this->changes = $changes;
     }
 
     public function broadcastOn()
@@ -48,7 +44,6 @@ class ProjectCreated implements ShouldBroadcast
                 'thumbnail' => $this->project->thumbnail ? asset('storage/' . $this->project->thumbnail) : null,
                 'component_count' => $this->project->getComponentCountAttribute(),
                 'frame_count' => $this->project->getFrameCountAttribute(),
-                'created_at' => $this->project->created_at,
                 'updated_at' => $this->project->updated_at,
                 'viewport_width' => $this->project->viewport_width,
                 'viewport_height' => $this->project->viewport_height,
@@ -61,8 +56,9 @@ class ProjectCreated implements ShouldBroadcast
                     'type' => $this->workspace->type,
                 ],
             ],
+            'changes' => $this->changes,
             'workspace_id' => $this->workspace->id,
-            'created_by' => $this->createdBy ? $this->createdBy->name : 'Unknown User',
+            'updated_by' => auth()->user()->name,
         ];
     }
 }
