@@ -1,0 +1,15 @@
+  version: '3.8'
+
+  services:
+    app:
+      build:
+        context: .
+        dockerfile: Dockerfile
+      ports:
+        - "9000:9000"
+      volumes:
+        - .:/var/www
+      environment:
+        DB_CONNECTION: sqlite
+        DB_DATABASE: /var/www/database/database.sqlite
+        APP_KEY: base64:vv9aP4jmAI2ZlGrCsGU8TovwaLPpBamb6LGEJGISteE=
