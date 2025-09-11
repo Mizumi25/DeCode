@@ -1,9 +1,9 @@
-// Enhanced ForgePage.jsx - FIXED Code Panel Toggling + Default Panel Layout
+// Enhanced ForgePage.jsx - Frame Switching with Smooth Transitions
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import Panel from '@/Components/Panel';
-import { Square, Code, Layers, User, Settings, ChevronUp, ChevronDown, Copy, RefreshCw, Monitor, PictureInPicture } from 'lucide-react';
+import { Square, Code, Layers, User, Settings, ChevronUp, ChevronDown, Copy, RefreshCw, Monitor, PictureInPicture, Loader2 } from 'lucide-react';
 import { useForgeStore } from '@/stores/useForgeStore';
 
 // Import separated forge components
@@ -23,7 +23,7 @@ import { componentLibraryService } from '@/Services/ComponentLibraryService';
 import { tooltipDatabase } from '@/Components/Forge/TooltipDatabase';
 import { formatCode, highlightCode, parseCodeAndUpdateComponents } from '@/Components/Forge/CodeUtils';
 
-export default function ForgePage({ projectId, frameId }) {
+export default function ForgePage({ projectId, frameId, project, frame }) {
   // Zustand stores with proper subscriptions
   const {
     toggleForgePanel,
@@ -31,19 +31,23 @@ export default function ForgePage({ projectId, frameId }) {
     getOpenForgePanelsCount,
     allPanelsHidden,
     forgePanelStates,
-    _triggerUpdate // Include trigger for forced re-renders
+    _triggerUpdate
   } = useForgeStore()
+
+  // Frame switching state
+  const [isFrameSwitching, setIsFrameSwitching] = useState(false)
+  const [switchingToFrame, setSwitchingToFrame] = useState(null)
+  const [frameTransitionPhase, setFrameTransitionPhase] = useState('idle') // 'idle', 'fadeOut', 'loading', 'fadeIn'
 
   // Mobile detection
   const [isMobile, setIsMobile] = useState(false)
   const [windowDimensions, setWindowDimensions] = useState({ width: 0, height: 0 })
 
-  // Canvas state for dropped components
-  const [canvasComponents, setCanvasComponents] = useState([])
+  // Canvas state for dropped components - Now frame-specific
+  const [frameCanvasComponents, setFrameCanvasComponents] = useState({})
   const [selectedComponent, setSelectedComponent] = useState(null)
   const [generatedCode, setGeneratedCode] = useState({ html: '', css: '', react: '', tailwind: '' })
   
-  // FIXED: showCodePanel now controlled by ForgeStore code-panel state
   const showCodePanel = isForgePanelOpen('code-panel');
   
   const [codePanelPosition, setCodePanelPosition] = useState('bottom')
@@ -67,7 +71,7 @@ export default function ForgePage({ projectId, frameId }) {
     isDragging: false,
     draggedComponent: null,
     dragPreview: null,
-    variant: null // Track variant being dragged
+    variant: null
   })
 
   // WindowPanel state
@@ -82,13 +86,97 @@ export default function ForgePage({ projectId, frameId }) {
   const canvasRef = useRef(null)
   const codePanelRef = useRef(null)
   
-  const [currentFrame, setCurrentFrame] = useState(frameId || 'frame-1');
+  const [currentFrame, setCurrentFrame] = useState(frameId || frame?.uuid || 'frame-1');
 
-  // Add this handler function
-  const handleFrameSwitch = useCallback((frameId) => {
-    setCurrentFrame(frameId);
-    console.log('Switching to frame:', frameId);
-  }, [projectId]);
+  // Get current frame's canvas components
+  const canvasComponents = frameCanvasComponents[currentFrame] || []
+
+  // Mock project frames data - This should come from your backend
+  const projectFrames = [
+    {
+      id: frameId || frame?.uuid || 'frame-1',
+      name: frame?.name || 'Landing Page',
+      type: 'desktop',
+      thumbnail: '/api/placeholder/200/120',
+      lastModified: '2m ago',
+      components: canvasComponents.length,
+      isActive: true
+    },
+    {
+      id: 'frame-2',
+      name: 'Mobile View',
+      type: 'mobile', 
+      thumbnail: '/api/placeholder/200/120',
+      lastModified: '5m ago',
+      components: 8,
+      isActive: false
+    },
+    {
+      id: 'frame-3',
+      name: 'Dashboard',
+      type: 'desktop',
+      thumbnail: '/api/placeholder/200/120', 
+      lastModified: '1h ago',
+      components: 24,
+      isActive: false
+    }
+  ]
+
+  // Enhanced frame switching handler with smooth transitions
+  const handleFrameSwitch = useCallback(async (newFrameId) => {
+    if (newFrameId === currentFrame || isFrameSwitching) return;
+
+    console.log('Switching from frame:', currentFrame, 'to frame:', newFrameId);
+    
+    setIsFrameSwitching(true);
+    setSwitchingToFrame(newFrameId);
+    
+    try {
+      // Phase 1: Fade out current content
+      setFrameTransitionPhase('fadeOut');
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Phase 2: Show loading state
+      setFrameTransitionPhase('loading');
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Save current frame state before switching
+      if (canvasComponents.length > 0) {
+        setFrameCanvasComponents(prev => ({
+          ...prev,
+          [currentFrame]: canvasComponents
+        }));
+      }
+      
+      // Switch to new frame - In real app, this would navigate via Inertia
+      setCurrentFrame(newFrameId);
+      
+      // Clear current selection when switching frames
+      setSelectedComponent(null);
+      
+      // Load new frame's components (mock data for now)
+      const newFrameComponents = frameCanvasComponents[newFrameId] || [];
+      if (newFrameComponents.length > 0) {
+        generateCode(newFrameComponents);
+      }
+      
+      // Phase 3: Fade in new content
+      setFrameTransitionPhase('fadeIn');
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Phase 4: Complete transition
+      setFrameTransitionPhase('idle');
+      
+      console.log('Frame switch completed to:', newFrameId);
+      
+    } catch (error) {
+      console.error('Error during frame switch:', error);
+      setFrameTransitionPhase('idle');
+    } finally {
+      setIsFrameSwitching(false);
+      setSwitchingToFrame(null);
+    }
+  }, [currentFrame, isFrameSwitching, canvasComponents, frameCanvasComponents]);
 
   // WindowPanel handlers
   const handleOpenWindowPanel = useCallback(() => {
@@ -109,13 +197,6 @@ export default function ForgePage({ projectId, frameId }) {
     }));
   }, []);
 
-  const handleWindowPanelModeChange = useCallback((newMode) => {
-    setWindowPanelState(prev => ({
-      ...prev,
-      mode: newMode
-    }));
-  }, []);
-
   // Handle window resize and mobile detection
   useEffect(() => {
     const handleResize = () => {
@@ -124,26 +205,22 @@ export default function ForgePage({ projectId, frameId }) {
       setWindowDimensions({ width, height });
       setIsMobile(width < 768);
       
-      // Adjust code panel height for mobile
       if (width < 768) {
         setCodePanelHeight(Math.min(400, height * 0.6));
       }
     };
 
-    // Initial detection
     handleResize();
-    
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Initialize component library on mount - Mock version for testing
+  // Initialize component library and load frame-specific data
   useEffect(() => {
     const initializeComponents = async () => {
       try {
         setLoadingMessage('Loading components from database...');
         
-        // Mock the component library service if it doesn't exist
         if (typeof componentLibraryService === 'undefined' || !componentLibraryService) {
           console.warn('componentLibraryService not available, using mock data');
           setComponentsLoaded(true);
@@ -156,12 +233,15 @@ export default function ForgePage({ projectId, frameId }) {
         setComponentsLoaded(true);
         setLoadingMessage('Components loaded successfully!');
         
-        // Load existing project components if projectId and frameId are provided
-        if (projectId && frameId) {
-          setLoadingMessage('Loading existing project components...');
-          const existingComponents = await componentLibraryService.loadProjectComponents(projectId, frameId);
-          setCanvasComponents(existingComponents || []);
+        // Load frame-specific components
+        if (projectId && currentFrame) {
+          setLoadingMessage('Loading frame components...');
+          const existingComponents = await componentLibraryService.loadProjectComponents(projectId, currentFrame);
           if (existingComponents && existingComponents.length > 0) {
+            setFrameCanvasComponents(prev => ({
+              ...prev,
+              [currentFrame]: existingComponents
+            }));
             generateCode(existingComponents);
           }
         }
@@ -169,22 +249,22 @@ export default function ForgePage({ projectId, frameId }) {
         setTimeout(() => setLoadingMessage(''), 2000);
       } catch (error) {
         console.error('Failed to initialize components:', error);
-        setComponentsLoaded(true); // Allow app to continue
+        setComponentsLoaded(true);
         setLoadingMessage('Failed to load components. Using fallback mode.');
         setTimeout(() => setLoadingMessage(''), 3000);
       }
     };
 
     initializeComponents();
-  }, [projectId, frameId]);
+  }, [projectId, currentFrame]);
 
-  // Auto-save project components when they change
+  // Auto-save frame components when they change
   useEffect(() => {
     const saveComponents = async () => {
-      if (projectId && frameId && canvasComponents.length > 0 && componentsLoaded) {
+      if (projectId && currentFrame && canvasComponents.length > 0 && componentsLoaded && !isFrameSwitching) {
         try {
           if (componentLibraryService && componentLibraryService.saveProjectComponents) {
-            await componentLibraryService.saveProjectComponents(projectId, frameId, canvasComponents);
+            await componentLibraryService.saveProjectComponents(projectId, currentFrame, canvasComponents);
           }
         } catch (error) {
           console.error('Failed to auto-save components:', error);
@@ -194,14 +274,11 @@ export default function ForgePage({ projectId, frameId }) {
 
     const timeoutId = setTimeout(saveComponents, 1000);
     return () => clearTimeout(timeoutId);
-  }, [canvasComponents, projectId, frameId, componentsLoaded]);
+  }, [canvasComponents, projectId, currentFrame, componentsLoaded, isFrameSwitching]);
 
-  // CRITICAL FIX: Force re-render when ForgeStore state changes
+  // Force re-render when ForgeStore state changes
   useEffect(() => {
     console.log('ForgePage: ForgeStore state changed, triggering re-render');
-    console.log('Panel states:', forgePanelStates);
-    console.log('All panels hidden:', allPanelsHidden);
-    console.log('Code panel open:', showCodePanel);
   }, [forgePanelStates, allPanelsHidden, _triggerUpdate, showCodePanel]);
 
   // Mobile-specific: Force code panel to bottom on mobile
@@ -213,7 +290,7 @@ export default function ForgePage({ projectId, frameId }) {
 
   // Handle token hover for tooltips
   const handleTokenHover = (e) => {
-    if (!showTooltips || isMobile) return // Disable tooltips on mobile
+    if (!showTooltips || isMobile) return
     
     const token = e.target.getAttribute('data-token')
     if (token && tooltipDatabase && tooltipDatabase[token]) {
@@ -231,7 +308,7 @@ export default function ForgePage({ projectId, frameId }) {
     setHoveredToken(null)
   }
 
-  // Panel handlers - Updated to use ForgeStore with direct logging
+  // Panel handlers
   const handlePanelClose = (panelId) => {
     console.log('ForgePage: Panel close requested for:', panelId);
     toggleForgePanel(panelId)
@@ -242,7 +319,6 @@ export default function ForgePage({ projectId, frameId }) {
   }, [])
 
   const handlePanelToggle = useCallback((panelType) => {
-    // Handle panel toggles from header
     const panelMap = {
       'components': 'components-panel',
       'code': 'code-panel',
@@ -257,15 +333,6 @@ export default function ForgePage({ projectId, frameId }) {
     }
   }, [toggleForgePanel])
 
-  const handlePanelMaximize = (panelType) => {
-    console.log('ForgePage: Panel maximize requested for:', panelType);
-  }
-
-  const handleModeSwitch = (mode) => {
-    console.log('ForgePage: Mode switch requested:', mode);
-  }
-
-  // Component tab handlers
   const handleComponentTabChange = useCallback((tab) => {
     setActiveComponentTab(tab)
   }, [])
@@ -274,7 +341,7 @@ export default function ForgePage({ projectId, frameId }) {
     setComponentSearchTerm(searchTerm)
   }, [])
 
-  // Mock component drag handlers for when service is not available
+  // Component drag handlers
   const handleComponentDragStart = useCallback((e, componentType, variant = null, dragData = null) => {
     console.log('Drag started:', componentType, variant ? `with variant: ${variant.name}` : 'without variant');
 
@@ -304,7 +371,7 @@ export default function ForgePage({ projectId, frameId }) {
     })
   }, [dragState.dragPreview])
 
-  // Canvas drop handlers
+  // Canvas drop handlers - Updated to work with frame-specific components
   const handleCanvasDragOver = useCallback((e) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'copy'
@@ -343,17 +410,23 @@ export default function ForgePage({ projectId, frameId }) {
       }
 
       const updatedComponents = [...canvasComponents, newComponent];
-      setCanvasComponents(updatedComponents)
+      
+      // Update frame-specific components
+      setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: updatedComponents
+      }));
+      
       setSelectedComponent(newComponent.id)
       handleComponentDragEnd()
 
-      console.log('Component dropped:', newComponent);
+      console.log('Component dropped to frame:', currentFrame, newComponent);
       generateCode(updatedComponents)
     } catch (error) {
       console.error('Error handling component drop:', error);
       handleComponentDragEnd();
     }
-  }, [canvasComponents])
+  }, [canvasComponents, currentFrame])
 
   // Component selection handler
   const handleComponentClick = useCallback((componentId, e) => {
@@ -361,17 +434,22 @@ export default function ForgePage({ projectId, frameId }) {
     setSelectedComponent(componentId)
   }, [])
 
-  // Component deletion handler
+  // Component deletion handler - Updated for frame-specific components
   const handleComponentDelete = useCallback((componentId) => {
     const newComponents = canvasComponents.filter(c => c.id !== componentId)
-    setCanvasComponents(newComponents)
+    
+    setFrameCanvasComponents(prev => ({
+      ...prev,
+      [currentFrame]: newComponents
+    }));
+    
     if (selectedComponent === componentId) {
       setSelectedComponent(null)
     }
     generateCode(newComponents)
-  }, [selectedComponent, canvasComponents])
+  }, [selectedComponent, canvasComponents, currentFrame])
 
-  // Property update handler
+  // Property update handler - Updated for frame-specific components
   const handlePropertyUpdate = useCallback((componentId, propName, value) => {
     const updatedComponents = canvasComponents.map(c => {
       if (c.id === componentId) {
@@ -396,20 +474,24 @@ export default function ForgePage({ projectId, frameId }) {
       }
       return c
     })
-    setCanvasComponents(updatedComponents)
+    
+    setFrameCanvasComponents(prev => ({
+      ...prev,
+      [currentFrame]: updatedComponents
+    }));
+    
     generateCode(updatedComponents)
-  }, [canvasComponents])
+  }, [canvasComponents, currentFrame])
 
-  // UPDATED: Code generation - Always generates code when called, no panel showing dependency
+  // Code generation
   const generateCode = useCallback(async (components) => {
     try {
-      // Mock code generation if service is not available
       if (!componentLibraryService || !componentLibraryService.clientSideCodeGeneration) {
         const mockCode = {
-          react: `// Generated React Code\nfunction App() {\n  return (\n    <div>\n      {/* ${components.length} components */}\n    </div>\n  );\n}`,
-          html: `<!-- Generated HTML -->\n<div>\n  <!-- ${components.length} components -->\n</div>`,
-          css: `/* Generated CSS */\n.container {\n  /* Styles for ${components.length} components */\n}`,
-          tailwind: `<!-- Generated Tailwind -->\n<div class="container">\n  <!-- ${components.length} components -->\n</div>`
+          react: `// Generated React Code for Frame: ${currentFrame}\nfunction App() {\n  return (\n    <div>\n      {/* ${components.length} components */}\n    </div>\n  );\n}`,
+          html: `<!-- Generated HTML for Frame: ${currentFrame} -->\n<div>\n  <!-- ${components.length} components -->\n</div>`,
+          css: `/* Generated CSS for Frame: ${currentFrame} */\n.container {\n  /* Styles for ${components.length} components */\n}`,
+          tailwind: `<!-- Generated Tailwind for Frame: ${currentFrame} -->\n<div class="container">\n  <!-- ${components.length} components -->\n</div>`
         };
         setGeneratedCode(mockCode);
         return;
@@ -418,10 +500,9 @@ export default function ForgePage({ projectId, frameId }) {
       const code = await componentLibraryService.clientSideCodeGeneration(components, codeStyle);
       setGeneratedCode(code);
       
-      console.log('Code generated successfully:', Object.keys(code));
+      console.log('Code generated successfully for frame:', currentFrame, Object.keys(code));
     } catch (error) {
       console.error('Failed to generate code:', error);
-      // Fallback to mock code
       const mockCode = {
         react: `// Error generating code\nfunction App() {\n  return <div>Error</div>;\n}`,
         html: `<!-- Error generating code -->`,
@@ -430,7 +511,7 @@ export default function ForgePage({ projectId, frameId }) {
       };
       setGeneratedCode(mockCode);
     }
-  }, [codeStyle])
+  }, [codeStyle, currentFrame])
 
   // Handle code editing
   const handleCodeEdit = useCallback((newCode, codeType) => {
@@ -447,14 +528,14 @@ export default function ForgePage({ projectId, frameId }) {
     }
   }, [])
 
-  // Move code panel to right sidebar (disabled on mobile)
+  // Move code panel to right sidebar
   const moveCodePanelToRightSidebar = useCallback(() => {
     if (!isMobile) {
       setCodePanelPosition('right')
     }
   }, [isMobile])
 
-  // UPDATED: Close code panel handler
+  // Close code panel handler
   const handleCloseCodePanel = useCallback(() => {
     console.log('ForgePage: Closing code panel via toggle');
     toggleForgePanel('code-panel');
@@ -511,6 +592,21 @@ export default function ForgePage({ projectId, frameId }) {
     return isMobile ? 'pb-4' : 'pb-8';
   };
 
+  // Get transition classes based on current phase
+  const getTransitionClasses = () => {
+    switch (frameTransitionPhase) {
+      case 'fadeOut':
+        return 'opacity-0 scale-95 blur-sm';
+      case 'loading':
+        return 'opacity-0 scale-95';
+      case 'fadeIn':
+        return 'opacity-100 scale-100';
+      case 'idle':
+      default:
+        return 'opacity-100 scale-100';
+    }
+  };
+
   // WindowPanel dummy content
   const windowPanelContent = (
     <div className="p-6 space-y-4">
@@ -519,7 +615,7 @@ export default function ForgePage({ projectId, frameId }) {
           Forge Window Panel
         </h2>
         <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          This is a demo window panel integrated into the Forge visual builder
+          Current Frame: {currentFrame}
         </p>
       </div>
       
@@ -532,64 +628,19 @@ export default function ForgePage({ projectId, frameId }) {
             <div>Components: {canvasComponents.length}</div>
             <div>Selected: {selectedComponent ? 'Yes' : 'None'}</div>
             <div>Frame: {currentFrame}</div>
+            <div>Switching: {isFrameSwitching ? 'Yes' : 'No'}</div>
           </div>
         </div>
         
         <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
           <h3 className="font-semibold mb-2" style={{ color: 'var(--color-text)' }}>
-            Code Panel
+            Frame Info
           </h3>
           <div className="text-sm space-y-1" style={{ color: 'var(--color-text-muted)' }}>
-            <div>Visible: {showCodePanel ? 'Yes' : 'No'}</div>
-            <div>Position: {codePanelPosition}</div>
-            <div>Style: {codeStyle}</div>
+            <div>Total Frames: {projectFrames.length}</div>
+            <div>Transition: {frameTransitionPhase}</div>
+            <div>Code Panel: {showCodePanel ? 'Open' : 'Closed'}</div>
           </div>
-        </div>
-      </div>
-      
-      <div className="space-y-2">
-        <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>
-          Quick Actions
-        </h3>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={handleOpenWindowPanel}
-            className="px-3 py-1 text-xs rounded"
-            style={{ 
-              backgroundColor: 'var(--color-primary)',
-              color: 'white'
-            }}
-          >
-            New Window
-          </button>
-          <button
-            onClick={() => generateCode(canvasComponents)}
-            className="px-3 py-1 text-xs rounded"
-            style={{ 
-              backgroundColor: 'var(--color-accent)',
-              color: 'white'
-            }}
-          >
-            Generate Code
-          </button>
-          <button
-            onClick={() => setSelectedComponent(null)}
-            className="px-3 py-1 text-xs rounded"
-            style={{ 
-              backgroundColor: 'var(--color-warning)',
-              color: 'white'
-            }}
-          >
-            Clear Selection
-          </button>
-        </div>
-      </div>
-      
-      <div className="mt-6 p-4 rounded-lg border-2 border-dashed" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
-        <div className="text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          <Monitor className="w-8 h-8 mx-auto mb-2" />
-          This is a demonstration of the WindowPanel component in your Forge builder.
-          You can drag, resize, and switch between modal, window, and fullscreen modes.
         </div>
       </div>
     </div>
@@ -605,14 +656,15 @@ export default function ForgePage({ projectId, frameId }) {
         <p className="text-sm text-gray-600">Mock {title} panel content</p>
         <div className="space-y-1 text-xs text-gray-500">
           <div>This is a placeholder for the {title} panel</div>
-          <div>Components loaded: {componentsLoaded ? 'Yes' : 'No'}</div>
-          <div>Canvas components: {canvasComponents.length}</div>
+          <div>Frame: {currentFrame}</div>
+          <div>Components: {canvasComponents.length}</div>
+          <div>Switching: {isFrameSwitching ? 'Yes' : 'No'}</div>
         </div>
       </div>
     )
   });
 
-  // Memoize default panels with fallbacks - Updated to use ForgeStore visibility
+  // Memoize default panels
   const defaultPanels = useMemo(() => [
     createMockPanel('components-panel', 'Components', 
       ComponentsPanel ? (
@@ -633,7 +685,6 @@ export default function ForgePage({ projectId, frameId }) {
         />
       ) : null
     ),
-    // UPDATED: Properties panel first (stacked on top in right dock)
     createMockPanel('properties-panel', 'Properties',
       PropertiesPanel ? (
         <PropertiesPanel
@@ -646,7 +697,6 @@ export default function ForgePage({ projectId, frameId }) {
         />
       ) : null
     ),
-    // UPDATED: Assets panel second (stacked below properties in right dock)
     createMockPanel('assets-panel', 'Assets',
       AssetsPanel ? <AssetsPanel /> : null
     )
@@ -662,7 +712,7 @@ export default function ForgePage({ projectId, frameId }) {
     generateCode
   ])
 
-  // Memoize the sidebar code panel (only for non-mobile)
+  // Memoize the sidebar code panel
   const sidebarCodePanel = useMemo(() => ({
     id: 'code-panel',
     title: 'Generated Code',
@@ -708,41 +758,30 @@ export default function ForgePage({ projectId, frameId }) {
     isMobile
   ])
 
-  // CRITICAL FIX: Filter visible panels based on ForgeStore state with reactive updates
+  // Filter visible panels based on ForgeStore state
   const visiblePanels = useMemo(() => {
     console.log('ForgePage: Computing visible panels...');
-    console.log('All panels hidden:', allPanelsHidden);
-    console.log('Panel states:', forgePanelStates);
     
     if (allPanelsHidden) {
-      console.log('ForgePage: All panels hidden, returning empty array');
       return []
     }
     
     const panels = []
     
-    // Add default panels based on their ForgeStore state
     defaultPanels.forEach(panel => {
       const isOpen = isForgePanelOpen(panel.id);
-      console.log(`Panel ${panel.id}: open = ${isOpen}`);
       
-      // Always include properties and assets panels (they're always open unless all hidden)
       if (panel.id === 'properties-panel' || panel.id === 'assets-panel') {
         panels.push(panel);
-        console.log(`Added always-open panel: ${panel.id}`);
       } else if (isOpen) {
         panels.push(panel);
-        console.log(`Added togglable panel: ${panel.id}`);
       }
     });
     
-    // Add code panel if showing on right and not mobile and panel is open
     if (codePanelPosition === 'right' && !isMobile && isForgePanelOpen('code-panel')) {
       panels.push(sidebarCodePanel)
-      console.log('Added sidebar code panel');
     }
     
-    console.log(`ForgePage: Final visible panels: ${panels.map(p => p.id).join(', ')}`);
     return panels
   }, [
     defaultPanels, 
@@ -752,17 +791,16 @@ export default function ForgePage({ projectId, frameId }) {
     isForgePanelOpen, 
     allPanelsHidden,
     forgePanelStates,
-    _triggerUpdate // Include trigger to force re-computation
+    _triggerUpdate
   ])
 
-  // Check if any panels are visible - Updated to account for always-open panels
+  // Check if any panels are visible
   const hasVisiblePanels = useMemo(() => {
     const result = !allPanelsHidden && visiblePanels.length > 0;
-    console.log(`ForgePage: hasVisiblePanels = ${result} (${visiblePanels.length} panels)`);
     return result;
   }, [allPanelsHidden, visiblePanels])
 
-  // Tab configuration for components panel ONLY
+  // Tab configuration for components panel
   const componentTabConfig = useMemo(() => ({
     defaultTab: 'elements',
     tabs: [
@@ -785,8 +823,8 @@ export default function ForgePage({ projectId, frameId }) {
       <AuthenticatedLayout
         headerProps={{
           onPanelToggle: handlePanelToggle,
-          panelStates: { /* Legacy compatibility - not used for Forge */ },
-          onModeSwitch: handleModeSwitch
+          panelStates: {},
+          onModeSwitch: () => {}
         }}
       >
         <Head title="Forge - Visual Builder" />
@@ -805,18 +843,68 @@ export default function ForgePage({ projectId, frameId }) {
     <AuthenticatedLayout
       headerProps={{
         onPanelToggle: handlePanelToggle,
-        panelStates: { /* Legacy compatibility - not used for Forge */ },
-        onModeSwitch: handleModeSwitch
+        panelStates: {},
+        onModeSwitch: () => {}
       }}
     >
-      <Head title="Forge - Visual Builder" />
+      <Head title={`Forge - ${frame?.name || 'Visual Builder'}`} />
       
       {/* Enhanced Tooltip with mobile detection */}
       {CodeTooltip && <CodeTooltip hoveredToken={hoveredToken} showTooltips={showTooltips && !isMobile} />}
       
-      {/* Main content area - Enhanced Canvas with responsive padding */}
+      {/* Frame Transition Overlay */}
+      {isFrameSwitching && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
+        >
+          <div 
+            className="bg-white rounded-2xl p-8 shadow-2xl border max-w-md w-full mx-4"
+            style={{ 
+              backgroundColor: 'var(--color-surface)',
+              borderColor: 'var(--color-border)'
+            }}
+          >
+            <div className="text-center space-y-4">
+              <div className="relative">
+                <Loader2 className="w-12 h-12 mx-auto animate-spin" style={{ color: 'var(--color-primary)' }} />
+                <div className="absolute inset-0 rounded-full border-2 border-dashed animate-pulse" style={{ borderColor: 'var(--color-primary-soft)' }}></div>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>
+                  Switching Frames
+                </h3>
+                <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                  Loading {switchingToFrame}...
+                </p>
+              </div>
+              
+              <div className="bg-gray-100 rounded-full h-1 overflow-hidden" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                <div 
+                  className="h-full rounded-full transition-all duration-300 animate-pulse"
+                  style={{ 
+                    backgroundColor: 'var(--color-primary)',
+                    width: frameTransitionPhase === 'fadeOut' ? '25%' : 
+                           frameTransitionPhase === 'loading' ? '75%' : 
+                           frameTransitionPhase === 'fadeIn' ? '100%' : '0%'
+                  }}
+                ></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Main content area with transition effects */}
       <div className="h-[calc(100vh-60px)] flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
-        <div className={`flex-1 flex items-center justify-center ${isMobile ? 'p-4' : 'p-8'} ${getCanvasPadding()}`}>
+        <div 
+          className={`
+            flex-1 flex items-center justify-center transition-all duration-300 ease-in-out
+            ${isMobile ? 'p-4' : 'p-8'} ${getCanvasPadding()}
+            ${getTransitionClasses()}
+          `}
+        >
           {CanvasComponent ? (
             <CanvasComponent
               canvasRef={canvasRef}
@@ -829,27 +917,33 @@ export default function ForgePage({ projectId, frameId }) {
               onCanvasClick={handleCanvasClick}
               onComponentClick={handleComponentClick}
               isMobile={isMobile}
+              currentFrame={currentFrame}
+              isFrameSwitching={isFrameSwitching}
             />
           ) : (
             <div 
               ref={canvasRef}
-              className="w-full h-full bg-white border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center"
+              className={`
+                w-full h-full bg-white border-2 border-dashed border-gray-300 rounded-lg 
+                flex items-center justify-center transition-all duration-300
+                ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
+              `}
               onDragOver={handleCanvasDragOver}
               onDrop={handleCanvasDrop}
               onClick={handleCanvasClick}
             >
               <div className="text-center text-gray-500">
-                <div className="text-lg font-semibold mb-2">Mock Canvas</div>
+                <div className="text-lg font-semibold mb-2">Frame: {currentFrame}</div>
                 <div className="text-sm">Drop components here</div>
                 <div className="text-xs mt-2">Components: {canvasComponents.length}</div>
                 <div className="text-xs">Panels visible: {hasVisiblePanels ? 'Yes' : 'No'}</div>
-                <div className="text-xs">Code panel open: {showCodePanel ? 'Yes' : 'No'}</div>
+                <div className="text-xs">Switching: {isFrameSwitching ? 'Yes' : 'No'}</div>
               </div>
             </div>
           )}
         </div>
         
-        {/* Fixed Code Generation Panel - Bottom (Mobile Optimized) - UPDATED with new close handler */}
+        {/* Fixed Code Generation Panel - Bottom (Mobile Optimized) */}
         {BottomCodePanel && (
           <BottomCodePanel
             showCodePanel={showCodePanel && (codePanelPosition === 'bottom' || isMobile)}
@@ -860,7 +954,6 @@ export default function ForgePage({ projectId, frameId }) {
             setCodePanelHeight={setCodePanelHeight}
             moveCodePanelToRightSidebar={moveCodePanelToRightSidebar}
             setShowCodePanel={handleCloseCodePanel}
-            // CodePanel props
             showTooltips={showTooltips && !isMobile}
             setShowTooltips={setShowTooltips}
             codeStyle={codeStyle}
@@ -880,14 +973,16 @@ export default function ForgePage({ projectId, frameId }) {
             setCodePanelPosition={setCodePanelPosition}
             isMobile={isMobile}
             windowDimensions={windowDimensions}
+            currentFrame={currentFrame}
+            isFrameSwitching={isFrameSwitching}
           />
         )}
       </div>
 
-      {/* Enhanced Panel System - Mobile responsive with 3 panels per dock limit - Updated for default right dock layout */}
+      {/* Enhanced Panel System with transition support */}
       {Panel && hasVisiblePanels && (
         <Panel
-          key={`panel-system-${_triggerUpdate}`} // Force re-render with key
+          key={`panel-system-${_triggerUpdate}`}
           isOpen={true}
           initialPanels={visiblePanels}
           allowedDockPositions={isMobile ? ['left'] : ['left', 'right']}
@@ -896,9 +991,7 @@ export default function ForgePage({ projectId, frameId }) {
           onPanelStateChange={handlePanelStateChange}
           snapToEdge={false}
           mergePanels={true}
-          // UPDATED: Properties and Assets panels should go to right dock by default
           mergePosition={isMobile ? "left" : "right"}
-          // UPDATED: Force properties and assets panels to right dock
           defaultDockPosition={{
             'properties-panel': 'right',
             'assets-panel': 'right',
@@ -916,14 +1009,20 @@ export default function ForgePage({ projectId, frameId }) {
           defaultWidth={isMobile ? 280 : 320}
           minWidth={isMobile ? 250 : 280}
           maxWidth={isMobile ? 300 : 400}
+          isFrameSwitching={isFrameSwitching}
         />
       )}
       
+      {/* Enhanced FloatingFrameSwitcher with project frames data */}
       {FloatingFrameSwitcher && (
         <FloatingFrameSwitcher
           currentFrame={currentFrame}
           onFrameSwitch={handleFrameSwitch}
           isMobile={isMobile}
+          projectFrames={projectFrames}
+          projectId={projectId}
+          isFrameSwitching={isFrameSwitching}
+          frameTransitionPhase={frameTransitionPhase}
         />
       )}
 
@@ -933,7 +1032,7 @@ export default function ForgePage({ projectId, frameId }) {
         title={windowPanelState.title}
         content={windowPanelContent}
         onClose={handleCloseWindowPanel}
-        onModeChange={handleWindowPanelModeChange}
+        onModeChange={() => {}}
         initialMode={windowPanelState.mode}
         initialPosition={windowPanelState.position}
         initialSize={windowPanelState.size}
@@ -947,11 +1046,10 @@ export default function ForgePage({ projectId, frameId }) {
         isMobile={isMobile}
       />
 
-      {/* Mobile-specific: Bottom navigation or quick actions - UPDATED to show code panel toggle */}
+      {/* Mobile-specific: Bottom navigation with enhanced frame switching */}
       {isMobile && (
         <div className="fixed bottom-2 left-1/2 transform -translate-x-1/2 z-40">
           <div className="flex items-center gap-2 bg-black/80 backdrop-blur-md rounded-full px-4 py-2">
-            {/* Code panel toggle for mobile */}
             <button
               onClick={() => toggleForgePanel('code-panel')}
               className={`p-2 rounded-full transition-colors ${
@@ -960,6 +1058,7 @@ export default function ForgePage({ projectId, frameId }) {
                   : 'text-white/70 hover:bg-white/20'
               }`}
               title="Toggle Code Panel"
+              disabled={isFrameSwitching}
             >
               <Code className="w-4 h-4" />
             </button>
@@ -970,6 +1069,7 @@ export default function ForgePage({ projectId, frameId }) {
                   onClick={() => setCodePanelMinimized(!codePanelMinimized)}
                   className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"
                   title={codePanelMinimized ? 'Expand Code Panel' : 'Minimize Code Panel'}
+                  disabled={isFrameSwitching}
                 >
                   {codePanelMinimized ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
@@ -977,6 +1077,7 @@ export default function ForgePage({ projectId, frameId }) {
                   onClick={() => copyCodeToClipboard(generatedCode[activeCodeTab])}
                   className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"
                   title="Copy Code"
+                  disabled={isFrameSwitching}
                 >
                   <Copy className="w-4 h-4" />
                 </button>
@@ -984,8 +1085,9 @@ export default function ForgePage({ projectId, frameId }) {
                   onClick={() => generateCode(canvasComponents)}
                   className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"
                   title="Regenerate Code"
+                  disabled={isFrameSwitching}
                 >
-                  <RefreshCw className="w-4 h-4" />
+                  <RefreshCw className={`w-4 h-4 ${isFrameSwitching ? 'animate-spin' : ''}`} />
                 </button>
               </>
             )}
@@ -994,6 +1096,7 @@ export default function ForgePage({ projectId, frameId }) {
               onClick={handleOpenWindowPanel}
               className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"
               title="Open Window Panel"
+              disabled={isFrameSwitching}
             >
               <PictureInPicture className="w-4 h-4" />
             </button>
@@ -1006,29 +1109,30 @@ export default function ForgePage({ projectId, frameId }) {
         <div className="fixed bottom-6 right-6 z-30">
           <button
             onClick={handleOpenWindowPanel}
-            className="p-3 rounded-full shadow-lg transition-all duration-200 hover:scale-110"
+            className={`p-3 rounded-full shadow-lg transition-all duration-200 hover:scale-110 ${
+              isFrameSwitching ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
             style={{ 
               backgroundColor: 'var(--color-primary)',
               color: 'white',
               boxShadow: 'var(--shadow-lg)'
             }}
             title="Open Window Panel"
+            disabled={isFrameSwitching}
           >
             <Monitor className="w-5 h-5" />
           </button>
         </div>
       )}
 
-      {/* Mobile performance optimization styles */}
+      {/* Enhanced mobile performance optimization styles */}
       {isMobile && (
         <style>{`
-          /* Mobile-specific optimizations */
           * {
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
           }
           
-          /* Reduce animations on mobile */
           @media (max-width: 768px) {
             .motion-reduce {
               animation-duration: 0.01ms !important;
@@ -1036,16 +1140,52 @@ export default function ForgePage({ projectId, frameId }) {
               transition-duration: 0.01ms !important;
             }
             
-            /* Optimize scrolling */
             .overflow-scroll {
               -webkit-overflow-scrolling: touch;
               scroll-behavior: smooth;
             }
             
-            /* Reduce shadows for better performance */
             .shadow-lg, .shadow-xl, .shadow-2xl {
               box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24) !important;
             }
+          }
+
+          /* Frame transition animations */
+          .frame-transition-enter {
+            opacity: 0;
+            transform: scale(0.95) translateY(10px);
+          }
+          
+          .frame-transition-enter-active {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+            transition: all 300ms ease-out;
+          }
+          
+          .frame-transition-exit {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+          
+          .frame-transition-exit-active {
+            opacity: 0;
+            transform: scale(0.95) translateY(-10px);
+            transition: all 200ms ease-in;
+          }
+
+          /* Smooth blur animation for frame switching */
+          .frame-blur-enter {
+            filter: blur(0px);
+          }
+          
+          .frame-blur-active {
+            filter: blur(2px);
+            transition: filter 200ms ease-in-out;
+          }
+          
+          .frame-blur-exit {
+            filter: blur(0px);
+            transition: filter 200ms ease-in-out;
           }
         `}</style>
       )}

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 
 export function useScrollHandler({
   canvasRef,
@@ -13,6 +13,17 @@ export function useScrollHandler({
   onZoom = null
 }) {
   
+  // Track zoom gesture state for touch devices
+  const touchStateRef = useRef({
+    initialDistance: 0,
+    initialZoom: zoom,
+    isZooming: false
+  })
+
+  // Smooth zoom debouncing
+  const zoomTimeoutRef = useRef(null)
+  const lastZoomRef = useRef(zoom)
+
   // Check if target should be ignored for scrolling
   const shouldIgnoreTarget = (target) => {
     return target.closest('.preview-frame') || 
@@ -31,8 +42,45 @@ export function useScrollHandler({
            target.closest('.delete-button') ||
            target.closest('.clickable')
   }
+
+  // Enhanced zoom function with smooth transitions
+  const performZoom = useCallback((delta, centerX, centerY, isSmooth = true) => {
+    if (!onZoom) return
+    
+    // Clear any pending zoom timeout for smoother continuous zooming
+    if (zoomTimeoutRef.current) {
+      clearTimeout(zoomTimeoutRef.current)
+    }
+
+    // Apply zoom immediately for responsiveness
+    onZoom(delta, centerX, centerY)
+    
+    // Set a timeout to finish any smooth zoom transitions
+    if (isSmooth) {
+      zoomTimeoutRef.current = setTimeout(() => {
+        lastZoomRef.current = zoom
+      }, 50)
+    }
+  }, [onZoom, zoom])
+
+  // Calculate distance between two touch points
+  const getTouchDistance = (touches) => {
+    const [touch1, touch2] = touches
+    const dx = touch1.clientX - touch2.clientX
+    const dy = touch1.clientY - touch2.clientY
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  // Get center point between two touches
+  const getTouchCenter = (touches) => {
+    const [touch1, touch2] = touches
+    return {
+      x: (touch1.clientX + touch2.clientX) / 2,
+      y: (touch1.clientY + touch2.clientY) / 2
+    }
+  }
   
-  // Infinite scroll handlers
+  // Enhanced pointer down handler
   const handlePointerDown = (e) => {
     // Don't handle if clicking on interactive elements
     if (shouldIgnoreTarget(e.target)) {
@@ -76,9 +124,11 @@ export function useScrollHandler({
 
   const handlePointerUp = () => {
     setIsDragging(false)
+    touchStateRef.current.isZooming = false
     document.body.style.cursor = ''
   }
 
+  // Enhanced wheel handler with smooth zooming
   const handleWheel = (e) => {
     // Don't handle wheel on interactive elements
     if (shouldIgnoreTarget(e.target)) {
@@ -87,14 +137,14 @@ export function useScrollHandler({
     
     // Check for zoom gesture (Ctrl/Cmd + wheel)
     if ((e.ctrlKey || e.metaKey) && onZoom) {
-      const zoomDelta = -e.deltaY
-      onZoom(zoomDelta, e.clientX, e.clientY)
+      const zoomDelta = -e.deltaY * 2 // Increase zoom sensitivity
+      performZoom(zoomDelta, e.clientX, e.clientY, true)
       e.preventDefault()
       return
     }
     
     // Regular scroll with zoom-adjusted sensitivity
-    const sensitivity = 0.2 / zoom
+    const sensitivity = Math.max(0.1, 0.2 / zoom) // Prevent too slow scrolling at high zoom
     const deltaX = e.deltaX * sensitivity
     const deltaY = e.deltaY * sensitivity
     
@@ -112,7 +162,7 @@ export function useScrollHandler({
     e.preventDefault()
   }
 
-  // Pinch zoom support for touch devices
+  // Enhanced touch handlers with pinch-to-zoom
   const handleTouchStart = (e) => {
     if (shouldIgnoreTarget(e.target)) {
       return
@@ -120,32 +170,60 @@ export function useScrollHandler({
     
     if (e.touches.length === 2) {
       // Two-finger touch detected - prepare for pinch zoom
+      const distance = getTouchDistance(e.touches)
+      touchStateRef.current = {
+        initialDistance: distance,
+        initialZoom: zoom,
+        isZooming: true
+      }
       e.preventDefault()
       return
     }
     
     // Single touch - handle as regular pointer
+    touchStateRef.current.isZooming = false
     handlePointerDown(e)
   }
 
   const handleTouchMove = (e) => {
-    if (e.touches.length === 2) {
+    if (e.touches.length === 2 && touchStateRef.current.isZooming) {
       // Two-finger pinch zoom
+      const currentDistance = getTouchDistance(e.touches)
+      const center = getTouchCenter(e.touches)
+      const canvas = canvasRef.current
+      
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect()
+        const centerX = center.x - rect.left
+        const centerY = center.y - rect.top
+        
+        // Calculate zoom delta based on distance change
+        const distanceChange = currentDistance - touchStateRef.current.initialDistance
+        const zoomDelta = distanceChange * 3 // Adjust sensitivity
+        
+        performZoom(zoomDelta, centerX, centerY, false)
+      }
+      
       e.preventDefault()
       return
     }
     
     // Single touch - handle as regular pointer
-    handlePointerMove(e)
+    if (!touchStateRef.current.isZooming) {
+      handlePointerMove(e)
+    }
   }
 
   const handleTouchEnd = (e) => {
     if (e.touches.length === 0) {
       handlePointerUp()
+    } else if (e.touches.length === 1) {
+      // Switched from two fingers to one
+      touchStateRef.current.isZooming = false
     }
   }
 
-  // Keyboard shortcuts for zoom
+  // Enhanced keyboard shortcuts for zoom
   const handleKeyDown = (e) => {
     if (!onZoom) return
     
@@ -157,72 +235,60 @@ export function useScrollHandler({
       return
     }
     
+    const canvas = canvasRef.current
+    if (!canvas) return
+    
+    const rect = canvas.getBoundingClientRect()
+    const centerX = rect.width / 2
+    const centerY = rect.height / 2
+    
     if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '=')) {
       e.preventDefault()
-      const canvas = canvasRef.current
-      if (canvas) {
-        const rect = canvas.getBoundingClientRect()
-        const centerX = rect.left + rect.width / 2
-        const centerY = rect.top + rect.height / 2
-        onZoom(100, centerX, centerY) // Zoom in
-      }
+      performZoom(100, centerX, centerY, true) // Zoom in
     } else if ((e.ctrlKey || e.metaKey) && e.key === '-') {
       e.preventDefault()
-      const canvas = canvasRef.current
-      if (canvas) {
-        const rect = canvas.getBoundingClientRect()
-        const centerX = rect.left + rect.width / 2
-        const centerY = rect.top + rect.height / 2
-        onZoom(-100, centerX, centerY) // Zoom out
-      }
+      performZoom(-100, centerX, centerY, true) // Zoom out
     } else if ((e.ctrlKey || e.metaKey) && e.key === '0') {
       e.preventDefault()
-      // Reset zoom to 100%
-      if (onZoom) {
-        const canvas = canvasRef.current
-        if (canvas) {
-          const rect = canvas.getBoundingClientRect()
-          const centerX = rect.left + rect.width / 2
-          const centerY = rect.top + rect.height / 2
-          // This would need to be handled differently to reset zoom
-          // For now, just zoom in/out toward center
-          onZoom(0, centerX, centerY)
-        }
-      }
+      // Reset to 100% zoom
+      const targetZoom = 1
+      const currentZoom = zoom
+      const zoomDelta = (targetZoom - currentZoom) * 500 // Adjust for smooth transition
+      performZoom(zoomDelta, centerX, centerY, true)
     }
   }
 
-  // Attach scroll handlers
+  // Attach scroll handlers with proper cleanup
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    // Only attach mouse events to canvas directly
-    canvas.addEventListener('mousedown', handlePointerDown)
+    // Canvas-specific events
+    canvas.addEventListener('mousedown', handlePointerDown, { passive: false })
     canvas.addEventListener('wheel', handleWheel, { passive: false })
     canvas.addEventListener('touchstart', handleTouchStart, { passive: false })
     
-    // Global events only for movement and release
+    // Global events for movement and release
     const handleGlobalMouseMove = (e) => {
-      if (isDragging) {
+      if (isDragging && !touchStateRef.current.isZooming) {
         handlePointerMove(e)
       }
     }
     
-    const handleGlobalMouseUp = (e) => {
+    const handleGlobalMouseUp = () => {
       if (isDragging) {
         handlePointerUp()
       }
     }
     
     const handleGlobalTouchMove = (e) => {
-      if (isDragging) {
+      if (isDragging || touchStateRef.current.isZooming) {
         handleTouchMove(e)
       }
     }
     
     const handleGlobalTouchEnd = (e) => {
-      if (isDragging) {
+      if (isDragging || touchStateRef.current.isZooming) {
         handleTouchEnd(e)
       }
     }
@@ -249,8 +315,18 @@ export function useScrollHandler({
       if (onZoom) {
         document.removeEventListener('keydown', handleKeyDown)
       }
+
+      // Clear any pending zoom timeouts
+      if (zoomTimeoutRef.current) {
+        clearTimeout(zoomTimeoutRef.current)
+      }
     }
-  }, [isDragging, lastPointerPos, scrollBounds, setScrollPosition, setIsDragging, setLastPointerPos, zoom, onZoom])
+  }, [isDragging, lastPointerPos, scrollBounds, setScrollPosition, setIsDragging, setLastPointerPos, zoom, onZoom, performZoom])
+
+  // Update zoom reference when zoom changes
+  useEffect(() => {
+    lastZoomRef.current = zoom
+  }, [zoom])
 
   return {
     handlePointerDown,

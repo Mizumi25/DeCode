@@ -482,4 +482,144 @@ class FrameLockController extends Controller
             ], 500);
         }
     }
+
+  /**
+   * Toggle lock status (Web version for Inertia)
+   */
+  public function toggleLockWeb(Request $request, Frame $frame)
+  {
+      $result = $this->toggleLock($request, $frame);
+      $data = json_decode($result->getContent(), true);
+      
+      if ($request->wantsJson()) {
+          return $result;
+      }
+      
+      if ($data['success']) {
+          return back()
+              ->with('success', $data['message'])
+              ->with('lock_status', $data['lock_status'])
+              ->with('frame_uuid', $frame->uuid);
+      } else {
+          return back()->withErrors(['lock_error' => $data['message']]);
+      }
+  }
+  
+  /**
+   * Request access (Web version for Inertia)
+   */
+  public function requestAccessWeb(Request $request, Frame $frame)
+  {
+      $result = $this->requestAccess($request, $frame);
+      $data = json_decode($result->getContent(), true);
+      
+      if ($request->wantsJson()) {
+          return $result;
+      }
+      
+      if ($data['success']) {
+          // Get updated lock status after request
+          $lockStatus = $frame->fresh()->getLockStatusForUser(auth()->id());
+          
+          return back()
+              ->with('success', $data['message'])
+              ->with('lock_status', $lockStatus)
+              ->with('frame_uuid', $frame->uuid);
+      } else {
+          return back()->withErrors(['request_error' => $data['message']]);
+      }
+  }
+  
+  /**
+   * Get lock status (Web version)
+   */
+  public function getLockStatusWeb(Request $request, Frame $frame)
+  {
+      return $this->getLockStatus($frame);
+  }
+  
+  /**
+   * Force unlock (Web version for Inertia)
+   */
+  public function forceUnlockWeb(Request $request, Frame $frame)
+  {
+      $result = $this->forceUnlock($frame);
+      $data = json_decode($result->getContent(), true);
+      
+      if ($request->wantsJson()) {
+          return $result;
+      }
+      
+      if ($data['success']) {
+          return back()->with('success', $data['message'])
+                     ->with('lock_status', $data['lock_status']);
+      } else {
+          return back()->withErrors(['unlock_error' => $data['message']]);
+      }
+  }
+  
+  /**
+   * Get pending requests (Web version)
+   */
+  public function getPendingRequestsWeb(Request $request)
+  {
+      return $this->getPendingRequests();
+  }
+  
+  /**
+   * Respond to request (Web version for Inertia)
+   */
+  public function respondToRequestWeb(Request $request, FrameLockRequest $lockRequest)
+  {
+      $result = $this->respondToRequest($request, $lockRequest);
+      $data = json_decode($result->getContent(), true);
+      
+      if ($request->wantsJson()) {
+          return $result;
+      }
+      
+      if ($data['success']) {
+          return back()->with('success', $data['message']);
+      } else {
+          return back()->withErrors(['response_error' => $data['message']]);
+      }
+  }
+  
+  /**
+   * Cancel request (Web version for Inertia)
+   */
+  public function cancelRequestWeb(Request $request, FrameLockRequest $lockRequest)
+  {
+      $result = $this->cancelRequest($lockRequest);
+      $data = json_decode($result->getContent(), true);
+      
+      if ($request->wantsJson()) {
+          return $result;
+      }
+      
+      if ($data['success']) {
+          return back()->with('success', $data['message']);
+      } else {
+          return back()->withErrors(['cancel_error' => $data['message']]);
+      }
+  }
+  
+  /**
+   * Cleanup expired requests (Web version for Inertia)
+   */
+  public function cleanupExpiredWeb(Request $request)
+  {
+      $result = $this->cleanupExpired();
+      $data = json_decode($result->getContent(), true);
+      
+      if ($request->wantsJson()) {
+          return $result;
+      }
+      
+      if ($data['success']) {
+          return back()->with('success', $data['message']);
+      } else {
+          return back()->withErrors(['cleanup_error' => $data['message']]);
+      }
+  }
 }

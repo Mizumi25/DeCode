@@ -6,6 +6,7 @@ use App\Http\Controllers\ForgeController;
 use App\Http\Controllers\SourceController;
 use App\Http\Controllers\WorkspaceController; 
 use App\Http\Controllers\InviteController; 
+use App\Http\Controllers\FrameLockController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
@@ -61,6 +62,23 @@ Route::middleware('auth')->group(function () {
     Route::get('/asset-management', fn () => Inertia::render('Admin/AssetManagerPage'))->name('admin.asset');
     Route::get('/feedback-report', fn () => Inertia::render('Admin/FeedbackReportPage'))->name('admin.feedback');
     Route::get('/project-oversight', fn () => Inertia::render('Admin/ProjectOversightPage'))->name('admin.oversight');
+    
+    
+    // Frame lock system routes (web routes that return JSON for AJAX or redirect for forms)
+    Route::prefix('frames/{frame:uuid}')->group(function () {
+        Route::post('/lock/toggle', [FrameLockController::class, 'toggleLockWeb'])->name('frames.toggle-lock');
+        Route::post('/lock/request', [FrameLockController::class, 'requestAccessWeb'])->name('frames.request-access');
+        Route::get('/lock/status', [FrameLockController::class, 'getLockStatusWeb'])->name('frames.lock-status');
+        Route::post('/lock/force-unlock', [FrameLockController::class, 'forceUnlockWeb'])->name('frames.force-unlock');
+    });
+    
+    // Frame lock request management (web routes)
+    Route::prefix('lock-requests')->group(function () {
+        Route::get('/pending', [FrameLockController::class, 'getPendingRequestsWeb'])->name('lock-requests.pending');
+        Route::post('/{lockRequest:uuid}/respond', [FrameLockController::class, 'respondToRequestWeb'])->name('lock-requests.respond');
+        Route::delete('/{lockRequest:uuid}/cancel', [FrameLockController::class, 'cancelRequestWeb'])->name('lock-requests.cancel');
+        Route::post('/cleanup', [FrameLockController::class, 'cleanupExpiredWeb'])->name('lock-requests.cleanup');
+    });
     
     Broadcast::routes();
 });

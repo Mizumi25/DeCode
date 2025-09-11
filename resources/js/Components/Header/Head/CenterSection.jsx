@@ -4,6 +4,7 @@ import { Settings, EyeOff, Eye } from 'lucide-react'
 import SearchBar from './SearchBar'
 import UndoRedoControls from './UndoRedoControls'
 import ZoomControls from './ZoomControls'
+import VoidZoomControls from './VoidZoomControls' // Import the new component
 import BinaryToggle from './BinaryToggle'
 import MiddlePanelControls from './MiddlePanelControls'
 import { MousePointer, Hand } from 'lucide-react'
@@ -43,7 +44,6 @@ const CenterSection = ({
     !onForgePage &&
     !onSourcePage
 
-
   const interactionOptions = [
     { key: 'cursor', icon: MousePointer },
     { key: 'hand', icon: Hand }
@@ -64,7 +64,7 @@ const CenterSection = ({
     )
   }
 
-  // Void Page Center Controls
+  // Void Page Center Controls - Enhanced with better zoom controls
   if (onVoidPage) {
     return (
       <motion.div
@@ -72,7 +72,7 @@ const CenterSection = ({
         initial="hidden"
         animate="visible"
         custom={2}
-        className="flex items-center gap-2 flex-shrink-0"
+        className="flex items-center gap-3 flex-shrink-0"
       >
         {/* Undo/Redo */}
         <UndoRedoControls size="normal" />
@@ -80,8 +80,12 @@ const CenterSection = ({
         {/* Vertical Divider */}
         <div className="w-px h-4 bg-[var(--color-border)]"></div>
         
-        {/* Zoom Controls */}
-        <ZoomControls zoomLevel={zoomLevel} onZoomChange={setZoomLevel} />
+        {/* Enhanced Zoom Controls - Specific for Void Page */}
+        <VoidZoomControls 
+          zoomLevel={zoomLevel} 
+          onZoomChange={setZoomLevel}
+          className="px-1"
+        />
 
         {/* Vertical Divider */}
         <div className="w-px h-4 bg-[var(--color-border)]"></div>
@@ -93,13 +97,16 @@ const CenterSection = ({
           options={interactionOptions}
         />
 
-        {/* Vertical Divider */}
-        <div className="w-px h-4 bg-[var(--color-border)]"></div>
+        {/* Visual indicator for enhanced functionality */}
+        <div className="flex items-center gap-1 px-2 py-1 bg-[var(--color-bg-muted)] rounded-md opacity-60">
+          <div className="w-1 h-1 bg-[var(--color-primary)] rounded-full animate-pulse"></div>
+          <span className="text-xs text-[var(--color-text-muted)] font-mono">VOID</span>
+        </div>
       </motion.div>
     )
   }
 
-  // Forge and Source Page Middle Icons
+  // Forge and Source Page Middle Icons - Use standard zoom controls
   if (onForgePage || onSourcePage) {
     return (
       <motion.div

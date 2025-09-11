@@ -618,9 +618,21 @@ class ProjectController extends Controller
 
     
 
-    public function store(Request $request): RedirectResponse 
-    {
-        $user = Auth::user();
+
+public function store(Request $request): RedirectResponse 
+{
+    // Add extensive logging for debugging
+    \Log::info('=== PROJECT CREATION DEBUG START ===');
+    \Log::info('Request method: ' . $request->method());
+    \Log::info('Request URL: ' . $request->fullUrl());
+    \Log::info('Request headers: ', $request->headers->all());
+    \Log::info('Raw request data: ', $request->all());
+    \Log::info('User ID: ' . auth()->id());
+    
+    $user = Auth::user();
+    
+    try {
+        \Log::info('Starting validation...');
         
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -647,137 +659,154 @@ class ProjectController extends Controller
             'template_id' => 'nullable|integer|exists:projects,id',
             'workspace_id' => 'required|integer|exists:workspaces,id'
         ]);
-
-        // Enhanced workspace validation
-        $workspaceId = $validated['workspace_id'];
-        $workspace = Workspace::find($workspaceId);
         
-        if (!$workspace) {
-            return redirect()->back()->withErrors([
-                'workspace_id' => 'The specified workspace does not exist.'
-            ]);
-        }
-
-        // Check if user has access to the workspace
-        if (!$workspace->hasUser($user->id)) {
-            return redirect()->back()->withErrors([
-                'workspace_id' => 'You do not have access to this workspace.'
-            ]);
-        }
-
-        // Check if user can create projects in this workspace
-        $userRole = $workspace->getUserRole($user->id);
-        if (!in_array($userRole, ['owner', 'editor'])) {
-            return redirect()->back()->withErrors([
-                'workspace_id' => 'You do not have permission to create projects in this workspace.'
-            ]);
-        }
-
-        // Set defaults and prepare project data
-        $validated['user_id'] = $user->id;
-        $validated['workspace_id'] = $workspaceId;
-        $validated['settings'] = array_merge(Project::getDefaultSettings(), [
-            'responsive_breakpoints' => $validated['responsive_breakpoints'] ?? [
-                'mobile' => 375,
-                'tablet' => 768,
-                'desktop' => 1440
-            ]
-        ]);
-        $validated['export_settings'] = Project::getDefaultExportSettings();
-        $validated['status'] = 'draft';
-        $validated['last_opened_at'] = now();
-
-        // Set viewport defaults if not provided
-        $validated['viewport_width'] = $validated['viewport_width'] ?? 1440;
-        $validated['viewport_height'] = $validated['viewport_height'] ?? 900;
-        $validated['css_framework'] = $validated['css_framework'] ?? 'tailwind';
-        $validated['output_format'] = $validated['output_format'] ?? 'html';
-
-        // Initialize canvas data with default frame structure
-        $validated['canvas_data'] = [
-            'frames' => [
-                [
-                    'id' => 'frame_' . uniqid(),
-                    'name' => 'Home Page',
-                    'type' => 'page',
-                    'width' => $validated['viewport_width'],
-                    'height' => $validated['viewport_height'],
-                    'x' => 0,
-                    'y' => 0,
-                    'background' => '#ffffff',
-                    'components' => [],
-                    'created_at' => now()->toISOString(),
-                ]
-            ],
-            'zoom' => 1,
-            'pan' => ['x' => 0, 'y' => 0],
-            'selected_frame' => null,
-            'grid_settings' => [
-                'enabled' => true,
-                'size' => 10,
-                'snap' => true
-            ]
-        ];
-
-        try {
-            $project = Project::create($validated);
-
-            // If created from template, copy canvas data and settings
-            if (isset($validated['template_id'])) {
-                $template = Project::find($validated['template_id']);
-                if ($template && ($template->is_public || $template->user_id === $user->id)) {
-                    $project->update([
-                        'canvas_data' => $template->canvas_data,
-                        'settings' => array_merge($project->settings, $template->settings ?? [])
-                    ]);
-                }
-            }
-
-            // BROADCAST PROJECT CREATION
-            try {
-                broadcast(new ProjectCreated($project, $workspace, $user))->toOthers();
-                
-                \Log::info('Project creation broadcasted successfully', [
-                    'project_id' => $project->id,
-                    'workspace_id' => $workspace->id,
-                    'user_id' => $user->id
-                ]);
-            } catch (\Exception $e) {
-                // Log broadcast failure but don't fail the project creation
-                \Log::warning('Failed to broadcast project creation', [
-                    'project_id' => $project->id,
-                    'error' => $e->getMessage()
-                ]);
-            }
-            
-            // Log project creation for debugging
-            \Log::info('Project created successfully', [
-                'project_id' => $project->id,
-                'project_name' => $project->name,
-                'workspace_id' => $project->workspace_id,
-                'workspace_name' => $workspace->name,
-                'user_id' => $user->id
-            ]);
-
-            // Redirect to void editor using UUID, include workspace context
-            return redirect()->route('void.index', [
-                'project' => $project->uuid,
-                'workspace' => $workspace->id
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Failed to create project', [
-                'user_id' => $user->id,
-                'workspace_id' => $workspaceId,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return redirect()->back()->withErrors([
-                'general' => 'Failed to create project. Please try again.'
-            ])->withInput();
-        }
+        \Log::info('Validation passed. Validated data: ', $validated);
+        
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        \Log::error('Validation failed: ', $e->errors());
+        \Log::info('=== PROJECT CREATION DEBUG END (VALIDATION ERROR) ===');
+        throw $e;
     }
+    
+    // Enhanced workspace validation
+    $workspaceId = $validated['workspace_id'];
+    \Log::info('Looking for workspace with ID: ' . $workspaceId);
+    
+    $workspace = Workspace::find($workspaceId);
+    
+    if (!$workspace) {
+        \Log::error('Workspace not found with ID: ' . $workspaceId);
+        \Log::info('Available workspaces: ', Workspace::all(['id', 'name'])->toArray());
+        \Log::info('=== PROJECT CREATION DEBUG END (WORKSPACE NOT FOUND) ===');
+        return redirect()->back()->withErrors([
+            'workspace_id' => 'The specified workspace does not exist.'
+        ]);
+    }
+    
+    \Log::info('Found workspace: ', $workspace->toArray());
+
+    // Check if user has access to the workspace
+    $hasAccess = $workspace->hasUser($user->id);
+    \Log::info('User has workspace access: ' . ($hasAccess ? 'Yes' : 'No'));
+    
+    if (!$hasAccess) {
+        \Log::error('User does not have access to workspace: ' . $workspaceId);
+        \Log::info('Workspace users: ', $workspace->users->pluck('id')->toArray());
+        \Log::info('Workspace owner: ', $workspace->owner_id);
+        \Log::info('=== PROJECT CREATION DEBUG END (NO ACCESS) ===');
+        return redirect()->back()->withErrors([
+            'workspace_id' => 'You do not have access to this workspace.'
+        ]);
+    }
+
+    // Check if user can create projects in this workspace
+    $userRole = $workspace->getUserRole($user->id);
+    \Log::info('User role in workspace: ' . $userRole);
+    
+    if (!in_array($userRole, ['owner', 'editor'])) {
+        \Log::error('User role insufficient for project creation: ' . $userRole);
+        \Log::info('=== PROJECT CREATION DEBUG END (INSUFFICIENT ROLE) ===');
+        return redirect()->back()->withErrors([
+            'workspace_id' => 'You do not have permission to create projects in this workspace.'
+        ]);
+    }
+
+    // Set defaults and prepare project data
+    $validated['user_id'] = $user->id;
+    $validated['workspace_id'] = $workspaceId;
+    $validated['settings'] = array_merge(Project::getDefaultSettings(), [
+        'responsive_breakpoints' => $validated['responsive_breakpoints'] ?? [
+            'mobile' => 375,
+            'tablet' => 768,
+            'desktop' => 1440
+        ]
+    ]);
+    $validated['export_settings'] = Project::getDefaultExportSettings();
+    $validated['status'] = 'draft';
+    $validated['last_opened_at'] = now();
+
+    // Set viewport defaults if not provided
+    $validated['viewport_width'] = $validated['viewport_width'] ?? 1440;
+    $validated['viewport_height'] = $validated['viewport_height'] ?? 900;
+    $validated['css_framework'] = $validated['css_framework'] ?? 'tailwind';
+    $validated['output_format'] = $validated['output_format'] ?? 'html';
+
+    // Initialize canvas data with default frame structure
+    $validated['canvas_data'] = [
+        'frames' => [
+            [
+                'id' => 'frame_' . uniqid(),
+                'name' => 'Home Page',
+                'type' => 'page',
+                'width' => $validated['viewport_width'],
+                'height' => $validated['viewport_height'],
+                'x' => 0,
+                'y' => 0,
+                'background' => '#ffffff',
+                'components' => [],
+                'created_at' => now()->toISOString(),
+            ]
+        ],
+        'zoom' => 1,
+        'pan' => ['x' => 0, 'y' => 0],
+        'selected_frame' => null,
+        'grid_settings' => [
+            'enabled' => true,
+            'size' => 10,
+            'snap' => true
+        ]
+    ];
+
+    \Log::info('Final validated data for project creation: ', $validated);
+
+    try {
+        \Log::info('Attempting to create project...');
+        $project = Project::create($validated);
+        \Log::info('Project created successfully with ID: ' . $project->id);
+
+        // If created from template, copy canvas data and settings
+        if (isset($validated['template_id'])) {
+            \Log::info('Processing template copy...');
+            $template = Project::find($validated['template_id']);
+            if ($template && ($template->is_public || $template->user_id === $user->id)) {
+                $project->update([
+                    'canvas_data' => $template->canvas_data,
+                    'settings' => array_merge($project->settings, $template->settings ?? [])
+                ]);
+                \Log::info('Template data copied successfully');
+            }
+        }
+
+        // BROADCAST PROJECT CREATION
+        try {
+            \Log::info('Broadcasting project creation...');
+            broadcast(new ProjectCreated($project, $workspace, $user))->toOthers();
+            \Log::info('Project creation broadcasted successfully');
+        } catch (\Exception $e) {
+            // Log broadcast failure but don't fail the project creation
+            \Log::warning('Failed to broadcast project creation: ' . $e->getMessage());
+        }
+        
+        \Log::info('Project creation completed successfully');
+        \Log::info('Redirecting to: /void/' . $project->uuid . '?workspace=' . $workspace->id);
+        \Log::info('=== PROJECT CREATION DEBUG END (SUCCESS) ===');
+
+        // Redirect to void editor using UUID, include workspace context
+        return redirect()->route('void.index', [
+            'project' => $project->uuid,
+            'workspace' => $workspace->id
+        ]);
+
+    } catch (\Exception $e) {
+        \Log::error('Failed to create project: ' . $e->getMessage());
+        \Log::error('Stack trace: ' . $e->getTraceAsString());
+        \Log::info('=== PROJECT CREATION DEBUG END (CREATION ERROR) ===');
+
+        return redirect()->back()->withErrors([
+            'general' => 'Failed to create project. Please try again. Error: ' . $e->getMessage()
+        ])->withInput();
+    }
+}
 
     /**
      * Dedicated search API endpoint for faster AJAX requests with workspace filtering
