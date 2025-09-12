@@ -641,11 +641,15 @@ const CanvasComponent = ({
         className={`relative w-full h-[500px] border-2 border-dashed rounded-2xl transition-all duration-300 overflow-hidden ${
           dragState.isDragging ? 'scale-105' : ''
         }`}
-        style={{
+          style={{
           borderColor: dragState.isDragging ? 'var(--color-primary)' : 'var(--color-border)',
           backgroundColor: dragState.isDragging ? 'var(--color-primary-soft)' : 'var(--color-surface)',
-          backgroundImage:
-            'radial-gradient(circle at 1px 1px, rgba(155, 155, 155, 0.15) 1px, transparent 0)',
+          backgroundImage: `
+            radial-gradient(circle at 1px 1px, 
+              var(--color-text-muted) 1px, 
+              transparent 0
+            )
+          `,
           backgroundSize: '20px 20px',
           boxShadow: 'var(--shadow-lg)'
         }}
