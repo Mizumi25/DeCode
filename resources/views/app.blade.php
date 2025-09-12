@@ -24,13 +24,15 @@
     
     
     <script>
-      window.REVERB_CONFIG = {
-          key: "{{ config('broadcasting.connections.reverb.key') }}",
-          cluster: "{{ config('broadcasting.connections.reverb.cluster') }}",
-          host: "{{ config('broadcasting.connections.reverb.host') }}",
-          port: {{ config('broadcasting.connections.reverb.port') }},
-          scheme: "{{ config('broadcasting.connections.reverb.scheme') }}"
-      };
-  </script>
+        window.REVERB_CONFIG = {
+            key: "{{ env('REVERB_APP_KEY') }}",
+            cluster: "{{ env('REVERB_CLUSTER') }}",
+            wsHost: "{{ env('REVERB_HOST') }}",
+            wsPort: {{ env('REVERB_PORT', 80) }},
+            wssPort: {{ env('REVERB_PORT', 443) }},
+            forceTLS: "{{ env('REVERB_SCHEME', 'https') }}" === 'https'
+        };
+    </script>
+
 
 </html>
