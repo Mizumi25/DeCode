@@ -18,11 +18,13 @@ RUN apt-get update && apt-get install -y \
     && apt-get install -y nodejs \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
 WORKDIR /var/www
 
 # Copy project files
 COPY . .
+
+# Copy .env explicitly first so Vite build can read it
+COPY .env .env
 
 # Install Composer and PHP dependencies
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
@@ -34,7 +36,7 @@ RUN npm install
 # Ensure SQLite, storage, cache permissions
 RUN chown -R www-data:www-data /var/www/database /var/www/storage /var/www/bootstrap/cache
 
-# Build Vite assets (important: must happen after env is available)
+# Build Vite assets **after env is present**
 RUN npm run build
 
 # Expose Render's dynamic port
