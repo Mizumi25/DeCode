@@ -23,8 +23,6 @@ WORKDIR /var/www
 # Copy project files
 COPY . .
 
-# Copy .env explicitly first so Vite build can read it
-COPY .env .env
 
 # Install Composer and PHP dependencies
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
