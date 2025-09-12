@@ -21,4 +21,16 @@
     <body class="font-sans antialiased">
         @inertia
     </body>
+    
+    
+    <script>
+      window.REVERB_CONFIG = {
+          key: "{{ config('broadcasting.connections.reverb.key') }}",
+          cluster: "{{ config('broadcasting.connections.reverb.cluster') }}",
+          host: "{{ config('broadcasting.connections.reverb.host') }}",
+          port: {{ config('broadcasting.connections.reverb.port') }},
+          scheme: "{{ config('broadcasting.connections.reverb.scheme') }}"
+      };
+  </script>
+
 </html>

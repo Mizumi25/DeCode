@@ -1,16 +1,25 @@
-import Echo from 'laravel-echo'
-import Pusher from 'pusher-js'
+import Echo from 'laravel-echo';
+import Pusher from 'pusher-js';
 
-window.Pusher = Pusher
+window.Pusher = Pusher;
 
-window.Echo = new Echo({
-    broadcaster: 'reverb', // Reverb speaks Pusher protocol
+const config = window.REVERB_CONFIG ?? {
     key: import.meta.env.VITE_REVERB_APP_KEY,
     cluster: import.meta.env.VITE_REVERB_CLUSTER,
     wsHost: import.meta.env.VITE_REVERB_HOST,
-    wsPort: import.meta.env.VITE_REVERB_SCHEME === 'https' ? 443 : 80,
-    wssPort: import.meta.env.VITE_REVERB_SCHEME === 'https' ? 443 : 80,
+    wsPort: import.meta.env.VITE_REVERB_PORT ?? 80,
+    wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
     forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
+};
+
+window.Echo = new Echo({
+    broadcaster: 'reverb',
+    key: config.key,
+    cluster: config.cluster,
+    wsHost: config.host,
+    wsPort: config.port,
+    wssPort: config.port,
+    forceTLS: config.scheme === 'https',
     enabledTransports: ['ws', 'wss'],
     authEndpoint: '/broadcasting/auth',
     auth: {
@@ -18,4 +27,4 @@ window.Echo = new Echo({
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content,
         },
     },
-})
+});
