@@ -27,6 +27,8 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 # Install Laravel dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-# Expose port 9000 and start PHP-FPM server
-EXPOSE 9000
-CMD ["php-fpm"]
+# Expose Render's expected port
+EXPOSE 10000
+
+# Start Laravel's built-in server
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=10000"]
