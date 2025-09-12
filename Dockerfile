@@ -28,12 +28,14 @@ COPY . .
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 RUN composer install --no-dev --optimize-autoloader
 
-# Install npm dependencies and build Vite assets
+# Install npm dependencies
 RUN npm install
-RUN npm run build
 
-# Ensure permissions for SQLite, storage, cache
+# Ensure SQLite, storage, cache permissions
 RUN chown -R www-data:www-data /var/www/database /var/www/storage /var/www/bootstrap/cache
+
+# Build Vite assets (important: must happen after env is available)
+RUN npm run build
 
 # Expose Render's dynamic port
 EXPOSE 10000
