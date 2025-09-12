@@ -30,5 +30,8 @@ RUN composer install --no-dev --optimize-autoloader
 # Expose Render's expected port
 EXPOSE 10000
 
+# Add this to your Dockerfile before CMD
+RUN chown -R www-data:www-data /var/www/database /var/www/storage /var/www/bootstrap/cache
+
 # Start Laravel's built-in server
 CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=10000"]
