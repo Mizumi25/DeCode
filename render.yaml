@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: laravel-app
+    env: docker
+    dockerfilePath: ./Dockerfile
+    buildCommand: |
+      php artisan migrate --force --seed
+    startCommand: |
+      php-fpm
+
+  - type: worker
+    name: laravel-queue
+    env: docker
+    dockerfilePath: ./Dockerfile
+    startCommand: |
+      php artisan queue:work --tries=3
+
+  - type: worker
+    name: laravel-reverb
+    env: docker
+    dockerfilePath: ./Dockerfile
+    startCommand: |
+      php artisan reverb:start
