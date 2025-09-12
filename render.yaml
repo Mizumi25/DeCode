@@ -4,7 +4,7 @@ services:
     env: docker
     dockerfilePath: ./Dockerfile
     startCommand: |
-      php artisan migrate --force --seed
+      php artisan migrate:fresh --force --seed
       php artisan serve --host=0.0.0.0 --port=$PORT
 
   - type: worker
