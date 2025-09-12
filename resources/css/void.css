@@ -574,3 +574,40 @@
     transform: scale(1);
   }
 }
+
+
+.preview-frame {
+  cursor: grab !important;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.preview-frame:active,
+.preview-frame.dragging {
+  cursor: grabbing !important;
+}
+
+/* Ensure smooth transitions during drag */
+.preview-frame.dragging {
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* Prevent default touch behaviors on mobile */
+.preview-frame {
+  touch-action: none;
+}
+
+/* Style for drag indicators */
+@keyframes drag-pulse {
+  0%, 100% { 
+    opacity: 0.7; 
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 1; 
+    transform: scale(1.1);
+  }
+}

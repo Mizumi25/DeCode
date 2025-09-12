@@ -25,23 +25,24 @@ export function useScrollHandler({
   const lastZoomRef = useRef(zoom)
 
   // Check if target should be ignored for scrolling
-  const shouldIgnoreTarget = (target) => {
-    return target.closest('.preview-frame') || 
-           target.closest('.lock-button') || 
-           target.closest('.more-button') || 
-           target.closest('.avatar') ||
-           target.closest('.floating-toolbox') ||
-           target.closest('.floating-tool') ||
-           target.closest('[data-panel]') ||
-           target.closest('.modal') ||
-           target.closest('button') ||
-           target.closest('input') ||
-           target.closest('select') ||
-           target.closest('textarea') ||
-           target.closest('[role="button"]') ||
-           target.closest('.delete-button') ||
-           target.closest('.clickable')
-  }
+    const shouldIgnoreTarget = (target) => {
+      return target.closest('.preview-frame') || 
+             target.closest('.lock-button') || 
+             target.closest('.more-button') || 
+             target.closest('.avatar') ||
+             target.closest('.frame-header') ||
+             target.closest('.floating-toolbox') ||
+             target.closest('.floating-tool') ||
+             target.closest('[data-panel]') ||
+             target.closest('.modal') ||
+             target.closest('button') ||
+             target.closest('input') ||
+             target.closest('select') ||
+             target.closest('textarea') ||
+             target.closest('[role="button"]') ||
+             target.closest('.delete-button') ||
+             target.closest('.clickable')
+    }
 
   // Enhanced zoom function with smooth transitions
   const performZoom = useCallback((delta, centerX, centerY, isSmooth = true) => {

@@ -28,7 +28,10 @@ export default function PreviewFrame({
   onFrameClick,
   zoom = 1,
   isDraggable = true,
-  isDark = false
+  isDark = false,
+  // New props for auto-scroll
+  scrollPosition = { x: 0, y: 0 },
+  onAutoScroll = null
 }) {
   const size = sizes[index % sizes.length]
   const { getLockStatus, subscribeToFrame } = useFrameLockStore()
@@ -36,9 +39,15 @@ export default function PreviewFrame({
   const [showLoadingContent, setShowLoadingContent] = useState(isLoading)
   const [thumbnailUrl, setThumbnailUrl] = useState(null)
   const frameRef = useRef(null)
+  const headerRef = useRef(null)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [isMouseDown, setIsMouseDown] = useState(false)
   const [hasDragged, setHasDragged] = useState(false)
+  const [isDraggingFromHeader, setIsDraggingFromHeader] = useState(false)
+  
+  // Auto-scroll related state
+  const autoScrollRef = useRef(null)
+  const [autoScrollActive, setAutoScrollActive] = useState(false)
   
   // Dummy avatar colors for stacked avatars
   const avatarColors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500']
@@ -72,6 +81,72 @@ export default function PreviewFrame({
     }
   }, [isLoading])
 
+  // Auto-scroll functionality when dragging near edges
+  const handleAutoScroll = useCallback((clientX, clientY) => {
+    if (!onAutoScroll || !isDragging) return
+
+    const scrollZone = 50 // pixels from edge to trigger scroll
+    const scrollSpeed = 2 // pixels per frame
+    const windowWidth = window.innerWidth
+    const windowHeight = window.innerHeight
+
+    let scrollDelta = { x: 0, y: 0 }
+
+    // Check horizontal edges
+    if (clientX < scrollZone) {
+      scrollDelta.x = -scrollSpeed * (1 - clientX / scrollZone)
+    } else if (clientX > windowWidth - scrollZone) {
+      scrollDelta.x = scrollSpeed * ((clientX - (windowWidth - scrollZone)) / scrollZone)
+    }
+
+    // Check vertical edges
+    if (clientY < scrollZone + 60) { // Account for header height
+      scrollDelta.y = -scrollSpeed * (1 - (clientY - 60) / scrollZone)
+    } else if (clientY > windowHeight - scrollZone) {
+      scrollDelta.y = scrollSpeed * ((clientY - (windowHeight - scrollZone)) / scrollZone)
+    }
+
+    // Apply auto-scroll if needed
+    if (scrollDelta.x !== 0 || scrollDelta.y !== 0) {
+      if (!autoScrollActive) {
+        setAutoScrollActive(true)
+        const autoScroll = () => {
+          if (!isDragging) {
+            setAutoScrollActive(false)
+            return
+          }
+          
+          onAutoScroll(scrollDelta)
+          autoScrollRef.current = requestAnimationFrame(autoScroll)
+        }
+        autoScrollRef.current = requestAnimationFrame(autoScroll)
+      }
+    } else {
+      if (autoScrollActive) {
+        setAutoScrollActive(false)
+        if (autoScrollRef.current) {
+          cancelAnimationFrame(autoScrollRef.current)
+          autoScrollRef.current = null
+        }
+      }
+    }
+  }, [isDragging, onAutoScroll, autoScrollActive])
+
+  // Clean up auto-scroll on unmount or drag end
+  useEffect(() => {
+    if (!isDragging && autoScrollRef.current) {
+      cancelAnimationFrame(autoScrollRef.current)
+      autoScrollRef.current = null
+      setAutoScrollActive(false)
+    }
+    
+    return () => {
+      if (autoScrollRef.current) {
+        cancelAnimationFrame(autoScrollRef.current)
+      }
+    }
+  }, [isDragging])
+
   const handleFrameClick = (e) => {
     // Prevent navigation if:
     // 1. Clicking on interactive elements
@@ -81,6 +156,7 @@ export default function PreviewFrame({
     if (e.target.closest('.lock-button') || 
         e.target.closest('.more-button') || 
         e.target.closest('.avatar') ||
+        e.target.closest('.frame-header') || // Prevent click when clicking on header
         isDragging || 
         isMouseDown ||
         hasDragged) {
@@ -100,70 +176,102 @@ export default function PreviewFrame({
     }
   }
 
-  // Drag functionality
+  // Enhanced drag functionality - now header-specific
   const handleMouseDown = useCallback((e) => {
-    // Only allow dragging if not clicking on interactive elements
-    if (e.target.closest('.lock-button') || 
-        e.target.closest('.more-button') || 
-        e.target.closest('.avatar') ||
-        !isDraggable) {
-      return
-    }
-    
-    // Don't allow dragging if frame is locked by someone else
-    if (lockStatus?.is_locked && !lockStatus.locked_by_me && !lockStatus.can_unlock) {
-      return
-    }
-    
-    e.stopPropagation()
-    e.preventDefault()
-    
-    const startX = e.clientX
-    const startY = e.clientY
-    const startFrameX = x
-    const startFrameY = y
-    
-    setDragOffset({ 
-      x: startX - startFrameX * zoom, 
-      y: startY - startFrameY * zoom 
-    })
-    setIsMouseDown(true)
-    setHasDragged(false)
-    
-    if (onDragStart) {
-      onDragStart(frameId)
-    }
-  }, [isDraggable, frameId, x, y, onDragStart, zoom, lockStatus])
+  // Only allow dragging from header or frame body (not interactive elements)
+  const isInteractiveElement = e.target.closest('.lock-button') || 
+                               e.target.closest('.more-button') || 
+                               e.target.closest('.avatar') ||
+                               e.target.closest('button') ||
+                               e.target.closest('input')
+  
+  if (!isDraggable || isInteractiveElement) {
+    return
+  }
+  
+  // Don't allow dragging if frame is locked by someone else
+  if (lockStatus?.is_locked && !lockStatus.locked_by_me && !lockStatus.can_unlock) {
+    return
+  }
+  
+  e.stopPropagation()
+  e.preventDefault()
+  
+  const rect = frameRef.current.getBoundingClientRect()
+  const startX = e.clientX
+  const startY = e.clientY
+  
+  setDragOffset({ 
+    x: startX - rect.left, 
+    y: startY - rect.top 
+  })
+  setIsMouseDown(true)
+  setHasDragged(false)
+  
+  // Change cursor for the entire document
+  document.body.style.cursor = 'grabbing'
+  document.body.style.userSelect = 'none'
+  
+  if (onDragStart) {
+    onDragStart(frameId)
+  }
+}, [isDraggable, frameId, onDragStart, lockStatus, frameRef])
 
-  const handleMouseMove = useCallback((e) => {
+
+    const handleMouseMove = useCallback((e) => {
     if (!isMouseDown || !isDraggable) return
     
     e.preventDefault()
     e.stopPropagation()
     
+    // Handle auto-scrolling when near edges
+    handleAutoScroll(e.clientX, e.clientY)
+    
     // Mark as dragged if moved more than a threshold
     if (!hasDragged) {
       const threshold = 5 // pixels
-      const deltaX = Math.abs(e.clientX - (x * zoom + dragOffset.x))
-      const deltaY = Math.abs(e.clientY - (y * zoom + dragOffset.y))
-      
-      if (deltaX > threshold || deltaY > threshold) {
-        setHasDragged(true)
+      const rect = frameRef.current?.getBoundingClientRect()
+      if (rect) {
+        const deltaX = Math.abs(e.clientX - (rect.left + dragOffset.x))
+        const deltaY = Math.abs(e.clientY - (rect.top + dragOffset.y))
+        
+        if (deltaX > threshold || deltaY > threshold) {
+          setHasDragged(true)
+        }
       }
     }
     
-    // Calculate new position
-    const newX = (e.clientX - dragOffset.x) / zoom
-    const newY = (e.clientY - dragOffset.y) / zoom
+    // Calculate new position relative to canvas
+    const canvas = document.querySelector('[data-canvas="true"]') || document.body
+    const canvasRect = canvas.getBoundingClientRect()
+    
+    const newX = (e.clientX - canvasRect.left - dragOffset.x) / zoom
+    const newY = (e.clientY - canvasRect.top - dragOffset.y) / zoom
     
     if (onDrag) {
       onDrag(frameId, Math.max(0, newX), Math.max(0, newY))
     }
-  }, [isMouseDown, isDraggable, dragOffset, zoom, frameId, onDrag, x, y, hasDragged])
+  }, [isMouseDown, isDraggable, dragOffset, zoom, frameId, onDrag, hasDragged, handleAutoScroll, frameRef])
 
-  const handleMouseUp = useCallback(() => {
+
+  const handleMouseUp = useCallback((e) => {
     if (isMouseDown) {
+      e?.preventDefault?.()
+      e?.stopPropagation?.()
+      
       setIsMouseDown(false)
+      
+      // Reset cursor and user selection
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      
+      // Stop auto-scrolling
+      if (autoScrollRef.current) {
+        cancelAnimationFrame(autoScrollRef.current)
+        autoScrollRef.current = null
+        setAutoScrollActive(false)
+      }
+      
       if (onDragEnd) {
         onDragEnd(frameId)
       }
@@ -178,7 +286,7 @@ export default function PreviewFrame({
   // Attach global mouse events for dragging
   useEffect(() => {
     if (isMouseDown) {
-      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mousemove', handleMouseMove, { passive: false })
       document.addEventListener('mouseup', handleMouseUp)
       
       return () => {
@@ -198,6 +306,7 @@ export default function PreviewFrame({
       backgroundColor: 'var(--color-surface)',
       borderColor: 'transparent',
       backdropFilter: 'blur(10px)',
+      zIndex: isDragging ? 1000 : 10 // Ensure dragged frames are on top
     }
 
     if (lockStatus?.is_locked) {
@@ -237,12 +346,28 @@ export default function PreviewFrame({
     <div
       ref={frameRef}
       data-frame-uuid={frame?.uuid}
-      className={`preview-frame absolute rounded-xl p-3 cursor-pointer transition-all duration-300 ease-out flex flex-col group ${
+      className={`preview-frame absolute rounded-xl p-3 transition-all duration-300 ease-out flex flex-col group ${
         isDragging ? 'shadow-2xl scale-105 z-50' : 'shadow-lg hover:shadow-xl hover:-translate-y-1'
-      } ${lockStatus?.is_locked && !lockStatus.locked_by_me ? 'cursor-not-allowed' : ''}`}
+      } ${lockStatus?.is_locked && !lockStatus.locked_by_me ? 'cursor-not-allowed' : 'cursor-grab'} ${
+        isMouseDown ? 'cursor-grabbing' : ''
+      }`}
       style={getFrameStyles()}
+      onMouseDown={handleMouseDown}  // Add this
       onClick={handleFrameClick}
-      onMouseDown={handleMouseDown}
+      // Add touch support
+      onTouchStart={(e) => {
+        if (e.touches.length === 1) {
+          const touch = e.touches[0]
+          const mouseEvent = {
+            ...e,
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+            preventDefault: e.preventDefault.bind(e),
+            stopPropagation: e.stopPropagation.bind(e)
+          }
+          handleMouseDown(mouseEvent)
+        }
+      }}
     >
       {/* Lock overlay for locked frames */}
       {lockStatus?.is_locked && !lockStatus.locked_by_me && (
@@ -255,31 +380,42 @@ export default function PreviewFrame({
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-3 -mt-1">
-        {/* Left: Frame name, file connection, and GitHub indicator */}
-        <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          <span className="font-semibold text-sm">{title}</span>
-          <span className="opacity-60">•</span>
-          <span className="opacity-80">({fileName})</span>
+      {/* Enhanced Draggable Header */}
+      <div 
+        ref={headerRef}
+        className={`frame-header flex items-center justify-between mb-3 -mt-1 min-w-0 ${
+          isDraggingFromHeader ? 'cursor-grabbing' : 'cursor-grab'
+        } hover:bg-white/5 dark:hover:bg-black/5 rounded-lg p-1 -m-1 transition-colors`}
+        onMouseDown={handleMouseDown}
+      >
+        {/* Left: Frame info - with dynamic width */}
+        <div className="flex items-center gap-2 text-xs min-w-0 flex-1" style={{ color: 'var(--color-text-muted)' }}>
+          <span className="font-semibold text-sm truncate max-w-[120px]" title={title}>
+            {title}
+          </span>
+          <span className="opacity-60 flex-shrink-0">•</span>
+          <span className="opacity-80 truncate max-w-[100px]" title={fileName}>
+            ({fileName})
+          </span>
           
           {/* GitHub import indicator */}
           {frame?.isGithubImport ? (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-shrink-0">
               <Github className="w-3 h-3 text-green-600" />
               <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">
                 {frame.githubExtension?.toUpperCase() || 'GH'}
               </span>
             </div>
           ) : (
-            <Plug className="w-3.5 h-3.5 opacity-60" />
+            <Plug className="w-3.5 h-3.5 opacity-60 flex-shrink-0" />
           )}
         </div>
         
-        {/* Right: Lock, Avatars, and More options */}
-        <div className="flex items-center gap-2">
+        {/* Right: Controls - with flex-shrink-0 */}
+        <div className="flex items-center gap-2 flex-shrink-0">
           {/* GitHub complexity indicator */}
           {frame?.isGithubImport && frame.complexity && (
-            <div className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+            <div className={`text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
               frame.complexity === 'high' ? 'bg-red-100 text-red-700' :
               frame.complexity === 'medium' ? 'bg-yellow-100 text-yellow-700' :
               'bg-blue-100 text-blue-700'
@@ -289,7 +425,7 @@ export default function PreviewFrame({
           )}
           
           {/* Enhanced Lock/Unlock button */}
-          <div className="lock-button">
+          <div className="lock-button flex-shrink-0">
             <EnhancedLockButton
               frameUuid={frame?.uuid}
               currentMode="forge" // This could be dynamic based on current page
@@ -298,7 +434,7 @@ export default function PreviewFrame({
           </div>
           
           {/* Stacked avatars */}
-          <div className="flex -space-x-1.5">
+          <div className="flex -space-x-1.5 flex-shrink-0">
             {avatarColors.map((color, i) => (
               <div
                 key={i}
@@ -313,7 +449,7 @@ export default function PreviewFrame({
           
           {/* More options */}
           <button 
-            className="more-button p-1.5 rounded-lg hover:bg-white hover:bg-opacity-10 transition-all duration-200 hover:scale-110"
+            className="more-button p-1.5 rounded-lg hover:bg-white hover:bg-opacity-10 transition-all duration-200 hover:scale-110 flex-shrink-0"
             onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontal className="w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
@@ -416,6 +552,11 @@ export default function PreviewFrame({
       {/* Drag indicator */}
       {isDragging && (
         <div className="absolute -top-2 -left-2 w-4 h-4 bg-blue-500 rounded-full shadow-lg animate-pulse"></div>
+      )}
+      
+      {/* Auto-scroll indicator */}
+      {autoScrollActive && (
+        <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full shadow-lg animate-ping"></div>
       )}
     </div>
   )

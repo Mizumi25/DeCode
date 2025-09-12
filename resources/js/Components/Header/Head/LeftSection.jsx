@@ -88,7 +88,7 @@ const LeftSection = ({
 
   const handleGridToggle = () => {
     if (setGridVisible) {
-      setGridVisible(prev => !prev)
+      setGridVisible(!gridVisible)
     }
   }
 

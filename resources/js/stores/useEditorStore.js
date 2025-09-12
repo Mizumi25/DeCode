@@ -11,6 +11,7 @@ const useEditorStore = create(
       interactionMode: 'cursor',
       editMode: 'edit',
       inspectMode: false,
+      gridVisible: false,
       
       // Navigation state for Forge/Source
       activeNav: 'Forge',
@@ -64,6 +65,12 @@ const useEditorStore = create(
           acc[key] = false
           return acc
         }, {})
+      })),
+      
+      setGridVisible: (visible) => set({ gridVisible: visible }),
+      
+      toggleGridVisible: () => set((state) => ({ 
+        gridVisible: !state.gridVisible 
       })),
       
       // Open specific panel and close others (exclusive mode)
@@ -123,7 +130,8 @@ const useEditorStore = create(
         // Only persist panel states and some UI preferences
         panelStates: state.panelStates,
         responsiveMode: state.responsiveMode,
-        zoomLevel: state.zoomLevel
+        zoomLevel: state.zoomLevel,
+        gridVisible: state.gridVisible // Add this line
       })
     }
   )

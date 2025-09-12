@@ -1,6 +1,7 @@
-// Enhanced FloatingFrameSwitcher.jsx - Frame Switching with Professional Transitions
+// Enhanced FloatingFrameSwitcher.jsx - Real Frame Navigation with URL Changes
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence, useSpring, useMotionValue } from 'framer-motion';
+import { router } from '@inertiajs/react'; // Add this import for navigation
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -31,6 +32,7 @@ const FloatingFrameSwitcher = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [hoveredFrame, setHoveredFrame] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isNavigating, setIsNavigating] = useState(false);
   const panelRef = useRef(null);
   const searchInputRef = useRef(null);
 
@@ -38,71 +40,29 @@ const FloatingFrameSwitcher = ({
   const panelWidth = useMotionValue(0);
   const triggerRotation = useSpring(0, { stiffness: 300, damping: 30 });
 
-  // Use provided projectFrames or fallback to mock data
+  // Filter frames to only show frames from the current project
   const frames = useMemo(() => {
+    // Check if we have actual project frames from backend
     if (projectFrames && projectFrames.length > 0) {
-      return projectFrames;
+      return projectFrames.map(frame => ({
+        ...frame,
+        isActive: frame.id === currentFrame,
+        // Ensure we have the frame UUID for navigation
+        uuid: frame.uuid || frame.id
+      }));
     }
 
-    // Enhanced mock data with more realistic frame types
+    // Fallback mock data - replace with actual project frames when available
     return [
       {
         id: currentFrame,
-        name: 'Landing Page',
+        name: 'Current Frame',
         type: 'desktop',
         icon: Monitor,
         thumbnail: '/api/placeholder/200/120',
-        lastModified: '2m ago',
-        components: 12,
+        lastModified: 'Now',
+        components: 0,
         isActive: true,
-        status: 'active',
-        collaborators: 1
-      },
-      {
-        id: 'frame-mobile-1',
-        name: 'Mobile Landing',
-        type: 'mobile',
-        icon: Smartphone,
-        thumbnail: '/api/placeholder/200/120',
-        lastModified: '5m ago',
-        components: 8,
-        isActive: false,
-        status: 'draft',
-        collaborators: 0
-      },
-      {
-        id: 'frame-dashboard-1',
-        name: 'User Dashboard',
-        type: 'desktop',
-        icon: Grid3X3,
-        thumbnail: '/api/placeholder/200/120',
-        lastModified: '1h ago',
-        components: 24,
-        isActive: false,
-        status: 'review',
-        collaborators: 2
-      },
-      {
-        id: 'frame-settings-1',
-        name: 'Settings Panel',
-        type: 'tablet',
-        icon: Settings,
-        thumbnail: '/api/placeholder/200/120',
-        lastModified: '2h ago',
-        components: 6,
-        isActive: false,
-        status: 'draft',
-        collaborators: 0
-      },
-      {
-        id: 'frame-profile-1',
-        name: 'User Profile',
-        type: 'mobile',
-        icon: Eye,
-        thumbnail: '/api/placeholder/200/120',
-        lastModified: '3h ago',
-        components: 15,
-        isActive: false,
         status: 'active',
         collaborators: 1
       }
@@ -145,29 +105,64 @@ const FloatingFrameSwitcher = ({
     triggerRotation.set(isExpanded ? 180 : 0);
   }, [isExpanded, triggerRotation]);
 
-  // Handle frame selection with enhanced feedback
+  // Enhanced frame selection with real URL navigation
   const handleFrameSelect = async (frameId) => {
-    if (frameId === currentFrame || isFrameSwitching) return;
-
-    console.log('Frame switch requested:', frameId);
-    
-    // Close panel on mobile after selection
-    if (isMobile) {
-      setIsExpanded(false);
-    }
-
-    // Clear search when switching
-    setSearchTerm('');
-    
-    // Call the frame switch handler
-    if (onFrameSwitch) {
-      await onFrameSwitch(frameId);
-    }
+      if (frameId === currentFrame || isFrameSwitching || isNavigating) return;
+  
+      console.log('FloatingFrameSwitcher: Frame switch requested:', frameId, 'from project:', projectId);
+      
+      setIsNavigating(true);
+      
+      try {
+          if (isMobile) {
+              setIsExpanded(false);
+          }
+  
+          setSearchTerm('');
+          
+          // CRITICAL: Find frame and get proper UUID
+          const targetFrame = frames.find(f => f.id === frameId || f.uuid === frameId);
+          const frameUuid = targetFrame?.uuid || targetFrame?.id || frameId;
+          
+          if (!projectId || !frameUuid) {
+              console.error('FloatingFrameSwitcher: Missing required data:', { projectId, frameUuid });
+              setIsNavigating(false);
+              return;
+          }
+          
+          const targetUrl = `/void/${projectId}/frame=${frameUuid}/modeForge`;
+          console.log('FloatingFrameSwitcher: Navigating to:', targetUrl);
+          
+          // FIXED: Use proper Inertia navigation
+          router.visit(targetUrl, {
+              method: 'get',
+              preserveState: false,
+              preserveScroll: false,
+              replace: true,
+              onBefore: () => {
+                  console.log('FloatingFrameSwitcher: Starting navigation...');
+              },
+              onSuccess: (page) => {
+                  console.log('FloatingFrameSwitcher: Navigation successful');
+                  console.log('Page props:', page.props);
+              },
+              onError: (errors) => {
+                  console.error('FloatingFrameSwitcher: Navigation error:', errors);
+              },
+              onFinish: () => {
+                  setIsNavigating(false);
+              }
+          });
+          
+      } catch (error) {
+          console.error('FloatingFrameSwitcher: Error during navigation:', error);
+          setIsNavigating(false);
+      }
   };
 
   // Toggle panel with smooth animation
   const togglePanel = () => {
-    if (isFrameSwitching) return; // Prevent toggling during frame switch
+    if (isFrameSwitching || isNavigating) return; // Prevent toggling during navigation
     
     setIsExpanded(!isExpanded);
     if (!isExpanded) {
@@ -199,12 +194,24 @@ const FloatingFrameSwitcher = ({
     }
   };
 
-  // Handle create new frame
+  // Handle create new frame - navigate to create frame route
   const handleCreateNewFrame = () => {
-    console.log('Create new frame requested');
-    // In real implementation, this would open a modal or navigate to create frame page
+    console.log('Create new frame requested for project:', projectId);
+    
+    if (projectId) {
+      // Navigate back to void page to create new frame
+      const voidUrl = `/void/${projectId}`;
+      router.visit(voidUrl, {
+        method: 'get',
+        preserveState: false
+      });
+    }
+    
     setIsExpanded(false);
   };
+
+  // Check if we're currently switching or navigating
+  const isActivelyChanging = isFrameSwitching || isNavigating;
 
   // Animation variants
   const panelVariants = {
@@ -262,18 +269,18 @@ const FloatingFrameSwitcher = ({
         {/* Enhanced Trigger Button */}
         <motion.button
           onClick={togglePanel}
-          whileHover={{ scale: isFrameSwitching ? 1 : 1.05 }}
-          whileTap={{ scale: isFrameSwitching ? 1 : 0.95 }}
-          disabled={isFrameSwitching}
+          whileHover={{ scale: isActivelyChanging ? 1 : 1.05 }}
+          whileTap={{ scale: isActivelyChanging ? 1 : 0.95 }}
+          disabled={isActivelyChanging}
           className="absolute right-0 top-1/2 -translate-y-1/2 z-10 group"
           style={{
             width: isMobile ? '28px' : '32px',
             height: isMobile ? '56px' : '64px',
-            backgroundColor: isFrameSwitching ? 'var(--color-text-muted)' : 'var(--color-primary)',
+            backgroundColor: isActivelyChanging ? 'var(--color-text-muted)' : 'var(--color-primary)',
             borderRadius: isMobile ? '8px 0 0 8px' : '12px 0 0 12px',
             color: 'white',
             border: 'none',
-            cursor: isFrameSwitching ? 'not-allowed' : 'pointer',
+            cursor: isActivelyChanging ? 'not-allowed' : 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -281,7 +288,7 @@ const FloatingFrameSwitcher = ({
           }}
           aria-label={isExpanded ? 'Close frame switcher' : 'Open frame switcher'}
         >
-          {isFrameSwitching ? (
+          {isActivelyChanging ? (
             <Loader2 className={isMobile ? 'w-3 h-3' : 'w-4 h-4'} style={{ animation: 'spin 1s linear infinite' }} />
           ) : (
             <motion.div style={{ rotate: triggerRotation }}>
@@ -294,7 +301,7 @@ const FloatingFrameSwitcher = ({
             className="absolute left-1 top-1/2 -translate-y-1/2 w-1 rounded-full transition-all duration-200"
             style={{
               height: '20px',
-              backgroundColor: isFrameSwitching ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.8)',
+              backgroundColor: isActivelyChanging ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.8)',
               opacity: frameTransitionPhase === 'loading' ? 0.5 : 1
             }}
           />
@@ -334,7 +341,7 @@ const FloatingFrameSwitcher = ({
                         fontSize: isMobile ? 'var(--fs-sm)' : 'var(--fs-base)'
                       }}
                     >
-                      Frame Switcher
+                      Project Frames
                     </h3>
                     <p 
                       className={`${isMobile ? 'text-xs' : 'text-sm'}`}
@@ -347,18 +354,18 @@ const FloatingFrameSwitcher = ({
                     </p>
                   </div>
                   
-                  {isFrameSwitching && (
+                  {isActivelyChanging && (
                     <div className="flex items-center gap-2">
                       <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-primary)' }} />
                       <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                        Switching...
+                        {isNavigating ? 'Loading...' : 'Switching...'}
                       </span>
                     </div>
                   )}
                 </div>
 
                 {/* Search Input */}
-                {!isMobile && (
+                {!isMobile && frames.length > 1 && (
                   <motion.div variants={searchVariants}>
                     <input
                       ref={searchInputRef}
@@ -376,7 +383,7 @@ const FloatingFrameSwitcher = ({
                           boxShadow: `0 0 0 2px var(--color-primary-soft)`
                         }
                       }}
-                      disabled={isFrameSwitching}
+                      disabled={isActivelyChanging}
                     />
                   </motion.div>
                 )}
@@ -404,7 +411,7 @@ const FloatingFrameSwitcher = ({
                         // Always fall back to a Lucide icon (Globe)
                         const FrameIcon = frame.icon && typeof frame.icon === 'function' ? frame.icon : Globe;
                         const TypeIcon = getFrameTypeIcon(frame.type);
-                        const isActive = currentFrame === frame.id;
+                        const isActive = frame.isActive || currentFrame === frame.id;
                         const isHovered = hoveredFrame === frame.id;
                         const statusInfo = getStatusInfo(frame.status);
 
@@ -421,19 +428,19 @@ const FloatingFrameSwitcher = ({
                               onClick={() => handleFrameSelect(frame.id)}
                               onMouseEnter={() => setHoveredFrame(frame.id)}
                               onMouseLeave={() => setHoveredFrame(null)}
-                              whileHover={{ scale: isFrameSwitching ? 1 : 1.02 }}
-                              whileTap={{ scale: isFrameSwitching ? 1 : 0.98 }}
-                              disabled={isFrameSwitching || isActive}
+                              whileHover={{ scale: isActivelyChanging ? 1 : 1.02 }}
+                              whileTap={{ scale: isActivelyChanging ? 1 : 0.98 }}
+                              disabled={isActivelyChanging || isActive}
                               className={`
                                 w-full ${isMobile ? 'p-3' : 'p-4'} relative overflow-hidden
                                 border transition-all duration-200 group
-                                ${isFrameSwitching && !isActive ? 'opacity-50 cursor-not-allowed' : ''}
+                                ${isActivelyChanging && !isActive ? 'opacity-50 cursor-not-allowed' : ''}
                                 ${isActive ? 'cursor-default' : 'cursor-pointer'}
                               `}
                               style={{
                                 backgroundColor: isActive 
                                   ? 'var(--color-primary-soft)' 
-                                  : isHovered && !isFrameSwitching
+                                  : isHovered && !isActivelyChanging
                                     ? 'var(--color-bg-muted)'
                                     : 'transparent',
                                 borderColor: isActive 
@@ -474,8 +481,8 @@ const FloatingFrameSwitcher = ({
                                     />
                                   </div>
                                   
-                                  {/* Loading overlay for switching frame */}
-                                  {isFrameSwitching && isActive && (
+                                  {/* Loading overlay for current frame during navigation */}
+                                  {isNavigating && isActive && (
                                     <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex items-center justify-center">
                                       <Loader2 className="w-3 h-3 animate-spin" style={{ color: 'var(--color-primary)' }} />
                                     </div>
@@ -518,7 +525,7 @@ const FloatingFrameSwitcher = ({
                                           fontSize: isMobile ? '0.75rem' : 'var(--fs-sm)'
                                         }}
                                       >
-                                        {frame.components} components
+                                        {frame.components || 0} components
                                       </span>
                                       
                                       {frame.collaborators > 0 && (
@@ -561,7 +568,7 @@ const FloatingFrameSwitcher = ({
                                       className="w-2 h-2 rounded-full"
                                       style={{ backgroundColor: 'var(--color-primary)' }}
                                     />
-                                  ) : !isFrameSwitching ? (
+                                  ) : !isActivelyChanging ? (
                                     <ExternalLink 
                                       className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity"
                                       style={{ color: 'var(--color-text-muted)' }}
@@ -596,32 +603,32 @@ const FloatingFrameSwitcher = ({
                   </div>
                   <div className="flex items-center gap-1">
                     <Users className="w-3 h-3" />
-                    <span>{frames.reduce((sum, f) => sum + f.collaborators, 0)}</span>
+                    <span>{frames.reduce((sum, f) => sum + (f.collaborators || 0), 0)}</span>
                   </div>
                 </div>
 
                 {/* Create New Frame Button */}
                 <motion.button 
-                  whileHover={{ scale: isFrameSwitching ? 1 : 1.02 }}
-                  whileTap={{ scale: isFrameSwitching ? 1 : 0.98 }}
+                  whileHover={{ scale: isActivelyChanging ? 1 : 1.02 }}
+                  whileTap={{ scale: isActivelyChanging ? 1 : 0.98 }}
                   className={`
                     w-full ${isMobile ? 'py-2 px-3' : 'py-2.5 px-4'} 
                     font-medium text-white
                     flex items-center justify-center gap-2
                     transition-all duration-200
-                    ${isFrameSwitching ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-lg'}
+                    ${isActivelyChanging ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-lg'}
                   `}
                   style={{
-                    backgroundColor: isFrameSwitching ? 'var(--color-text-muted)' : 'var(--color-primary)',
+                    backgroundColor: isActivelyChanging ? 'var(--color-text-muted)' : 'var(--color-primary)',
                     borderRadius: 'var(--radius-lg)',
                     fontSize: isMobile ? '0.75rem' : 'var(--fs-sm)',
                     border: 'none',
-                    cursor: isFrameSwitching ? 'not-allowed' : 'pointer'
+                    cursor: isActivelyChanging ? 'not-allowed' : 'pointer'
                   }}
                   onClick={handleCreateNewFrame}
-                  disabled={isFrameSwitching}
+                  disabled={isActivelyChanging}
                 >
-                  {isFrameSwitching ? (
+                  {isActivelyChanging ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <Plus className="w-4 h-4" />

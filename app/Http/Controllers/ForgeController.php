@@ -15,6 +15,50 @@ class ForgeController extends Controller
     /**
      * Show the Forge page for a specific frame
      */
+    private function getFrameData(Frame $frame): array
+    {
+        // FIXED: Ensure canvas_data is properly structured
+        $canvasData = $frame->canvas_data ?? [];
+        if (empty($canvasData) || !is_array($canvasData)) {
+            $canvasData = [
+                'components' => [],
+                'settings' => [],
+                'version' => '1.0'
+            ];
+        }
+        
+        // CRITICAL: Ensure components array exists and is valid
+        if (!isset($canvasData['components']) || !is_array($canvasData['components'])) {
+            $canvasData['components'] = [];
+        }
+    
+        return [
+            'uuid' => $frame->uuid,
+            'id' => $frame->uuid, // CRITICAL: Use UUID consistently
+            'name' => $frame->name,
+            'type' => $frame->type ?? 'desktop',
+            'description' => $frame->description,
+            'thumbnail' => $frame->thumbnail ?? '/api/placeholder/200/120',
+            'meta_data' => $frame->meta_data ?? [],
+            'created_at' => $frame->created_at,
+            'updated_at' => $frame->updated_at,
+            'project_id' => $frame->project_id,
+            'settings' => $frame->settings ?? [],
+            'canvas_data' => $canvasData, // FIXED: Always properly structured
+            
+            // Add debugging information
+            'debug' => [
+                'has_components' => !empty($canvasData['components']),
+                'component_count' => count($canvasData['components'] ?? []),
+                'last_updated' => $frame->updated_at->toISOString(),
+                'raw_canvas_data_type' => gettype($frame->canvas_data),
+            ]
+        ];
+    }
+    
+    /**
+     * Enhanced show method with better debugging
+     */
     public function show(Project $project, Frame $frame): Response
     {
         $user = Auth::user();
@@ -30,19 +74,62 @@ class ForgeController extends Controller
         if (!$hasAccess) {
             abort(403, 'Access denied to this project.');
         }
-
-        // Get all frames in this project for the frame switcher
-        $projectFrames = $this->getProjectFramesForSwitcher($project);
-        
-        // Get frame-specific data
+    
+        // Get frame-specific data with enhanced structure
         $frameData = $this->getFrameData($frame);
         
         // Get user permissions
         $userPermissions = $this->getUserPermissions($project, $user);
-
+    
+        // Get all frames in this project for the frame switcher
+        $projectFrames = $project->frames()
+            ->select([
+                'uuid',
+                'name', 
+                'type',
+                'thumbnail_path',
+                'updated_at',
+                'created_at',
+                'meta_data'
+            ])
+            ->orderBy('created_at', 'asc')
+            ->get()
+            ->map(function ($frameItem) use ($frame) {
+                return [
+                    'id' => $frameItem->uuid,           
+                    'uuid' => $frameItem->uuid,         
+                    'name' => $frameItem->name,
+                    'type' => $frameItem->type ?? 'desktop',
+                    'thumbnail' => $frameItem->thumbnail_path ?? '/api/placeholder/200/120',
+                    'lastModified' => $frameItem->updated_at->diffForHumans(),
+                    'updated_at' => $frameItem->updated_at,
+                    'created_at' => $frameItem->created_at,
+                    'components' => $frameItem->meta_data['component_count'] ?? 0,
+                    'status' => $frameItem->meta_data['status'] ?? 'draft',
+                    'collaborators' => $frameItem->meta_data['collaborator_count'] ?? 0,
+                    'meta_data' => $frameItem->meta_data ?? [],
+                    'isActive' => $frameItem->uuid === $frame->uuid, // Mark the current frame as active
+                ];
+            });
+    
+        // Debug logging
+        \Log::info('ForgeController: Rendering frame', [
+            'project_id' => $project->uuid,
+            'frame_id' => $frame->uuid,
+            'frame_name' => $frame->name,
+            'canvas_components' => count($frameData['canvas_data']['components'] ?? []),
+            'total_project_frames' => $projectFrames->count(),
+        ]);
+    
+        \Log::info('ForgeController: Sending frame data', [
+            'frame_uuid' => $frame->uuid,
+            'canvas_components_count' => count($frameData['canvas_data']['components'] ?? []),
+            'canvas_data_structure' => array_keys($frameData['canvas_data'] ?? []),
+        ]);
+    
         return Inertia::render('ForgePage', [
             'project' => $project->load('workspace'),
-            'frame' => $frameData,
+            'frame' => $frameData, // CRITICAL: Use enhanced frame data
             'projectFrames' => $projectFrames,
             'mode' => 'forge',
             'userRole' => $project->workspace ? $project->workspace->getUserRole($user->id) : 'owner',
@@ -50,7 +137,14 @@ class ForgeController extends Controller
             'canCreateFrames' => $userPermissions['canCreateFrames'],
             'canDeleteFrames' => $userPermissions['canDeleteFrames'],
             'projectId' => $project->uuid,
-            'frameId' => $frame->uuid,
+            'frameId' => $frame->uuid, // CRITICAL: Always use UUID
+            
+            // FIXED: Add debug info
+            'debug' => [
+                'frame_has_canvas_data' => !empty($frameData['canvas_data']['components']),
+                'component_count' => count($frameData['canvas_data']['components'] ?? []),
+                'timestamp' => now()->toISOString(),
+            ]
         ]);
     }
 
@@ -137,27 +231,7 @@ class ForgeController extends Controller
         })->toArray();
     }
 
-    /**
-     * Get detailed frame data
-     */
-    private function getFrameData(Frame $frame): array
-    {
-        return [
-            'uuid' => $frame->uuid,
-            'id' => $frame->uuid, // For compatibility
-            'name' => $frame->name,
-            'type' => $frame->type ?? 'desktop',
-            'description' => $frame->description,
-            'thumbnail' => $frame->thumbnail ?? '/api/placeholder/200/120',
-            'meta_data' => $frame->meta_data ?? [],
-            'created_at' => $frame->created_at,
-            'updated_at' => $frame->updated_at,
-            'project_id' => $frame->project_id,
-            // Add any other frame-specific data you need
-            'settings' => $frame->settings ?? [],
-            'canvas_data' => $frame->canvas_data ?? [],
-        ];
-    }
+  
 
     /**
      * Check if user has access to the project

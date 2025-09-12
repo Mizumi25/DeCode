@@ -1,4 +1,4 @@
-// Pages/VoidPage.jsx
+// Pages/VoidPage.jsx - Modified sections only
 import { useRef, useState, useCallback, useMemo, useEffect } from 'react'
 import { Head, usePage, router } from '@inertiajs/react'
 import { Plus, Layers, FolderOpen, Code, Users, Upload, Briefcase } from 'lucide-react'
@@ -38,7 +38,9 @@ export default function VoidPage() {
     isPanelOpen, 
     getOpenPanelsCount, 
     zoomLevel, 
-    setZoomLevel 
+    setZoomLevel,
+    gridVisible, 
+    setGridVisible
   } = useEditorStore()
   const { 
     initialize: initializeLockSystem, 
@@ -53,30 +55,11 @@ export default function VoidPage() {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
   const [frameToDelete, setFrameToDelete] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  
-  // Grid state
-  const [gridVisible, setGridVisible] = useState(false)
-  
-  // Enhanced zoom state - now synced with store
-  const [zoom, setZoom] = useState(zoomLevel / 100) // Convert percentage to decimal
+
+  // Fixed zoom state - use store directly with minimal local state
+  const zoom = useMemo(() => zoomLevel / 100, [zoomLevel])
   const minZoom = 0.25
   const maxZoom = 3
-  
-  // Sync zoom with store
-  useEffect(() => {
-    const newZoom = zoomLevel / 100
-    if (Math.abs(newZoom - zoom) > 0.01) { // Avoid infinite loops with small differences
-      setZoom(newZoom)
-    }
-  }, [zoomLevel])
-  
-  // Update store when local zoom changes
-  useEffect(() => {
-    const newZoomLevel = Math.round(zoom * 100)
-    if (newZoomLevel !== zoomLevel) {
-      setZoomLevel(newZoomLevel)
-    }
-  }, [zoom, setZoomLevel])
   
   // Infinite scroll state
   const [scrollPosition, setScrollPosition] = useState({ x: 0, y: 0 })
@@ -321,60 +304,43 @@ export default function VoidPage() {
     router.visit(`/void/${project.uuid}/frame=${frame.uuid}/modeForge`)
   }, [project?.uuid])
 
-  // Enhanced zoom handlers - now with smooth transitions
-  const handleZoom = useCallback((delta, centerX, centerY) => {
-    const zoomFactor = delta > 0 ? 1.1 : 0.9
-    const newZoom = Math.min(maxZoom, Math.max(minZoom, zoom * zoomFactor))
-    
-    if (newZoom === zoom) return
-
-    const canvas = canvasRef.current
-    if (canvas) {
-      const rect = canvas.getBoundingClientRect()
-      const mouseX = centerX - rect.left
-      const mouseY = centerY - rect.top
-      
-      const zoomRatio = newZoom / zoom
-      const newScrollX = scrollPosition.x + (mouseX / zoom) * (zoomRatio - 1)
-      const newScrollY = scrollPosition.y + (mouseY / zoom) * (zoomRatio - 1)
-      
-      setScrollPosition({ x: newScrollX, y: newScrollY })
+  // Fixed zoom handlers - 1% increments only, real-time updates
+  const handleZoom = useCallback((delta, centerX = null, centerY = null) => {
+    // For 1% increments from toolbar
+    if (typeof delta === 'number' && Math.abs(delta) === 1) {
+      const newZoomLevel = Math.min(300, Math.max(25, zoomLevel + delta))
+      setZoomLevel(newZoomLevel)
+      return
     }
     
-    setZoom(newZoom)
-  }, [zoom, scrollPosition])
-
-  // Header zoom integration - responds to header controls
-  const handleHeaderZoomChange = useCallback((newZoomLevel) => {
-    const newZoom = newZoomLevel / 100
-    if (newZoom === zoom) return
+    // For smooth zoom from mouse/wheel (convert to percentage steps)
+    const zoomStep = delta > 0 ? 5 : -5 // 5% steps for smooth zoom
+    const newZoomLevel = Math.min(300, Math.max(25, zoomLevel + zoomStep))
     
-    // Center the zoom on the viewport center
-    const canvas = canvasRef.current
-    if (canvas) {
-      const rect = canvas.getBoundingClientRect()
-      const centerX = rect.width / 2
-      const centerY = rect.height / 2
-      
-      const zoomRatio = newZoom / zoom
-      const newScrollX = scrollPosition.x + (centerX / zoom) * (zoomRatio - 1)
-      const newScrollY = scrollPosition.y + (centerY / zoom) * (zoomRatio - 1)
-      
-      setScrollPosition({ x: newScrollX, y: newScrollY })
+    if (newZoomLevel === zoomLevel) return
+
+    if (centerX !== null && centerY !== null) {
+      const canvas = canvasRef.current
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect()
+        const mouseX = centerX - rect.left
+        const mouseY = centerY - rect.top
+        
+        const oldZoom = zoomLevel / 100
+        const newZoom = newZoomLevel / 100
+        const zoomRatio = newZoom / oldZoom
+        
+        const newScrollX = scrollPosition.x + (mouseX / oldZoom) * (zoomRatio - 1)
+        const newScrollY = scrollPosition.y + (mouseY / oldZoom) * (zoomRatio - 1)
+        
+        setScrollPosition({ x: newScrollX, y: newScrollY })
+      }
     }
     
-    setZoom(newZoom)
-  }, [zoom, scrollPosition])
+    setZoomLevel(newZoomLevel)
+  }, [zoomLevel, scrollPosition, setZoomLevel])
 
-  // Listen for external zoom changes from header
-  useEffect(() => {
-    const targetZoom = zoomLevel / 100
-    if (Math.abs(targetZoom - zoom) > 0.01) {
-      handleHeaderZoomChange(zoomLevel)
-    }
-  }, [zoomLevel, handleHeaderZoomChange])
-
-  // Scroll handler with enhanced zoom support
+  // Scroll handler with fixed zoom support
   useScrollHandler({
     canvasRef,
     scrollPosition,
@@ -574,13 +540,18 @@ export default function VoidPage() {
   const hasOpenPanels = getOpenPanelsCount() > 0
 
   return (
-    <AuthenticatedLayout gridVisible={gridVisible} setGridVisible={setGridVisible}>
+    <AuthenticatedLayout 
+      gridVisible={gridVisible} 
+      setGridVisible={setGridVisible}
+      zoomLevel={zoomLevel}
+      onZoomChange={handleZoom}
+      project={project}
+    >
       <Head title={`Void - ${project?.name || 'Project'}`} />
       <div 
         ref={canvasRef}
-        className={`relative w-full h-screen overflow-hidden transition-colors duration-1000 ${
-          isDragging ? 'cursor-grabbing' : 'cursor-grab'
-        } ${
+        data-canvas="true"
+        className={`relative w-full h-screen overflow-hidden ${
           isDark 
             ? 'bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900' 
             : 'bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50'
@@ -589,17 +560,12 @@ export default function VoidPage() {
           backgroundColor: isDark ? 'var(--color-bg)' : 'var(--color-bg)',
           userSelect: 'none',
           touchAction: 'none',
-          willChange: 'transform',
-          backfaceVisibility: 'hidden',
-          perspective: 1000
         }}
       >
-       
-
-        {/* Background Layers */}
+        {/* Background Layers - z-index: 5 */}
         <BackgroundLayers isDark={isDark} scrollPosition={scrollPosition} />
 
-        {/* Infinite Grid - Below background but above frames */}
+        {/* Infinite Grid - z-index: 8 (behind frames but above background) */}
         <InfiniteGrid
           isVisible={gridVisible}
           scrollPosition={scrollPosition}
@@ -608,30 +574,21 @@ export default function VoidPage() {
           scrollBounds={scrollBounds}
         />
 
-        {/* Floating Toolbox */}
-        <FloatingToolbox tools={floatingTools} />
-
-        {/* Delete Button */}
-        <DeleteButton 
-          zoom={zoom} 
-          onFrameDrop={handleFrameDropDelete}
-          isDragActive={isFrameDragging}
-        />
-        
-        {/* Frames Container with enhanced zoom support */}
+        {/* Frames Container - z-index: 15 (above grid) */}
         <div 
-          className="absolute inset-0 z-15" 
+          className="absolute inset-0"
           style={{ 
-            transform: `scale(${zoom})`,
+            zIndex: 15,
+            transform: `scale(${zoom}) translateZ(0)`,
             transformOrigin: '0 0',
             willChange: 'transform',
-            transition: 'transform 0.1s ease-out' // Smooth zoom transitions
           }}
         >
           <FramesContainer 
             frames={frames} 
             scrollPosition={scrollPosition} 
             scrollBounds={scrollBounds}
+            setScrollPosition={setScrollPosition}
             onFrameDragStart={handleFrameDragStart}
             onFrameDrag={handleFrameDrag}
             onFrameDragEnd={handleFrameDragEnd}
@@ -640,6 +597,15 @@ export default function VoidPage() {
             isDark={isDark}
           />
         </div>
+
+        {/* UI Elements - z-index: 20+ (above everything) */}
+        <FloatingToolbox tools={floatingTools} />
+
+        <DeleteButton 
+          zoom={zoom} 
+          onFrameDrop={handleFrameDropDelete}
+          isDragActive={isFrameDragging}
+        />
         
         {/* Dynamic Dockable Panel System */}
         {hasOpenPanels && (

@@ -23,7 +23,13 @@ import { componentLibraryService } from '@/Services/ComponentLibraryService';
 import { tooltipDatabase } from '@/Components/Forge/TooltipDatabase';
 import { formatCode, highlightCode, parseCodeAndUpdateComponents } from '@/Components/Forge/CodeUtils';
 
-export default function ForgePage({ projectId, frameId, project, frame }) {
+export default function ForgePage({ 
+  projectId, 
+  frameId, 
+  project, 
+  frame, 
+  projectFrames = []
+}) {
   // Zustand stores with proper subscriptions
   const {
     toggleForgePanel,
@@ -44,7 +50,20 @@ export default function ForgePage({ projectId, frameId, project, frame }) {
   const [windowDimensions, setWindowDimensions] = useState({ width: 0, height: 0 })
 
   // Canvas state for dropped components - Now frame-specific
-  const [frameCanvasComponents, setFrameCanvasComponents] = useState({})
+  const [frameCanvasComponents, setFrameCanvasComponents] = useState(() => {
+    const initialFrameData = {};
+    
+    // CRITICAL: Properly handle frame data from props
+    if (frame?.canvas_data?.components && Array.isArray(frame.canvas_data.components)) {
+        console.log('ForgePage: Loading frame components from props:', frame.canvas_data.components.length);
+        initialFrameData[frame.uuid || frameId] = frame.canvas_data.components;
+    } else {
+        console.log('ForgePage: No valid canvas data found, initializing empty');
+        initialFrameData[frameId] = [];
+    }
+    
+    return initialFrameData;
+});
   const [selectedComponent, setSelectedComponent] = useState(null)
   const [generatedCode, setGeneratedCode] = useState({ html: '', css: '', react: '', tailwind: '' })
   
@@ -86,41 +105,59 @@ export default function ForgePage({ projectId, frameId, project, frame }) {
   const canvasRef = useRef(null)
   const codePanelRef = useRef(null)
   
-  const [currentFrame, setCurrentFrame] = useState(frameId || frame?.uuid || 'frame-1');
-
+  const [currentFrame, setCurrentFrame] = useState(() => {
+      const frameIdToUse = frameId || frame?.uuid;
+      console.log('ForgePage: Initial frame ID:', frameIdToUse);
+      return frameIdToUse;
+  });
+  useEffect(() => {
+      console.log('ForgePage: Frame props changed:', { 
+          frameId, 
+          frameUuid: frame?.uuid, 
+          hasCanvasData: !!frame?.canvas_data,
+          componentCount: frame?.canvas_data?.components?.length || 0
+      });
+      
+      if (frameId && frameId !== currentFrame) {
+          console.log('ForgePage: Updating current frame from props:', frameId);
+          setCurrentFrame(frameId);
+          
+          // Clear previous selection
+          setSelectedComponent(null);
+          
+          // CRITICAL: Load frame data if available
+          if (frame?.canvas_data?.components && Array.isArray(frame.canvas_data.components)) {
+              console.log('ForgePage: Loading frame components from backend:', frame.canvas_data.components);
+              setFrameCanvasComponents(prev => ({
+                  ...prev,
+                  [frameId]: frame.canvas_data.components
+              }));
+              
+              // Generate code for loaded components
+              if (frame.canvas_data.components.length > 0) {
+                  generateCode(frame.canvas_data.components);
+              }
+          } else {
+              // FIXED: Initialize empty if no valid data
+              console.log('ForgePage: No valid canvas data, initializing empty array');
+              setFrameCanvasComponents(prev => ({
+                  ...prev,
+                  [frameId]: []
+              }));
+          }
+      }
+  }, [frameId, frame?.uuid, frame?.canvas_data, currentFrame]);
+  
   // Get current frame's canvas components
   const canvasComponents = frameCanvasComponents[currentFrame] || []
 
   // Mock project frames data - This should come from your backend
-  const projectFrames = [
-    {
-      id: frameId || frame?.uuid || 'frame-1',
-      name: frame?.name || 'Landing Page',
-      type: 'desktop',
-      thumbnail: '/api/placeholder/200/120',
-      lastModified: '2m ago',
-      components: canvasComponents.length,
-      isActive: true
-    },
-    {
-      id: 'frame-2',
-      name: 'Mobile View',
-      type: 'mobile', 
-      thumbnail: '/api/placeholder/200/120',
-      lastModified: '5m ago',
-      components: 8,
-      isActive: false
-    },
-    {
-      id: 'frame-3',
-      name: 'Dashboard',
-      type: 'desktop',
-      thumbnail: '/api/placeholder/200/120', 
-      lastModified: '1h ago',
-      components: 24,
-      isActive: false
-    }
-  ]
+  const processedProjectFrames = useMemo(() => {
+    return (projectFrames || []).map(frame => ({
+      ...frame,
+      isActive: frame.id === currentFrame || frame.uuid === currentFrame
+    }));
+  }, [projectFrames, currentFrame]);
 
   // Enhanced frame switching handler with smooth transitions
   const handleFrameSwitch = useCallback(async (newFrameId) => {
@@ -224,39 +261,52 @@ export default function ForgePage({ projectId, frameId, project, frame }) {
         if (typeof componentLibraryService === 'undefined' || !componentLibraryService) {
           console.warn('componentLibraryService not available, using mock data');
           setComponentsLoaded(true);
-          setLoadingMessage('Components loaded successfully!');
-          setTimeout(() => setLoadingMessage(''), 2000);
+          setLoadingMessage('');
           return;
         }
         
         await componentLibraryService.loadComponents();
         setComponentsLoaded(true);
-        setLoadingMessage('Components loaded successfully!');
         
-        // Load frame-specific components
-        if (projectId && currentFrame) {
-          setLoadingMessage('Loading frame components...');
-          const existingComponents = await componentLibraryService.loadProjectComponents(projectId, currentFrame);
-          if (existingComponents && existingComponents.length > 0) {
+        // FIXED: Load frame components from backend data first, then try service
+        if (frame && frame.canvas_data && frame.canvas_data.components) {
+          console.log('Using frame components from backend props');
+          const backendComponents = frame.canvas_data.components;
+          
+          setFrameCanvasComponents(prev => ({
+            ...prev,
+            [currentFrame]: backendComponents
+          }));
+          
+          if (backendComponents.length > 0) {
+            generateCode(backendComponents);
+          }
+        } else if (projectId && currentFrame && componentLibraryService.loadProjectComponents) {
+          // Fallback to service-based loading
+          setLoadingMessage('Loading frame components from service...');
+          const serviceComponents = await componentLibraryService.loadProjectComponents(projectId, currentFrame);
+          if (serviceComponents && serviceComponents.length > 0) {
             setFrameCanvasComponents(prev => ({
               ...prev,
-              [currentFrame]: existingComponents
+              [currentFrame]: serviceComponents
             }));
-            generateCode(existingComponents);
+            generateCode(serviceComponents);
           }
         }
         
-        setTimeout(() => setLoadingMessage(''), 2000);
+        setLoadingMessage('');
       } catch (error) {
         console.error('Failed to initialize components:', error);
         setComponentsLoaded(true);
-        setLoadingMessage('Failed to load components. Using fallback mode.');
-        setTimeout(() => setLoadingMessage(''), 3000);
+        setLoadingMessage('');
       }
     };
 
-    initializeComponents();
-  }, [projectId, currentFrame]);
+    // Only initialize if we have a current frame
+    if (currentFrame) {
+      initializeComponents();
+    }
+  }, [currentFrame, projectId]);
 
   // Auto-save frame components when they change
   useEffect(() => {
@@ -1019,7 +1069,7 @@ export default function ForgePage({ projectId, frameId, project, frame }) {
           currentFrame={currentFrame}
           onFrameSwitch={handleFrameSwitch}
           isMobile={isMobile}
-          projectFrames={projectFrames}
+          projectFrames={processedProjectFrames}
           projectId={projectId}
           isFrameSwitching={isFrameSwitching}
           frameTransitionPhase={frameTransitionPhase}

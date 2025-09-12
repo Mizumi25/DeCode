@@ -56,12 +56,14 @@ export default function Header({
     inspectMode,
     activeNav,
     panelStates,
+    gridVisible,
     setResponsiveMode,
     setZoomLevel,
     setInteractionMode,
     setEditMode,
     setInspectMode,
     setActiveNav,
+    setGridVisible,
     togglePanel,
     resetForPage,
     initializeNavFromUrl // Add this
@@ -170,6 +172,8 @@ export default function Header({
               setZoomLevel={setZoomLevel}
               interactionMode={interactionMode}
               setInteractionMode={setInteractionMode}
+              gridVisible={gridVisible}
+              setGridVisible={setGridVisible}
             />
           )}
 

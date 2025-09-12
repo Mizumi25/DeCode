@@ -94,7 +94,7 @@ const InfiniteGrid = ({
       className="absolute inset-0 pointer-events-none"
       style={{
         transform: `translate(${-scrollPosition.x}px, ${-scrollPosition.y}px)`,
-        zIndex: 1
+        zIndex: 5
       }}
     >
       <svg
