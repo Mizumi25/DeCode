@@ -1,12 +1,11 @@
 services:
   - type: web
-    name: laravel-app
+    name: laravel-web
     env: docker
     dockerfilePath: ./Dockerfile
-    buildCommand: |
-      php artisan migrate --force --seed
     startCommand: |
-      php-fpm
+      php artisan migrate --force --seed
+      php artisan serve --host=0.0.0.0 --port=$PORT
 
   - type: worker
     name: laravel-queue

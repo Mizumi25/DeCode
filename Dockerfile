@@ -15,10 +15,10 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-install gd pdo pdo_mysql zip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Set the working directory
+# Set working directory
 WORKDIR /var/www
 
-# Copy the current directory contents into the container
+# Copy current directory
 COPY . .
 
 # Install Composer
@@ -27,11 +27,8 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 # Install Laravel dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-# Expose Render's expected port
-EXPOSE 10000
-
-# Add this to your Dockerfile before CMD
+# Ensure permissions for SQLite, storage, cache
 RUN chown -R www-data:www-data /var/www/database /var/www/storage /var/www/bootstrap/cache
 
-# Start Laravel's built-in server
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=10000"]
+# Start Laravel's built-in server with dynamic Render port
+CMD ["sh", "-c", "php artisan migrate --force --seed && php artisan serve --host=0.0.0.0 --port=$PORT"]
