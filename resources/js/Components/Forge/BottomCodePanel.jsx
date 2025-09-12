@@ -138,15 +138,22 @@ const BottomCodePanel = ({
       {/* Resize handle */}
       {!codePanelMinimized && (
         <div
-          className="h-2 bg-gray-100 hover:bg-gray-200 cursor-ns-resize flex items-center justify-center transition-colors border-b border-gray-200 group"
+          className="h-2 cursor-ns-resize flex items-center justify-center border-b group transition-colors"
           onMouseDown={handleMouseDown}
           onTouchStart={handleTouchStart}
           title="Drag to resize panel"
+          style={{
+            backgroundColor: 'var(--color-bg-muted)',
+            borderColor: 'var(--color-border)',
+          }}
         >
-          <GripHorizontal className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+          <GripHorizontal
+            className="w-4 h-4 transition-colors"
+            style={{ color: 'var(--color-text-muted)' }}
+          />
         </div>
       )}
-
+      
       {/* Header */}
       <div className="flex items-center justify-between p-2 sm:p-3 border-b bg-gray-50 flex-shrink-0"
         style={{ 

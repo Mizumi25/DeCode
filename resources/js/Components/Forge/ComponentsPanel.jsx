@@ -626,20 +626,23 @@ const ComponentsPanel = ({
                 >
                   <div className="grid grid-cols-1 gap-2 max-w-full">
                     {selectedComponent?.variants?.map((variant, index) => (
-                      <motion.div
+                        <motion.div
                         key={`${selectedComponent.id}-${variant.name || index}`}
                         className="group relative max-w-full"
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.03 }}
+                        draggable
+                        onDragStart={(e) => handleVariantDragStart(e, selectedComponent, variant)}
+                        onDragEnd={handleVariantDragEnd}
                       >
-                        <div 
-                          className="rounded-lg p-3 border transition-all duration-300 shadow-sm hover:shadow-lg relative overflow-hidden max-w-full backdrop-blur-sm"
-                          style={{ 
-                            backgroundColor: theme.surface,
-                            borderColor: theme.border,
-                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
-                          }}
+                         <div 
+                            className="rounded-lg p-3 border transition-all duration-300 shadow-sm hover:shadow-lg relative overflow-hidden max-w-full backdrop-blur-sm cursor-grab active:cursor-grabbing"
+                            style={{ 
+                              backgroundColor: theme.surface,
+                              borderColor: theme.border,
+                              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+                            }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.borderColor = theme.accent;
                             e.currentTarget.style.transform = 'translateY(-2px)';
