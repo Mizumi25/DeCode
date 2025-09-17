@@ -12,20 +12,28 @@ class ProjectComponent extends Model
 
     protected $fillable = [
         'project_id',
-        'frame_id',
+        'frame_id', // Change from frame_uuid to frame_id for consistency
         'component_instance_id',
         'component_type',
         'props',
         'position',
         'name',
         'z_index',
-        'is_locked'
+        'is_locked',
+        'variant',        // ADD
+        'style',          // ADD
+        'animation',      // ADD
+        'created_at',
+        'updated_at'
     ];
-
+    
     protected $casts = [
         'props' => 'array',
         'position' => 'array',
-        'is_locked' => 'boolean'
+        'is_locked' => 'boolean',
+        'variant' => 'array',     // ADD
+        'style' => 'array',       // ADD
+        'animation' => 'array'    // ADD
     ];
 
     public function component()

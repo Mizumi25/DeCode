@@ -1,439 +1,448 @@
-import React from 'react';
-import { Move, Layout, Columns, Grid3X3, Maximize, Square } from 'lucide-react';
+import React, { useState } from 'react';
+import { Move, Layout, Columns, Grid3X3, Maximize, Square, MousePointer, Layers, AlignLeft, AlignCenter, AlignRight, AlignJustify } from 'lucide-react';
 import { PropertySection, InputField, SubsectionHeader } from '../PropertyUtils';
 
-const LayoutSection = ({ currentStyles, onPropertyChange, expandedSections, setExpandedSections, selectedComponentData }) => {
+const LayoutSection = ({ 
+  currentStyles, 
+  onPropertyChange, 
+  expandedSections, 
+  setExpandedSections, 
+  selectedComponentData,
+  onLivePreview // Add this for live preview as you type
+}) => {
+  const [livePreview, setLivePreview] = useState({});
+
+  // Visual button groups for common layout patterns
+  const VisualButtonGroup = ({ label, value, onChange, options, icons = {} }) => (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+      <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+        {options.map((option) => {
+          const Icon = icons[option];
+          return (
+            <button
+              key={option}
+              onClick={() => onChange(option)}
+              className={`flex-1 px-3 py-2 text-xs rounded-md transition-all ${
+                value === option
+                  ? 'bg-blue-500 text-white shadow-sm'
+                  : 'bg-transparent text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {Icon ? (
+                <div className="flex items-center justify-center gap-1">
+                  <Icon className="w-3 h-3" />
+                  <span>{option}</span>
+                </div>
+              ) : (
+                option
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  // Live preview handler
+  const handleLiveChange = (property, value, type = 'style') => {
+    // Update live preview
+    setLivePreview(prev => ({
+      ...prev,
+      [property]: value
+    }));
+    
+    // Update actual property with debounce
+    const timeoutId = setTimeout(() => {
+      onPropertyChange(property, value, type);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  };
+
+  // Visual spacing controls
+  const SpacingControl = ({ label, property, value, onChange }) => (
+    <div className="bg-gray-50 p-3 rounded-lg">
+      <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="text-center">
+          <div className="text-xs text-gray-500 mb-1">All</div>
+          <input
+            type="number"
+            className="w-full px-2 py-1 text-xs border rounded"
+            placeholder="0"
+            value={value || ''}
+            onChange={(e) => {
+              const val = e.target.value ? `${e.target.value}px` : '';
+              onChange(property, val);
+            }}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-1">
+          <div>
+            <div className="text-xs text-gray-500 mb-1">T</div>
+            <input
+              type="number"
+              className="w-full px-1 py-1 text-xs border rounded"
+              placeholder="0"
+              onChange={(e) => {
+                const val = e.target.value ? `${e.target.value}px` : '';
+                onChange(`${property}Top`, val);
+              }}
+            />
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 mb-1">R</div>
+            <input
+              type="number"
+              className="w-full px-1 py-1 text-xs border rounded"
+              placeholder="0"
+              onChange={(e) => {
+                const val = e.target.value ? `${e.target.value}px` : '';
+                onChange(`${property}Right`, val);
+              }}
+            />
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 mb-1">B</div>
+            <input
+              type="number"
+              className="w-full px-1 py-1 text-xs border rounded"
+              placeholder="0"
+              onChange={(e) => {
+                const val = e.target.value ? `${e.target.value}px` : '';
+                onChange(`${property}Bottom`, val);
+              }}
+            />
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 mb-1">L</div>
+            <input
+              type="number"
+              className="w-full px-1 py-1 text-xs border rounded"
+              placeholder="0"
+              onChange={(e) => {
+                const val = e.target.value ? `${e.target.value}px` : '';
+                onChange(`${property}Left`, val);
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <>
-      {/* LAYOUT & POSITIONING */}
+      {/* POSITION & DISPLAY - Most Important Section */}
       <PropertySection
-        title="Layout & Positioning"
-        Icon={Move}
-        sectionKey="layout"
+        title="Position & Display"
+        Icon={MousePointer}
+        sectionKey="position-display"
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
+        defaultExpanded={true}
       >
-        {/* Position */}
-        <div>
-          <SubsectionHeader title="Position" />
+        {/* Position Type - Visual Buttons */}
+        <VisualButtonGroup
+          label="Position"
+          value={currentStyles.position || 'static'}
+          onChange={(value) => onPropertyChange('position', value, 'style')}
+          options={['static', 'relative', 'absolute', 'fixed', 'sticky']}
+        />
+
+        {/* Display Type - Visual Buttons */}
+        <VisualButtonGroup
+          label="Display"
+          value={currentStyles.display || 'block'}
+          onChange={(value) => onPropertyChange('display', value, 'style')}
+          options={['block', 'inline-block', 'flex', 'grid', 'none']}
+        />
+
+        {/* Position Values - Only show if not static */}
+        {currentStyles.position && currentStyles.position !== 'static' && (
+          <div className="bg-blue-50 p-3 rounded-lg">
+            <SubsectionHeader title="Position Values" />
+            <div className="grid grid-cols-2 gap-2">
+              <InputField
+                label="Top"
+                value={currentStyles.top}
+                onChange={(value) => handleLiveChange('top', value)}
+                options={{ placeholder: 'auto' }}
+              />
+              <InputField
+                label="Right"
+                value={currentStyles.right}
+                onChange={(value) => handleLiveChange('right', value)}
+                options={{ placeholder: 'auto' }}
+              />
+              <InputField
+                label="Bottom"
+                value={currentStyles.bottom}
+                onChange={(value) => handleLiveChange('bottom', value)}
+                options={{ placeholder: 'auto' }}
+              />
+              <InputField
+                label="Left"
+                value={currentStyles.left}
+                onChange={(value) => handleLiveChange('left', value)}
+                options={{ placeholder: 'auto' }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Canvas Position Controls */}
+        <div className="bg-gray-50 p-3 rounded-lg">
+          <SubsectionHeader title="Canvas Position" />
           <div className="grid grid-cols-2 gap-3">
             <InputField
               label="X"
               value={selectedComponentData.position?.x || 0}
-              onChange={(value) => onPropertyChange('position', { ...selectedComponentData.position, x: parseFloat(value) || 0 })}
+              onChange={(value) => onPropertyChange('position', { 
+                ...selectedComponentData.position, 
+                x: parseFloat(value) || 0 
+              })}
               type="number"
               options={{ step: 1 }}
             />
             <InputField
               label="Y"
               value={selectedComponentData.position?.y || 0}
-              onChange={(value) => onPropertyChange('position', { ...selectedComponentData.position, y: parseFloat(value) || 0 })}
+              onChange={(value) => onPropertyChange('position', { 
+                ...selectedComponentData.position, 
+                y: parseFloat(value) || 0 
+              })}
               type="number"
               options={{ step: 1 }}
-            />
-          </div>
-        </div>
-        
-        {/* Position Type */}
-        <InputField
-          label="Position Type"
-          value={currentStyles.position}
-          onChange={(value) => onPropertyChange('position', value, 'style')}
-          type="select"
-          options={{
-            values: ['static', 'relative', 'absolute', 'fixed', 'sticky']
-          }}
-        />
-
-        {/* Top, Right, Bottom, Left */}
-        <div>
-          <SubsectionHeader title="Position Values" />
-          <div className="grid grid-cols-2 gap-2">
-            <InputField
-              label="Top"
-              value={currentStyles.top}
-              onChange={(value) => onPropertyChange('top', value, 'style')}
-              options={{ placeholder: 'auto' }}
-            />
-            <InputField
-              label="Right"
-              value={currentStyles.right}
-              onChange={(value) => onPropertyChange('right', value, 'style')}
-              options={{ placeholder: 'auto' }}
-            />
-            <InputField
-              label="Bottom"
-              value={currentStyles.bottom}
-              onChange={(value) => onPropertyChange('bottom', value, 'style')}
-              options={{ placeholder: 'auto' }}
-            />
-            <InputField
-              label="Left"
-              value={currentStyles.left}
-              onChange={(value) => onPropertyChange('left', value, 'style')}
-              options={{ placeholder: 'auto' }}
             />
           </div>
         </div>
 
         {/* Z-Index */}
         <InputField
-          label="Z-Index"
+          label="Layer (Z-Index)"
           value={currentStyles.zIndex}
           onChange={(value) => onPropertyChange('zIndex', value, 'style')}
           type="number"
+          options={{ min: -1000, max: 1000 }}
         />
       </PropertySection>
 
-      {/* DISPLAY & FLOW */}
-      <PropertySection
-        title="Display & Flow"
-        Icon={Layout}
-        sectionKey="display"
-        expandedSections={expandedSections}
-        setExpandedSections={setExpandedSections}
-      >
-        <InputField
-          label="Display"
-          value={currentStyles.display}
-          onChange={(value) => onPropertyChange('display', value, 'style')}
-          type="select"
-          options={{
-            values: ['block', 'inline', 'inline-block', 'flex', 'inline-flex', 'grid', 'inline-grid', 'table', 'table-cell', 'table-row', 'none', 'contents']
-          }}
-        />
-        
-        <InputField
-          label="Visibility"
-          value={currentStyles.visibility}
-          onChange={(value) => onPropertyChange('visibility', value, 'style')}
-          type="select"
-          options={{
-            values: ['visible', 'hidden', 'collapse']
-          }}
-        />
-        
-        <InputField
-          label="Overflow"
-          value={currentStyles.overflow}
-          onChange={(value) => onPropertyChange('overflow', value, 'style')}
-          type="select"
-          options={{
-            values: ['visible', 'hidden', 'scroll', 'auto', 'clip']
-          }}
-        />
-        
-        <div className="grid grid-cols-2 gap-3">
-          <InputField
-            label="Overflow X"
-            value={currentStyles.overflowX}
-            onChange={(value) => onPropertyChange('overflowX', value, 'style')}
-            type="select"
-            options={{
-              values: ['visible', 'hidden', 'scroll', 'auto', 'clip']
-            }}
+      {/* FLEXBOX - Show only if display is flex */}
+      {(currentStyles.display === 'flex' || currentStyles.display === 'inline-flex') && (
+        <PropertySection
+          title="Flexbox Layout"
+          Icon={Columns}
+          sectionKey="flexbox"
+          expandedSections={expandedSections}
+          setExpandedSections={setExpandedSections}
+          defaultExpanded={true}
+        >
+          {/* Flex Direction - Visual */}
+          <VisualButtonGroup
+            label="Direction"
+            value={currentStyles.flexDirection || 'row'}
+            onChange={(value) => onPropertyChange('flexDirection', value, 'style')}
+            options={['row', 'column', 'row-reverse', 'column-reverse']}
           />
-          <InputField
-            label="Overflow Y"
-            value={currentStyles.overflowY}
-            onChange={(value) => onPropertyChange('overflowY', value, 'style')}
-            type="select"
-            options={{
-              values: ['visible', 'hidden', 'scroll', 'auto', 'clip']
-            }}
-          />
-        </div>
-        
-        <InputField
-          label="Float"
-          value={currentStyles.float}
-          onChange={(value) => onPropertyChange('float', value, 'style')}
-          type="select"
-          options={{
-            values: ['none', 'left', 'right']
-          }}
-        />
-        
-        <InputField
-          label="Clear"
-          value={currentStyles.clear}
-          onChange={(value) => onPropertyChange('clear', value, 'style')}
-          type="select"
-          options={{
-            values: ['none', 'left', 'right', 'both']
-          }}
-        />
-      </PropertySection>
 
-      {/* FLEXBOX */}
-      <PropertySection
-        title="Flexbox"
-        Icon={Columns}
-        sectionKey="flexbox"
-        expandedSections={expandedSections}
-        setExpandedSections={setExpandedSections}
-      >
-        <InputField
-          label="Flex Direction"
-          value={currentStyles.flexDirection}
-          onChange={(value) => onPropertyChange('flexDirection', value, 'style')}
-          type="select"
-          options={{
-            values: ['row', 'row-reverse', 'column', 'column-reverse']
-          }}
-        />
-        
-        <InputField
-          label="Flex Wrap"
-          value={currentStyles.flexWrap}
-          onChange={(value) => onPropertyChange('flexWrap', value, 'style')}
-          type="select"
-          options={{
-            values: ['nowrap', 'wrap', 'wrap-reverse']
-          }}
-        />
-        
-        <InputField
-          label="Justify Content"
-          value={currentStyles.justifyContent}
-          onChange={(value) => onPropertyChange('justifyContent', value, 'style')}
-          type="select"
-          options={{
-            values: ['flex-start', 'flex-end', 'center', 'space-between', 'space-around', 'space-evenly']
-          }}
-        />
-        
-        <InputField
-          label="Align Items"
-          value={currentStyles.alignItems}
-          onChange={(value) => onPropertyChange('alignItems', value, 'style')}
-          type="select"
-          options={{
-            values: ['stretch', 'flex-start', 'flex-end', 'center', 'baseline']
-          }}
-        />
-        
-        <InputField
-          label="Align Content"
-          value={currentStyles.alignContent}
-          onChange={(value) => onPropertyChange('alignContent', value, 'style')}
-          type="select"
-          options={{
-            values: ['stretch', 'flex-start', 'flex-end', 'center', 'space-between', 'space-around']
-          }}
-        />
-        
-        <div className="grid grid-cols-3 gap-3">
-          <InputField
-            label="Flex Grow"
-            value={currentStyles.flexGrow}
-            onChange={(value) => onPropertyChange('flexGrow', value, 'style')}
-            type="number"
-            options={{ min: 0, step: 1 }}
-          />
-          <InputField
-            label="Flex Shrink"
-            value={currentStyles.flexShrink}
-            onChange={(value) => onPropertyChange('flexShrink', value, 'style')}
-            type="number"
-            options={{ min: 0, step: 1 }}
-          />
-          <InputField
-            label="Flex Basis"
-            value={currentStyles.flexBasis}
-            onChange={(value) => onPropertyChange('flexBasis', value, 'style')}
-            options={{ placeholder: 'auto' }}
-          />
-        </div>
-        
-        <InputField
-          label="Align Self"
-          value={currentStyles.alignSelf}
-          onChange={(value) => onPropertyChange('alignSelf', value, 'style')}
-          type="select"
-          options={{
-            values: ['auto', 'stretch', 'flex-start', 'flex-end', 'center', 'baseline']
-          }}
-        />
-        
-        <InputField
-          label="Gap"
-          value={currentStyles.gap}
-          onChange={(value) => onPropertyChange('gap', value, 'style')}
-          options={{ placeholder: '0px' }}
-        />
-      </PropertySection>
-
-      {/* GRID */}
-      <PropertySection
-        title="Grid"
-        Icon={Grid3X3}
-        sectionKey="grid"
-        expandedSections={expandedSections}
-        setExpandedSections={setExpandedSections}
-      >
-        <InputField
-          label="Grid Template Columns"
-          value={currentStyles.gridTemplateColumns}
-          onChange={(value) => onPropertyChange('gridTemplateColumns', value, 'style')}
-          options={{ placeholder: 'none' }}
-        />
-        <InputField
-          label="Grid Template Rows"
-          value={currentStyles.gridTemplateRows}
-          onChange={(value) => onPropertyChange('gridTemplateRows', value, 'style')}
-          options={{ placeholder: 'none' }}
-        />
-        <InputField
-          label="Grid Template Areas"
-          value={currentStyles.gridTemplateAreas}
-          onChange={(value) => onPropertyChange('gridTemplateAreas', value, 'style')}
-          type="textarea"
-        />
-        
-        <div className="grid grid-cols-2 gap-3">
-          <InputField
-            label="Grid Column Gap"
-            value={currentStyles.columnGap}
-            onChange={(value) => onPropertyChange('columnGap', value, 'style')}
-          />
-          <InputField
-            label="Grid Row Gap"
-            value={currentStyles.rowGap}
-            onChange={(value) => onPropertyChange('rowGap', value, 'style')}
-          />
-        </div>
-        
-        <InputField
-          label="Grid Auto Flow"
-          value={currentStyles.gridAutoFlow}
-          onChange={(value) => onPropertyChange('gridAutoFlow', value, 'style')}
-          type="select"
-          options={{
-            values: ['row', 'column', 'row dense', 'column dense']
-          }}
-        />
-        
-        <InputField
-          label="Grid Auto Columns"
-          value={currentStyles.gridAutoColumns}
-          onChange={(value) => onPropertyChange('gridAutoColumns', value, 'style')}
-        />
-        <InputField
-          label="Grid Auto Rows"
-          value={currentStyles.gridAutoRows}
-          onChange={(value) => onPropertyChange('gridAutoRows', value, 'style')}
-        />
-        
-        <div className="grid grid-cols-2 gap-3">
-          <InputField
-            label="Grid Column"
-            value={currentStyles.gridColumn}
-            onChange={(value) => onPropertyChange('gridColumn', value, 'style')}
-          />
-          <InputField
-            label="Grid Row"
-            value={currentStyles.gridRow}
-            onChange={(value) => onPropertyChange('gridRow', value, 'style')}
-          />
-        </div>
-        
-        <InputField
-          label="Grid Area"
-          value={currentStyles.gridArea}
-          onChange={(value) => onPropertyChange('gridArea', value, 'style')}
-        />
-        
-        <div className="grid grid-cols-2 gap-3">
-          <InputField
-            label="Justify Self"
-            value={currentStyles.justifySelf}
-            onChange={(value) => onPropertyChange('justifySelf', value, 'style')}
-            type="select"
-            options={{
-              values: ['auto', 'start', 'end', 'center', 'stretch']
+          {/* Justify Content - Visual */}
+          <VisualButtonGroup
+            label="Justify (Main Axis)"
+            value={currentStyles.justifyContent || 'flex-start'}
+            onChange={(value) => onPropertyChange('justifyContent', value, 'style')}
+            options={['flex-start', 'center', 'flex-end', 'space-between', 'space-around']}
+            icons={{
+              'flex-start': AlignLeft,
+              'center': AlignCenter,
+              'flex-end': AlignRight,
+              'space-between': AlignJustify
             }}
           />
-          <InputField
-            label="Align Self"
-            value={currentStyles.alignSelf}
-            onChange={(value) => onPropertyChange('alignSelf', value, 'style')}
-            type="select"
-            options={{
-              values: ['auto', 'start', 'end', 'center', 'stretch', 'baseline']
-            }}
-          />
-        </div>
-      </PropertySection>
 
-      {/* SIZING */}
+          {/* Align Items - Visual */}
+          <VisualButtonGroup
+            label="Align (Cross Axis)"
+            value={currentStyles.alignItems || 'stretch'}
+            onChange={(value) => onPropertyChange('alignItems', value, 'style')}
+            options={['stretch', 'flex-start', 'center', 'flex-end', 'baseline']}
+          />
+
+          {/* Flex Wrap */}
+          <VisualButtonGroup
+            label="Wrap"
+            value={currentStyles.flexWrap || 'nowrap'}
+            onChange={(value) => onPropertyChange('flexWrap', value, 'style')}
+            options={['nowrap', 'wrap', 'wrap-reverse']}
+          />
+
+          {/* Gap */}
+          <InputField
+            label="Gap"
+            value={currentStyles.gap}
+            onChange={(value) => handleLiveChange('gap', value)}
+            options={{ placeholder: '0px' }}
+          />
+
+          {/* Flex Item Properties */}
+          <div className="bg-green-50 p-3 rounded-lg">
+            <SubsectionHeader title="Flex Item Properties" />
+            <div className="grid grid-cols-3 gap-2">
+              <InputField
+                label="Grow"
+                value={currentStyles.flexGrow}
+                onChange={(value) => onPropertyChange('flexGrow', value, 'style')}
+                type="number"
+                options={{ min: 0, step: 1 }}
+              />
+              <InputField
+                label="Shrink"
+                value={currentStyles.flexShrink}
+                onChange={(value) => onPropertyChange('flexShrink', value, 'style')}
+                type="number"
+                options={{ min: 0, step: 1 }}
+              />
+              <InputField
+                label="Basis"
+                value={currentStyles.flexBasis}
+                onChange={(value) => onPropertyChange('flexBasis', value, 'style')}
+                options={{ placeholder: 'auto' }}
+              />
+            </div>
+          </div>
+        </PropertySection>
+      )}
+
+      {/* GRID - Show only if display is grid */}
+      {(currentStyles.display === 'grid' || currentStyles.display === 'inline-grid') && (
+        <PropertySection
+          title="Grid Layout"
+          Icon={Grid3X3}
+          sectionKey="grid"
+          expandedSections={expandedSections}
+          setExpandedSections={setExpandedSections}
+          defaultExpanded={true}
+        >
+          {/* Grid Template */}
+          <div className="space-y-3">
+            <InputField
+              label="Grid Columns"
+              value={currentStyles.gridTemplateColumns}
+              onChange={(value) => handleLiveChange('gridTemplateColumns', value)}
+              options={{ placeholder: 'repeat(3, 1fr)' }}
+            />
+            <InputField
+              label="Grid Rows"
+              value={currentStyles.gridTemplateRows}
+              onChange={(value) => handleLiveChange('gridTemplateRows', value)}
+              options={{ placeholder: 'repeat(2, 1fr)' }}
+            />
+          </div>
+
+          {/* Grid Gaps */}
+          <div className="grid grid-cols-2 gap-3">
+            <InputField
+              label="Column Gap"
+              value={currentStyles.columnGap}
+              onChange={(value) => handleLiveChange('columnGap', value)}
+              options={{ placeholder: '10px' }}
+            />
+            <InputField
+              label="Row Gap"
+              value={currentStyles.rowGap}
+              onChange={(value) => handleLiveChange('rowGap', value)}
+              options={{ placeholder: '10px' }}
+            />
+          </div>
+
+          {/* Grid Item Positioning */}
+          <div className="bg-purple-50 p-3 rounded-lg">
+            <SubsectionHeader title="Grid Item Position" />
+            <div className="grid grid-cols-2 gap-3">
+              <InputField
+                label="Grid Column"
+                value={currentStyles.gridColumn}
+                onChange={(value) => onPropertyChange('gridColumn', value, 'style')}
+                options={{ placeholder: '1 / 3' }}
+              />
+              <InputField
+                label="Grid Row"
+                value={currentStyles.gridRow}
+                onChange={(value) => onPropertyChange('gridRow', value, 'style')}
+                options={{ placeholder: '1 / 2' }}
+              />
+            </div>
+          </div>
+        </PropertySection>
+      )}
+
+      {/* SIZING - Essential for WYSIWYG */}
       <PropertySection
-        title="Sizing"
+        title="Size & Dimensions"
         Icon={Maximize}
         sectionKey="sizing"
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
+        defaultExpanded={false}
       >
+        {/* Width & Height with live preview */}
         <div className="grid grid-cols-2 gap-3">
           <InputField
             label="Width"
             value={currentStyles.width}
-            onChange={(value) => onPropertyChange('width', value, 'style')}
+            onChange={(value) => handleLiveChange('width', value)}
             options={{ placeholder: 'auto' }}
           />
           <InputField
             label="Height"
             value={currentStyles.height}
-            onChange={(value) => onPropertyChange('height', value, 'style')}
+            onChange={(value) => handleLiveChange('height', value)}
             options={{ placeholder: 'auto' }}
           />
         </div>
         
-        <div className="grid grid-cols-2 gap-3">
-          <InputField
-            label="Min Width"
-            value={currentStyles.minWidth}
-            onChange={(value) => onPropertyChange('minWidth', value, 'style')}
-          />
-          <InputField
-            label="Min Height"
-            value={currentStyles.minHeight}
-            onChange={(value) => onPropertyChange('minHeight', value, 'style')}
-          />
+        {/* Min/Max sizes */}
+        <div>
+          <SubsectionHeader title="Constraints" />
+          <div className="grid grid-cols-2 gap-2">
+            <InputField
+              label="Min Width"
+              value={currentStyles.minWidth}
+              onChange={(value) => handleLiveChange('minWidth', value)}
+              options={{ placeholder: '0' }}
+            />
+            <InputField
+              label="Max Width"
+              value={currentStyles.maxWidth}
+              onChange={(value) => handleLiveChange('maxWidth', value)}
+              options={{ placeholder: 'none' }}
+            />
+            <InputField
+              label="Min Height"
+              value={currentStyles.minHeight}
+              onChange={(value) => handleLiveChange('minHeight', value)}
+              options={{ placeholder: '0' }}
+            />
+            <InputField
+              label="Max Height"
+              value={currentStyles.maxHeight}
+              onChange={(value) => handleLiveChange('maxHeight', value)}
+              options={{ placeholder: 'none' }}
+            />
+          </div>
         </div>
-        
-        <div className="grid grid-cols-2 gap-3">
-          <InputField
-            label="Max Width"
-            value={currentStyles.maxWidth}
-            onChange={(value) => onPropertyChange('maxWidth', value, 'style')}
-          />
-          <InputField
-            label="Max Height"
-            value={currentStyles.maxHeight}
-            onChange={(value) => onPropertyChange('maxHeight', value, 'style')}
-          />
-        </div>
-        
-        <InputField
-          label="Box Sizing"
-          value={currentStyles.boxSizing}
+
+        {/* Box Sizing */}
+        <VisualButtonGroup
+          label="Box Model"
+          value={currentStyles.boxSizing || 'content-box'}
           onChange={(value) => onPropertyChange('boxSizing', value, 'style')}
-          type="select"
-          options={{
-            values: ['content-box', 'border-box']
-          }}
-        />
-        
-        <InputField
-          label="Aspect Ratio"
-          value={currentStyles.aspectRatio}
-          onChange={(value) => onPropertyChange('aspectRatio', value, 'style')}
-          options={{ placeholder: 'auto or 16/9' }}
+          options={['content-box', 'border-box']}
         />
       </PropertySection>
 
-      {/* SPACING */}
+      {/* SPACING - Visual Margin/Padding Controls */}
       <PropertySection
         title="Spacing"
         Icon={Square}
@@ -441,68 +450,106 @@ const LayoutSection = ({ currentStyles, onPropertyChange, expandedSections, setE
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
       >
-        {/* Margin */}
-        <div>
-          <SubsectionHeader title="Margin" />
-          <div className="grid grid-cols-2 gap-2">
-            <InputField
-              label="Margin Top"
-              value={currentStyles.marginTop}
-              onChange={(value) => onPropertyChange('marginTop', value, 'style')}
-            />
-            <InputField
-              label="Margin Right"
-              value={currentStyles.marginRight}
-              onChange={(value) => onPropertyChange('marginRight', value, 'style')}
-            />
-            <InputField
-              label="Margin Bottom"
-              value={currentStyles.marginBottom}
-              onChange={(value) => onPropertyChange('marginBottom', value, 'style')}
-            />
-            <InputField
-              label="Margin Left"
-              value={currentStyles.marginLeft}
-              onChange={(value) => onPropertyChange('marginLeft', value, 'style')}
-            />
-          </div>
-          <InputField
-            label="Margin (All)"
-            value={currentStyles.margin}
-            onChange={(value) => onPropertyChange('margin', value, 'style')}
+        {/* Visual Margin Control */}
+        <SpacingControl
+          label="Margin"
+          property="margin"
+          value={currentStyles.margin}
+          onChange={onPropertyChange}
+        />
+
+        {/* Visual Padding Control */}
+        <SpacingControl
+          label="Padding"
+          property="padding"
+          value={currentStyles.padding}
+          onChange={onPropertyChange}
+        />
+      </PropertySection>
+
+      {/* OVERFLOW & BEHAVIOR */}
+      <PropertySection
+        title="Overflow & Behavior"
+        Icon={Layers}
+        sectionKey="overflow"
+        expandedSections={expandedSections}
+        setExpandedSections={setExpandedSections}
+      >
+        <VisualButtonGroup
+          label="Overflow"
+          value={currentStyles.overflow || 'visible'}
+          onChange={(value) => onPropertyChange('overflow', value, 'style')}
+          options={['visible', 'hidden', 'scroll', 'auto']}
+        />
+        
+        <div className="grid grid-cols-2 gap-3">
+          <VisualButtonGroup
+            label="Overflow X"
+            value={currentStyles.overflowX || 'visible'}
+            onChange={(value) => onPropertyChange('overflowX', value, 'style')}
+            options={['visible', 'hidden', 'scroll', 'auto']}
+          />
+          <VisualButtonGroup
+            label="Overflow Y"
+            value={currentStyles.overflowY || 'visible'}
+            onChange={(value) => onPropertyChange('overflowY', value, 'style')}
+            options={['visible', 'hidden', 'scroll', 'auto']}
           />
         </div>
+      </PropertySection>
 
-        {/* Padding */}
-        <div>
-          <SubsectionHeader title="Padding" />
-          <div className="grid grid-cols-2 gap-2">
-            <InputField
-              label="Padding Top"
-              value={currentStyles.paddingTop}
-              onChange={(value) => onPropertyChange('paddingTop', value, 'style')}
-            />
-            <InputField
-              label="Padding Right"
-              value={currentStyles.paddingRight}
-              onChange={(value) => onPropertyChange('paddingRight', value, 'style')}
-            />
-            <InputField
-              label="Padding Bottom"
-              value={currentStyles.paddingBottom}
-              onChange={(value) => onPropertyChange('paddingBottom', value, 'style')}
-            />
-            <InputField
-              label="Padding Left"
-              value={currentStyles.paddingLeft}
-              onChange={(value) => onPropertyChange('paddingLeft', value, 'style')}
-            />
-          </div>
-          <InputField
-            label="Padding (All)"
-            value={currentStyles.padding}
-            onChange={(value) => onPropertyChange('padding', value, 'style')}
-          />
+      {/* QUICK LAYOUT PRESETS */}
+      <PropertySection
+        title="Layout Presets"
+        Icon={Layout}
+        sectionKey="presets"
+        expandedSections={expandedSections}
+        setExpandedSections={setExpandedSections}
+      >
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => {
+              onPropertyChange('display', 'flex', 'style');
+              onPropertyChange('justifyContent', 'center', 'style');
+              onPropertyChange('alignItems', 'center', 'style');
+            }}
+            className="px-3 py-2 bg-blue-100 text-blue-800 rounded-lg text-sm font-medium hover:bg-blue-200 transition-colors"
+          >
+            Center Content
+          </button>
+          
+          <button
+            onClick={() => {
+              onPropertyChange('display', 'flex', 'style');
+              onPropertyChange('justifyContent', 'space-between', 'style');
+              onPropertyChange('alignItems', 'center', 'style');
+            }}
+            className="px-3 py-2 bg-green-100 text-green-800 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors"
+          >
+            Space Between
+          </button>
+          
+          <button
+            onClick={() => {
+              onPropertyChange('display', 'grid', 'style');
+              onPropertyChange('gridTemplateColumns', 'repeat(auto-fit, minmax(200px, 1fr))', 'style');
+              onPropertyChange('gap', '20px', 'style');
+            }}
+            className="px-3 py-2 bg-purple-100 text-purple-800 rounded-lg text-sm font-medium hover:bg-purple-200 transition-colors"
+          >
+            Auto Grid
+          </button>
+          
+          <button
+            onClick={() => {
+              onPropertyChange('display', 'flex', 'style');
+              onPropertyChange('flexDirection', 'column', 'style');
+              onPropertyChange('gap', '16px', 'style');
+            }}
+            className="px-3 py-2 bg-orange-100 text-orange-800 rounded-lg text-sm font-medium hover:bg-orange-200 transition-colors"
+          >
+            Stack Vertical
+          </button>
         </div>
       </PropertySection>
     </>

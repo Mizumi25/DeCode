@@ -9,6 +9,7 @@ import AnimationSection from './PropertySections/AnimationSection';
 import ResponsiveSection from './PropertySections/ResponsiveSection';
 import InteractionsSection from './PropertySections/InteractionsSection';
 import CustomSection from './PropertySections/CustomSection';
+import LayoutPresets from './LayoutPresets';
 
 const PropertiesPanel = ({ 
   canvasComponents, 
@@ -106,6 +107,7 @@ const PropertiesPanel = ({
       </div>
 
       {/* Property Sections */}
+      <LayoutPresets {...commonProps} />
       <LayoutSection {...commonProps} selectedComponentData={selectedComponentData} />
       <TypographySection {...commonProps} />
       <StylingSection {...commonProps} />

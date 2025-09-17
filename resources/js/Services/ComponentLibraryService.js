@@ -9,131 +9,236 @@ class ComponentLibraryService {
   }
 
   // Load all components from the API
+    // REPLACE the loadComponents method in ComponentLibraryService.js (around line 50)
+  
   async loadComponents() {
-    try {
-      const response = await axios.get('/api/components');
-      if (response.data.success) {
-        const componentsByCategory = response.data.data;
-        
-        // Process both elements and components
-        Object.entries(componentsByCategory).forEach(([categoryType, letterGroups]) => {
-          Object.entries(letterGroups).forEach(([letter, componentList]) => {
-            if (Array.isArray(componentList)) {
-              componentList.forEach(component => {
-                // Ensure variants are properly parsed
-                let variants = component.variants;
-                if (typeof variants === 'string') {
-                  try {
-                    variants = JSON.parse(variants);
-                  } catch (e) {
-                    console.warn('Failed to parse variants for component:', component.name, e);
-                    variants = [];
-                  }
-                }
-                if (!Array.isArray(variants)) {
-                  variants = [];
-                }
-
-                const processedComponent = {
-                  ...component,
-                  variants: variants
-                };
-
-                this.componentDefinitions.set(component.type, processedComponent);
-                this.components.set(component.type, this.createComponentRenderer(processedComponent));
+      try {
+          console.log('=== LOADING COMPONENTS FROM DATABASE ===');
+          
+          const response = await axios.get('/api/components');
+          if (response.data.success) {
+              const componentsByCategory = response.data.data;
+              console.log('Raw API response:', componentsByCategory);
+              
+              let totalLoaded = 0;
+              
+              // Process both elements and components
+              Object.entries(componentsByCategory).forEach(([categoryType, letterGroups]) => {
+                  console.log(`Processing category: ${categoryType}`);
+                  
+                  Object.entries(letterGroups).forEach(([letter, componentList]) => {
+                      console.log(`Processing letter group: ${letter}, count: ${componentList.length}`);
+                      
+                      if (Array.isArray(componentList)) {
+                          componentList.forEach(component => {
+                              console.log('Processing component:', {
+                                  name: component.name,
+                                  type: component.type,
+                                  hasDefaults: !!component.default_props,
+                                  defaults: component.default_props
+                              });
+                              
+                              // Ensure variants are properly parsed
+                              let variants = component.variants;
+                              if (typeof variants === 'string') {
+                                  try {
+                                      variants = JSON.parse(variants);
+                                  } catch (e) {
+                                      console.warn('Failed to parse variants for component:', component.name, e);
+                                      variants = [];
+                                  }
+                              }
+                              if (!Array.isArray(variants)) {
+                                  variants = [];
+                              }
+  
+                              // CRITICAL: Ensure default_props is properly handled
+                              let defaultProps = component.default_props;
+                              if (typeof defaultProps === 'string') {
+                                  try {
+                                      defaultProps = JSON.parse(defaultProps);
+                                  } catch (e) {
+                                      console.warn('Failed to parse default_props for component:', component.name, e);
+                                      defaultProps = {};
+                                  }
+                              }
+                              if (!defaultProps || typeof defaultProps !== 'object') {
+                                  defaultProps = {};
+                              }
+  
+                              const processedComponent = {
+                                  ...component,
+                                  default_props: defaultProps,
+                                  variants: variants
+                              };
+  
+                              console.log('Storing component definition:', component.type, {
+                                  name: processedComponent.name,
+                                  default_props: processedComponent.default_props,
+                                  variants_count: processedComponent.variants.length
+                              });
+  
+                              this.componentDefinitions.set(component.type, processedComponent);
+                              this.components.set(component.type, this.createComponentRenderer(processedComponent));
+                              totalLoaded++;
+                          });
+                      }
+                  });
               });
-            }
-          });
-        });
-        
-        console.log('Components loaded:', this.components.size);
-        return true;
+              
+              console.log('=== COMPONENT LOADING COMPLETE ===');
+              console.log('Total components loaded:', totalLoaded);
+              console.log('Component definitions map size:', this.componentDefinitions.size);
+              console.log('Components map size:', this.components.size);
+              
+              // Debug specific components
+              ['button', 'card', 'badge', 'input'].forEach(type => {
+                  const def = this.componentDefinitions.get(type);
+                  if (def) {
+                      console.log(`${type} definition loaded:`, {
+                          name: def.name,
+                          default_props: def.default_props,
+                          variants: def.variants?.length || 0
+                      });
+                  } else {
+                      console.warn(`${type} definition NOT found!`);
+                  }
+              });
+              
+              return true;
+          }
+          
+          console.error('API response not successful:', response.data);
+          return false;
+      } catch (error) {
+          console.error('Failed to load components:', error);
+          throw error;
       }
-      return false;
-    } catch (error) {
-      console.error('Failed to load components:', error);
-      throw error;
-    }
   }
+  
 
-  // Create a renderer function for a component
+
+    // ALSO fix the createComponentRenderer method to ensure proper defaults:
   createComponentRenderer(componentDef) {
-    return {
-      id: componentDef.type,
-      name: componentDef.name,
-      description: componentDef.description,
-      icon: componentDef.icon,
-      defaultProps: componentDef.default_props,
-      propDefinitions: componentDef.prop_definitions,
-      variants: componentDef.variants,
+      console.log('Creating renderer for:', componentDef.type, {
+          hasDefaults: !!componentDef.default_props,
+          defaults: componentDef.default_props
+      });
       
-      // Dynamic render function
-      render: (props, id) => {
-        return this.renderComponent(componentDef, props, id);
-      },
-
-      // Generate code function
-      generateCode: (props, allComponents, style) => {
-        return this.generateComponentCode(componentDef, props, allComponents, style);
-      }
-    };
+      return {
+          id: componentDef.type,
+          name: componentDef.name,
+          description: componentDef.description,
+          icon: componentDef.icon,
+          defaultProps: componentDef.default_props || {}, // Ensure this exists
+          propDefinitions: componentDef.prop_definitions,
+          variants: componentDef.variants || [],
+          
+          // Dynamic render function
+          render: (props, id) => {
+              return this.renderComponent(componentDef, props, id);
+          },
+  
+          // Generate code function
+          generateCode: (props, allComponents, style) => {
+              return this.generateComponentCode(componentDef, props, allComponents, style);
+          }
+      };
   }
 
   // Dynamic component renderer with enhanced variant support
-  renderComponent(componentDef, props, id) {
-    const mergedProps = { ...componentDef.default_props, ...props };
-    
-    // Check if there's a variant being used
-    if (props.variant && componentDef.variants) {
-      const variantData = componentDef.variants.find(v => v.name === props.variant.name);
-      if (variantData) {
-        // If variant has preview code, use it
-        if (variantData.preview_code) {
-          return React.createElement('div', {
-            key: id,
-            dangerouslySetInnerHTML: {
-              __html: variantData.preview_code.replace(/className=/g, 'class=')
-            }
-          });
+      renderComponent(componentDef, props, id) {
+        // Get the component definition if not passed
+        if (!componentDef && this.componentDefinitions.has(props.type || props.component_type)) {
+            componentDef = this.componentDefinitions.get(props.type || props.component_type);
         }
         
-        // Merge variant props with default props
-        if (variantData.props) {
-          Object.assign(mergedProps, variantData.props);
+        if (!componentDef) {
+            console.warn('No component definition found for:', props.type || props.component_type);
+            return this.renderGeneric(props, id, { name: props.type || 'Unknown', type: props.type || 'unknown' });
         }
-      }
+        
+        // CRITICAL FIX: Properly merge default props with instance props
+        const mergedProps = { 
+            ...componentDef.default_props,  // Start with component definition defaults
+            ...props.props,                 // Then apply instance props
+            ...props                        // Then apply any direct props
+        };
+        
+        console.log('Rendering component:', componentDef.type, 'with merged props:', mergedProps);
+        
+        // Check if there's a variant being used
+        if (props.variant && componentDef.variants) {
+            const variantData = componentDef.variants.find(v => v.name === props.variant.name);
+            if (variantData) {
+                // If variant has preview code, use it
+                if (variantData.preview_code) {
+                    return React.createElement('div', {
+                        key: id,
+                        dangerouslySetInnerHTML: {
+                            __html: variantData.preview_code.replace(/className=/g, 'class=')
+                        }
+                    });
+                }
+                
+                  // Merge variant props with merged props
+                if (variantData.props) {
+                    Object.assign(mergedProps, variantData.props);
+                }
+            }
+        }
+        
+        // Apply custom styles if present
+        const layoutStyles = {
+            display: props.style?.display || mergedProps.display || 'block',
+            position: props.style?.position || 'relative',
+            width: props.style?.width || mergedProps.width || 'auto',
+            height: props.style?.height || mergedProps.height || 'auto',
+            ...props.style // Apply any additional custom styles
+        };
+        
+        switch (componentDef.type) {
+            case 'button':
+                return this.renderButton(mergedProps, id, layoutStyles);
+            case 'input':
+                return this.renderInput(mergedProps, id, layoutStyles);
+            case 'card':
+                return this.renderCard(mergedProps, id, layoutStyles);
+            case 'avatar':
+                return this.renderAvatar(mergedProps, id, layoutStyles);
+            case 'badge':
+                return this.renderBadge(mergedProps, id, layoutStyles);
+            case 'searchbar':
+                return this.renderSearchbar(mergedProps, id, layoutStyles);
+            default:
+                return this.renderGeneric(mergedProps, id, componentDef, layoutStyles);
+        }
     }
-    
-    switch (componentDef.type) {
-      case 'button':
-        return this.renderButton(mergedProps, id);
-      case 'input':
-        return this.renderInput(mergedProps, id);
-      case 'card':
-        return this.renderCard(mergedProps, id);
-      case 'avatar':
-        return this.renderAvatar(mergedProps, id);
-      case 'badge':
-        return this.renderBadge(mergedProps, id);
-      case 'searchbar':
-        return this.renderSearchbar(mergedProps, id);
-      default:
-        return this.renderGeneric(mergedProps, id, componentDef);
+  
+    // Button renderer with enhanced variant support
+    renderButton(props, id, layoutStyles = {}) {
+        const className = this.getButtonClasses(props);
+        
+        const buttonStyle = {
+            maxWidth: '100%',
+            wordBreak: 'break-word',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            width: props.width || 'fit-content',
+            minWidth: props.minWidth || '60px',
+            ...layoutStyles, // Apply layout styles
+            ...props.style   // Allow override
+        };
+        
+        return React.createElement('button', {
+            key: id,
+            className,
+            onClick: () => console.log(`Button ${id} clicked`),
+            disabled: props.disabled || false,
+            style: buttonStyle
+        }, props.text || props.children || 'Button');
     }
-  }
-
-  // Button renderer with enhanced variant support
-  renderButton(props, id) {
-    const className = this.getButtonClasses(props);
-    
-    return React.createElement('button', {
-      key: id,
-      className,
-      onClick: () => console.log(`Button ${id} clicked`),
-      disabled: props.disabled || false,
-      style: props.style
-    }, props.text || 'Button');
-  }
 
   // Avatar renderer
   renderAvatar(props, id) {
@@ -160,30 +265,28 @@ class ComponentLibraryService {
     }, initials));
   }
 
-  // Badge renderer
-  renderBadge(props, id) {
-    const className = this.getBadgeClasses(props);
-    
-    return React.createElement('span', {
-      key: id,
-      className,
-      style: props.style
-    }, props.text || 'Badge');
-  }
+
 
   // Input renderer
-  renderInput(props, id) {
-    const className = this.getInputClasses(props);
-    
-    return React.createElement('input', {
-      key: id,
-      type: props.type || 'text',
-      placeholder: props.placeholder || '',
-      className,
-      disabled: props.disabled || false,
-      required: props.required || false,
-      style: props.style
-    });
+  renderInput(props, id, layoutStyles = {}) {
+      const className = this.getInputClasses(props);
+      
+      const inputStyle = {
+          width: props.width || '100%',
+          maxWidth: props.maxWidth || '250px',
+          ...layoutStyles,
+          ...props.style
+      };
+      
+      return React.createElement('input', {
+          key: id,
+          type: props.type || 'text',
+          placeholder: props.placeholder || '',
+          className,
+          disabled: props.disabled || false,
+          required: props.required || false,
+          style: inputStyle
+      });
   }
 
   // Searchbar renderer
@@ -217,23 +320,28 @@ class ComponentLibraryService {
   }
 
   // Card renderer
-  renderCard(props, id) {
-    const cardClassName = this.getCardClasses(props);
-    
-    return React.createElement('div', {
-      key: id,
-      className: cardClassName,
-      style: props.style
-    }, [
-      props.title && React.createElement('h3', {
-        key: `${id}-title`,
-        className: 'font-semibold text-lg mb-2 text-gray-900'
-      }, props.title),
-      React.createElement('div', {
-        key: `${id}-content`,
-        className: 'text-gray-600'
-      }, props.content || 'Card content')
-    ]);
+  renderCard(props, id, layoutStyles = {}) {
+      const cardClassName = this.getCardClasses(props);
+      
+      const cardStyle = {
+          ...layoutStyles,
+          ...props.style
+      };
+      
+      return React.createElement('div', {
+          key: id,
+          className: cardClassName,
+          style: cardStyle
+      }, [
+          props.title && React.createElement('h3', {
+              key: `${id}-title`,
+              className: 'font-semibold text-lg mb-2 text-gray-900'
+          }, props.title),
+          React.createElement('div', {
+              key: `${id}-content`,
+              className: 'text-gray-600'
+          }, props.content || props.children || 'Card content')
+      ]);
   }
 
   // Enhanced generic renderer with size constraints
@@ -1004,54 +1112,86 @@ ${htmlComponents}
     return Object.fromEntries(this.componentDefinitions);
   }
 
-  // Save project components to backend
-  async saveProjectComponents(projectId, frameId, components) {
-    try {
-      const response = await axios.post('/api/project-components/bulk-update', {
-        project_id: projectId,
-        frame_id: frameId,
-        components: components.map(comp => ({
-          component_instance_id: comp.id,
-          component_type: comp.type,
-          props: comp.props,
-          position: comp.position,
-          name: comp.name,
-          z_index: comp.zIndex || 0,
-          variant: comp.variant || null
-        }))
-      });
-      
-      return response.data.success;
-    } catch (error) {
-      console.error('Failed to save project components:', error);
-      throw error;
-    }
+// Save project components to backend
+async saveProjectComponents(projectId, frameId, components) {
+      try {
+          console.log('Saving', components.length, 'components to backend for frame:', frameId);
+          
+          const response = await axios.post('/api/project-components/bulk-update', {
+              project_id: projectId,
+              frame_id: frameId,
+              components: components.map(comp => {
+                  // Get component definition for validation
+                  const componentDef = this.componentDefinitions.get(comp.type);
+                  
+                  return {
+                      component_instance_id: comp.id,
+                      component_type: comp.type,
+                      props: comp.props || {},
+                      position: comp.position,
+                      name: comp.name || componentDef?.name || comp.type,
+                      z_index: comp.zIndex || 0,
+                      variant: comp.variant || null,
+                      style: comp.style || {},
+                      animation: comp.animation || {}
+                  };
+              }),
+              create_revision: false // Set to true for major saves
+          });
+          
+          if (response.data.success) {
+              console.log('Successfully saved components to backend');
+              return true;
+          } else {
+              console.error('Backend save failed:', response.data.message);
+              return false;
+          }
+      } catch (error) {
+          console.error('Failed to save project components:', error);
+          throw error;
+      }
   }
 
   // Load project components from backend
   async loadProjectComponents(projectId, frameId) {
     try {
-      const response = await axios.get('/api/project-components', {
-        params: { project_id: projectId, frame_id: frameId }
-      });
-      
-      if (response.data.success) {
-        return response.data.data.map(comp => ({
-          id: comp.component_instance_id,
-          type: comp.component_type,
-          props: comp.props,
-          position: comp.position,
-          name: comp.name,
-          zIndex: comp.z_index,
-          variant: comp.variant
-        }));
+        console.log('Loading project components for:', { projectId, frameId });
+        
+        const response = await axios.get('/api/project-components', {
+            params: { project_id: projectId, frame_id: frameId }
+        });
+        
+        if (response.data.success) {
+            const components = response.data.data;
+            console.log('Loaded', components.length, 'components from backend:', components);
+            
+            // Transform backend data to frontend format
+            return components.map(comp => {
+                // Get component definition for proper rendering
+                const componentDef = this.componentDefinitions.get(comp.type);
+                
+                return {
+                    id: comp.id,
+                    type: comp.type,
+                    props: {
+                        ...componentDef?.default_props, // Apply component defaults first
+                        ...comp.props                   // Then apply saved props
+                    },
+                    position: comp.position,
+                    name: comp.name,
+                    zIndex: comp.zIndex || 0,
+                    variant: comp.variant,
+                    style: comp.style || {},
+                    animation: comp.animation || {}
+                };
+            });
+        }
+        
+        return [];
+      } catch (error) {
+          console.error('Failed to load project components:', error);
+          return [];
       }
-      
-      return [];
-    } catch (error) {
-      console.error('Failed to load project components:', error);
-      return [];
-    }
   }
 }
 

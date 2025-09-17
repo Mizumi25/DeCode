@@ -44,7 +44,13 @@ const LeftSection = ({
   interactionMode,
   setInteractionMode,
   gridVisible,
-  setGridVisible
+  setGridVisible,
+  // ADD THESE MISSING PROPS:
+  projectId,
+  currentFrame,
+  canvasComponents,
+  handleUndo,
+  handleRedo
 }) => {
   const { url } = usePage() // Add this to get the current URL
   const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects')
@@ -197,7 +203,16 @@ const LeftSection = ({
           )}
 
           {/* Undo/Redo */}
-          <UndoRedoControls size="small" />
+          {(onForgePage || onSourcePage) && (
+            <UndoRedoControls 
+              projectId={projectId}
+              frameId={currentFrame}
+              canvasComponents={canvasComponents || []}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+              size="small" 
+            />
+          )}
 
           {/* Vertical Divider */}
           <div className="w-px h-3 bg-[var(--color-border)]"></div>

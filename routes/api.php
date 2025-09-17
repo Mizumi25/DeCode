@@ -13,7 +13,7 @@ use App\Http\Controllers\GitHubRepoController;
 use App\Http\Controllers\Auth\GithubController;
 use App\Http\Controllers\FramePresenceController;
 use App\Http\Controllers\FrameLockController;
-
+use App\Http\Controllers\RevisionController;
 /*
 |--------------------------------------------------------------------------
 | API Routes - All using UUIDs for resource identification
@@ -46,7 +46,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{projectComponent:uuid}', [ProjectComponentController::class, 'update']);
         Route::delete('/{projectComponent:uuid}', [ProjectComponentController::class, 'destroy']);
         Route::post('/bulk-update', [ProjectComponentController::class, 'bulkUpdate']);
+        Route::post('/create-revision', [ProjectComponentController::class, 'createRevision']);
+        Route::post('/restore-revision/{revision:uuid}', [ProjectComponentController::class, 'restoreRevision']);
     });
+    
+    // Revision management routes
+    Route::prefix('revisions')->group(function () {
+        Route::get('/project/{project:uuid}', [RevisionController::class, 'getProjectRevisions']);
+        Route::get('/frame/{frame:uuid}', [RevisionController::class, 'getFrameRevisions']);
+        Route::get('/{revision:uuid}', [RevisionController::class, 'show']);
+        Route::delete('/{revision:uuid}', [RevisionController::class, 'destroy']);
+        Route::post('/cleanup-old', [RevisionController::class, 'cleanupOld']);
+    });
+    
+    // Auto-revision creation
+    Route::post('/revisions/create-auto', [RevisionController::class, 'createAutoRevision']);
 
     // Frame management routes
     Route::prefix('frames')->group(function () {
@@ -162,6 +176,15 @@ Route::middleware('auth:sanctum')->group(function () {
         
         Route::get('/repos/{repoId}/analyze', [GitHubRepoController::class, 'analyzeRepository']);
         Route::get('/repos/{repoId}/contents/{path?}', [GitHubRepoController::class, 'getRepositoryContents'])->where('path', '.*');
+        
+        // Sync GitHub projects
+        Route::post('/projects/{project:uuid}/sync', [GitHubRepoController::class, 'syncProject']);
+        Route::post('/projects/sync-all', [GitHubRepoController::class, 'syncAllProjects']);
+        
+        // GitHub revision management
+        Route::get('/projects/{project:uuid}/revisions', [GitHubRepoController::class, 'getGitHubRevisions']);
+        Route::post('/projects/{project:uuid}/create-sync-revision', [GitHubRepoController::class, 'createSyncRevision']);
+
     });
     
     // Cleanup route (can be called via scheduled task)

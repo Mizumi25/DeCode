@@ -342,4 +342,47 @@ class Project extends Model
         $projectTypes = self::getProjectTypeOptions();
         return $projectTypes[$this->type]['suggested_output'] ?? 'html';
     }
+    
+      /**
+   * Check if project was imported from GitHub
+   */
+  public function isGitHubImport(): bool
+  {
+      return isset($this->settings['imported_from_github']) && 
+             $this->settings['imported_from_github'] === true;
+  }
+  
+  /**
+   * Get GitHub repository information
+   */
+  public function getGitHubRepo(): ?array
+  {
+      return $this->settings['original_repo'] ?? null;
+  }
+  
+  /**
+   * Sync with GitHub repository
+   */
+  public function syncWithGitHub(): bool
+  {
+      if (!$this->isGitHubImport()) {
+          return false;
+      }
+      
+      // Create a revision before sync
+      $currentComponents = \App\Models\ProjectComponent::byProject($this->uuid)->get()->toArray();
+      
+      if (!empty($currentComponents)) {
+          \App\Models\Revision::createSnapshot(
+              $this->uuid,
+              null, // All frames
+              auth()->id(),
+              $currentComponents,
+              'github_sync',
+              'Pre-sync snapshot: ' . now()->format('M j, Y g:i A')
+          );
+      }
+      
+      return true;
+  }
 }

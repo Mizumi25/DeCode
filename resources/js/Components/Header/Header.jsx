@@ -174,6 +174,12 @@ export default function Header({
               setInteractionMode={setInteractionMode}
               gridVisible={gridVisible}
               setGridVisible={setGridVisible}
+              // ADD THESE:
+              projectId={props.project?.uuid || null}
+              currentFrame={props.frame?.uuid || null}
+              canvasComponents={props.frame?.canvas_data?.components || []}
+              handleUndo={() => console.log('Undo from header')}
+              handleRedo={() => console.log('Redo from header')}
             />
           )}
 

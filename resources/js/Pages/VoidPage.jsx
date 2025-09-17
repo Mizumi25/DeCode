@@ -546,6 +546,7 @@ export default function VoidPage() {
       zoomLevel={zoomLevel}
       onZoomChange={handleZoom}
       project={project}
+      frame: null
     >
       <Head title={`Void - ${project?.name || 'Project'}`} />
       <div 

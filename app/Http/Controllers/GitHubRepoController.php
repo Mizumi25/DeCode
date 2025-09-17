@@ -240,6 +240,65 @@ class GitHubRepoController extends Controller
                     
                     $createdFrames[] = $frame;
                     
+                                        
+                      
+                      // Import components for each frame and save to database
+                      $totalComponentsImported = 0;
+                      foreach ($createdFrames as $frame) {
+                          try {
+                              // Extract components from the frame's canvas_data elements
+                              $frameElements = $frame->canvas_data['elements'] ?? [];
+                              
+                              if (!empty($frameElements)) {
+                                  $projectComponents = [];
+                                  
+                                  foreach ($frameElements as $index => $element) {
+                                      // Convert GitHub frame elements to ProjectComponent format
+                                      $projectComponent = [
+                                          'project_id' => $project->uuid,
+                                          'frame_id' => $frame->uuid,
+                                          'component_instance_id' => $element['id'] ?? "github_import_" . $frame->id . "_" . $index,
+                                          'component_type' => $this->mapElementToComponentType($element),
+                                          'props' => $this->extractElementProps($element),
+                                          'position' => $element['position'] ?? ['x' => 0, 'y' => 0],
+                                          'name' => $element['name'] ?? $element['type'] ?? 'Imported Element',
+                                          'z_index' => $element['z_index'] ?? $index,
+                                          'variant' => $element['variant'] ?? null,
+                                          'style' => $element['style'] ?? [],
+                                          'animation' => $element['animation'] ?? []
+                                      ];
+                                      
+                                      $projectComponents[] = $projectComponent;
+                                  }
+                                  
+                                  // Bulk save components to database
+                                  if (!empty($projectComponents)) {
+                                      foreach ($projectComponents as $componentData) {
+                                          \App\Models\ProjectComponent::create($componentData);
+                                      }
+                                      
+                                      $totalComponentsImported += count($projectComponents);
+                                      
+                                      // Create initial revision snapshot for this frame
+                                      \App\Models\Revision::createSnapshot(
+                                          $project->uuid,
+                                          $frame->uuid,
+                                          $user->id,
+                                          $projectComponents,
+                                          'github_sync',
+                                          "GitHub Import: {$frame->name}"
+                                      );
+                                  }
+                              }
+                              
+                          } catch (\Exception $e) {
+                              Log::warning('Failed to import components for frame', [
+                                  'frame_id' => $frame->uuid,
+                                  'error' => $e->getMessage()
+                              ]);
+                          }
+                      }
+                    
                     Log::info('GitHub frame created', [
                         'frame_id' => $frame->id,
                         'file_path' => $fileData['path'],
@@ -621,4 +680,177 @@ class GitHubRepoController extends Controller
     {
         return $this->getUserRepos();
     }
+    
+    
+      /**
+   * Map GitHub frame element to component type
+   */
+  private function mapElementToComponentType($element): string
+  {
+      $elementType = strtolower($element['type'] ?? 'div');
+      
+      // Map HTML elements to your component system
+      $typeMapping = [
+          'button' => 'button',
+          'input' => 'input',
+          'img' => 'image',
+          'h1' => 'heading',
+          'h2' => 'heading',
+          'h3' => 'heading',
+          'h4' => 'heading',
+          'h5' => 'heading',
+          'h6' => 'heading',
+          'p' => 'text',
+          'span' => 'text',
+          'div' => 'container',
+          'section' => 'container',
+          'article' => 'card',
+          'nav' => 'navigation',
+          'form' => 'form',
+          'ul' => 'list',
+          'ol' => 'list',
+          'li' => 'list-item',
+          'a' => 'link',
+          'video' => 'video',
+          'audio' => 'audio',
+          'canvas' => 'canvas',
+          'svg' => 'icon'
+      ];
+      
+      return $typeMapping[$elementType] ?? 'container';
+  }
+  
+  /**
+   * Extract props from GitHub frame element
+   */
+  private function extractElementProps($element): array
+  {
+      $props = [];
+      
+      // Extract common properties
+      if (isset($element['text'])) {
+          $props['text'] = $element['text'];
+      }
+      
+      if (isset($element['src'])) {
+          $props['src'] = $element['src'];
+      }
+      
+      if (isset($element['href'])) {
+          $props['href'] = $element['href'];
+      }
+      
+      if (isset($element['alt'])) {
+          $props['alt'] = $element['alt'];
+      }
+      
+      if (isset($element['placeholder'])) {
+          $props['placeholder'] = $element['placeholder'];
+      }
+      
+      if (isset($element['type']) && $element['type'] === 'input') {
+          $props['type'] = $element['inputType'] ?? 'text';
+      }
+      
+      // Extract custom props
+      if (isset($element['props'])) {
+          $props = array_merge($props, $element['props']);
+      }
+      
+      return $props;
+  }
+  
+  /**
+   * Generate components from repository analysis
+   */
+  private function generateComponentsFromRepo($repoContents, $frameId): array
+  {
+      $components = [];
+      
+      // This is a placeholder - you can enhance this based on your analysis
+      // For now, create basic components from common patterns
+      
+      $componentIndex = 0;
+      foreach ($repoContents as $file) {
+          if ($this->isComponentFile($file)) {
+              $component = [
+                  'id' => "repo_component_{$frameId}_{$componentIndex}",
+                  'type' => $this->inferComponentTypeFromFile($file),
+                  'name' => $this->extractComponentName($file),
+                  'position' => [
+                      'x' => ($componentIndex % 4) * 200 + 50,
+                      'y' => floor($componentIndex / 4) * 150 + 50
+                  ],
+                  'props' => $this->extractPropsFromFile($file),
+                  'style' => [],
+                  'animation' => []
+              ];
+              
+              $components[] = $component;
+              $componentIndex++;
+          }
+      }
+      
+      return $components;
+  }
+  
+  /**
+   * Check if file represents a component
+   */
+  private function isComponentFile($file): bool
+  {
+      $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+      $filename = strtolower($file['name']);
+      
+      // Check for component file patterns
+      return in_array($extension, ['jsx', 'tsx', 'vue']) ||
+             str_contains($filename, '.component.') ||
+             str_contains($filename, 'component');
+  }
+  
+  /**
+   * Infer component type from file
+   */
+  private function inferComponentTypeFromFile($file): string
+  {
+      $filename = strtolower($file['name']);
+      
+      if (str_contains($filename, 'button')) return 'button';
+      if (str_contains($filename, 'input')) return 'input';
+      if (str_contains($filename, 'card')) return 'card';
+      if (str_contains($filename, 'modal')) return 'modal';
+      if (str_contains($filename, 'nav')) return 'navigation';
+      if (str_contains($filename, 'header')) return 'header';
+      if (str_contains($filename, 'footer')) return 'footer';
+      
+      return 'container';
+  }
+  
+  /**
+   * Extract component name from file
+   */
+  private function extractComponentName($file): string
+  {
+      $name = pathinfo($file['name'], PATHINFO_FILENAME);
+      
+      // Convert PascalCase or kebab-case to readable name
+      $name = preg_replace('/([A-Z])/', ' $1', $name);
+      $name = str_replace(['-', '_'], ' ', $name);
+      $name = ucwords(trim($name));
+      
+      return $name ?: 'Imported Component';
+  }
+  
+  /**
+   * Extract props from file (basic implementation)
+   */
+  private function extractPropsFromFile($file): array
+  {
+      // This is a basic implementation - you can enhance it to parse actual file content
+      return [
+          'imported_from' => 'github',
+          'original_file' => $file['path'],
+          'file_size' => $file['size'] ?? 0
+      ];
+  }
 }

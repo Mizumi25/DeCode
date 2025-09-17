@@ -5,6 +5,9 @@ import { Head, router } from '@inertiajs/react';
 import Panel from '@/Components/Panel';
 import { Square, Code, Layers, User, Settings, ChevronUp, ChevronDown, Copy, RefreshCw, Monitor, PictureInPicture, Loader2 } from 'lucide-react';
 import { useForgeStore } from '@/stores/useForgeStore';
+import { useEditorStore } from '@/stores/useEditorStore';
+import { useUndoRedoStore } from '@/stores/useUndoRedoStore';
+
 
 // Import separated forge components
 import ComponentsPanel from '@/Components/Forge/ComponentsPanel';
@@ -17,6 +20,8 @@ import SidebarCodePanel from '@/Components/Forge/SidebarCodePanel';
 import CodeTooltip from '@/Components/Forge/CodeTooltip';
 import FloatingFrameSwitcher from '@/Components/Forge/FloatingFrameSwitcher';
 import WindowPanel from '@/Components/WindowPanel';
+import LayoutPresets from '@/Components/Forge/LayoutPresets';
+
 
 // Import dynamic component service
 import { componentLibraryService } from '@/Services/ComponentLibraryService';
@@ -39,6 +44,23 @@ export default function ForgePage({
     forgePanelStates,
     _triggerUpdate
   } = useForgeStore()
+  
+  const {
+    responsiveMode,
+    getCurrentCanvasDimensions,
+    getResponsiveDeviceInfo,
+    getResponsiveScaleFactor,
+    getResponsiveCanvasClasses,
+    getResponsiveGridBackground,
+    gridVisible,
+    zoomLevel
+  } = useEditorStore();
+  
+  const {
+    initializeFrame: initUndoRedoFrame,
+    pushHistory,
+    scheduleAutoSave
+  } = useUndoRedoStore();
 
   // Frame switching state
   const [isFrameSwitching, setIsFrameSwitching] = useState(false)
@@ -51,19 +73,26 @@ export default function ForgePage({
 
   // Canvas state for dropped components - Now frame-specific
   const [frameCanvasComponents, setFrameCanvasComponents] = useState(() => {
-    const initialFrameData = {};
-    
-    // CRITICAL: Properly handle frame data from props
-    if (frame?.canvas_data?.components && Array.isArray(frame.canvas_data.components)) {
-        console.log('ForgePage: Loading frame components from props:', frame.canvas_data.components.length);
-        initialFrameData[frame.uuid || frameId] = frame.canvas_data.components;
-    } else {
-        console.log('ForgePage: No valid canvas data found, initializing empty');
-        initialFrameData[frameId] = [];
-    }
-    
-    return initialFrameData;
-});
+      const initialFrameData = {};
+      const currentFrameId = frameId || frame?.uuid;
+      
+      console.log('ForgePage: Initializing frame data for:', currentFrameId);
+      console.log('ForgePage: Frame prop data:', frame?.canvas_data);
+      
+      if (currentFrameId) {
+          // Check if we have backend data in frame.canvas_data.components
+          if (frame?.canvas_data?.components && Array.isArray(frame.canvas_data.components)) {
+              console.log('ForgePage: Loading', frame.canvas_data.components.length, 'components from backend');
+              initialFrameData[currentFrameId] = frame.canvas_data.components;
+          } else {
+              // Initialize empty array for this frame
+              console.log('ForgePage: No backend components, initializing empty array');
+              initialFrameData[currentFrameId] = [];
+          }
+      }
+      
+      return initialFrameData;
+  });
   const [selectedComponent, setSelectedComponent] = useState(null)
   const [generatedCode, setGeneratedCode] = useState({ html: '', css: '', react: '', tailwind: '' })
   
@@ -110,6 +139,49 @@ export default function ForgePage({
       console.log('ForgePage: Initial frame ID:', frameIdToUse);
       return frameIdToUse;
   });
+  
+  const getCanvasPadding = () => {
+    // Now responsiveMode is accessible from useEditorStore
+    const basePadding = responsiveMode === 'desktop' ? 'p-8' : 'p-4';
+    
+    if (codePanelPosition === 'bottom' && showCodePanel) {
+      if (codePanelMinimized) {
+        return isMobile ? 'pb-16' : 'pb-20';
+      }
+      
+      const panelHeight = Math.min(codePanelHeight, windowDimensions.height * 0.7);
+      return isMobile ? `pb-[${panelHeight + 60}px]` : `pb-[${panelHeight + 80}px]`;
+    }
+    
+    return basePadding;
+  };
+  
+    // ADD: Detect if project is GitHub import
+  const [isGitHubProject, setIsGitHubProject] = useState(false);
+  const [gitHubRepo, setGitHubRepo] = useState(null);
+  
+  useEffect(() => {
+    if (project?.settings?.imported_from_github) {
+      setIsGitHubProject(true);
+      setGitHubRepo(project.settings.original_repo);
+    }
+  }, [project]);
+  
+  // ADD: GitHub sync handler
+  const handleGitHubSync = useCallback(async () => {
+    if (!isGitHubProject || !projectId) return;
+    
+    try {
+      const response = await axios.post(`/api/github/projects/${projectId}/sync`);
+      if (response.data.success) {
+        // Refresh frame data after sync
+        router.reload({ only: ['frame', 'project'] });
+      }
+    } catch (error) {
+      console.error('GitHub sync failed:', error);
+    }
+  }, [isGitHubProject, projectId]);
+  
   useEffect(() => {
       console.log('ForgePage: Frame props changed:', { 
           frameId, 
@@ -118,35 +190,37 @@ export default function ForgePage({
           componentCount: frame?.canvas_data?.components?.length || 0
       });
       
-      if (frameId && frameId !== currentFrame) {
-          console.log('ForgePage: Updating current frame from props:', frameId);
-          setCurrentFrame(frameId);
+      const currentFrameId = frameId || frame?.uuid;
+      
+      if (currentFrameId && currentFrameId !== currentFrame) {
+          console.log('ForgePage: Updating current frame from', currentFrame, 'to', currentFrameId);
+          setCurrentFrame(currentFrameId);
           
           // Clear previous selection
           setSelectedComponent(null);
           
-          // CRITICAL: Load frame data if available
+          // Load frame data if available from backend
           if (frame?.canvas_data?.components && Array.isArray(frame.canvas_data.components)) {
               console.log('ForgePage: Loading frame components from backend:', frame.canvas_data.components);
               setFrameCanvasComponents(prev => ({
                   ...prev,
-                  [frameId]: frame.canvas_data.components
+                  [currentFrameId]: frame.canvas_data.components
               }));
               
               // Generate code for loaded components
               if (frame.canvas_data.components.length > 0) {
                   generateCode(frame.canvas_data.components);
               }
-          } else {
-              // FIXED: Initialize empty if no valid data
-              console.log('ForgePage: No valid canvas data, initializing empty array');
+          } else if (!frameCanvasComponents[currentFrameId]) {
+              // Only initialize empty if we don't already have data for this frame
+              console.log('ForgePage: No backend data and no cached data, initializing empty');
               setFrameCanvasComponents(prev => ({
                   ...prev,
-                  [frameId]: []
+                  [currentFrameId]: []
               }));
           }
       }
-  }, [frameId, frame?.uuid, frame?.canvas_data, currentFrame]);
+  }, [frameId, frame?.uuid, frame?.canvas_data?.components, currentFrame]);
   
   // Get current frame's canvas components
   const canvasComponents = frameCanvasComponents[currentFrame] || []
@@ -307,6 +381,20 @@ export default function ForgePage({
       initializeComponents();
     }
   }, [currentFrame, projectId]);
+  
+  if (isForgePanelOpen('layout-presets-panel')) {
+  panels.push({
+    id: 'layout-presets-panel',
+    title: 'Layout Presets',
+    content: (
+      <LayoutPresets
+        onApplyPreset={handlePropertyUpdate}
+        selectedComponent={selectedComponent}
+        componentLibraryService={componentLibraryService}
+      />
+    )
+  });
+}
 
   // Auto-save frame components when they change
   useEffect(() => {
@@ -427,56 +515,109 @@ export default function ForgePage({
     e.dataTransfer.dropEffect = 'copy'
   }, [])
 
+    // REPLACE the handleCanvasDrop method in ForgePage.jsx (around line 400)
+  
   const handleCanvasDrop = useCallback((e) => {
-    e.preventDefault()
-    
-    if (!canvasRef.current) return
-
-    try {
-      const dragDataStr = e.dataTransfer.getData('text/plain')
-      let dragData;
+      e.preventDefault()
       
+      if (!canvasRef.current) return
+  
       try {
-        dragData = JSON.parse(dragDataStr);
-      } catch {
-        dragData = { componentType: dragDataStr, variant: null };
+          const dragDataStr = e.dataTransfer.getData('text/plain')
+          let dragData;
+          
+          try {
+              dragData = JSON.parse(dragDataStr);
+          } catch {
+              dragData = { componentType: dragDataStr, variant: null };
+          }
+  
+          const { componentType, variant } = dragData;
+          
+          // CRITICAL FIX: Get component definition to apply proper defaults
+          console.log('Dropping component:', componentType);
+          console.log('Component library service available:', !!componentLibraryService);
+          
+          let componentDef = null;
+          if (componentLibraryService && componentLibraryService.getComponentDefinition) {
+              componentDef = componentLibraryService.getComponentDefinition(componentType);
+              console.log('Component definition found:', !!componentDef, componentDef);
+          }
+          
+          const canvasRect = canvasRef.current.getBoundingClientRect()
+          const x = Math.max(0, e.clientX - canvasRect.left - 50)
+          const y = Math.max(0, e.clientY - canvasRect.top - 20)
+  
+          // Create new component with proper defaults from component definition
+          const newComponent = {
+              id: `${componentType}_${Date.now()}`,
+              type: componentType,
+              props: {
+                  // CRITICAL: Start with component definition defaults
+                  ...(componentDef?.default_props || {}),
+                  // Apply variant-specific props if available
+                  ...(variant?.props || {})
+              },
+              position: { x, y },
+              name: variant ? `${componentType} (${variant.name})` : (componentDef?.name || componentType),
+              variant: variant || null,
+              style: {},
+              animation: {}
+          }
+  
+          console.log('Created new component:', newComponent);
+          console.log('Component definition defaults applied:', componentDef?.default_props);
+  
+          const updatedComponents = [...canvasComponents, newComponent];
+          
+          // Update frame-specific components
+          setFrameCanvasComponents(prev => ({
+              ...prev,
+              [currentFrame]: updatedComponents
+          }));
+          
+          setSelectedComponent(newComponent.id)
+          handleComponentDragEnd()
+  
+          console.log('Component dropped to frame:', currentFrame, newComponent);
+          generateCode(updatedComponents)
+      } catch (error) {
+          console.error('Error handling component drop:', error);
+          handleComponentDragEnd();
       }
-
-      const { componentType, variant } = dragData;
-      
-      const canvasRect = canvasRef.current.getBoundingClientRect()
-      const x = Math.max(0, e.clientX - canvasRect.left - 50)
-      const y = Math.max(0, e.clientY - canvasRect.top - 20)
-
-      const newComponent = {
-        id: `${componentType}_${Date.now()}`,
-        type: componentType,
-        props: {},
-        position: { x, y },
-        name: variant ? `${componentType} (${variant.name})` : componentType,
-        variant: variant || null,
-        style: {},
-        animation: {}
+  }, [canvasComponents, currentFrame, componentLibraryService])
+  
+  // ALSO ADD this debug method to check component definitions after loading:
+  const debugComponentDefinitions = useCallback(() => {
+      if (componentLibraryService) {
+          console.log('=== COMPONENT DEFINITIONS DEBUG ===');
+          const allDefs = componentLibraryService.getAllComponentDefinitions();
+          console.log('Total definitions loaded:', Object.keys(allDefs).length);
+          
+          Object.entries(allDefs).forEach(([type, def]) => {
+              console.log(`${type}:`, {
+                  name: def.name,
+                  hasDefaults: !!def.default_props,
+                  defaults: def.default_props,
+                  variants: def.variants?.length || 0
+              });
+          });
+          
+          // Check specific components
+          ['button', 'card', 'badge'].forEach(type => {
+              const def = componentLibraryService.getComponentDefinition(type);
+              console.log(`${type} definition:`, def);
+          });
       }
-
-      const updatedComponents = [...canvasComponents, newComponent];
-      
-      // Update frame-specific components
-      setFrameCanvasComponents(prev => ({
-        ...prev,
-        [currentFrame]: updatedComponents
-      }));
-      
-      setSelectedComponent(newComponent.id)
-      handleComponentDragEnd()
-
-      console.log('Component dropped to frame:', currentFrame, newComponent);
-      generateCode(updatedComponents)
-    } catch (error) {
-      console.error('Error handling component drop:', error);
-      handleComponentDragEnd();
-    }
-  }, [canvasComponents, currentFrame])
+  }, [componentLibraryService]);
+  
+  // ADD this useEffect to debug after components load:
+  useEffect(() => {
+      if (componentsLoaded && componentLibraryService) {
+          // Add a small delay to ensure everything is loaded
+          setTimeout(debugComponentDefinitions, 1000);
+      }
+  }, [componentsLoaded, componentLibraryService, debugComponentDefinitions]);
 
   // Component selection handler
   const handleComponentClick = useCallback((componentId, e) => {
@@ -499,16 +640,18 @@ export default function ForgePage({
     generateCode(newComponents)
   }, [selectedComponent, canvasComponents, currentFrame])
 
-  // Property update handler - Updated for frame-specific components
+
+  
+  // MODIFY: Enhanced property update handler with undo/redo
   const handlePropertyUpdate = useCallback((componentId, propName, value) => {
     const updatedComponents = canvasComponents.map(c => {
       if (c.id === componentId) {
         if (propName === 'position') {
           return { ...c, position: value }
         } else if (propName === 'style') {
-          return { ...c, style: value }
+          return { ...c, style: { ...c.style, ...value } } // Merge styles
         } else if (propName === 'animation') {
-          return { ...c, animation: value }
+          return { ...c, animation: { ...c.animation, ...value } } // Merge animations
         } else if (propName === 'name') {
           return { ...c, name: value }
         } else if (propName === 'reset') {
@@ -530,8 +673,29 @@ export default function ForgePage({
       [currentFrame]: updatedComponents
     }));
     
-    generateCode(updatedComponents)
-  }, [canvasComponents, currentFrame])
+    // Push to undo/redo history and schedule auto-save
+    pushHistory(currentFrame, updatedComponents, 'property_update');
+    scheduleAutoSave(projectId, currentFrame, updatedComponents);
+    
+    generateCode(updatedComponents);
+  }, [canvasComponents, currentFrame, projectId, pushHistory, scheduleAutoSave]);
+  
+  // ADD: Undo/Redo handlers
+  const handleUndo = useCallback((previousComponents) => {
+    setFrameCanvasComponents(prev => ({
+      ...prev,
+      [currentFrame]: previousComponents
+    }));
+    generateCode(previousComponents);
+  }, [currentFrame]);
+  
+  const handleRedo = useCallback((nextComponents) => {
+    setFrameCanvasComponents(prev => ({
+      ...prev,
+      [currentFrame]: nextComponents
+    }));
+    generateCode(nextComponents);
+  }, [currentFrame]);
 
   // Code generation
   const generateCode = useCallback(async (components) => {
@@ -629,18 +793,7 @@ export default function ForgePage({
     }
   }
 
-  // Calculate responsive canvas padding for code panel
-  const getCanvasPadding = () => {
-    if (codePanelPosition === 'bottom' && showCodePanel) {
-      if (codePanelMinimized) {
-        return isMobile ? 'pb-16' : 'pb-20';
-      }
-      
-      const panelHeight = Math.min(codePanelHeight, windowDimensions.height * 0.7);
-      return isMobile ? `pb-[${panelHeight + 60}px]` : `pb-[${panelHeight + 80}px]`;
-    }
-    return isMobile ? 'pb-4' : 'pb-8';
-  };
+  
 
   // Get transition classes based on current phase
   const getTransitionClasses = () => {
@@ -874,7 +1027,10 @@ export default function ForgePage({
         headerProps={{
           onPanelToggle: handlePanelToggle,
           panelStates: {},
-          onModeSwitch: () => {}
+          onModeSwitch: () => {},
+          project: project,
+          frame: frame,
+          canvasComponents: canvasComponents
         }}
       >
         <Head title="Forge - Visual Builder" />
@@ -948,13 +1104,28 @@ export default function ForgePage({
       
       {/* Main content area with transition effects */}
       <div className="h-[calc(100vh-60px)] flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
-        <div 
+       <div 
           className={`
             flex-1 flex items-center justify-center transition-all duration-300 ease-in-out
             ${isMobile ? 'p-4' : 'p-8'} ${getCanvasPadding()}
             ${getTransitionClasses()}
+            ${responsiveMode !== 'desktop' ? 'bg-gray-100' : ''}
           `}
+          style={{
+            backgroundImage: responsiveMode !== 'desktop' 
+              ? 'radial-gradient(circle at 20px 20px, #e5e7eb 1px, transparent 1px)'
+              : 'none',
+            backgroundSize: responsiveMode !== 'desktop' ? '20px 20px' : 'auto'
+          }}
         >
+          {/* ADD: Responsive Mode Indicator */}
+          {(responsiveMode === 'mobile' || responsiveMode === 'tablet') && (
+            <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-30">
+              <div className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg">
+                {responsiveMode === 'mobile' ? 'Mobile (375×667)' : 'Tablet (768×1024)'}
+              </div>
+            </div>
+          )}
           {CanvasComponent ? (
             <CanvasComponent
               canvasRef={canvasRef}
@@ -969,6 +1140,10 @@ export default function ForgePage({
               isMobile={isMobile}
               currentFrame={currentFrame}
               isFrameSwitching={isFrameSwitching}
+              // ADD THESE RESPONSIVE PROPS:
+              responsiveMode={responsiveMode}
+              zoomLevel={zoomLevel}
+              gridVisible={gridVisible}
             />
           ) : (
             <div 
