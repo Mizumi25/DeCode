@@ -2,7 +2,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { Settings, EyeOff, Eye } from 'lucide-react'
 import SearchBar from './SearchBar'
-import UndoRedoControls from './UndoRedoControls'
+import VoidUndoRedo from './VoidUndoRedo'
 import ZoomControls from './ZoomControls'
 import VoidZoomControls from './VoidZoomControls' // Import the new component
 import BinaryToggle from './BinaryToggle'
@@ -75,7 +75,7 @@ const CenterSection = ({
         className="flex items-center gap-3 flex-shrink-0"
       >
         {/* Undo/Redo */}
-        <UndoRedoControls size="normal" />
+        <VoidUndoRedo size="normal" />
 
         {/* Vertical Divider */}
         <div className="w-px h-4 bg-[var(--color-border)]"></div>

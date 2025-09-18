@@ -6,7 +6,7 @@ import Panel from '@/Components/Panel';
 import { Square, Code, Layers, User, Settings, ChevronUp, ChevronDown, Copy, RefreshCw, Monitor, PictureInPicture, Loader2 } from 'lucide-react';
 import { useForgeStore } from '@/stores/useForgeStore';
 import { useEditorStore } from '@/stores/useEditorStore';
-import { useUndoRedoStore } from '@/stores/useUndoRedoStore';
+import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore';
 
 
 // Import separated forge components
@@ -59,8 +59,9 @@ export default function ForgePage({
   const {
     initializeFrame: initUndoRedoFrame,
     pushHistory,
-    scheduleAutoSave
-  } = useUndoRedoStore();
+    scheduleAutoSave,
+    actionTypes
+  } = useForgeUndoRedoStore();
 
   // Frame switching state
   const [isFrameSwitching, setIsFrameSwitching] = useState(false)
@@ -576,9 +577,16 @@ export default function ForgePage({
               [currentFrame]: updatedComponents
           }));
           
+          // Push to undo/redo history with proper action type
+          pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
+              componentName: newComponent.name,
+              componentType: newComponent.type,
+              position: { x, y }
+          });
+          
           setSelectedComponent(newComponent.id)
           handleComponentDragEnd()
-  
+          
           console.log('Component dropped to frame:', currentFrame, newComponent);
           generateCode(updatedComponents)
       } catch (error) {
@@ -627,6 +635,7 @@ export default function ForgePage({
 
   // Component deletion handler - Updated for frame-specific components
   const handleComponentDelete = useCallback((componentId) => {
+    const componentToDelete = canvasComponents.find(c => c.id === componentId);
     const newComponents = canvasComponents.filter(c => c.id !== componentId)
     
     setFrameCanvasComponents(prev => ({
@@ -634,11 +643,21 @@ export default function ForgePage({
       [currentFrame]: newComponents
     }));
     
+    // Push deletion to history
+    pushHistory(currentFrame, newComponents, actionTypes.DELETE, {
+      componentName: componentToDelete?.name || componentToDelete?.type || 'component',
+      componentId,
+      deletedComponent: componentToDelete
+    });
+    
     if (selectedComponent === componentId) {
       setSelectedComponent(null)
     }
+    
+    // Schedule auto-save
+    scheduleAutoSave(projectId, currentFrame, newComponents);
     generateCode(newComponents)
-  }, [selectedComponent, canvasComponents, currentFrame])
+  }, [selectedComponent, canvasComponents, currentFrame, pushHistory, actionTypes, scheduleAutoSave, projectId])
 
 
   
@@ -649,9 +668,9 @@ export default function ForgePage({
         if (propName === 'position') {
           return { ...c, position: value }
         } else if (propName === 'style') {
-          return { ...c, style: { ...c.style, ...value } } // Merge styles
+          return { ...c, style: { ...c.style, ...value } }
         } else if (propName === 'animation') {
-          return { ...c, animation: { ...c.animation, ...value } } // Merge animations
+          return { ...c, animation: { ...c.animation, ...value } }
         } else if (propName === 'name') {
           return { ...c, name: value }
         } else if (propName === 'reset') {
@@ -668,17 +687,36 @@ export default function ForgePage({
       return c
     })
     
+    // Determine action type based on property being updated
+    let actionType = actionTypes.PROP_UPDATE;
+    if (propName === 'position') actionType = actionTypes.MOVE;
+    else if (propName === 'style') actionType = actionTypes.STYLE_UPDATE;
+    
+    // Get component name for better action description
+    const component = canvasComponents.find(c => c.id === componentId);
+    const componentName = component?.name || component?.type || 'component';
+    
     setFrameCanvasComponents(prev => ({
       ...prev,
       [currentFrame]: updatedComponents
     }));
     
-    // Push to undo/redo history and schedule auto-save
-    pushHistory(currentFrame, updatedComponents, 'property_update');
+    // Push to undo/redo history with detailed action data
+    pushHistory(currentFrame, updatedComponents, actionType, {
+      componentName,
+      componentId,
+      propName,
+      value,
+      previousValue: propName === 'position' ? component?.position : 
+                     propName === 'style' ? component?.style?.[Object.keys(value)[0]] :
+                     component?.props?.[propName]
+    });
+    
+    // Schedule auto-save
     scheduleAutoSave(projectId, currentFrame, updatedComponents);
     
     generateCode(updatedComponents);
-  }, [canvasComponents, currentFrame, projectId, pushHistory, scheduleAutoSave]);
+  }, [canvasComponents, currentFrame, projectId, pushHistory, scheduleAutoSave, actionTypes]);
   
   // ADD: Undo/Redo handlers
   const handleUndo = useCallback((previousComponents) => {

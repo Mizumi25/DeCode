@@ -16,6 +16,7 @@ import StyleModal from './Head/StyleModal'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useEditorStore } from '@/stores/useEditorStore'
 import { useHeaderStore } from '@/stores/useHeaderStore'
+import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore'
 
 export default function Header({ 
   isAuthenticated = true, 
@@ -73,6 +74,10 @@ export default function Header({
     isHeaderVisible,
     initializeHeader
   } = useHeaderStore()
+  
+  const {
+    // ... existing code  
+  } = useForgeUndoRedoStore()
 
   // Local component states (keep these as they are)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)

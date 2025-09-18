@@ -1,6 +1,6 @@
 // @/Components/Header/Head/RightSection.jsx
 import React, { useState } from 'react'
-import { Search, Play, MessageCircle, Share2, Download, Edit3, Eye, Users } from 'lucide-react'
+import { Search, Play, MessageCircle, Share2, Download, Edit3, Eye, Users, Save, ChevronDown, History, Circle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { usePage } from '@inertiajs/react'
 import UserDropdown from './UserDropdown'
@@ -8,6 +8,8 @@ import WorkspaceDropdown from './WorkspaceDropdown'
 import InviteModal from '@/Components/Workspaces/InviteModal'
 import RealTimeStackingAvatars from './RealTimeStackingAvatars'
 import BinaryToggle from './BinaryToggle'
+
+import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore'
 
 const fadeIn = {
   hidden: { opacity: 0, y: -10 },
@@ -64,6 +66,62 @@ const RightSection = ({
     { key: 'edit', icon: Edit3 },
     { key: 'view', icon: Eye }
   ]
+  
+  // Add these after the existing state declarations
+  const [showSaveDropdown, setShowSaveDropdown] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  
+  // Get revision functionality from Forge Undo/Redo store
+  const { manualSave, hasUnsavedChanges, getHistoryInfo } = useForgeUndoRedoStore()
+  
+
+  
+  // Check if there are unsaved changes
+  const frameHasUnsavedChanges = currentFrame ? hasUnsavedChanges(currentFrame.uuid) : false
+  const historyInfo = currentFrame ? getHistoryInfo(currentFrame.uuid) : null
+  
+  // Handle manual save with revision
+  const handleManualSave = async (createRevision = false, revisionTitle = null) => {
+    if (!currentProject || !currentFrame || isSaving) return
+    
+    setIsSaving(true)
+    try {
+      const title = revisionTitle || `Save ${new Date().toLocaleString()}`
+      
+      if (createRevision) {
+        await manualSave(currentProject.uuid, currentFrame.uuid, [], title)
+        console.log('Revision created successfully')
+      } else {
+        // Just save without revision
+        await manualSave(currentProject.uuid, currentFrame.uuid, [])
+        console.log('Saved successfully')
+      }
+      
+      setShowSaveDropdown(false)
+    } catch (error) {
+      console.error('Save failed:', error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  
+  // Handle save dropdown options
+  const handleSaveOption = (option) => {
+    switch (option) {
+      case 'save':
+        handleManualSave(false)
+        break
+      case 'revision':
+        const title = prompt('Enter revision name:')
+        if (title) {
+          handleManualSave(true, title)
+        }
+        break
+      case 'auto-revision':
+        handleManualSave(true, `Auto-save ${new Date().toLocaleString()}`)
+        break
+    }
+  }
 
   const handleInviteClick = (workspaceId, forceMode = false) => {
     console.log('Header: Opening invite modal for workspace:', workspaceId, 'forceMode:', forceMode)
@@ -108,9 +166,103 @@ const RightSection = ({
               </div>
             )}
 
-            {/* Saved Indicator */}
-            <div className="px-1.5 py-0.5 bg-[var(--color-bg-muted)] rounded">
-              <span className="text-[8px] text-green-500 font-medium">Saved</span>
+            {/* Enhanced Save Button with Revision Support */}
+            <div className="relative">
+              <div className="flex items-center">
+                {/* Save Status/Button */}
+                <button
+                  onClick={() => frameHasUnsavedChanges ? setShowSaveDropdown(!showSaveDropdown) : null}
+                  disabled={isSaving}
+                  className={`px-2 py-0.5 rounded-l border-r-0 transition-colors ${
+                    frameHasUnsavedChanges 
+                      ? 'bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 dark:hover:bg-orange-900/50 cursor-pointer border border-orange-300' 
+                      : 'bg-[var(--color-bg-muted)] border border-[var(--color-border)]'
+                  }`}
+                  title={frameHasUnsavedChanges ? 'Click to save options' : 'All changes saved'}
+                >
+                  <div className="flex items-center gap-1">
+                    {isSaving ? (
+                      <div className="w-2 h-2 border border-current border-t-transparent rounded-full animate-spin" />
+                    ) : frameHasUnsavedChanges ? (
+                      <Save className="w-2.5 h-2.5 text-orange-600 dark:text-orange-400" />
+                    ) : (
+                      <div className="w-2 h-2 bg-green-400 rounded-full" />
+                    )}
+                    <span className="text-[8px] font-medium text-[var(--color-text-muted)]">
+                      {isSaving ? 'Saving...' : frameHasUnsavedChanges ? 'Unsaved' : 'Saved'}
+                    </span>
+                  </div>
+                </button>
+                
+                {/* Dropdown Arrow - Only show when there are unsaved changes */}
+                {frameHasUnsavedChanges && (
+                  <button
+                    onClick={() => setShowSaveDropdown(!showSaveDropdown)}
+                    disabled={isSaving}
+                    className="px-1 py-0.5 bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 dark:hover:bg-orange-900/50 rounded-r border border-l-0 border-orange-300 transition-colors"
+                    title="Save options"
+                  >
+                    <ChevronDown className={`w-2.5 h-2.5 text-orange-600 dark:text-orange-400 transition-transform ${
+                      showSaveDropdown ? 'rotate-180' : ''
+                    }`} />
+                  </button>
+                )}
+              </div>
+              
+              {/* Save Options Dropdown */}
+              {showSaveDropdown && frameHasUnsavedChanges && (
+                <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg z-50">
+                  <div className="p-1">
+                    <button
+                      onClick={() => handleSaveOption('save')}
+                      disabled={isSaving}
+                      className="w-full px-3 py-2 text-left hover:bg-[var(--color-bg-muted)] rounded text-sm transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Save className="w-4 h-4" />
+                        <div>
+                          <div className="font-medium">Quick Save</div>
+                          <div className="text-xs text-[var(--color-text-muted)]">Save current changes</div>
+                        </div>
+                      </div>
+                    </button>
+                    
+                    <button
+                      onClick={() => handleSaveOption('revision')}
+                      disabled={isSaving}
+                      className="w-full px-3 py-2 text-left hover:bg-[var(--color-bg-muted)] rounded text-sm transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <History className="w-4 h-4" />
+                        <div>
+                          <div className="font-medium">Create Revision</div>
+                          <div className="text-xs text-[var(--color-text-muted)]">Save with custom name</div>
+                        </div>
+                      </div>
+                    </button>
+                    
+                    <button
+                      onClick={() => handleSaveOption('auto-revision')}
+                      disabled={isSaving}
+                      className="w-full px-3 py-2 text-left hover:bg-[var(--color-bg-muted)] rounded text-sm transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Circle className="w-4 h-4" />
+                        <div>
+                          <div className="font-medium">Auto Revision</div>
+                          <div className="text-xs text-[var(--color-text-muted)]">Save with timestamp</div>
+                        </div>
+                      </div>
+                    </button>
+                    
+                    {historyInfo && (
+                      <div className="px-3 py-2 text-xs text-[var(--color-text-muted)] border-t border-[var(--color-border)] mt-1">
+                        {historyInfo.totalActions} changes since last save
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Comments - Only on Void Page */}

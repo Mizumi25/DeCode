@@ -1,7 +1,9 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Square, Sparkles, Monitor, Tablet, Smartphone, Move, RotateCcw } from 'lucide-react';
+
 import { useEditorStore } from '@/stores/useEditorStore';
+import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore';
 
 const CanvasComponent = ({
   canvasRef,
@@ -29,6 +31,9 @@ const CanvasComponent = ({
     gridVisible,
     zoomLevel
   } = useEditorStore();
+  
+  // Get undo/redo functionality
+  const { pushHistory, actionTypes } = useForgeUndoRedoStore();
 
   // Local state for canvas dimensions and interactions
   const [canvasDimensions, setCanvasDimensions] = useState(() => getCurrentCanvasDimensions());
@@ -62,6 +67,9 @@ const CanvasComponent = ({
     // Select component
     onComponentClick(componentId, e);
 
+    let hasMoved = false;
+    const initialPosition = { ...component.position };
+    
     const handleMouseMove = (moveEvent) => {
       const newX = moveEvent.clientX - canvasRect.left - dragOffset.x;
       const newY = moveEvent.clientY - canvasRect.top - dragOffset.y;
@@ -70,11 +78,38 @@ const CanvasComponent = ({
       const constrainedX = Math.max(0, Math.min(newX, deviceInfo.width - 100));
       const constrainedY = Math.max(0, Math.min(newY, deviceInfo.height - 50));
       
+      // Check if actually moved significantly (avoid micro-movements)
+      const deltaX = Math.abs(constrainedX - initialPosition.x);
+      const deltaY = Math.abs(constrainedY - initialPosition.y);
+      
+      if (deltaX > 1 || deltaY > 1) {
+        hasMoved = true;
+      }
+      
       onPropertyUpdate(componentId, 'position', { x: constrainedX, y: constrainedY });
     };
-
+    
     const handleMouseUp = () => {
       setIsDraggingComponent(false);
+      
+      // Only push to history if component actually moved significantly
+      if (hasMoved && currentFrame && pushHistory && actionTypes) {
+        const finalPosition = canvasComponents.find(c => c.id === componentId)?.position;
+        if (finalPosition) {
+          // Get updated components array for history
+          const updatedComponents = canvasComponents.map(c => 
+            c.id === componentId ? { ...c, position: finalPosition } : c
+          );
+          
+          pushHistory(currentFrame, updatedComponents, actionTypes.MOVE, {
+            componentName: component.name || component.type,
+            componentId,
+            initialPosition,
+            finalPosition
+          });
+        }
+      }
+      
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };

@@ -6,7 +6,7 @@ import ThemeToggle from './ThemeToggle'
 import ThemeSelector from './ThemeSelector'
 import NavigationDropdown from './NavigationDropdown'
 import ResponsiveToggle from './ResponsiveToggle'
-import UndoRedoControls from './UndoRedoControls'
+import ForgeUndoRedo from './ForgeUndoRedo'
 import ZoomControls from './ZoomControls'
 import BinaryToggle from './BinaryToggle'
 import AnimatedBlackHoleLogo from '@/Components/AnimatedBlackHoleLogo'
@@ -204,7 +204,7 @@ const LeftSection = ({
 
           {/* Undo/Redo */}
           {(onForgePage || onSourcePage) && (
-            <UndoRedoControls 
+            <ForgeUndoRedo 
               projectId={projectId}
               frameId={currentFrame}
               canvasComponents={canvasComponents || []}
