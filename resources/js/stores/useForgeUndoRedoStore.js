@@ -1,23 +1,26 @@
-// @/stores/useForgeUndoRedoStore.js
+// FIXED: useForgeUndoRedoStore.js - Enhanced State Management for Reliable Undo/Redo
+
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import axios from 'axios'
 
-// Create the main store with persistence - Figma/Framer style
 export const useForgeUndoRedoStore = create(
   persist(
     (set, get) => ({
-      // History stacks per frame - ONLY serializable data
+      // History stacks per frame
       frameHistories: {},
       
       // Current frame being tracked
       currentFrame: null,
       
       // Settings
-      maxHistorySize: 100, // Increased for better UX like Figma
-      autoSaveInterval: 3000, // 3 seconds
+      maxHistorySize: 50, // Reduced for better performance
+      autoSaveInterval: 3000,
       
-      // Action types for better tracking
+      // CRITICAL: Operation tracking to prevent conflicts
+      operationInProgress: {},
+      
+      // Action types
       actionTypes: {
         DROP: 'component_dropped',
         MOVE: 'component_moved',
@@ -29,12 +32,16 @@ export const useForgeUndoRedoStore = create(
         INITIAL: 'initial_state'
       },
       
-      // Initialize frame history
+      // ENHANCED: Initialize frame history with better logging
       initializeFrame: (frameId) => {
-        if (!frameId) return;
+        if (!frameId) {
+          console.warn('ForgeUndoRedoStore: Cannot initialize frame - no frameId provided');
+          return;
+        }
         
         const state = get()
         if (!state.frameHistories[frameId]) {
+          console.log('ForgeUndoRedoStore: Creating new history for frame:', frameId);
           set((state) => ({
             frameHistories: {
               ...state.frameHistories,
@@ -42,32 +49,56 @@ export const useForgeUndoRedoStore = create(
                 undoStack: [],
                 redoStack: [],
                 currentIndex: -1,
-                lastSavedIndex: -1
+                lastSavedIndex: -1,
+                initialized: true
               }
             },
-            currentFrame: frameId
+            currentFrame: frameId,
+            operationInProgress: {
+              ...state.operationInProgress,
+              [frameId]: false
+            }
           }))
-          console.log('ForgeUndoRedo: Initialized frame history for:', frameId)
         } else {
+          console.log('ForgeUndoRedoStore: Using existing history for frame:', frameId);
           set({ currentFrame: frameId })
         }
       },
       
-      // Push state to history - Enhanced for all actions
+      // ENHANCED: Push history with conflict prevention
       pushHistory: (frameId, components, actionType = 'update', actionData = null) => {
-        if (!frameId || !Array.isArray(components)) return
+        if (!frameId || !Array.isArray(components)) {
+          console.warn('ForgeUndoRedoStore: Cannot push history - invalid parameters');
+          return;
+        }
         
         const state = get()
+        
+        // Prevent pushing during undo/redo operations
+        if (state.operationInProgress[frameId]) {
+          console.log('ForgeUndoRedoStore: Skipping push - operation in progress');
+          return;
+        }
+        
         const frameHistory = state.frameHistories[frameId] || { 
           undoStack: [], 
           redoStack: [], 
           currentIndex: -1,
-          lastSavedIndex: -1
+          lastSavedIndex: -1,
+          initialized: true
         }
         
-        // Create serializable history entry with more detail
+        // CRITICAL: Deep clone components to prevent reference issues
+        let clonedComponents;
+        try {
+          clonedComponents = JSON.parse(JSON.stringify(components));
+        } catch (error) {
+          console.error('ForgeUndoRedoStore: Failed to clone components:', error);
+          return;
+        }
+        
         const historyEntry = {
-          components: JSON.parse(JSON.stringify(components)),
+          components: clonedComponents,
           action: actionType,
           timestamp: Date.now(),
           id: `${actionType}_${Date.now()}`,
@@ -75,13 +106,15 @@ export const useForgeUndoRedoStore = create(
           description: get().getActionDescription(actionType, actionData)
         }
         
-        // Remove any entries after current index (when we're in middle of undo stack)
+        // Remove any entries after current index (when branching from middle of stack)
         const newUndoStack = [
           ...frameHistory.undoStack.slice(0, frameHistory.currentIndex + 1),
           historyEntry
-        ].slice(-state.maxHistorySize) // Keep size limit
+        ].slice(-state.maxHistorySize)
         
         const newCurrentIndex = newUndoStack.length - 1
+        
+        console.log(`ForgeUndoRedoStore: Pushing ${actionType} to history. New index: ${newCurrentIndex}, Stack size: ${newUndoStack.length}`);
         
         set((state) => ({
           frameHistories: {
@@ -90,28 +123,40 @@ export const useForgeUndoRedoStore = create(
               undoStack: newUndoStack,
               redoStack: [], // Clear redo stack on new action
               currentIndex: newCurrentIndex,
-              lastSavedIndex: frameHistory.lastSavedIndex
+              lastSavedIndex: frameHistory.lastSavedIndex,
+              initialized: true
             }
           }
         }))
-        
-        console.log(`ForgeUndoRedo: Pushed ${actionType} to history. Stack size: ${newUndoStack.length}`)
       },
       
-      // Undo operation - Enhanced
+      // ENHANCED: Undo with operation tracking
       undo: (frameId) => {
+        if (!frameId) {
+          console.warn('ForgeUndoRedoStore: Cannot undo - no frameId');
+          return null;
+        }
+        
         const state = get()
         const frameHistory = state.frameHistories[frameId]
         
         if (!frameHistory || frameHistory.currentIndex <= 0) {
-          console.log('ForgeUndoRedo: Cannot undo - at beginning of history')
-          return null
+          console.log('ForgeUndoRedoStore: Cannot undo - at beginning of history');
+          return null;
         }
+        
+        // Mark operation in progress
+        set((state) => ({
+          operationInProgress: {
+            ...state.operationInProgress,
+            [frameId]: true
+          }
+        }));
         
         const newCurrentIndex = frameHistory.currentIndex - 1
         const targetEntry = frameHistory.undoStack[newCurrentIndex]
         
-        console.log(`ForgeUndoRedo: Undoing to: ${targetEntry.description}`)
+        console.log(`ForgeUndoRedoStore: Undoing from index ${frameHistory.currentIndex} to ${newCurrentIndex}: ${targetEntry.description}`);
         
         set((state) => ({
           frameHistories: {
@@ -123,23 +168,47 @@ export const useForgeUndoRedoStore = create(
           }
         }))
         
-        return targetEntry.components
+        // Clear operation flag after delay
+        setTimeout(() => {
+          set((state) => ({
+            operationInProgress: {
+              ...state.operationInProgress,
+              [frameId]: false
+            }
+          }));
+        }, 1000);
+        
+        // Return deep cloned components
+        return JSON.parse(JSON.stringify(targetEntry.components));
       },
       
-      // Redo operation - Enhanced
+      // ENHANCED: Redo with operation tracking
       redo: (frameId) => {
+        if (!frameId) {
+          console.warn('ForgeUndoRedoStore: Cannot redo - no frameId');
+          return null;
+        }
+        
         const state = get()
         const frameHistory = state.frameHistories[frameId]
         
         if (!frameHistory || frameHistory.currentIndex >= frameHistory.undoStack.length - 1) {
-          console.log('ForgeUndoRedo: Cannot redo - at end of history')
-          return null
+          console.log('ForgeUndoRedoStore: Cannot redo - at end of history');
+          return null;
         }
+        
+        // Mark operation in progress
+        set((state) => ({
+          operationInProgress: {
+            ...state.operationInProgress,
+            [frameId]: true
+          }
+        }));
         
         const newCurrentIndex = frameHistory.currentIndex + 1
         const targetEntry = frameHistory.undoStack[newCurrentIndex]
         
-        console.log(`ForgeUndoRedo: Redoing to: ${targetEntry.description}`)
+        console.log(`ForgeUndoRedoStore: Redoing from index ${frameHistory.currentIndex} to ${newCurrentIndex}: ${targetEntry.description}`);
         
         set((state) => ({
           frameHistories: {
@@ -151,21 +220,54 @@ export const useForgeUndoRedoStore = create(
           }
         }))
         
-        return targetEntry.components
+        // Clear operation flag after delay
+        setTimeout(() => {
+          set((state) => ({
+            operationInProgress: {
+              ...state.operationInProgress,
+              [frameId]: false
+            }
+          }));
+        }, 1000);
+        
+        // Return deep cloned components
+        return JSON.parse(JSON.stringify(targetEntry.components));
       },
       
-      // Check if undo is available
+      // ENHANCED: Can undo check with better validation
       canUndo: (frameId) => {
+        if (!frameId) return false;
+        
         const state = get()
         const frameHistory = state.frameHistories[frameId]
-        return frameHistory && frameHistory.currentIndex > 0
+        
+        if (!frameHistory || !frameHistory.initialized) {
+          return false;
+        }
+        
+        const canUndo = frameHistory.currentIndex > 0 && !state.operationInProgress[frameId];
+        
+        console.log(`ForgeUndoRedoStore: canUndo(${frameId}) = ${canUndo} (currentIndex: ${frameHistory.currentIndex}, operationInProgress: ${state.operationInProgress[frameId]})`);
+        
+        return canUndo;
       },
       
-      // Check if redo is available
+      // ENHANCED: Can redo check with better validation
       canRedo: (frameId) => {
+        if (!frameId) return false;
+        
         const state = get()
         const frameHistory = state.frameHistories[frameId]
-        return frameHistory && frameHistory.currentIndex < frameHistory.undoStack.length - 1
+        
+        if (!frameHistory || !frameHistory.initialized) {
+          return false;
+        }
+        
+        const canRedo = frameHistory.currentIndex < frameHistory.undoStack.length - 1 && !state.operationInProgress[frameId];
+        
+        console.log(`ForgeUndoRedoStore: canRedo(${frameId}) = ${canRedo} (currentIndex: ${frameHistory.currentIndex}, stackLength: ${frameHistory.undoStack.length}, operationInProgress: ${state.operationInProgress[frameId]})`);
+        
+        return canRedo;
       },
       
       // Check if there are unsaved changes
@@ -194,8 +296,20 @@ export const useForgeUndoRedoStore = create(
         }))
       },
       
-      // Get history info with more details
+      // ENHANCED: Get history info with comprehensive details
       getHistoryInfo: (frameId) => {
+        if (!frameId) {
+          return { 
+            undoCount: 0, 
+            redoCount: 0, 
+            canUndo: false, 
+            canRedo: false,
+            hasUnsavedChanges: false,
+            currentAction: null,
+            totalActions: 0
+          }
+        }
+        
         const state = get()
         const frameHistory = state.frameHistories[frameId]
         
@@ -206,24 +320,33 @@ export const useForgeUndoRedoStore = create(
             canUndo: false, 
             canRedo: false,
             hasUnsavedChanges: false,
-            currentAction: null
+            currentAction: null,
+            totalActions: 0
           }
         }
         
         const currentEntry = frameHistory.undoStack[frameHistory.currentIndex]
+        const canUndo = state.canUndo(frameId)
+        const canRedo = state.canRedo(frameId)
         
-        return {
+        const info = {
           undoCount: frameHistory.currentIndex + 1,
           redoCount: frameHistory.undoStack.length - frameHistory.currentIndex - 1,
-          canUndo: frameHistory.currentIndex > 0,
-          canRedo: frameHistory.currentIndex < frameHistory.undoStack.length - 1,
+          canUndo,
+          canRedo,
           hasUnsavedChanges: frameHistory.currentIndex !== frameHistory.lastSavedIndex,
           currentAction: currentEntry ? currentEntry.description : null,
-          totalActions: frameHistory.undoStack.length
+          totalActions: frameHistory.undoStack.length,
+          currentIndex: frameHistory.currentIndex,
+          operationInProgress: state.operationInProgress[frameId] || false
         }
+        
+        console.log(`ForgeUndoRedoStore: getHistoryInfo(${frameId}):`, info);
+        
+        return info;
       },
       
-      // Get action description for better UX
+      // Get action description
       getActionDescription: (actionType, actionData) => {
         const descriptions = {
           component_dropped: `Drop ${actionData?.componentName || 'component'}`,
@@ -247,15 +370,39 @@ export const useForgeUndoRedoStore = create(
             undoStack: [],
             redoStack: [],
             currentIndex: -1,
-            lastSavedIndex: -1
+            lastSavedIndex: -1,
+            initialized: true
           }
+        },
+        operationInProgress: {
+          ...state.operationInProgress,
+          [frameId]: false
         }
-      }))
+      })),
+      
+      // ENHANCED: Debug helper
+      debugFrameHistory: (frameId) => {
+        const state = get()
+        const frameHistory = state.frameHistories[frameId]
+        
+        if (!frameHistory) {
+          console.log(`ForgeUndoRedoStore: No history found for frame ${frameId}`);
+          return;
+        }
+        
+        console.log(`=== FRAME ${frameId} HISTORY DEBUG ===`);
+        console.log('Current Index:', frameHistory.currentIndex);
+        console.log('Stack Length:', frameHistory.undoStack.length);
+        console.log('Can Undo:', state.canUndo(frameId));
+        console.log('Can Redo:', state.canRedo(frameId));
+        console.log('Operation In Progress:', state.operationInProgress[frameId]);
+        console.log('History Stack:', frameHistory.undoStack.map(entry => entry.description));
+        console.log('=====================================');
+      }
     }),
     {
       name: 'forge-undo-redo-store',
-      version: 2,
-      // Only persist serializable data
+      version: 3, // Increment version for schema changes
       partialize: (state) => ({
         frameHistories: state.frameHistories,
         currentFrame: state.currentFrame,
@@ -265,90 +412,3 @@ export const useForgeUndoRedoStore = create(
     }
   )
 )
-
-// Add non-persisted functions after store creation
-let autoSaveTimeouts = {}
-
-// Extend the store with non-persistent methods
-const originalStore = useForgeUndoRedoStore.getState()
-
-useForgeUndoRedoStore.setState({
-  // Database save functionality
-  saveToDatabase: async (projectId, frameId, components, createRevision = false) => {
-    try {
-      const response = await axios.post('/api/project-components/bulk-update', {
-        project_id: projectId,
-        frame_id: frameId,
-        components: components.map(comp => ({
-          component_instance_id: comp.id,
-          component_type: comp.type,
-          props: comp.props || {},
-          position: comp.position,
-          name: comp.name,
-          z_index: comp.zIndex || 0,
-          variant: comp.variant || null,
-          style: comp.style || {},
-          animation: comp.animation || {}
-        })),
-        create_revision: createRevision
-      })
-      
-      if (response.data.success) {
-        // Mark as saved in local history
-        const { markAsSaved } = useForgeUndoRedoStore.getState()
-        markAsSaved(frameId)
-      }
-      
-      return response.data.success
-    } catch (error) {
-      console.error('Failed to save to database:', error)
-      throw error
-    }
-  },
-  
-  // Auto-save with throttling
-  scheduleAutoSave: (projectId, frameId, components, delay = null) => {
-    const saveDelay = delay || originalStore.autoSaveInterval
-    
-    // Clear existing timeout
-    if (autoSaveTimeouts[frameId]) {
-      clearTimeout(autoSaveTimeouts[frameId])
-    }
-    
-    // Schedule new save
-    autoSaveTimeouts[frameId] = setTimeout(async () => {
-      try {
-        const { saveToDatabase } = useForgeUndoRedoStore.getState()
-        await saveToDatabase(projectId, frameId, components)
-        console.log(`ForgeUndoRedo: Auto-saved frame ${frameId} to database`)
-      } catch (error) {
-        console.error('Auto-save failed:', error)
-      }
-    }, saveDelay)
-  },
-  
-  // Manual save with revision - for the "Saved" button
-  manualSave: async (projectId, frameId, components, title = null) => {
-    try {
-      const { saveToDatabase } = useForgeUndoRedoStore.getState()
-      await saveToDatabase(projectId, frameId, components, true)
-      
-      if (title) {
-        await axios.post('/api/project-components/create-revision', {
-          project_id: projectId,
-          frame_id: frameId,
-          title: title,
-          description: `Manual save: ${title}`
-        })
-      }
-      
-      console.log('ForgeUndoRedo: Manual save with revision completed')
-      return true
-    } catch (error) {
-      console.error('Manual save failed:', error)
-      throw error
-    }
-  }
-})
-
-export default useForgeUndoRedoStore

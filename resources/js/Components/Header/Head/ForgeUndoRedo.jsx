@@ -1,6 +1,7 @@
-// @/Components/Header/Head/ForgeUndoRedo.jsx
-import React, { useEffect, useState } from 'react'
-import { Undo2, Redo2, History, Circle } from 'lucide-react'
+// FIXED: ForgeUndoRedo.jsx - Proper Button States and Event Handling
+
+import React, { useEffect, useState, useCallback } from 'react'
+import { Undo2, Redo2, History, Circle, Clock } from 'lucide-react'
 import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore'
 
 const ForgeUndoRedo = ({ 
@@ -15,8 +16,6 @@ const ForgeUndoRedo = ({
   const {
     initializeFrame,
     pushHistory,
-    undo,
-    redo,
     canUndo,
     canRedo,
     getHistoryInfo,
@@ -33,7 +32,10 @@ const ForgeUndoRedo = ({
     hasUnsavedChanges: false,
     currentAction: null
   })
+  
   const [isProcessing, setIsProcessing] = useState(false)
+  const [processingType, setProcessingType] = useState(null)
+  const [lastActionTimestamp, setLastActionTimestamp] = useState(null)
 
   const iconSize = size === 'small' ? 'w-2.5 h-2.5' : 'w-3 h-3'
   const padding = size === 'small' ? 'p-0.5' : 'p-1'
@@ -41,95 +43,205 @@ const ForgeUndoRedo = ({
   // Initialize frame on mount
   useEffect(() => {
     if (frameId) {
+      console.log('ForgeUndoRedo: Initializing frame:', frameId);
       initializeFrame(frameId)
+      
       // Push initial state if we have components
       if (canvasComponents.length > 0) {
+        console.log('ForgeUndoRedo: Pushing initial state with', canvasComponents.length, 'components');
         pushHistory(frameId, canvasComponents, actionTypes.INITIAL)
       }
     }
   }, [frameId, initializeFrame, pushHistory, actionTypes])
 
-  // Update history info when components change
+  // FIXED: Update history info when components change OR when undo/redo happens
   useEffect(() => {
     if (frameId) {
       const info = getHistoryInfo(frameId)
-      setHistoryInfo(info)
+      const canUndoState = canUndo(frameId)
+      const canRedoState = canRedo(frameId)
+      
+      console.log('ForgeUndoRedo: History info updated:', {
+        canUndo: canUndoState,
+        canRedo: canRedoState,
+        undoCount: info.undoCount,
+        redoCount: info.redoCount
+      });
+      
+      setHistoryInfo({
+        ...info,
+        canUndo: canUndoState,
+        canRedo: canRedoState
+      })
       
       if (onHistoryChange) {
-        onHistoryChange(info)
+        onHistoryChange({
+          ...info,
+          canUndo: canUndoState,
+          canRedo: canRedoState
+        })
       }
     }
-  }, [frameId, getHistoryInfo, onHistoryChange, canvasComponents])
+  }, [frameId, getHistoryInfo, canUndo, canRedo, onHistoryChange, canvasComponents.length])
 
-  // Auto-save when components change
-  useEffect(() => {
-    if (projectId && frameId && Array.isArray(canvasComponents) && canvasComponents.length > 0) {
-      // Schedule database save
-      scheduleAutoSave(projectId, frameId, canvasComponents)
+  // FIXED: Undo handler with proper state management
+  const handleUndo = useCallback(async () => {
+    if (!frameId || !historyInfo.canUndo || isProcessing || !onUndo) {
+      console.log('ForgeUndoRedo: Undo blocked', {
+        frameId: !!frameId,
+        canUndo: historyInfo.canUndo,
+        isProcessing,
+        hasOnUndo: !!onUndo
+      });
+      return;
     }
-  }, [canvasComponents, projectId, frameId, scheduleAutoSave])
 
-  const handleUndo = async () => {
-    if (!frameId || !canUndo(frameId) || isProcessing) return
+    console.log('ForgeUndoRedo: Starting undo operation');
+    setIsProcessing(true);
+    setProcessingType('undo');
+    setLastActionTimestamp(Date.now());
 
-    setIsProcessing(true)
     try {
-      const previousComponents = undo(frameId)
-      if (previousComponents && onUndo) {
-        console.log('ForgeUndoRedo: Executing undo')
-        onUndo(previousComponents)
-        
-        // Save undone state to database
-        if (projectId) {
-          scheduleAutoSave(projectId, frameId, previousComponents)
-        }
-      }
+      // CRITICAL: Call the parent's undo handler directly
+      await onUndo();
+      console.log('ForgeUndoRedo: Undo completed successfully');
     } catch (error) {
-      console.error('Undo failed:', error)
+      console.error('ForgeUndoRedo: Undo failed:', error);
     } finally {
-      setIsProcessing(false)
+      // Add delay before allowing next operation
+      setTimeout(() => {
+        setIsProcessing(false);
+        setProcessingType(null);
+      }, 300);
     }
-  }
+  }, [frameId, historyInfo.canUndo, isProcessing, onUndo]);
 
-  const handleRedo = async () => {
-    if (!frameId || !canRedo(frameId) || isProcessing) return
+  // FIXED: Redo handler with proper state management
+  const handleRedo = useCallback(async () => {
+    if (!frameId || !historyInfo.canRedo || isProcessing || !onRedo) {
+      console.log('ForgeUndoRedo: Redo blocked', {
+        frameId: !!frameId,
+        canRedo: historyInfo.canRedo,
+        isProcessing,
+        hasOnRedo: !!onRedo
+      });
+      return;
+    }
 
-    setIsProcessing(true)
+    console.log('ForgeUndoRedo: Starting redo operation');
+    setIsProcessing(true);
+    setProcessingType('redo');
+    setLastActionTimestamp(Date.now());
+
     try {
-      const nextComponents = redo(frameId)
-      if (nextComponents && onRedo) {
-        console.log('ForgeUndoRedo: Executing redo')
-        onRedo(nextComponents)
-        
-        // Save redone state to database
-        if (projectId) {
-          scheduleAutoSave(projectId, frameId, nextComponents)
-        }
-      }
+      // CRITICAL: Call the parent's redo handler directly
+      await onRedo();
+      console.log('ForgeUndoRedo: Redo completed successfully');
     } catch (error) {
-      console.error('Redo failed:', error)
+      console.error('ForgeUndoRedo: Redo failed:', error);
     } finally {
-      setIsProcessing(false)
+      // Add delay before allowing next operation
+      setTimeout(() => {
+        setIsProcessing(false);
+        setProcessingType(null);
+      }, 300);
     }
-  }
+  }, [frameId, historyInfo.canRedo, isProcessing, onRedo]);
 
-  // Enhanced tooltips with action descriptions
+  // Enhanced tooltips with processing state
   const getUndoTooltip = () => {
+    if (isProcessing && processingType === 'undo') return 'Undoing...'
     if (!historyInfo.canUndo) return 'Nothing to undo'
-    return `Undo (${historyInfo.undoCount - 1} actions)`
+    return `Undo (${Math.max(0, historyInfo.undoCount - 1)} actions available)`
   }
 
   const getRedoTooltip = () => {
+    if (isProcessing && processingType === 'redo') return 'Redoing...'
     if (!historyInfo.canRedo) return 'Nothing to redo'
-    return `Redo (${historyInfo.redoCount} actions)`
+    return `Redo (${historyInfo.redoCount} actions available)`
   }
+
+  // CRITICAL: Debug logging
+  useEffect(() => {
+    if (frameId) {
+      console.log('ForgeUndoRedo: Component state debug:', {
+        frameId,
+        canUndo: historyInfo.canUndo,
+        canRedo: historyInfo.canRedo,
+        undoCount: historyInfo.undoCount,
+        redoCount: historyInfo.redoCount,
+        hasOnUndo: !!onUndo,
+        hasOnRedo: !!onRedo,
+        isProcessing
+      });
+    }
+  }, [frameId, historyInfo, onUndo, onRedo, isProcessing]);
 
   return (
     <div className="flex items-center gap-0.5">
+      {/* Processing indicator */}
+      {isProcessing && (
+        <div className="flex items-center gap-1 pr-2">
+          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+          {size !== 'small' && (
+            <span className="text-xs text-blue-600 font-medium">
+              {processingType === 'undo' ? 'Undoing' : 'Redoing'}
+            </span>
+          )}
+        </div>
+      )}
+      
+      {/* Undo Button - FIXED with proper state checking */}
+      <button 
+        onClick={handleUndo}
+        disabled={!historyInfo.canUndo || isProcessing || !onUndo}
+        className={`${padding} hover:bg-[var(--color-bg-muted)] rounded transition-colors ${
+          (!historyInfo.canUndo || isProcessing || !onUndo) ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
+        title={getUndoTooltip()}
+      >
+        <Undo2 className={`${iconSize} ${
+          (historyInfo.canUndo && !isProcessing && onUndo)
+            ? 'text-[var(--color-text)] hover:text-[var(--color-primary)]' 
+            : 'text-[var(--color-text-muted)]'
+        } ${isProcessing && processingType === 'undo' ? 'animate-pulse' : ''}`} />
+      </button>
+
+      {/* Redo Button - FIXED with proper state checking */}
+      <button 
+        onClick={handleRedo}
+        disabled={!historyInfo.canRedo || isProcessing || !onRedo}
+        className={`${padding} hover:bg-[var(--color-bg-muted)] rounded transition-colors ${
+          (!historyInfo.canRedo || isProcessing || !onRedo) ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
+        title={getRedoTooltip()}
+      >
+        <Redo2 className={`${iconSize} ${
+          (historyInfo.canRedo && !isProcessing && onRedo)
+            ? 'text-[var(--color-text)] hover:text-[var(--color-primary)]' 
+            : 'text-[var(--color-text-muted)]'
+        } ${isProcessing && processingType === 'redo' ? 'animate-pulse' : ''}`} />
+      </button>
+
+      {/* History Info */}
+      {size !== 'small' && historyInfo.totalActions > 0 && (
+        <div className="flex items-center gap-1 px-2 text-xs text-[var(--color-text-muted)]">
+          <History className="w-3 h-3" />
+          <span>{historyInfo.totalActions}</span>
+          
+          {lastActionTimestamp && (
+            <div className="flex items-center gap-1 text-xs opacity-70">
+              <Clock className="w-2 h-2" />
+              <span>{new Date(lastActionTimestamp).toLocaleTimeString()}</span>
+            </div>
+          )}
+        </div>
+      )}
+      
       {/* Unsaved changes indicator */}
       {historyInfo.hasUnsavedChanges && (
-        <div className="flex items-center gap-1 pr-1">
-          <Circle className="w-1.5 h-1.5 fill-orange-400 text-orange-400" />
+        <div className="flex items-center gap-1 px-2">
+          <Circle className="w-2 h-2 fill-orange-400 text-orange-400" />
           {size !== 'small' && (
             <span className="text-xs text-orange-600 font-medium">
               Unsaved
@@ -138,43 +250,12 @@ const ForgeUndoRedo = ({
         </div>
       )}
       
-      {/* Undo Button */}
-      <button 
-        onClick={handleUndo}
-        disabled={!historyInfo.canUndo || isProcessing}
-        className={`${padding} hover:bg-[var(--color-bg-muted)] rounded transition-colors ${
-          !historyInfo.canUndo || isProcessing ? 'opacity-50 cursor-not-allowed' : ''
-        }`}
-        title={getUndoTooltip()}
-      >
-        <Undo2 className={`${iconSize} ${
-          historyInfo.canUndo && !isProcessing
-            ? 'text-[var(--color-text)] hover:text-[var(--color-primary)]' 
-            : 'text-[var(--color-text-muted)]'
-        } ${isProcessing ? 'animate-pulse' : ''}`} />
-      </button>
-
-      {/* Redo Button */}
-      <button 
-        onClick={handleRedo}
-        disabled={!historyInfo.canRedo || isProcessing}
-        className={`${padding} hover:bg-[var(--color-bg-muted)] rounded transition-colors ${
-          !historyInfo.canRedo || isProcessing ? 'opacity-50 cursor-not-allowed' : ''
-        }`}
-        title={getRedoTooltip()}
-      >
-        <Redo2 className={`${iconSize} ${
-          historyInfo.canRedo && !isProcessing
-            ? 'text-[var(--color-text)] hover:text-[var(--color-primary)]' 
-            : 'text-[var(--color-text-muted)]'
-        } ${isProcessing ? 'animate-pulse' : ''}`} />
-      </button>
-
-      {/* History Info (only show if not small) */}
-      {size !== 'small' && historyInfo.totalActions > 0 && (
-        <div className="flex items-center gap-1 px-2 text-xs text-[var(--color-text-muted)]">
-          <History className="w-3 h-3" />
-          <span>{historyInfo.totalActions}</span>
+      {/* Debug info in development */}
+      {process.env.NODE_ENV === 'development' && size !== 'small' && (
+        <div className="text-xs text-gray-400 px-2 border-l border-gray-300">
+          <div>U:{historyInfo.undoCount} R:{historyInfo.redoCount}</div>
+          <div>Handlers: {onUndo ? '✓' : '✗'} {onRedo ? '✓' : '✗'}</div>
+          {isProcessing && <div className="text-blue-500">Processing {processingType}</div>}
         </div>
       )}
     </div>

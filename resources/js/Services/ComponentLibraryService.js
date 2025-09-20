@@ -6,6 +6,15 @@ class ComponentLibraryService {
   constructor() {
     this.components = new Map();
     this.componentDefinitions = new Map();
+    
+    // ADD: Save queue management to prevent conflicts
+    this.saveQueue = new Map(); // frameId -> timeout
+    this.isSaving = new Map(); // frameId -> boolean
+    this.saveDebounceTime = 1000; // 1 second debounce
+    
+    // CRITICAL: Add undo/redo operation tracking
+    this.undoRedoInProgress = new Map(); 
+  
   }
 
   // Load all components from the API
@@ -1114,48 +1123,115 @@ ${htmlComponents}
 
 // Save project components to backend
 async saveProjectComponents(projectId, frameId, components) {
-      try {
-          console.log('Saving', components.length, 'components to backend for frame:', frameId);
-          
-          const response = await axios.post('/api/project-components/bulk-update', {
-              project_id: projectId,
-              frame_id: frameId,
-              components: components.map(comp => {
-                  // Get component definition for validation
-                  const componentDef = this.componentDefinitions.get(comp.type);
-                  
-                  return {
-                      component_instance_id: comp.id,
-                      component_type: comp.type,
-                      props: comp.props || {},
-                      position: comp.position,
-                      name: comp.name || componentDef?.name || comp.type,
-                      z_index: comp.zIndex || 0,
-                      variant: comp.variant || null,
-                      style: comp.style || {},
-                      animation: comp.animation || {}
-                  };
-              }),
-              create_revision: false // Set to true for major saves
-          });
-          
-          if (response.data.success) {
-              console.log('Successfully saved components to backend');
-              return true;
-          } else {
-              console.error('Backend save failed:', response.data.message);
-              return false;
-          }
-      } catch (error) {
-          console.error('Failed to save project components:', error);
-          throw error;
+    try {
+      console.log('ComponentLibraryService: Save requested for frame:', frameId, 'with', components.length, 'components');
+      
+      // CRITICAL: Don't auto-save if undo/redo is in progress
+      if (this.isUndoRedoInProgress(frameId)) {
+        console.log('ComponentLibraryService: Skipping save - undo/redo in progress');
+        return true;
       }
+      
+      // Clear any existing save timeout for this frame
+      if (this.saveQueue.has(frameId)) {
+        clearTimeout(this.saveQueue.get(frameId));
+        console.log('ComponentLibraryService: Cleared previous save timeout for frame:', frameId);
+      }
+      
+      // Check if already saving this frame
+      if (this.isSaving.get(frameId)) {
+        console.log('ComponentLibraryService: Save already in progress for frame:', frameId, '- queuing new save');
+        
+        // Queue the new save
+        const timeoutId = setTimeout(() => {
+          this.saveQueue.delete(frameId);
+          this.executeSave(projectId, frameId, components);
+        }, this.saveDebounceTime);
+        
+        this.saveQueue.set(frameId, timeoutId);
+        return true;
+      }
+      
+      // Execute immediate save
+      return await this.executeSave(projectId, frameId, components);
+      
+    } catch (error) {
+      console.error('ComponentLibraryService: Save failed:', error);
+      this.isSaving.set(frameId, false);
+      throw error;
+    }
+  }
+  
+  // NEW: Execute the actual save operation
+   async executeSave(projectId, frameId, components) {
+    try {
+      this.isSaving.set(frameId, true);
+      
+      console.log('ComponentLibraryService: Executing save for frame:', frameId);
+      
+      const response = await axios.post('/api/project-components/bulk-update', {
+        project_id: projectId,
+        frame_id: frameId,
+        components: components.map(comp => {
+          // Get component definition for validation
+          const componentDef = this.componentDefinitions.get(comp.type);
+          
+          return {
+            component_instance_id: comp.id,
+            component_type: comp.type,
+            props: comp.props || {},
+            position: comp.position,
+            name: comp.name || componentDef?.name || comp.type,
+            z_index: comp.zIndex || 0,
+            variant: comp.variant || null,
+            style: comp.style || {},
+            animation: comp.animation || {}
+          };
+        }),
+        create_revision: false // Don't create revisions for auto-saves
+      });
+      
+      if (response.data.success) {
+        console.log('ComponentLibraryService: Successfully saved', components.length, 'components to database');
+        return true;
+      } else {
+        console.error('ComponentLibraryService: Backend save failed:', response.data.message);
+        return false;
+      }
+      
+    } catch (error) {
+      console.error('ComponentLibraryService: Save execution failed:', error);
+      throw error;
+    } finally {
+      this.isSaving.set(frameId, false);
+      
+      // Process any queued saves
+      if (this.saveQueue.has(frameId)) {
+        const timeoutId = this.saveQueue.get(frameId);
+        console.log('ComponentLibraryService: Queued save will execute for frame:', frameId);
+      }
+    }
   }
 
   // Load project components from backend
   async loadProjectComponents(projectId, frameId) {
     try {
-        console.log('Loading project components for:', { projectId, frameId });
+        console.log('ComponentLibraryService: Loading components for frame:', frameId);
+        
+        // Wait for any ongoing saves to complete to avoid conflicts
+        if (this.isSaving.get(frameId)) {
+            console.log('ComponentLibraryService: Waiting for save to complete before loading');
+            await new Promise(resolve => {
+                const checkSave = () => {
+                    if (!this.isSaving.get(frameId)) {
+                        resolve();
+                    } else {
+                        setTimeout(checkSave, 100);
+                    }
+                };
+                checkSave();
+            });
+        }
         
         const response = await axios.get('/api/project-components', {
             params: { project_id: projectId, frame_id: frameId }
@@ -1163,7 +1239,7 @@ async saveProjectComponents(projectId, frameId, components) {
         
         if (response.data.success) {
             const components = response.data.data;
-            console.log('Loaded', components.length, 'components from backend:', components);
+            console.log('ComponentLibraryService: Loaded', components.length, 'components from backend');
             
             // Transform backend data to frontend format
             return components.map(comp => {
@@ -1174,7 +1250,7 @@ async saveProjectComponents(projectId, frameId, components) {
                     id: comp.id,
                     type: comp.type,
                     props: {
-                        ...componentDef?.default_props, // Apply component defaults first
+                      ...componentDef?.default_props, // Apply component defaults first
                         ...comp.props                   // Then apply saved props
                     },
                     position: comp.position,
@@ -1188,10 +1264,169 @@ async saveProjectComponents(projectId, frameId, components) {
         }
         
         return [];
-      } catch (error) {
-          console.error('Failed to load project components:', error);
-          return [];
+    } catch (error) {
+        console.error('ComponentLibraryService: Load failed:', error);
+        return [];
+    }
+  }
+    // NEW: Force save (for undo/redo operations)
+  async forceSave(projectId, frameId, components, options = {}) {
+    try {
+      console.log('ComponentLibraryService: FORCE SAVE requested for frame:', frameId);
+      
+      // Mark as undo/redo operation to prevent auto-save conflicts
+      this.undoRedoInProgress.set(frameId, true);
+      
+      // Clear any pending saves
+      if (this.saveQueue.has(frameId)) {
+        clearTimeout(this.saveQueue.get(frameId));
+        this.saveQueue.delete(frameId);
       }
+      
+      // Wait for current save to complete if any
+      if (this.isSaving.get(frameId)) {
+        console.log('ComponentLibraryService: Waiting for current save to complete');
+        await new Promise(resolve => {
+          const checkSave = () => {
+            if (!this.isSaving.get(frameId)) {
+              resolve();
+            } else {
+              setTimeout(checkSave, 50);
+            }
+          };
+          checkSave();
+        });
+      }
+      
+      // Execute immediate save
+      const result = await this.executeSave(projectId, frameId, components);
+      
+      console.log('ComponentLibraryService: Force save completed for frame:', frameId);
+      return result;
+      
+    } catch (error) {
+      console.error('ComponentLibraryService: Force save failed:', error);
+      throw error;
+    } finally {
+      // Clear undo/redo flag after a delay
+      setTimeout(() => {
+        this.undoRedoInProgress.set(frameId, false);
+      }, 1000);
+    }
+  }
+  
+  isUndoRedoInProgress(frameId) {
+    return this.undoRedoInProgress.get(frameId) || false;
+  }
+  
+  clearSaveQueue(frameId) {
+    if (this.saveQueue.has(frameId)) {
+      clearTimeout(this.saveQueue.get(frameId));
+      this.saveQueue.delete(frameId);
+      console.log('ComponentLibraryService: Cleared save queue for frame:', frameId);
+    }
+    
+    // Mark as undo/redo in progress to prevent auto-saves
+    this.undoRedoInProgress.set(frameId, true);
+    
+    // Clear the flag after a delay
+    setTimeout(() => {
+      this.undoRedoInProgress.set(frameId, false);
+    }, 2000);
+  }
+
+  // NEW: Check if frame has pending saves
+  hasPendingSave(frameId) {
+    return this.saveQueue.has(frameId) || 
+           this.isSaving.get(frameId) || 
+           this.isUndoRedoInProgress(frameId);
+  }
+  
+  
+    // Add these methods to ComponentLibraryService class
+  
+  // Enhanced component dropping with section validation
+  validateComponentDrop(componentType, dropTarget, frameType) {
+      const layoutElements = ['div', 'section', 'container', 'flex', 'grid'];
+      const isLayoutElement = layoutElements.includes(componentType);
+      
+      if (frameType === 'page') {
+          // For pages, enforce section-first rule
+          if (dropTarget === 'canvas-root') {
+              return {
+                  allowed: isLayoutElement,
+                  message: isLayoutElement 
+                      ? null 
+                      : 'Pages must start with Layout elements (Section, Container, etc.)'
+              };
+          }
+          
+          // Inside sections, allow any component
+          if (dropTarget?.startsWith('section-') || dropTarget?.startsWith('container-')) {
+              return { allowed: true, message: null };
+          }
+      }
+      
+      if (frameType === 'component') {
+          // Components can start with any element
+          return { allowed: true, message: null };
+      }
+      
+      return { allowed: true, message: null };
+  }
+  
+  // Create layout element with proper defaults
+  createLayoutElement(elementType, props = {}) {
+      const layoutDefaults = {
+          section: {
+              display: 'block',
+              width: '100%',
+              minHeight: '200px',
+              padding: '48px 24px',
+              backgroundColor: '#ffffff',
+              margin: '0 0 32px 0'
+          },
+          container: {
+              display: 'block',
+              width: '100%',
+              maxWidth: '1200px',
+              margin: '0 auto',
+              padding: '0 24px'
+          },
+          flex: {
+              display: 'flex',
+              flexDirection: 'row',
+              gap: '16px',
+              alignItems: 'stretch'
+          },
+          grid: {
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '20px'
+          },
+          div: {
+              display: 'block',
+              minHeight: '50px',
+              padding: '16px',
+              border: '2px dashed #e5e7eb',
+              borderRadius: '8px',
+              backgroundColor: '#f9fafb'
+          }
+      };
+  
+      return {
+          id: `${elementType}_${Date.now()}`,
+          type: elementType,
+          props: {
+              ...this.getComponentDefinition(elementType)?.default_props,
+              ...props
+          },
+          position: { x: 0, y: 0 },
+          name: this.getComponentDefinition(elementType)?.name || elementType,
+          style: layoutDefaults[elementType] || {},
+          animation: {},
+          children: []
+      };
   }
 }
 

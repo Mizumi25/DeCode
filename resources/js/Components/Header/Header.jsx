@@ -183,8 +183,8 @@ export default function Header({
               projectId={props.project?.uuid || null}
               currentFrame={props.frame?.uuid || null}
               canvasComponents={props.frame?.canvas_data?.components || []}
-              handleUndo={() => console.log('Undo from header')}
-              handleRedo={() => console.log('Redo from header')}
+              handleUndo={props.onUndo}
+              handleRedo={props.onRedo}
             />
           )}
 

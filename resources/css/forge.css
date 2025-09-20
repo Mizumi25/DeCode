@@ -398,3 +398,62 @@ input:hover, textarea:hover, select:hover {
   font-family: Monaco, Menlo, "Ubuntu Mono", "Courier New", monospace !important;
 }
 
+
+
+/* Add to resources/css/forge.css */
+
+/* Empty canvas state animations */
+.empty-canvas-pulse {
+  animation: emptyCanvasPulse 3s ease-in-out infinite;
+}
+
+@keyframes emptyCanvasPulse {
+  0%, 100% { border-color: #d1d5db; }
+  50% { border-color: #3b82f6; }
+}
+
+/* Section drop zone styles */
+.section-drop-zone {
+  transition: all 0.2s ease;
+}
+
+.section-drop-zone.active {
+  border-color: #3b82f6;
+  background-color: rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+/* Layout element placeholder styles */
+.layout-placeholder {
+  min-height: 100px;
+  border: 2px dashed #e5e7eb;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.layout-placeholder:hover {
+  border-color: #3b82f6;
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+/* Page structure hierarchy indicators */
+.page-structure-hint {
+  border-left: 4px solid #e5e7eb;
+  padding-left: 12px;
+  margin: 8px 0;
+}
+
+.page-structure-hint.section {
+  border-left-color: #10b981;
+}
+
+.page-structure-hint.component {
+  border-left-color: #3b82f6;
+}
+

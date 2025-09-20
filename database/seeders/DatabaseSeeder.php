@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
         // Call ComponentSeeder
         $this->call([
             ComponentSeeder::class,
+            LayoutElementSeeder::class,
         ]);
     }
 }

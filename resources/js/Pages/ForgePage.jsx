@@ -21,6 +21,8 @@ import CodeTooltip from '@/Components/Forge/CodeTooltip';
 import FloatingFrameSwitcher from '@/Components/Forge/FloatingFrameSwitcher';
 import WindowPanel from '@/Components/WindowPanel';
 import LayoutPresets from '@/Components/Forge/LayoutPresets';
+import EmptyCanvasState from '@/Components/Forge/EmptyCanvasState';
+import SectionDropZone from '@/Components/Forge/SectionDropZone';
 
 
 // Import dynamic component service
@@ -60,7 +62,11 @@ export default function ForgePage({
     initializeFrame: initUndoRedoFrame,
     pushHistory,
     scheduleAutoSave,
-    actionTypes
+    actionTypes,
+    undo,
+    redo,
+    canUndo,
+    canRedo
   } = useForgeUndoRedoStore();
 
   // Frame switching state
@@ -114,6 +120,8 @@ export default function ForgePage({
   // Component panel tab state
   const [activeComponentTab, setActiveComponentTab] = useState('elements')
   const [componentSearchTerm, setComponentSearchTerm] = useState('')
+  
+  const [undoRedoInProgress, setUndoRedoInProgress] = useState(false);
 
   // Enhanced drag state with variant support
   const [dragState, setDragState] = useState({
@@ -182,6 +190,36 @@ export default function ForgePage({
       console.error('GitHub sync failed:', error);
     }
   }, [isGitHubProject, projectId]);
+  
+  // Code generation
+  const generateCode = useCallback(async (components) => {
+    try {
+      if (!componentLibraryService || !componentLibraryService.clientSideCodeGeneration) {
+        const mockCode = {
+          react: `// Generated React Code for Frame: ${currentFrame}\nfunction App() {\n  return (\n    <div>\n      {/* ${components.length} components */}\n    </div>\n  );\n}`,
+          html: `<!-- Generated HTML for Frame: ${currentFrame} -->\n<div>\n  <!-- ${components.length} components -->\n</div>`,
+          css: `/* Generated CSS for Frame: ${currentFrame} */\n.container {\n  /* Styles for ${components.length} components */\n}`,
+          tailwind: `<!-- Generated Tailwind for Frame: ${currentFrame} -->\n<div class="container">\n  <!-- ${components.length} components -->\n</div>`
+        };
+        setGeneratedCode(mockCode);
+        return;
+      }
+
+      const code = await componentLibraryService.clientSideCodeGeneration(components, codeStyle);
+      setGeneratedCode(code);
+      
+      console.log('Code generated successfully for frame:', currentFrame, Object.keys(code));
+    } catch (error) {
+      console.error('Failed to generate code:', error);
+      const mockCode = {
+        react: `// Error generating code\nfunction App() {\n  return <div>Error</div>;\n}`,
+        html: `<!-- Error generating code -->`,
+        css: `/* Error generating code */`,
+        tailwind: `<!-- Error generating code -->`
+      };
+      setGeneratedCode(mockCode);
+    }
+  }, [codeStyle, currentFrame])
   
   useEffect(() => {
       console.log('ForgePage: Frame props changed:', { 
@@ -400,21 +438,38 @@ export default function ForgePage({
   // Auto-save frame components when they change
   useEffect(() => {
     const saveComponents = async () => {
-      if (projectId && currentFrame && canvasComponents.length > 0 && componentsLoaded && !isFrameSwitching) {
-        try {
-          if (componentLibraryService && componentLibraryService.saveProjectComponents) {
-            await componentLibraryService.saveProjectComponents(projectId, currentFrame, canvasComponents);
-          }
-        } catch (error) {
-          console.error('Failed to auto-save components:', error);
+        // Only save if we're not in the middle of undo/redo operations
+        if (projectId && currentFrame && canvasComponents.length > 0 && componentsLoaded && !isFrameSwitching) {
+            try {
+                if (componentLibraryService && componentLibraryService.saveProjectComponents) {
+                    console.log('Auto-saving', canvasComponents.length, 'components');
+                    await componentLibraryService.saveProjectComponents(projectId, currentFrame, canvasComponents);
+                }
+            } catch (error) {
+                console.error('Failed to auto-save components:', error);
+            }
         }
-      }
     };
 
-    const timeoutId = setTimeout(saveComponents, 1000);
+    // INCREASED delay for auto-save to reduce conflicts with undo/redo
+    const timeoutId = setTimeout(saveComponents, 2000); // 2 seconds instead of 1
     return () => clearTimeout(timeoutId);
-  }, [canvasComponents, projectId, currentFrame, componentsLoaded, isFrameSwitching]);
+}, [canvasComponents, projectId, currentFrame, componentsLoaded, isFrameSwitching]);
 
+  // Initialize undo/redo when frame and components are ready
+  useEffect(() => {
+    if (currentFrame && componentsLoaded) {
+      console.log('ForgePage: Initializing undo/redo for frame:', currentFrame);
+      initUndoRedoFrame(currentFrame);
+      
+      // Push initial state if we have components
+      if (canvasComponents.length > 0) {
+        console.log('ForgePage: Pushing initial state with', canvasComponents.length, 'components');
+        pushHistory(currentFrame, canvasComponents, actionTypes.INITIAL);
+      }
+    }
+  }, [currentFrame, componentsLoaded, canvasComponents.length, initUndoRedoFrame, pushHistory, actionTypes]);
+    
   // Force re-render when ForgeStore state changes
   useEffect(() => {
     console.log('ForgePage: ForgeStore state changed, triggering re-render');
@@ -517,14 +572,14 @@ export default function ForgePage({
   }, [])
 
     // REPLACE the handleCanvasDrop method in ForgePage.jsx (around line 400)
-  
+      // Replace the existing handleCanvasDrop method
   const handleCanvasDrop = useCallback((e) => {
-      e.preventDefault()
+      e.preventDefault();
       
-      if (!canvasRef.current) return
+      if (!canvasRef.current) return;
   
       try {
-          const dragDataStr = e.dataTransfer.getData('text/plain')
+          const dragDataStr = e.dataTransfer.getData('text/plain');
           let dragData;
           
           try {
@@ -535,65 +590,81 @@ export default function ForgePage({
   
           const { componentType, variant } = dragData;
           
-          // CRITICAL FIX: Get component definition to apply proper defaults
-          console.log('Dropping component:', componentType);
-          console.log('Component library service available:', !!componentLibraryService);
-          
+          // CRITICAL: Validate drop for page types
+          if (frame?.type === 'page' && canvasComponents.length === 0) {
+              const layoutElements = ['div', 'section', 'container', 'flex', 'grid'];
+              if (!layoutElements.includes(componentType)) {
+                  alert('Pages must start with a Layout element (Section, Container, Div, etc.)');
+                  return;
+              }
+          }
+  
+          // Get component definition
           let componentDef = null;
-          if (componentLibraryService && componentLibraryService.getComponentDefinition) {
+          if (componentLibraryService?.getComponentDefinition) {
               componentDef = componentLibraryService.getComponentDefinition(componentType);
-              console.log('Component definition found:', !!componentDef, componentDef);
           }
           
-          const canvasRect = canvasRef.current.getBoundingClientRect()
-          const x = Math.max(0, e.clientX - canvasRect.left - 50)
-          const y = Math.max(0, e.clientY - canvasRect.top - 20)
+          const canvasRect = canvasRef.current.getBoundingClientRect();
+          const x = Math.max(0, e.clientX - canvasRect.left - 50);
+          const y = Math.max(0, e.clientY - canvasRect.top - 20);
   
-          // Create new component with proper defaults from component definition
-          const newComponent = {
-              id: `${componentType}_${Date.now()}`,
-              type: componentType,
-              props: {
-                  // CRITICAL: Start with component definition defaults
-                  ...(componentDef?.default_props || {}),
-                  // Apply variant-specific props if available
-                  ...(variant?.props || {})
-              },
-              position: { x, y },
-              name: variant ? `${componentType} (${variant.name})` : (componentDef?.name || componentType),
-              variant: variant || null,
-              style: {},
-              animation: {}
+          // Create component with enhanced layout support
+          const newComponent = componentLibraryService?.createLayoutElement 
+              ? componentLibraryService.createLayoutElement(componentType, variant?.props || {})
+              : {
+                  id: `${componentType}_${Date.now()}`,
+                  type: componentType,
+                  props: {
+                      ...(componentDef?.default_props || {}),
+                      ...(variant?.props || {})
+                  },
+                  position: { x, y },
+                  name: variant ? `${componentType} (${variant.name})` : (componentDef?.name || componentType),
+                  variant: variant || null,
+                  style: {},
+                  animation: {},
+                  children: []
+              };
+  
+          // Position for absolute positioning
+          if (newComponent.style?.position !== 'static') {
+              newComponent.position = { x, y };
           }
   
-          console.log('Created new component:', newComponent);
-          console.log('Component definition defaults applied:', componentDef?.default_props);
+          console.log('ForgePage: Dropping component:', newComponent);
   
           const updatedComponents = [...canvasComponents, newComponent];
           
-          // Update frame-specific components
           setFrameCanvasComponents(prev => ({
               ...prev,
               [currentFrame]: updatedComponents
           }));
           
-          // Push to undo/redo history with proper action type
           pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
               componentName: newComponent.name,
               componentType: newComponent.type,
-              position: { x, y }
+              position: { x, y },
+              componentId: newComponent.id
           });
           
-          setSelectedComponent(newComponent.id)
-          handleComponentDragEnd()
+          setSelectedComponent(newComponent.id);
+          handleComponentDragEnd();
           
-          console.log('Component dropped to frame:', currentFrame, newComponent);
-          generateCode(updatedComponents)
+          // Auto-save
+          setTimeout(() => {
+              if (componentLibraryService?.saveProjectComponents) {
+                  componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedComponents);
+              }
+          }, 200);
+          
+          generateCode(updatedComponents);
+          
       } catch (error) {
           console.error('Error handling component drop:', error);
           handleComponentDragEnd();
       }
-  }, [canvasComponents, currentFrame, componentLibraryService])
+  }, [canvasComponents, currentFrame, frame?.type, componentLibraryService, pushHistory, actionTypes, projectId, handleComponentDragEnd, generateCode]);
   
   // ALSO ADD this debug method to check component definitions after loading:
   const debugComponentDefinitions = useCallback(() => {
@@ -638,12 +709,13 @@ export default function ForgePage({
     const componentToDelete = canvasComponents.find(c => c.id === componentId);
     const newComponents = canvasComponents.filter(c => c.id !== componentId)
     
+    // Update local state immediately
     setFrameCanvasComponents(prev => ({
       ...prev,
       [currentFrame]: newComponents
     }));
     
-    // Push deletion to history
+    // CRITICAL: Push deletion to history for undo/redo
     pushHistory(currentFrame, newComponents, actionTypes.DELETE, {
       componentName: componentToDelete?.name || componentToDelete?.type || 'component',
       componentId,
@@ -654,15 +726,20 @@ export default function ForgePage({
       setSelectedComponent(null)
     }
     
-    // Schedule auto-save
-    scheduleAutoSave(projectId, currentFrame, newComponents);
+    // Schedule database save
+    setTimeout(() => {
+      if (componentLibraryService?.saveProjectComponents) {
+        componentLibraryService.saveProjectComponents(projectId, currentFrame, newComponents);
+      }
+    }, 200);
+    
     generateCode(newComponents)
-  }, [selectedComponent, canvasComponents, currentFrame, pushHistory, actionTypes, scheduleAutoSave, projectId])
+  }, [selectedComponent, canvasComponents, currentFrame, pushHistory, actionTypes, projectId, componentLibraryService, generateCode]);
 
 
   
   // MODIFY: Enhanced property update handler with undo/redo
-  const handlePropertyUpdate = useCallback((componentId, propName, value) => {
+   const handlePropertyUpdate = useCallback((componentId, propName, value) => {
     const updatedComponents = canvasComponents.map(c => {
       if (c.id === componentId) {
         if (propName === 'position') {
@@ -687,83 +764,192 @@ export default function ForgePage({
       return c
     })
     
-    // Determine action type based on property being updated
-    let actionType = actionTypes.PROP_UPDATE;
-    if (propName === 'position') actionType = actionTypes.MOVE;
-    else if (propName === 'style') actionType = actionTypes.STYLE_UPDATE;
-    
-    // Get component name for better action description
-    const component = canvasComponents.find(c => c.id === componentId);
-    const componentName = component?.name || component?.type || 'component';
-    
+    // Update local state immediately
     setFrameCanvasComponents(prev => ({
       ...prev,
       [currentFrame]: updatedComponents
     }));
     
-    // Push to undo/redo history with detailed action data
-    pushHistory(currentFrame, updatedComponents, actionType, {
-      componentName,
-      componentId,
-      propName,
-      value,
-      previousValue: propName === 'position' ? component?.position : 
-                     propName === 'style' ? component?.style?.[Object.keys(value)[0]] :
-                     component?.props?.[propName]
-    });
+    // CRITICAL: Push to history for undo/redo
+    const component = canvasComponents.find(c => c.id === componentId);
+    const componentName = component?.name || component?.type || 'component';
     
-    // Schedule auto-save
-    scheduleAutoSave(projectId, currentFrame, updatedComponents);
+    // Determine action type
+    let actionType = actionTypes.PROP_UPDATE;
+    if (propName === 'position') actionType = actionTypes.MOVE;
+    else if (propName === 'style') actionType = actionTypes.STYLE_UPDATE;
+    
+    // CRITICAL: Always push significant changes to history
+    if (propName === 'position') {
+      // For position, only push if movement is significant
+      const oldPos = component?.position || { x: 0, y: 0 };
+      const deltaX = Math.abs(value.x - oldPos.x);
+      const deltaY = Math.abs(value.y - oldPos.y);
+      
+      if (deltaX > 5 || deltaY > 5) {
+        pushHistory(currentFrame, updatedComponents, actionType, {
+          componentName,
+          componentId,
+          propName,
+          value,
+          previousValue: oldPos
+        });
+      }
+    } else {
+      // Push all other property changes immediately
+      pushHistory(currentFrame, updatedComponents, actionType, {
+        componentName,
+        componentId,
+        propName,
+        value,
+        previousValue: propName === 'style' ? component?.style : component?.props?.[propName]
+      });
+    }
+    
+    // Schedule auto-save with longer delay to prevent conflicts
+    setTimeout(() => {
+      if (componentLibraryService?.saveProjectComponents) {
+        componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedComponents);
+      }
+    }, propName === 'position' ? 2000 : 1000);
     
     generateCode(updatedComponents);
-  }, [canvasComponents, currentFrame, projectId, pushHistory, scheduleAutoSave, actionTypes]);
+  }, [canvasComponents, currentFrame, projectId, pushHistory, actionTypes, componentLibraryService, generateCode]);
   
-  // ADD: Undo/Redo handlers
-  const handleUndo = useCallback((previousComponents) => {
-    setFrameCanvasComponents(prev => ({
-      ...prev,
-      [currentFrame]: previousComponents
-    }));
-    generateCode(previousComponents);
-  }, [currentFrame]);
+
   
-  const handleRedo = useCallback((nextComponents) => {
-    setFrameCanvasComponents(prev => ({
-      ...prev,
-      [currentFrame]: nextComponents
-    }));
-    generateCode(nextComponents);
-  }, [currentFrame]);
-
-  // Code generation
-  const generateCode = useCallback(async (components) => {
-    try {
-      if (!componentLibraryService || !componentLibraryService.clientSideCodeGeneration) {
-        const mockCode = {
-          react: `// Generated React Code for Frame: ${currentFrame}\nfunction App() {\n  return (\n    <div>\n      {/* ${components.length} components */}\n    </div>\n  );\n}`,
-          html: `<!-- Generated HTML for Frame: ${currentFrame} -->\n<div>\n  <!-- ${components.length} components -->\n</div>`,
-          css: `/* Generated CSS for Frame: ${currentFrame} */\n.container {\n  /* Styles for ${components.length} components */\n}`,
-          tailwind: `<!-- Generated Tailwind for Frame: ${currentFrame} -->\n<div class="container">\n  <!-- ${components.length} components -->\n</div>`
-        };
-        setGeneratedCode(mockCode);
-        return;
-      }
-
-      const code = await componentLibraryService.clientSideCodeGeneration(components, codeStyle);
-      setGeneratedCode(code);
-      
-      console.log('Code generated successfully for frame:', currentFrame, Object.keys(code));
-    } catch (error) {
-      console.error('Failed to generate code:', error);
-      const mockCode = {
-        react: `// Error generating code\nfunction App() {\n  return <div>Error</div>;\n}`,
-        html: `<!-- Error generating code -->`,
-        css: `/* Error generating code */`,
-        tailwind: `<!-- Error generating code -->`
-      };
-      setGeneratedCode(mockCode);
+  
+  
+  
+   // ADD: Undo/Redo handlers
+  // CRITICAL: Enhanced Undo/Redo handlers with proper state management
+  const handleUndo = useCallback(async () => {
+    if (!currentFrame || !canUndo(currentFrame)) {
+      console.log('ForgePage: Undo blocked - no frame or cannot undo');
+      return;
     }
-  }, [codeStyle, currentFrame])
+
+    console.log('ForgePage: Starting undo operation');
+    
+    try {
+      // CRITICAL: Stop auto-save during undo
+      if (componentLibraryService?.clearSaveQueue) {
+        componentLibraryService.clearSaveQueue(currentFrame);
+      }
+      
+      const previousComponents = undo(currentFrame);
+      if (previousComponents) {
+        console.log('ForgePage: Executing undo - restoring', previousComponents.length, 'components');
+        
+        // Update local state immediately - THIS IS THE KEY FIX
+        setFrameCanvasComponents(prev => ({
+          ...prev,
+          [currentFrame]: previousComponents
+        }));
+        
+        // Clear selection if component no longer exists
+        if (selectedComponent && !previousComponents.find(c => c.id === selectedComponent)) {
+          setSelectedComponent(null);
+        }
+        
+        // Regenerate code
+        generateCode(previousComponents);
+        
+        // CRITICAL: Force save the undone state to database after a delay
+        setTimeout(async () => {
+          try {
+            if (componentLibraryService?.forceSave) {
+              await componentLibraryService.forceSave(projectId, currentFrame, previousComponents);
+              console.log('ForgePage: Undo state saved to database');
+            }
+          } catch (error) {
+            console.error('Failed to save undo state:', error);
+          }
+        }, 100);
+        
+        console.log('ForgePage: Undo completed successfully');
+      }
+    } catch (error) {
+      console.error('ForgePage: Undo failed:', error);
+    }
+  }, [currentFrame, undo, canUndo, selectedComponent, generateCode, projectId, componentLibraryService]);
+
+
+  
+    const handleRedo = useCallback(async () => {
+    if (!currentFrame || !canRedo(currentFrame)) {
+      console.log('ForgePage: Redo blocked - no frame or cannot redo');
+      return;
+    }
+
+    console.log('ForgePage: Starting redo operation');
+    
+    try {
+      // CRITICAL: Stop auto-save during redo
+      if (componentLibraryService?.clearSaveQueue) {
+        componentLibraryService.clearSaveQueue(currentFrame);
+      }
+      
+      const nextComponents = redo(currentFrame);
+      if (nextComponents) {
+        console.log('ForgePage: Executing redo - restoring', nextComponents.length, 'components');
+        
+        // Update local state immediately - THIS IS THE KEY FIX
+        setFrameCanvasComponents(prev => ({
+          ...prev,
+          [currentFrame]: nextComponents
+        }));
+        
+        // Regenerate code
+        generateCode(nextComponents);
+        
+        // CRITICAL: Force save the redone state to database after a delay
+        setTimeout(async () => {
+          try {
+            if (componentLibraryService?.forceSave) {
+              await componentLibraryService.forceSave(projectId, currentFrame, nextComponents);
+              console.log('ForgePage: Redo state saved to database');
+            }
+          } catch (error) {
+            console.error('Failed to save redo state:', error);
+          }
+        }, 100);
+        
+        console.log('ForgePage: Redo completed successfully');
+      }
+    } catch (error) {
+      console.error('ForgePage: Redo failed:', error);
+    }
+  }, [currentFrame, redo, canRedo, generateCode, projectId, componentLibraryService]);
+
+  // FIXED: Auto-save with conflict prevention
+  useEffect(() => {
+    const saveComponents = async () => {
+      // CRITICAL: Don't auto-save if undo/redo operations are happening
+      if (projectId && currentFrame && canvasComponents.length > 0 && componentsLoaded && !isFrameSwitching) {
+        try {
+          // Check if we have pending undo/redo operations
+          if (componentLibraryService?.hasPendingSave && componentLibraryService.hasPendingSave(currentFrame)) {
+            console.log('ForgePage: Skipping auto-save due to pending undo/redo operation');
+            return;
+          }
+          
+          if (componentLibraryService?.saveProjectComponents) {
+            console.log('ForgePage: Auto-saving', canvasComponents.length, 'components');
+            await componentLibraryService.saveProjectComponents(projectId, currentFrame, canvasComponents);
+          }
+        } catch (error) {
+          console.error('Failed to auto-save components:', error);
+        }
+      }
+    };
+
+    // INCREASED delay to prevent conflicts with undo/redo
+    const timeoutId = setTimeout(saveComponents, 3000); // 3 seconds
+    return () => clearTimeout(timeoutId);
+  }, [canvasComponents, projectId, currentFrame, componentsLoaded, isFrameSwitching, componentLibraryService]);
+
+  
 
   // Handle code editing
   const handleCodeEdit = useCallback((newCode, codeType) => {
@@ -1066,9 +1252,14 @@ export default function ForgePage({
           onPanelToggle: handlePanelToggle,
           panelStates: {},
           onModeSwitch: () => {},
+          // CRITICAL: Pass the undo/redo handlers to header
           project: project,
           frame: frame,
-          canvasComponents: canvasComponents
+          canvasComponents: canvasComponents,
+          onUndo: handleUndo,          // THIS IS CRITICAL
+          onRedo: handleRedo,          // THIS IS CRITICAL
+          projectId: projectId,
+          currentFrame: currentFrame
         }}
       >
         <Head title="Forge - Visual Builder" />
@@ -1142,68 +1333,84 @@ export default function ForgePage({
       
       {/* Main content area with transition effects */}
       <div className="h-[calc(100vh-60px)] flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
-       <div 
-          className={`
-            flex-1 flex items-center justify-center transition-all duration-300 ease-in-out
-            ${isMobile ? 'p-4' : 'p-8'} ${getCanvasPadding()}
-            ${getTransitionClasses()}
-            ${responsiveMode !== 'desktop' ? 'bg-gray-100' : ''}
-          `}
-          style={{
-            backgroundImage: responsiveMode !== 'desktop' 
-              ? 'radial-gradient(circle at 20px 20px, #e5e7eb 1px, transparent 1px)'
-              : 'none',
-            backgroundSize: responsiveMode !== 'desktop' ? '20px 20px' : 'auto'
-          }}
+               // Replace the canvas rendering section in ForgePage.jsx
+        <div 
+            className={`
+                flex-1 flex items-center justify-center transition-all duration-300 ease-in-out
+                ${isMobile ? 'p-4' : 'p-8'} ${getCanvasPadding()}
+                ${getTransitionClasses()}
+                ${responsiveMode !== 'desktop' ? 'bg-gray-100' : ''}
+                relative
+            `}
+            style={{
+                backgroundImage: responsiveMode !== 'desktop' 
+                    ? 'radial-gradient(circle at 20px 20px, #e5e7eb 1px, transparent 1px)'
+                    : 'none',
+                backgroundSize: responsiveMode !== 'desktop' ? '20px 20px' : 'auto'
+            }}
         >
-          {/* ADD: Responsive Mode Indicator */}
-          {(responsiveMode === 'mobile' || responsiveMode === 'tablet') && (
-            <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-30">
-              <div className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg">
-                {responsiveMode === 'mobile' ? 'Mobile (375×667)' : 'Tablet (768×1024)'}
-              </div>
-            </div>
-          )}
-          {CanvasComponent ? (
-            <CanvasComponent
-              canvasRef={canvasRef}
-              canvasComponents={canvasComponents}
-              selectedComponent={selectedComponent}
-              dragState={dragState}
-              componentLibraryService={componentLibraryService}
-              onCanvasDragOver={handleCanvasDragOver}
-              onCanvasDrop={handleCanvasDrop}
-              onCanvasClick={handleCanvasClick}
-              onComponentClick={handleComponentClick}
-              isMobile={isMobile}
-              currentFrame={currentFrame}
-              isFrameSwitching={isFrameSwitching}
-              // ADD THESE RESPONSIVE PROPS:
-              responsiveMode={responsiveMode}
-              zoomLevel={zoomLevel}
-              gridVisible={gridVisible}
-            />
-          ) : (
-            <div 
-              ref={canvasRef}
-              className={`
-                w-full h-full bg-white border-2 border-dashed border-gray-300 rounded-lg 
-                flex items-center justify-center transition-all duration-300
-                ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
-              `}
-              onDragOver={handleCanvasDragOver}
-              onDrop={handleCanvasDrop}
-              onClick={handleCanvasClick}
-            >
-              <div className="text-center text-gray-500">
-                <div className="text-lg font-semibold mb-2">Frame: {currentFrame}</div>
-                <div className="text-sm">Drop components here</div>
-                <div className="text-xs mt-2">Components: {canvasComponents.length}</div>
-                <div className="text-xs">Panels visible: {hasVisiblePanels ? 'Yes' : 'No'}</div>
-                <div className="text-xs">Switching: {isFrameSwitching ? 'Yes' : 'No'}</div>
-              </div>
-            </div>
-          )}
+            {/* Canvas Component with Empty State Support */}
+            {CanvasComponent ? (
+                <div className="relative w-full max-w-6xl">
+                    {/* Empty Canvas State for Pages */}
+                    {frame?.type === 'page' && canvasComponents.length === 0 && (
+                        <EmptyCanvasState
+                            frameType={frame.type}
+                            onAddSection={() => {
+                                // Auto-add a section
+                                const sectionComponent = componentLibraryService?.createLayoutElement('section');
+                                if (sectionComponent) {
+                                    const updatedComponents = [sectionComponent];
+                                    setFrameCanvasComponents(prev => ({
+                                        ...prev,
+                                        [currentFrame]: updatedComponents
+                                    }));
+                                    setSelectedComponent(sectionComponent.id);
+                                }
+                            }}
+                            onDragOver={handleCanvasDragOver}
+                            onDrop={handleCanvasDrop}
+                            isDragOver={dragState.isDragging}
+                        />
+                    )}
+                    
+                    {/* Regular Canvas - only show if we have components or frame is component type */}
+                    {(canvasComponents.length > 0 || frame?.type === 'component') && (
+                        <CanvasComponent
+                            canvasRef={canvasRef}
+                            canvasComponents={canvasComponents}
+                            selectedComponent={selectedComponent}
+                            dragState={dragState}
+                            componentLibraryService={componentLibraryService}
+                            onCanvasDragOver={handleCanvasDragOver}
+                            onCanvasDrop={handleCanvasDrop}
+                            onCanvasClick={handleCanvasClick}
+                            onComponentClick={handleComponentClick}
+                            isMobile={isMobile}
+                            currentFrame={currentFrame}
+                            isFrameSwitching={isFrameSwitching}
+                            frameType={frame?.type || 'page'}
+                            responsiveMode={responsiveMode}
+                            zoomLevel={zoomLevel}
+                            gridVisible={gridVisible}
+                        />
+                    )}
+                </div>
+            ) : (
+                <div 
+                    ref={canvasRef}
+                    className="w-full h-full bg-white border-2 border-dashed border-gray-300 rounded-lg 
+                               flex items-center justify-center transition-all duration-300"
+                    onDragOver={handleCanvasDragOver}
+                    onDrop={handleCanvasDrop}
+                    onClick={handleCanvasClick}
+                >
+                    <div className="text-center text-gray-500">
+                        <div className="text-lg font-semibold mb-2">Frame: {currentFrame}</div>
+                        <div className="text-sm">Drop components here</div>
+                    </div>
+                </div>
+            )}
         </div>
         
         {/* Fixed Code Generation Panel - Bottom (Mobile Optimized) */}

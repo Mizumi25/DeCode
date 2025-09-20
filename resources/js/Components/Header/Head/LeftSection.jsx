@@ -45,12 +45,12 @@ const LeftSection = ({
   setInteractionMode,
   gridVisible,
   setGridVisible,
-  // ADD THESE MISSING PROPS:
+  // CRITICAL: These props should be passed from ForgePage
   projectId,
   currentFrame,
   canvasComponents,
-  handleUndo,
-  handleRedo
+  handleUndo,      // CRITICAL - This must be passed from parent
+  handleRedo       // CRITICAL - This must be passed from parent
 }) => {
   const { url } = usePage() // Add this to get the current URL
   const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects')
@@ -208,9 +208,13 @@ const LeftSection = ({
               projectId={projectId}
               frameId={currentFrame}
               canvasComponents={canvasComponents || []}
-              onUndo={handleUndo}
-              onRedo={handleRedo}
+              onUndo={handleUndo}    // CRITICAL: Must be passed from ForgePage
+              onRedo={handleRedo}    // CRITICAL: Must be passed from ForgePage
               size="small" 
+              onHistoryChange={(info) => {
+                // Optional: Handle history info changes
+                console.log('LeftSection: History changed:', info);
+              }}
             />
           )}
 

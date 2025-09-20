@@ -11,7 +11,9 @@ return new class extends Migration {
             $table->uuid('uuid')->unique();
             $table->foreignId('project_id')->constrained()->onDelete('cascade');
             $table->string('name');
-            $table->enum('type',['page','component'])->default('page');
+            $table->enum('type', ['page', 'component'])->default('page')->after('name');
+            $table->boolean('scrolled_component')->default(false)->after('type');
+            $table->enum('scroll_direction', ['vertical', 'horizontal', 'both'])->nullable()->after('scrolled_component');
             $table->json('canvas_data')->nullable();
             $table->json('settings')->nullable();
             $table->string('thumbnail_path')->nullable()->after('settings');

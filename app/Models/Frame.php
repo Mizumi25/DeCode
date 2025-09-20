@@ -16,7 +16,9 @@ class Frame extends Model
         'uuid', 
         'project_id', 
         'name', 
-        'type', 
+        'type',  // ADD THIS
+        'scrolled_component',  // ADD THIS
+        'scroll_direction',  // ADD THIS
         'canvas_data', 
         'settings',
         'thumbnail_path',
@@ -264,5 +266,20 @@ class Frame extends Model
         }
 
         return false;
+    }
+    
+    public function isPageType(): bool
+    {
+        return $this->type === 'page';
+    }
+    
+    public function isComponentType(): bool
+    {
+        return $this->type === 'component';
+    }
+    
+    public function canHaveSubSections(): bool
+    {
+        return $this->isComponentType() && $this->scrolled_component;
     }
 }

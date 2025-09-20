@@ -11,22 +11,102 @@ import {
   X
 } from 'lucide-react'
 
+// Update the frame type selection in FrameCreator.jsx
 const FRAME_TYPES = [
   {
     id: 'page',
     name: 'Page',
-    description: 'A complete webpage with full layout',
+    description: 'A complete webpage that must start with sections',
     icon: Monitor,
-    template: 'blank'
+    template: 'blank',
+    features: ['Sections required', 'Full page structure', 'SEO optimized'],
+    examples: ['Landing page', 'About page', 'Blog post']
   },
   {
     id: 'component',
     name: 'Component',
-    description: 'Reusable UI component',
+    description: 'Reusable UI component or widget',
     icon: Component,
-    template: 'blank'
+    template: 'blank',
+    features: ['No sections required', 'Flexible structure', 'Reusable'],
+    examples: ['Button', 'Card', 'Navigation bar']
   }
-]
+];
+
+// Add scrolled component toggle for components
+const renderStep2 = () => (
+    <div className="space-y-8">
+        {/* ... existing viewport settings ... */}
+        
+        {/* Component-specific settings */}
+        {data.type === 'component' && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
+                <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-3">Component Settings</h4>
+                
+                <div className="space-y-4">
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                        <div className="relative mt-1">
+                            <input
+                                type="checkbox"
+                                checked={data.scrolled_component || false}
+                                onChange={(e) => setData(prev => ({
+                                    ...prev,
+                                    scrolled_component: e.target.checked,
+                                    scroll_direction: e.target.checked ? 'vertical' : null
+                                }))}
+                                className="sr-only"
+                            />
+                            <div className={`w-5 h-5 rounded border-2 transition-all ${
+                                data.scrolled_component 
+                                    ? 'bg-blue-600 border-blue-600' 
+                                    : 'border-gray-300 group-hover:border-blue-400'
+                            }`}>
+                                {data.scrolled_component && (
+                                    <svg className="w-3 h-3 text-white absolute top-0.5 left-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                )}
+                            </div>
+                        </div>
+                        <div>
+                            <span className="font-medium text-gray-900 dark:text-gray-100">Scrolled Component</span>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                Enable if this component will contain sub-sections and act as a scroll container
+                            </p>
+                        </div>
+                    </label>
+                    
+                    {data.scrolled_component && (
+                        <div className="ml-8 space-y-3">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Scroll Direction
+                            </label>
+                            <div className="flex gap-3">
+                                {['vertical', 'horizontal', 'both'].map((direction) => (
+                                    <button
+                                        key={direction}
+                                        type="button"
+                                        onClick={() => setData(prev => ({
+                                            ...prev,
+                                            scroll_direction: direction
+                                        }))}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                            data.scroll_direction === direction
+                                                ? 'bg-blue-600 text-white'
+                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        }`}
+                                    >
+                                        {direction.charAt(0).toUpperCase() + direction.slice(1)}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
+    </div>
+);
 
 const DEVICE_PRESETS = [
   { id: 'desktop', name: 'Desktop', width: 1440, height: 900, icon: Monitor },
