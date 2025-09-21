@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             ComponentSeeder::class,
             LayoutElementSeeder::class,
             ChartComponentSeeder::class,
+            TextComponentSeeder::class,
         ]);
     }
 }

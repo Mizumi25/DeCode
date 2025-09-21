@@ -480,7 +480,93 @@ class ComponentSeeder extends Seeder
                 'has_animation' => false,
                 'animation_type' => null,
                 'sort_order' => 7
+            ],
+            
+                        [
+                'name' => 'Text Input',
+                'type' => 'input',
+                'component_type' => 'element',
+                'category' => 'form',
+                'alphabet_group' => 'I',
+                'description' => 'Standard text input field',
+                'icon' => 'Type',
+                'default_props' => [
+                    'type' => 'text',
+                    'placeholder' => 'Enter text...',
+                    'size' => 'md'
+                ],
+                'prop_definitions' => [
+                    'type' => ['type' => 'select', 'label' => 'Input Type', 'options' => ['text', 'email', 'password'], 'default' => 'text'],
+                    'placeholder' => ['type' => 'string', 'label' => 'Placeholder', 'default' => 'Enter text...']
+                ],
+                'render_template' => 'input-template',
+                'code_generators' => [],
+                'variants' => [],
+                'has_animation' => false,
+                'sort_order' => 8
+            ],
+            
+            [
+                'name' => 'Toggle Switch',
+                'type' => 'toggle',
+                'component_type' => 'element',
+                'category' => 'interactive',
+                'alphabet_group' => 'T',
+                'description' => 'On/off toggle switch',
+                'icon' => 'ToggleLeft',
+                'default_props' => ['isOn' => false],
+                'prop_definitions' => [
+                    'isOn' => ['type' => 'boolean', 'label' => 'Is On', 'default' => false]
+                ],
+                'render_template' => 'toggle-template',
+                'code_generators' => [],
+                'variants' => [],
+                'has_animation' => true,
+                'animation_type' => 'css',
+                'sort_order' => 9
+            ],
+            
+            [
+                'name' => 'Progress Bar',
+                'type' => 'progress',
+                'component_type' => 'element',
+                'category' => 'display',
+                'alphabet_group' => 'P',
+                'description' => 'Progress indicator',
+                'icon' => 'TrendingUp',
+                'default_props' => ['value' => 50, 'max' => 100],
+                'prop_definitions' => [
+                    'value' => ['type' => 'number', 'label' => 'Value', 'default' => 50],
+                    'max' => ['type' => 'number', 'label' => 'Max', 'default' => 100]
+                ],
+                'render_template' => 'progress-template',
+                'code_generators' => [],
+                'variants' => [],
+                'has_animation' => true,
+                'animation_type' => 'css',
+                'sort_order' => 10
+            ],
+            
+            [
+                'name' => 'Alert Message',
+                'type' => 'alert',
+                'component_type' => 'element',
+                'category' => 'display',
+                'alphabet_group' => 'A',
+                'description' => 'Alert notification',
+                'icon' => 'AlertCircle',
+                'default_props' => ['variant' => 'info', 'message' => 'Alert message'],
+                'prop_definitions' => [
+                    'variant' => ['type' => 'select', 'label' => 'Type', 'options' => ['info', 'success', 'warning', 'error'], 'default' => 'info'],
+                    'message' => ['type' => 'string', 'label' => 'Message', 'default' => 'Alert message']
+                ],
+                'render_template' => 'alert-template',
+                'code_generators' => [],
+                'variants' => [],
+                'has_animation' => false,
+                'sort_order' => 11
             ]
+
         ];
 
         foreach ($components as $component) {
