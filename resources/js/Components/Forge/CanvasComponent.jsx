@@ -1,4 +1,4 @@
-// @/Components/Forge/CanvasComponent.jsx - Enhanced for WYSIWYG Document Flow
+// @/Components/Forge/CanvasComponent.jsx - Enhanced for True Responsive Canvas Sizing
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Square, Sparkles, Monitor, Tablet, Smartphone, Move, RotateCcw } from 'lucide-react';
@@ -19,22 +19,22 @@ const CanvasComponent = ({
   onCanvasDrop,
   onCanvasClick,
   onComponentClick,
+  onPropertyUpdate,
   isMobile,
   currentFrame,
   isFrameSwitching,
-  onPropertyUpdate,
   frameType = 'page',
+  responsiveMode,
+  zoomLevel,
+  gridVisible
 }) => {
   // Get responsive state from EditorStore
   const {
-    responsiveMode,
     getCurrentCanvasDimensions,
     getResponsiveDeviceInfo,
     getResponsiveScaleFactor,
     getResponsiveCanvasClasses,
-    getResponsiveGridBackground,
-    gridVisible,
-    zoomLevel
+    getResponsiveGridBackground
   } = useEditorStore();
   
   // Get undo/redo functionality
@@ -45,10 +45,41 @@ const CanvasComponent = ({
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [resizingComponent, setResizingComponent] = useState(null);
 
-  // Get responsive device info
+  // Get responsive device info and dimensions
   const deviceInfo = getResponsiveDeviceInfo();
   const scaleFactor = getResponsiveScaleFactor();
   const canvasClasses = getResponsiveCanvasClasses();
+  const canvasDimensions = getCurrentCanvasDimensions();
+
+  // CRITICAL: Define actual canvas dimensions based on responsive mode
+  const getCanvasSize = () => {
+    switch (responsiveMode) {
+      case 'mobile':
+        return {
+          width: 375,
+          height: 667,
+          maxWidth: '375px',
+          deviceName: 'iPhone SE'
+        };
+      case 'tablet':
+        return {
+          width: 768,
+          height: 1024,
+          maxWidth: '768px',
+          deviceName: 'iPad'
+        };
+      case 'desktop':
+      default:
+        return {
+          width: '100%',
+          height: 'auto',
+          maxWidth: 'none',
+          deviceName: 'Desktop'
+        };
+    }
+  };
+
+  const canvasSize = getCanvasSize();
 
   // Document flow components (those that should flow naturally)
   const flowComponents = ['div', 'section', 'header', 'main', 'footer', 'nav', 'article', 'aside', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p'];
@@ -82,9 +113,12 @@ const CanvasComponent = ({
       const newX = moveEvent.clientX - canvasRect.left - dragOffset.x;
       const newY = moveEvent.clientY - canvasRect.top - dragOffset.y;
       
-      // Constrain to canvas bounds
-      const constrainedX = Math.max(0, Math.min(newX, deviceInfo.width - 100));
-      const constrainedY = Math.max(0, Math.min(newY, deviceInfo.height - 50));
+      // Constrain to canvas bounds - use actual canvas size for responsive modes
+      const maxWidth = responsiveMode === 'desktop' ? canvasRect.width - 100 : canvasSize.width - 100;
+      const maxHeight = responsiveMode === 'desktop' ? canvasRect.height - 50 : 600; // Reasonable constraint for mobile/tablet
+      
+      const constrainedX = Math.max(0, Math.min(newX, maxWidth));
+      const constrainedY = Math.max(0, Math.min(newY, maxHeight));
       
       // Check if actually moved significantly
       const deltaX = Math.abs(constrainedX - initialPosition.x);
@@ -118,7 +152,7 @@ const CanvasComponent = ({
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [canvasComponents, dragOffset, onPropertyUpdate, onComponentClick, deviceInfo, currentFrame, pushHistory, actionTypes]);
+  }, [canvasComponents, dragOffset, onPropertyUpdate, onComponentClick, responsiveMode, canvasSize, currentFrame, pushHistory, actionTypes]);
 
   // Enhanced component rendering with document flow support
   const renderComponent = useCallback((component, index) => {
@@ -390,8 +424,6 @@ const CanvasComponent = ({
     return paddingMap[componentType] || '0';
   };
 
-  
-
   // Quick action buttons for selected component
   const renderComponentActions = useCallback((component) => {
     if (selectedComponent !== component.id) return null;
@@ -439,143 +471,467 @@ const CanvasComponent = ({
   }, [selectedComponent, onPropertyUpdate]);
 
   return (
-    <div className="w-full max-w-none" style={{ backgroundColor: 'var(--color-bg)' }}>
-      {/* Minimal Header - Focus on Canvas */}
-      <div className="text-center mb-4">
-        <div className="flex items-center justify-center gap-2 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          {responsiveMode !== 'desktop' && (
-            <>
-              {responsiveMode === 'mobile' ? <Smartphone className="w-4 h-4" /> : <Tablet className="w-4 h-4" />}
-              <span>{deviceInfo.deviceName} ({deviceInfo.width}×{deviceInfo.height})</span>
-            </>
-          )}
-          {zoomLevel !== 100 && <span>• {zoomLevel}%</span>}
-        </div>
-      </div>
-
-      {/* Enhanced Canvas Area - True WYSIWYG Document */}
-      <div className="flex justify-center">
-        <div
-          className={`relative transition-all duration-500 ease-in-out ${
-            isFrameSwitching ? 'opacity-50 scale-95' : 'opacity-100 scale-100'
-          }`}
-          style={{ width: '100%', maxWidth: 'none' }}
-        >
-          {/* Main Canvas - Acts as Document Body */}
+    <div className="w-full max-w-none flex justify-center" style={{ backgroundColor: 'transparent' }}>
+      {/* Responsive Canvas Container */}
+      <div
+        className={`
+          relative transition-all duration-500 ease-in-out overflow-visible
+          ${isFrameSwitching ? 'opacity-50 scale-95' : 'opacity-100 scale-100'}
+          ${responsiveMode !== 'desktop' ? 'shadow-2xl' : ''}
+        `}
+        style={{ 
+          width: canvasSize.width,
+          maxWidth: canvasSize.maxWidth,
+          transform: `scale(${scaleFactor})`,
+          transformOrigin: 'center top'
+        }}
+      >
+        {/* Device-Specific Browser Frame */}
+        {responsiveMode === 'desktop' && (
+          /* MacBook-Style Browser Tab Frame */
           <div 
-            ref={canvasRef}
-            className={`
-              relative overflow-visible transition-all duration-500 min-h-screen
-              ${canvasClasses}
-              ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
-            `}
+            className="relative mb-0 rounded-t-xl overflow-hidden pointer-events-none"
             style={{
-              width: '100%',
-              minHeight: '100vh',
-              maxWidth: 'none',
-              backgroundColor: 'var(--color-surface)',
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-              lineHeight: '1.6',
-              color: 'var(--color-text)',
-              cursor: dragState.isDragging ? 'copy' : 'default'
+              backgroundColor: '#f5f5f7',
+              border: '1px solid #d1d5db',
+              borderBottom: 'none'
             }}
-            onDragOver={onCanvasDragOver}
-            onDrop={onCanvasDrop}
-            onClick={onCanvasClick}
           >
-            {/* Canvas Grid Background */}
-            {gridVisible && (
+            {/* Tab Bar */}
+            <div 
+              className="flex items-center px-4 py-2 border-b"
+              style={{ 
+                backgroundColor: '#e5e7eb',
+                borderBottomColor: '#d1d5db'
+              }}
+            >
+              {/* Traffic Light Buttons */}
+              <div className="flex items-center gap-2 mr-4">
+                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+              </div>
+              
+              {/* Active Tab */}
               <div 
-                className="fixed inset-0 pointer-events-none opacity-20 z-0"
-                style={{
-                  backgroundImage: `
-                    linear-gradient(to right, var(--color-border) 1px, transparent 1px),
-                    linear-gradient(to bottom, var(--color-border) 1px, transparent 1px)
-                  `,
-                  backgroundSize: '20px 20px'
-                }}
-              />
-            )}
-
-            {/* Drop Zone Indicator */}
-            {dragState.isDragging && (
-              <div 
-                className="fixed inset-0 border-4 border-dashed flex items-center justify-center z-50"
+                className="flex items-center gap-2 px-4 py-1 rounded-t-lg relative"
                 style={{ 
-                  borderColor: 'var(--color-primary)',
-                  backgroundColor: 'rgba(160, 82, 255, 0.05)',
-                  backdropFilter: 'blur(2px)'
+                  backgroundColor: 'var(--color-surface)',
+                  border: '1px solid #d1d5db',
+                  borderBottom: 'none',
+                  minWidth: '200px'
                 }}
               >
+                {/* Tab Favicon */}
+                <div className="w-4 h-4 rounded-sm flex items-center justify-center text-xs font-bold" style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}>
+                  D
+                </div>
+                
+                {/* Tab Title */}
+                <span className="text-sm font-medium flex-1 truncate" style={{ color: 'var(--color-text)' }}>
+                  DeCode - {currentFrame} ({responsiveMode})
+                </span>
+                
+                {/* Tab Close Button */}
+                <div className="w-4 h-4 rounded-sm flex items-center justify-center">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+              </div>
+              
+              {/* New Tab Button */}
+              <div className="ml-2 w-8 h-8 rounded-lg flex items-center justify-center">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                </svg>
+              </div>
+              
+              {/* Browser Controls */}
+              <div className="ml-auto flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <div className="w-6 h-6 rounded flex items-center justify-center">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </div>
+                  <div className="w-6 h-6 rounded flex items-center justify-center">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                  <div className="w-6 h-6 rounded flex items-center justify-center">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Address Bar */}
+            <div className="flex items-center px-4 py-2 gap-3">
+              {/* Security Icon */}
+              <div className="flex items-center gap-1">
+                <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                </svg>
+              </div>
+              
+              {/* Address Bar Input */}
+              <div 
+                className="flex-1 px-3 py-1 rounded-md text-sm flex items-center gap-2"
+                style={{ 
+                  backgroundColor: 'white',
+                  border: '1px solid #d1d5db',
+                  color: '#6b7280'
+                }}
+              >
+                <span>https://</span>
+                <span style={{ color: 'var(--color-text)' }}>decode.app/forge/{currentFrame}</span>
+                <div className="ml-auto flex items-center gap-1">
+                  <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                </div>
+              </div>
+              
+              {/* Profile Avatar */}
+              <div className="w-6 h-6 rounded-full overflow-hidden">
+                <div className="w-full h-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: 'var(--color-primary)' }}>
+                  U
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {responsiveMode === 'tablet' && (
+          /* iPad-Style Safari Frame */
+          <div 
+            className="relative mb-0 rounded-t-2xl overflow-hidden pointer-events-none"
+            style={{
+              backgroundColor: '#f2f2f7',
+              border: '1px solid #d1d5db',
+              borderBottom: 'none'
+            }}
+          >
+            {/* Safari Address Bar */}
+            <div 
+              className="flex items-center px-4 py-3 gap-3"
+              style={{ 
+                backgroundColor: '#ffffff',
+                borderBottomColor: '#d1d5db'
+              }}
+            >
+              {/* Navigation Buttons */}
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+              
+              {/* Address Bar */}
+              <div 
+                className="flex-1 mx-4 px-4 py-2 rounded-full text-sm flex items-center gap-2"
+                style={{ 
+                  backgroundColor: '#f2f2f7',
+                  border: '1px solid #e5e5ea'
+                }}
+              >
+                <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                </svg>
+                <span style={{ color: 'var(--color-text)' }}>decode.app/forge/{currentFrame}</span>
+                <div className="ml-auto">
+                  <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </div>
+              </div>
+              
+              {/* Share Button */}
+              <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {responsiveMode === 'mobile' && (
+          /* iPhone-Style Safari Frame */
+          <div 
+            className="relative mb-0 overflow-hidden pointer-events-none"
+            style={{
+              backgroundColor: '#f2f2f7',
+              borderTopLeftRadius: '1rem',
+              borderTopRightRadius: '1rem',
+              border: '1px solid #d1d5db',
+              borderBottom: 'none'
+            }}
+          >
+            {/* Safari Address Bar */}
+            <div 
+              className="flex items-center px-3 py-2 gap-2"
+              style={{ 
+                backgroundColor: '#ffffff'
+              }}
+            >
+              {/* Address Bar Input */}
+              <div 
+                className="flex-1 px-3 py-1.5 rounded-full text-sm flex items-center gap-2"
+                style={{ 
+                  backgroundColor: '#f2f2f7',
+                  border: '1px solid #e5e5ea'
+                }}
+              >
+                <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                </svg>
+                <span className="text-xs truncate" style={{ color: 'var(--color-text)' }}>decode.app</span>
+                <div className="ml-auto">
+                  <svg className="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </div>
+              </div>
+              
+              {/* Menu Button */}
+              <div className="w-6 h-6 rounded flex items-center justify-center">
+                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Device Frame for Mobile/Tablet */}
+        {responsiveMode !== 'desktop' && (
+          <div 
+            className="absolute -inset-4 rounded-[2rem] shadow-2xl border-8 pointer-events-none"
+            style={{ 
+              borderColor: '#1f2937',
+              backgroundColor: '#111827'
+            }}
+          >
+            {/* Device notch for mobile */}
+            {responsiveMode === 'mobile' && (
+              <div 
+                className="absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-6 rounded-b-xl"
+                style={{ backgroundColor: '#111827' }}
+              />
+            )}
+            
+            {/* Device info label */}
+            <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2">
+              <div 
+                className="px-3 py-1 rounded-full text-xs flex items-center gap-2 font-medium"
+                style={{ 
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                  border: '1px solid var(--color-border)'
+                }}
+              >
+                {responsiveMode === 'mobile' ? <Smartphone className="w-3 h-3" /> : <Tablet className="w-3 h-3" />}
+                {canvasSize.deviceName} ({canvasSize.width}px)
+                {zoomLevel !== 100 && <span>• {zoomLevel}%</span>}
+              </div>
+            </div>
+
+            {/* Mobile/Tablet Browser Tabs at top of device frame */}
+            {responsiveMode === 'tablet' && (
+              <div 
+                className="absolute -top-8 left-1/2 transform -translate-x-1/2 flex items-center gap-1"
+                style={{ width: 'calc(100% - 32px)' }}
+              >
+                {/* Tab 1 - Active */}
                 <div 
-                  className="font-medium text-lg px-6 py-3 rounded-xl"
+                  className="flex-1 h-6 rounded-t-lg flex items-center px-2 gap-1 max-w-[120px]"
                   style={{ 
-                    color: 'var(--color-primary)',
                     backgroundColor: 'var(--color-surface)',
-                    border: '2px solid var(--color-primary)',
-                    boxShadow: 'var(--shadow-lg)'
+                    border: '1px solid var(--color-border)',
+                    borderBottom: 'none'
                   }}
                 >
-                  Drop {dragState.draggedComponent?.name || 'component'} here
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
+                  <span className="text-[8px] truncate" style={{ color: 'var(--color-text)' }}>DeCode</span>
+                </div>
+                
+                {/* Tab 2 - Inactive */}
+                <div 
+                  className="w-8 h-5 rounded-t-lg flex items-center justify-center"
+                  style={{ 
+                    backgroundColor: '#e5e7eb',
+                    border: '1px solid #d1d5db',
+                    borderBottom: 'none'
+                  }}
+                >
+                  <div className="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
+                </div>
+                
+                {/* New Tab Button */}
+                <div 
+                  className="w-6 h-5 rounded-t-lg flex items-center justify-center"
+                  style={{ backgroundColor: '#f3f4f6' }}
+                >
+                  <svg className="w-2 h-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4" />
+                  </svg>
                 </div>
               </div>
             )}
 
-            {/* Render Components in Document Flow */}
-            <div className="relative z-10" style={{ minHeight: '100vh' }}>
-              {canvasComponents.length === 0 && !dragState.isDragging ? (
-                <EmptyCanvasState
-                  frameType={frameType}
-                  onAddSection={() => {
-                    // Auto-add a section
-                    const sectionComponent = componentLibraryService?.createLayoutElement('section');
-                    if (sectionComponent && onPropertyUpdate) {
-                      onPropertyUpdate('canvas', [...canvasComponents, sectionComponent]);
-                    }
-                  }}
-                  onDragOver={onCanvasDragOver}
-                  onDrop={onCanvasDrop}
-                  isDragOver={dragState.isDragging}
-                />
-              ) : (
-                <AnimatePresence>
-                  {canvasComponents.map((component, index) => renderComponent(component, index))}
-                </AnimatePresence>
-              )}
-            </div>
-          </div>
-
-          {/* Device Frame (for mobile/tablet) */}
-          {responsiveMode !== 'desktop' && (
-            <div 
-              className="absolute -inset-3 border rounded-3xl pointer-events-none opacity-30"
-              style={{ borderColor: 'var(--color-border)' }}
-            >
-              <div className="absolute -top-6 left-1/2 transform -translate-x-1/2">
+            {responsiveMode === 'mobile' && (
+              <div 
+                className="absolute -top-6 left-1/2 transform -translate-x-1/2 flex items-center gap-0.5"
+                style={{ width: 'calc(100% - 24px)' }}
+              >
+                {/* Active Tab */}
                 <div 
-                  className="px-2 py-1 rounded text-xs flex items-center gap-1"
+                  className="flex-1 h-4 rounded-t-md flex items-center px-1.5 gap-1 max-w-[80px]"
                   style={{ 
-                    backgroundColor: 'var(--color-text)',
-                    color: 'var(--color-surface)'
+                    backgroundColor: 'var(--color-surface)',
+                    border: '1px solid var(--color-border)',
+                    borderBottom: 'none'
                   }}
                 >
-                  {responsiveMode === 'mobile' ? <Smartphone className="w-3 h-3" /> : <Tablet className="w-3 h-3" />}
-                  {deviceInfo.deviceName}
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
+                  <span className="text-[6px] truncate" style={{ color: 'var(--color-text)' }}>DeCode</span>
                 </div>
+                
+                {/* Inactive Tab */}
+                <div 
+                  className="w-6 h-3 rounded-t-md flex items-center justify-center"
+                  style={{ 
+                    backgroundColor: '#e5e7eb',
+                    border: '1px solid #d1d5db',
+                    borderBottom: 'none'
+                  }}
+                >
+                  <div className="w-1 h-1 rounded-full bg-gray-400"></div>
+                </div>
+
+                {/* New Tab Button */}
+                <div 
+                  className="w-5 h-3 rounded-t-md flex items-center justify-center"
+                  style={{ backgroundColor: '#f3f4f6' }}
+                >
+                  <svg className="w-1.5 h-1.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M12 4v16m8-8H4" />
+                  </svg>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Main Canvas - Acts as Document Body */}
+        <div 
+          ref={canvasRef}
+          className={`
+            relative overflow-visible transition-all duration-500
+            ${canvasClasses}
+            ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
+          `}
+          style={{
+            width: '100%',
+            minHeight: responsiveMode === 'desktop' ? '100vh' : '667px',
+            maxWidth: canvasSize.maxWidth,
+            backgroundColor: 'var(--color-surface)',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            lineHeight: '1.6',
+            color: 'var(--color-text)',
+            cursor: dragState.isDragging ? 'copy' : 'default',
+            // Remove the gray background for mobile/tablet
+            borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
+            // Add subtle inner shadow for mobile/tablet to simulate depth
+            boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none'
+          }}
+          onDragOver={onCanvasDragOver}
+          onDrop={onCanvasDrop}
+          onClick={onCanvasClick}
+        >
+          {/* Canvas Grid Background - Only show if enabled */}
+          {gridVisible && (
+            <div 
+              className="absolute inset-0 pointer-events-none opacity-20 z-0"
+              style={{
+                backgroundImage: `
+                  linear-gradient(to right, var(--color-border) 1px, transparent 1px),
+                  linear-gradient(to bottom, var(--color-border) 1px, transparent 1px)
+                `,
+                backgroundSize: '20px 20px'
+              }}
+            />
+          )}
+
+          {/* Drop Zone Indicator */}
+          {dragState.isDragging && (
+            <div 
+              className="absolute inset-0 border-4 border-dashed flex items-center justify-center z-50"
+              style={{ 
+                borderColor: 'var(--color-primary)',
+                backgroundColor: 'rgba(160, 82, 255, 0.05)',
+                backdropFilter: 'blur(2px)',
+                borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0'
+              }}
+            >
+              <div 
+                className="font-medium text-lg px-6 py-3 rounded-xl"
+                style={{ 
+                  color: 'var(--color-primary)',
+                  backgroundColor: 'var(--color-surface)',
+                  border: '2px solid var(--color-primary)',
+                  boxShadow: 'var(--shadow-lg)'
+                }}
+              >
+                Drop {dragState.draggedComponent?.name || 'component'} here
               </div>
             </div>
           )}
+
+          {/* Render Components in Document Flow */}
+          <div className="relative z-10" style={{ minHeight: '100%' }}>
+            {canvasComponents.length === 0 && !dragState.isDragging ? (
+              <EmptyCanvasState
+                frameType={frameType}
+                onAddSection={() => {
+                  // Auto-add a section
+                  const sectionComponent = componentLibraryService?.createLayoutElement('section');
+                  if (sectionComponent && onPropertyUpdate) {
+                    onPropertyUpdate('canvas', [...canvasComponents, sectionComponent]);
+                  }
+                }}
+                onDragOver={onCanvasDragOver}
+                onDrop={onCanvasDrop}
+                isDragOver={dragState.isDragging}
+              />
+            ) : (
+              <AnimatePresence>
+                {canvasComponents.map((component, index) => renderComponent(component, index))}
+              </AnimatePresence>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Minimal Status Bar */}
-      {canvasComponents.length > 0 && (
-        <div className="mt-4 text-center">
+      {/* Status Bar - Only for Desktop */}
+      {responsiveMode === 'desktop' && canvasComponents.length > 0 && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
           <div 
-            className="inline-flex items-center gap-4 text-sm px-4 py-2 rounded-full shadow-sm"
+            className="inline-flex items-center gap-4 text-sm px-4 py-2 rounded-full shadow-lg backdrop-blur-sm"
             style={{ 
               color: 'var(--color-text-muted)',
-              backgroundColor: 'var(--color-surface)',
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
               border: '1px solid var(--color-border)'
             }}
           >
@@ -587,7 +943,7 @@ const CanvasComponent = ({
               </span>
             )}
             <span style={{ color: 'var(--color-border)' }}>|</span>
-            <span>{deviceInfo.deviceName}</span>
+            <span>{canvasSize.deviceName}</span>
           </div>
         </div>
       )}

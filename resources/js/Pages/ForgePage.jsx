@@ -1333,25 +1333,26 @@ export default function ForgePage({
       
       {/* Main content area with transition effects */}
       <div className="h-[calc(100vh-60px)] flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
-               // Replace the canvas rendering section in ForgePage.jsx
         <div 
             className={`
                 flex-1 flex items-center justify-center transition-all duration-300 ease-in-out
                 ${isMobile ? 'p-4' : 'p-8'} ${getCanvasPadding()}
                 ${getTransitionClasses()}
-                ${responsiveMode !== 'desktop' ? 'bg-gray-100' : ''}
                 relative
             `}
             style={{
-                backgroundImage: responsiveMode !== 'desktop' 
-                    ? 'radial-gradient(circle at 20px 20px, #e5e7eb 1px, transparent 1px)'
-                    : 'none',
-                backgroundSize: responsiveMode !== 'desktop' ? '20px 20px' : 'auto'
+                // Add Huion-style dotted background
+                backgroundColor: 'var(--color-bg)',
+                backgroundImage: `
+                    radial-gradient(circle at 1px 1px, #d1d5db 1px, transparent 0)
+                `,
+                backgroundSize: '20px 20px',
+                backgroundPosition: '0 0'
             }}
         >
-            {/* Canvas Component with Empty State Support */}
+            {/* Canvas Component with Enhanced Responsive Sizing */}
             {CanvasComponent ? (
-                <div className="relative w-full max-w-6xl">
+                <div className="relative w-full flex justify-center">
                     {/* Empty Canvas State for Pages */}
                     {frame?.type === 'page' && canvasComponents.length === 0 && (
                         <EmptyCanvasState
@@ -1386,6 +1387,7 @@ export default function ForgePage({
                             onCanvasDrop={handleCanvasDrop}
                             onCanvasClick={handleCanvasClick}
                             onComponentClick={handleComponentClick}
+                            onPropertyUpdate={handlePropertyUpdate}
                             isMobile={isMobile}
                             currentFrame={currentFrame}
                             isFrameSwitching={isFrameSwitching}
