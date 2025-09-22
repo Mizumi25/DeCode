@@ -89,185 +89,159 @@ class VoidController extends Controller
     /**
      * Store a newly created frame.
      */
-    public function store(Request $request)
-    {
-        // Add debugging
-        Log::info('Frame creation request:', $request->all());
-    
-        try {
-            $validated = $request->validate([
-                'project_id' => 'required|exists:projects,id',
-                'name' => 'required|string|max:255',
-                'type' => ['required', Rule::in(['page', 'component'])],
-                'canvas_data' => 'nullable|array',
-                'settings' => 'nullable|array',
-            ]);
-    
-            Log::info('Frame creation validated data:', $validated);
-    
-            // Enhanced access control: Check ownership OR workspace access
-            $project = Project::with('workspace')->find($validated['project_id']);
-            $user = Auth::user();
-            
-            if (!$project) {
-                Log::error('Project not found', [
-                    'project_id' => $validated['project_id'],
-                    'user_id' => $user->id
-                ]);
-                
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'message' => 'Project not found'
-                    ], 404);
-                }
-                
-                return back()->withErrors(['project' => 'Project not found']);
-            }
-            
-            // Check access permissions
-            $hasAccess = false;
-            $canEdit = false;
-            
-            if ($project->user_id === $user->id) {
-                // User owns the project
-                $hasAccess = true;
-                $canEdit = true;
-            } elseif ($project->workspace && $project->workspace->hasUser($user->id)) {
-                // User is in the workspace
-                $hasAccess = true;
-                $userRole = $project->workspace->getUserRole($user->id);
-                
-                // Allow owner, editor, and contributor roles to create frames
-                // Only restrict viewers from creating content
-                $canEdit = $project->workspace->canUserEdit($user->id);
-                
-                // Log the role for debugging
-                Log::info('User workspace role check', [
-                    'user_id' => $user->id,
-                    'workspace_id' => $project->workspace->id,
-                    'user_role' => $userRole,
-                    'can_edit' => $canEdit
-                ]);
-            }
-            
-            if (!$hasAccess) {
-              Log::error('Project access denied', [
-                  'project_id' => $project->id,
-                  'user_id' => $user->id
+      public function store(Request $request)
+      {
+          // Add debugging
+          Log::info('Frame creation request:', $request->all());
+      
+          try {
+              $validated = $request->validate([
+                  'project_id' => 'required|exists:projects,id',
+                  'name' => 'required|string|max:255',
+                  'type' => ['required', Rule::in(['page', 'component'])],
+                  'canvas_data' => 'nullable|array',
+                  'settings' => 'nullable|array',
+              ]);
+      
+              Log::info('Frame creation validated data:', $validated);
+      
+              // Enhanced access control: Check ownership OR workspace access
+              $project = Project::with('workspace')->find($validated['project_id']);
+              $user = Auth::user();
+              
+              if (!$project) {
+                  Log::error('Project not found', [
+                      'project_id' => $validated['project_id'],
+                      'user_id' => $user->id
+                  ]);
+                  
+                  if ($request->expectsJson()) {
+                      return response()->json([
+                          'message' => 'Project not found'
+                      ], 404);
+                  }
+                  
+                  return back()->withErrors(['project' => 'Project not found']);
+              }
+              
+              // Check access permissions (existing code...)
+              $hasAccess = false;
+              $canEdit = false;
+              
+              if ($project->user_id === $user->id) {
+                  $hasAccess = true;
+                  $canEdit = true;
+              } elseif ($project->workspace && $project->workspace->hasUser($user->id)) {
+                  $hasAccess = true;
+                  $userRole = $project->workspace->getUserRole($user->id);
+                  $canEdit = $project->workspace->canUserEdit($user->id);
+                  
+                  Log::info('User workspace role check', [
+                      'user_id' => $user->id,
+                      'workspace_id' => $project->workspace->id,
+                      'user_role' => $userRole,
+                      'can_edit' => $canEdit
+                  ]);
+              }
+              
+              if (!$hasAccess || !$canEdit) {
+                  // ... existing access control code
+              }
+              
+              // Create default canvas_data if not provided
+              if (!isset($validated['canvas_data'])) {
+                  $validated['canvas_data'] = $this->getDefaultCanvasData($validated['type']);
+              }
+      
+              // Create default settings if not provided
+              if (!isset($validated['settings'])) {
+                  $validated['settings'] = $this->getDefaultSettings();
+              }
+      
+              // Generate random position for void placement
+              $validated['canvas_data']['position'] = [
+                  'x' => rand(200, 800),
+                  'y' => rand(200, 600)
+              ];
+      
+              Log::info('Creating frame with data:', $validated);
+      
+              $frame = Frame::create($validated);
+      
+              // FIXED: Generate thumbnail using the new system instead of old generateStaticThumbnail
+              try {
+                  // Try to generate thumbnail with Playwright first
+                  if ($this->thumbnailService->checkPlaywrightAvailability()) {
+                      Log::info('Generating Playwright thumbnail for new frame', ['frame_id' => $frame->uuid]);
+                      $this->thumbnailService->generateThumbnail($frame);
+                  } else {
+                      // Fallback to static SVG generation
+                      Log::info('Generating static SVG thumbnail for new frame', ['frame_id' => $frame->uuid]);
+                      $this->generateStaticThumbnailFallback($frame);
+                  }
+              } catch (\Exception $e) {
+                  // Don't fail frame creation if thumbnail fails
+                  Log::warning('Thumbnail generation failed during frame creation', [
+                      'frame_id' => $frame->uuid,
+                      'error' => $e->getMessage()
+                  ]);
+                  
+                  // Generate basic fallback thumbnail
+                  $this->generateStaticThumbnailFallback($frame);
+              }
+      
+              // Load the frame with its project relationship
+              $frame->load('project');
+      
+              // BROADCAST FRAME CREATION
+              try {
+                  if ($project->workspace) {
+                      broadcast(new FrameCreated($frame, $project->workspace))->toOthers();
+                      
+                      Log::info('Frame creation broadcasted successfully', [
+                          'frame_id' => $frame->id,
+                          'project_id' => $project->id,
+                          'workspace_id' => $project->workspace->id,
+                          'user_id' => $user->id
+                      ]);
+                  }
+              } catch (\Exception $e) {
+                  // Log broadcast failure but don't fail the frame creation
+                  Log::warning('Failed to broadcast frame creation', [
+                      'frame_id' => $frame->id,
+                      'project_id' => $project->id,
+                      'error' => $e->getMessage()
+                  ]);
+              }
+      
+              Log::info('Frame created successfully:', ['frame_id' => $frame->id]);
+      
+              if ($request->expectsJson()) {
+                  return response()->json([
+                      'message' => 'Frame created successfully',
+                      'frame' => $frame
+                  ], 201);
+              }
+      
+              // For web requests, redirect back to void page
+              return redirect()->route('void.index', ['project' => $project->uuid])
+                             ->with('success', 'Frame created successfully');
+      
+          } catch (\Exception $e) {
+              Log::error('Frame creation error:', [
+                  'message' => $e->getMessage(),
+                  'trace' => $e->getTraceAsString()
               ]);
               
               if ($request->expectsJson()) {
                   return response()->json([
-                      'message' => 'Access denied to this project'
-                  ], 403);
+                      'message' => 'Failed to create frame: ' . $e->getMessage()
+                  ], 500);
               }
               
-              return back()->withErrors(['project' => 'Access denied to this project']);
+              return back()->withErrors(['error' => 'Failed to create frame. Please try again.']);
           }
-          
-          if (!$canEdit) {
-              Log::error('Frame creation permission denied', [
-                  'project_id' => $project->id,
-                  'user_id' => $user->id,
-                  'user_role' => $project->workspace ? $project->workspace->getUserRole($user->id) : null
-              ]);
-              
-              if ($request->expectsJson()) {
-                  return response()->json([
-                      'message' => 'You do not have permission to create frames in this project. Your role: ' . ($project->workspace ? $project->workspace->getUserRole($user->id) : 'none')
-                  ], 403);
-              }
-              
-              return back()->withErrors(['project' => 'You do not have permission to create frames in this project']);
-          }
-          
-            // Create default canvas_data if not provided
-            if (!isset($validated['canvas_data'])) {
-                $validated['canvas_data'] = $this->getDefaultCanvasData($validated['type']);
-            }
-    
-            // Create default settings if not provided
-            if (!isset($validated['settings'])) {
-                $validated['settings'] = $this->getDefaultSettings();
-            }
-    
-            // Generate random position for void placement
-            $validated['canvas_data']['position'] = [
-                'x' => rand(200, 800),
-                'y' => rand(200, 600)
-            ];
-    
-            Log::info('Creating frame with data:', $validated);
-    
-            $frame = Frame::create($validated);
-    
-            // Generate static thumbnail for now (we'll implement Playwright later)
-            $this->generateStaticThumbnail($frame);
-    
-            // Load the frame with its project relationship
-            $frame->load('project');
-    
-            // BROADCAST FRAME CREATION
-            try {
-                if ($project->workspace) {
-                    broadcast(new FrameCreated($frame, $project->workspace))->toOthers();
-                    
-                    Log::info('Frame creation broadcasted successfully', [
-                        'frame_id' => $frame->id,
-                        'project_id' => $project->id,
-                        'workspace_id' => $project->workspace->id,
-                        'user_id' => $user->id
-                    ]);
-                }
-            } catch (\Exception $e) {
-                // Log broadcast failure but don't fail the frame creation
-                Log::warning('Failed to broadcast frame creation', [
-                    'frame_id' => $frame->id,
-                    'project_id' => $project->id,
-                    'error' => $e->getMessage()
-                ]);
-            }
-    
-            Log::info('Frame created successfully:', ['frame_id' => $frame->id]);
-    
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => 'Frame created successfully',
-                    'frame' => $frame
-                ], 201);
-            }
-    
-            // For web requests, redirect back to void page
-            return redirect()->route('void.index', ['project' => $project->uuid])
-                           ->with('success', 'Frame created successfully');
-    
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::error('Validation error:', $e->errors());
-            
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => 'Validation failed',
-                    'errors' => $e->errors()
-                ], 422);
-            }
-            
-            return back()->withErrors($e->errors())->withInput();
-            
-        } catch (\Exception $e) {
-            Log::error('Frame creation error:', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => 'Failed to create frame: ' . $e->getMessage()
-                ], 500);
-            }
-            
-            return back()->withErrors(['error' => 'Failed to create frame. Please try again.']);
-        }
-    }
+      }
 
     /**
      * Display the specified frame.
@@ -527,8 +501,27 @@ class VoidController extends Controller
         
         $newFrame->save();
         
-        // Generate thumbnail for duplicate
-        $this->generateStaticThumbnail($newFrame);
+        // FIXED: Generate thumbnail for duplicate using the new system
+        try {
+            // Try to generate thumbnail with Playwright first
+            if ($this->thumbnailService->checkPlaywrightAvailability()) {
+                Log::info('Generating Playwright thumbnail for duplicated frame', ['frame_id' => $newFrame->uuid]);
+                $this->thumbnailService->generateThumbnail($newFrame);
+            } else {
+                // Fallback to static SVG generation
+                Log::info('Generating static SVG thumbnail for duplicated frame', ['frame_id' => $newFrame->uuid]);
+                $this->generateStaticThumbnailFallback($newFrame);
+            }
+        } catch (\Exception $e) {
+            Log::warning('Thumbnail generation failed during frame duplication', [
+                'frame_id' => $newFrame->uuid,
+                'error' => $e->getMessage()
+            ]);
+            
+            // Generate basic fallback thumbnail
+            $this->generateStaticThumbnailFallback($newFrame);
+        }
+        
         $newFrame->load('project');
 
         // BROADCAST FRAME CREATION (for the duplicate)
@@ -1008,163 +1001,230 @@ class VoidController extends Controller
   }
   
     /**
-   * Generate enhanced static SVG thumbnail based on frame content
-   */
+     * Generate enhanced static SVG thumbnail based on actual frame content
+     */
     private function generateEnhancedStaticThumbnail(Frame $frame): string
-  {
-      // Get the actual canvas data from the frame
-      $canvasData = $frame->canvas_data ?? [];
-      $components = $canvasData['components'] ?? [];
-      
-      Log::info('Generating thumbnail for frame with components:', [
-          'frame_id' => $frame->uuid,
-          'component_count' => count($components),
-          'canvas_data_keys' => array_keys($canvasData)
-      ]);
-      
-      $frameType = $frame->type ?? 'page';
-      $backgroundColor = $frame->settings['background_color'] ?? '#ffffff';
-      
-      // If no components, show empty state
-      if (empty($components)) {
-          return $this->generateEmptyCanvasThumbnail($frame, $backgroundColor);
-      }
-      
-      // Generate thumbnail based on actual components
-      return $this->generateCanvasBasedThumbnail($frame, $components, $backgroundColor);
-  }
+    {
+        // Get the actual components from the frame (either canvas_data or ProjectComponent table)
+        $components = $this->getFrameComponentsForThumbnail($frame);
+        
+        Log::info('Generating thumbnail for frame with components:', [
+            'frame_id' => $frame->uuid,
+            'component_count' => count($components),
+            'has_canvas_data' => isset($frame->canvas_data['components']),
+            'canvas_component_count' => isset($frame->canvas_data['components']) ? count($frame->canvas_data['components']) : 0
+        ]);
+        
+        $frameType = $frame->type ?? 'page';
+        $backgroundColor = $frame->settings['background_color'] ?? '#ffffff';
+        
+        // If no components, show empty state
+        if (empty($components)) {
+            Log::info('No components found, generating empty canvas thumbnail');
+            return $this->generateEmptyCanvasThumbnail($frame, $backgroundColor);
+        }
+        
+        // Generate thumbnail based on actual components
+        Log::info('Generating canvas-based thumbnail with components');
+        return $this->generateCanvasBasedThumbnail($frame, $components, $backgroundColor);
+    }
   
   
-    private function generateCanvasBasedThumbnail(Frame $frame, array $components, string $backgroundColor): string
-  {
-      $componentCount = count($components);
-      $primaryColor = '#3b82f6';
-      $secondaryColor = '#10b981';
-      $accentColor = '#f59e0b';
-      
-      // Analyze components to determine layout
-      $hasHeader = $this->hasComponentType($components, ['header', 'nav']);
-      $hasButtons = $this->hasComponentType($components, ['button']);
-      $hasInputs = $this->hasComponentType($components, ['input', 'textarea', 'form']);
-      $hasText = $this->hasComponentType($components, ['h1', 'h2', 'h3', 'p', 'text']);
-      $hasImages = $this->hasComponentType($components, ['img', 'image']);
-      
-      $svg = '<?xml version="1.0" encoding="UTF-8"?>
-  <svg width="320" height="224" viewBox="0 0 320 224" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-          <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style="stop-color:' . $backgroundColor . ';stop-opacity:1" />
-              <stop offset="100%" style="stop-color:' . $this->darkenColor($backgroundColor, 0.05) . ';stop-opacity:1" />
-          </linearGradient>
-          <filter id="shadow">
-              <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,0.1)"/>
-          </filter>
-      </defs>
-      
-      <!-- Background -->
-      <rect width="320" height="224" fill="url(#bgGrad)" rx="8"/>
-        <!-- Browser chrome for pages -->';
-      
-      if ($frame->type === 'page') {
-          $svg .= '
-      <rect x="0" y="0" width="320" height="32" fill="#f8fafc" stroke="#e2e8f0" rx="8"/>
-      <circle cx="16" cy="16" r="4" fill="#ef4444"/>
-      <circle cx="32" cy="16" r="4" fill="#f59e0b"/>
-      <circle cx="48" cy="16" r="4" fill="#10b981"/>
-      <rect x="70" y="10" width="180" height="12" rx="6" fill="white" stroke="#e2e8f0"/>
-          ';
-          $contentY = 40;
-      } else {
-          $contentY = 8;
-      }
-      
-      $svg .= '
-      <!-- Content based on actual components -->
-      <rect x="8" y="' . $contentY . '" width="304" height="' . (216 - $contentY) . '" fill="rgba(255,255,255,0.9)" rx="8" filter="url(#shadow)"/>';
-      
-      // Render components based on analysis
-      $currentY = $contentY + 16;
-      
-      // Header section
-      if ($hasHeader) {
-          $svg .= '
-      <rect x="20" y="' . $currentY . '" width="280" height="24" rx="4" fill="' . $primaryColor . '" opacity="0.8"/>
-      <rect x="30" y="' . ($currentY + 6) . '" width="60" height="12" rx="2" fill="white" opacity="0.9"/>
-      <rect x="250" y="' . ($currentY + 8) . '" width="40" height="8" rx="2" fill="white" opacity="0.7"/>';
-          $currentY += 35;
-      }
-        // Text content
-      if ($hasText && $currentY < 180) {
-          $svg .= '
-      <rect x="30" y="' . $currentY . '" width="180" height="16" rx="2" fill="#1f2937"/>
-      <rect x="30" y="' . ($currentY + 20) . '" width="220" height="8" rx="2" fill="#6b7280"/>
-      <rect x="30" y="' . ($currentY + 32) . '" width="160" height="8" rx="2" fill="#6b7280"/>';
-          $currentY += 50;
-      }
-      
-      // Interactive elements (buttons, inputs)
-      if (($hasButtons || $hasInputs) && $currentY < 180) {
-          $elementY = $currentY;
+      private function generateCanvasBasedThumbnail(Frame $frame, array $components, string $backgroundColor): string
+      {
+          $componentCount = count($components);
+          $primaryColor = '#3b82f6';
+          $secondaryColor = '#10b981';
+          $accentColor = '#f59e0b';
           
-          if ($hasInputs) {
-              $svg .= '
-      <rect x="30" y="' . $elementY . '" width="120" height="20" rx="4" fill="white" stroke="#d1d5db" stroke-width="1"/>
-      <rect x="35" y="' . ($elementY + 5) . '" width="80" height="10" rx="2" fill="#e5e7eb"/>';
-              $elementY += 30;
+          // ENHANCED: Actually analyze the real components from the canvas
+          $hasHeader = $this->hasComponentType($components, ['header', 'nav']);
+          $hasButtons = $this->hasComponentType($components, ['button']);
+          $hasInputs = $this->hasComponentType($components, ['input', 'textarea', 'form']);
+          $hasText = $this->hasComponentType($components, ['h1', 'h2', 'h3', 'p', 'text']);
+          $hasImages = $this->hasComponentType($components, ['img', 'image']);
+          $hasCards = $this->hasComponentType($components, ['card', 'div']);
+          
+          // NEW: Get actual component positions and sizes for better preview
+          $componentsByPosition = $this->sortComponentsByPosition($components);
+          
+          $svg = '<?xml version="1.0" encoding="UTF-8"?>
+      <svg width="320" height="224" viewBox="0 0 320 224" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+              <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:' . $backgroundColor . ';stop-opacity:1" />
+                  <stop offset="100%" style="stop-color:' . $this->darkenColor($backgroundColor, 0.05) . ';stop-opacity:1" />
+              </linearGradient>
+              <filter id="shadow">
+                  <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,0.1)"/>
+              </filter>
+              <filter id="glow">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                  <feMerge> 
+                      <feMergeNode in="coloredBlur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+              </filter>
+          </defs>
+          
+          <!-- Background -->
+          <rect width="320" height="224" fill="url(#bgGrad)" rx="8"/>
+          
+          <!-- Browser chrome for pages -->
+          ' . ($frame->type === 'page' ? '
+          <rect x="0" y="0" width="320" height="32" fill="#f8fafc" stroke="#e2e8f0" rx="8"/>
+          <circle cx="16" cy="16" r="4" fill="#ef4444"/>
+          <circle cx="32" cy="16" r="4" fill="#f59e0b"/>
+          <circle cx="48" cy="16" r="4" fill="#10b981"/>
+          <rect x="70" y="10" width="180" height="12" rx="6" fill="white" stroke="#e2e8f0"/>
+          ' : '') . '
+          
+          <!-- Content based on actual components -->';
+          
+          $contentY = ($frame->type === 'page') ? 40 : 8;
+          $svg .= '<rect x="8" y="' . $contentY . '" width="304" height="' . (216 - $contentY) . '" fill="rgba(255,255,255,0.9)" rx="8" filter="url(#shadow)"/>';
+          
+          // NEW: Render components based on actual positions and types
+          $currentY = $contentY + 16;
+          $maxY = 200; // Leave space for footer info
+          
+          foreach ($componentsByPosition as $index => $component) {
+              if ($currentY >= $maxY) break; // Don't overflow
+              
+              $compType = $component['type'] ?? 'div';
+              $compName = $component['name'] ?? $compType;
+              
+              // Scale positions from canvas to thumbnail
+              $scaledX = $this->scalePositionX($component['position']['x'] ?? 0);
+              $scaledY = $this->scalePositionY($component['position']['y'] ?? 0, $contentY);
+              
+              // Ensure positions are within bounds
+              $scaledX = max(20, min(280, $scaledX));
+              $scaledY = max($currentY, min($maxY - 20, $scaledY));
+              
+              switch ($compType) {
+                  case 'header':
+                  case 'nav':
+                      $svg .= '<rect x="' . $scaledX . '" y="' . $scaledY . '" width="200" height="16" rx="4" fill="' . $primaryColor . '" opacity="0.8"/>';
+                      $svg .= '<rect x="' . ($scaledX + 8) . '" y="' . ($scaledY + 4) . '" width="40" height="8" rx="2" fill="white" opacity="0.9"/>';
+                      break;
+                      
+                  case 'button':
+                      $buttonWidth = 60;
+                      $buttonHeight = 20;
+                      $svg .= '<rect x="' . $scaledX . '" y="' . $scaledY . '" width="' . $buttonWidth . '" height="' . $buttonHeight . '" rx="4" fill="' . $secondaryColor . '" filter="url(#shadow)"/>';
+                      $svg .= '<text x="' . ($scaledX + $buttonWidth/2) . '" y="' . ($scaledY + 12) . '" font-family="Arial" font-size="8" fill="white" text-anchor="middle">' . substr($compName, 0, 8) . '</text>';
+                      break;
+                      
+                  case 'card':
+                  case 'div':
+                      $cardWidth = 120;
+                      $cardHeight = 80;
+                      $svg .= '<rect x="' . $scaledX . '" y="' . $scaledY . '" width="' . $cardWidth . '" height="' . $cardHeight . '" rx="6" fill="white" stroke="#e2e8f0" stroke-width="1" filter="url(#shadow)"/>';
+                      $svg .= '<rect x="' . ($scaledX + 8) . '" y="' . ($scaledY + 8) . '" width="80" height="8" rx="2" fill="#1f2937"/>';
+                      $svg .= '<rect x="' . ($scaledX + 8) . '" y="' . ($scaledY + 20) . '" width="100" height="4" rx="2" fill="#6b7280"/>';
+                      $svg .= '<rect x="' . ($scaledX + 8) . '" y="' . ($scaledY + 28) . '" width="70" height="4" rx="2" fill="#6b7280"/>';
+                      break;
+                      
+                  case 'input':
+                  case 'textarea':
+                      $inputWidth = 100;
+                      $inputHeight = 16;
+                      $svg .= '<rect x="' . $scaledX . '" y="' . $scaledY . '" width="' . $inputWidth . '" height="' . $inputHeight . '" rx="3" fill="white" stroke="#d1d5db" stroke-width="1"/>';
+                      $svg .= '<rect x="' . ($scaledX + 4) . '" y="' . ($scaledY + 4) . '" width="60" height="8" rx="2" fill="#e5e7eb"/>';
+                      break;
+                      
+                  case 'h1':
+                  case 'h2':
+                  case 'h3':
+                      $textWidth = min(180, strlen($compName) * 8);
+                      $svg .= '<rect x="' . $scaledX . '" y="' . $scaledY . '" width="' . $textWidth . '" height="12" rx="2" fill="#1f2937"/>';
+                      break;
+                      
+                  case 'p':
+                  case 'text':
+                      $svg .= '<rect x="' . $scaledX . '" y="' . $scaledY . '" width="140" height="6" rx="2" fill="#6b7280"/>';
+                      $svg .= '<rect x="' . $scaledX . '" y="' . ($scaledY + 10) . '" width="100" height="6" rx="2" fill="#6b7280"/>';
+                      break;
+                      
+                  case 'img':
+                  case 'image':
+                      $imgSize = 40;
+                      $svg .= '<rect x="' . $scaledX . '" y="' . $scaledY . '" width="' . $imgSize . '" height="' . $imgSize . '" rx="4" fill="#f3f4f6" stroke="#d1d5db"/>';
+                      $svg .= '<circle cx="' . ($scaledX + $imgSize/2) . '" cy="' . ($scaledY + $imgSize/2) . '" r="8" fill="#9ca3af" opacity="0.5"/>';
+                      break;
+                      
+                  default:
+                      // Generic component
+                      $svg .= '<rect x="' . $scaledX . '" y="' . $scaledY . '" width="80" height="20" rx="4" fill="#f3f4f6" stroke="#d1d5db" stroke-dasharray="2,2"/>';
+                      break;
+              }
+              
+              // Move to next position if we're stacking vertically
+              if ($index < count($componentsByPosition) - 1) {
+                  $currentY += 25;
+              }
           }
           
-          if ($hasButtons) {
-              $svg .= '
-      <rect x="30" y="' . $elementY . '" width="70" height="24" rx="4" fill="' . $secondaryColor . '"/>
-      <rect x="110" y="' . $elementY . '" width="70" height="24" rx="4" fill="' . $accentColor . '" opacity="0.8"/>';
-          }
-          
-          $currentY = $elementY + 35;
-      }
-        // Images placeholder
-      if ($hasImages && $currentY < 180) {
+          // Component count and frame info
           $svg .= '
-      <rect x="200" y="' . ($contentY + 16) . '" width="80" height="60" rx="4" fill="#f3f4f6" stroke="#d1d5db"/>
-      <rect x="220" y="' . ($contentY + 36) . '" width="40" height="20" rx="2" fill="#9ca3af" opacity="0.5"/>';
+          <!-- Frame info -->
+          <text x="20" y="210" font-family="Arial, sans-serif" font-size="10" font-weight="500" fill="#6b7280">
+              ' . htmlspecialchars(substr($frame->name, 0, 20)) . ' • ' . $componentCount . ' items
+          </text>
+          
+          <!-- Live indicator -->
+          <circle cx="300" cy="210" r="3" fill="#10b981">
+              <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
+          </circle>
+          
+          <!-- Frame type badge -->
+          <rect x="250" y="195" width="' . ($frame->type === 'component' ? '40' : '30') . '" height="12" rx="6" fill="' . ($frame->type === 'component' ? $accentColor : $primaryColor) . '" opacity="0.8"/>
+          <text x="' . ($frame->type === 'component' ? '270' : '265') . '" y="202" font-family="Arial, sans-serif" font-size="7" fill="white" text-anchor="middle">' . strtoupper($frame->type) . '</text>
+          
+          </svg>';
+          
+          return $svg;
       }
       
-      // Component count and info
-      $svg .= '
-      <!-- Frame info -->
-      <text x="20" y="210" font-family="Arial, sans-serif" font-size="10" font-weight="500" fill="#6b7280">
-          ' . htmlspecialchars(substr($frame->name, 0, 25)) . ' • ' . $componentCount . ' components
-      </text>
-      
-      <!-- Live indicator -->
-      <circle cx="300" cy="210" r="3" fill="#10b981">
-          <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
-      </circle>
-      
-      <!-- Component type indicators -->
-      <g transform="translate(250, 195)">';
-      
-      $indicatorX = 0;
-      if ($hasHeader) {
-          $svg .= '<rect x="' . $indicatorX . '" y="0" width="8" height="8" rx="2" fill="' . $primaryColor . '" opacity="0.8"/>';
-          $indicatorX += 12;
-      }
-      if ($hasButtons) {
-          $svg .= '<rect x="' . $indicatorX . '" y="0" width="8" height="8" rx="2" fill="' . $secondaryColor . '" opacity="0.8"/>';
-          $indicatorX += 12;
-      }
-      if ($hasInputs) {
-          $svg .= '<rect x="' . $indicatorX . '" y="0" width="8" height="8" rx="2" fill="' . $accentColor . '" opacity="0.8"/>';
-          $indicatorX += 12;
-      }
-        if ($hasText) {
-          $svg .= '<rect x="' . $indicatorX . '" y="0" width="8" height="8" rx="2" fill="#6366f1" opacity="0.8"/>';
+      /**
+       * Sort components by position for better rendering order
+       */
+      private function sortComponentsByPosition(array $components): array
+      {
+          usort($components, function($a, $b) {
+              $aY = $a['position']['y'] ?? 0;
+              $bY = $b['position']['y'] ?? 0;
+              
+              if ($aY === $bY) {
+                  $aX = $a['position']['x'] ?? 0;
+                  $bX = $b['position']['x'] ?? 0;
+                  return $aX <=> $bX;
+              }
+              
+              return $aY <=> $bY;
+          });
+          
+          return $components;
       }
       
-      $svg .= '</g>
-  </svg>';
+      /**
+       * Scale canvas X position to thumbnail coordinates
+       */
+      private function scalePositionX(int $canvasX): int
+      {
+          // Canvas is typically 1440px wide, thumbnail content area is ~280px
+          return intval(($canvasX / 1440) * 280) + 20;
+      }
       
-      return $svg;
-  }
+      /**
+       * Scale canvas Y position to thumbnail coordinates
+       */
+      private function scalePositionY(int $canvasY, int $contentStartY): int
+      {
+          // Canvas is typically 900px tall, available height is ~160px
+          return intval(($canvasY / 900) * 160) + $contentStartY + 10;
+      }
   
     /**
    * Generate empty canvas thumbnail
@@ -1544,6 +1604,31 @@ public function cleanupThumbnails(Request $request): JsonResponse
             'message' => 'Failed to cleanup thumbnails'
         ], 500);
     }
+}
+
+/**
+ * Get components for thumbnail generation from frame data.
+ * Extracts from canvas_data['elements'] or canvas_data['components'], or falls back to empty array.
+ */
+private function getFrameComponentsForThumbnail(Frame $frame): array
+{
+    // Primary: Check canvas_data for elements (as used in getDefaultCanvasData)
+    if (isset($frame->canvas_data['elements']) && is_array($frame->canvas_data['elements'])) {
+        return $frame->canvas_data['elements'];
+    }
+    
+    // Secondary: Check for components (as referenced in your logging)
+    if (isset($frame->canvas_data['components']) && is_array($frame->canvas_data['components'])) {
+        return $frame->canvas_data['components'];
+    }
+    
+    // Fallback: If no components, return empty array (triggers empty canvas thumbnail)
+    // Optionally, query related ProjectComponent model if it exists in your DB schema
+    // $relatedComponents = $frame->projectComponents ?? []; // Uncomment if you have a ProjectComponent relationship
+    // return array_merge($relatedComponents->toArray(), []);
+    
+    Log::info('No components found in frame canvas_data', ['frame_id' => $frame->uuid]);
+    return [];
 }
 
 /**

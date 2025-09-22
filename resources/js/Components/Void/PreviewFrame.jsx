@@ -396,58 +396,34 @@ export default function PreviewFrame({
     return styles
   }
 
-  // ENHANCED: Render thumbnail with better error handling and SVG support
-  const renderThumbnailContent = () => {
-    if (showLoadingContent || (thumbnailLoading && !thumbnailUrl)) {
-      return (
-        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 relative">
-          <svg className="w-8 h-8 animate-spin mb-3" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-          </svg>
-          <div className="text-xs opacity-60 font-medium">
-            {thumbnailGenerating ? 'Updating preview...' : 'Loading preview...'}
-          </div>
-        </div>
-      )
-    }
-
-    const displayUrl = thumbnailUrl || placeholderUrl;
-    const showRealThumbnail = thumbnailUrl && isValidThumbnail && !thumbnailLoadError && imageLoadAttempts < 3;
-
-    return (
-      <div className="w-full h-full relative rounded-lg overflow-hidden group">
-        <div className="absolute inset-0 w-full h-full">
-          {showRealThumbnail ? (
-            <div className="w-full h-full relative">
-              {displayUrl.endsWith('.svg') || displayUrl.includes('data:image/svg+xml') ? (
-                <div 
-                  className="w-full h-full"
-                  style={{
-                    backgroundImage: `url("${displayUrl}")`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat'
-                  }}
-                />
-              ) : (
-                <img 
-                  src={displayUrl}
-                  alt={`${title} thumbnail`}
-                  className="w-full h-full object-cover"
-                  data-thumbnail-frame={frame?.uuid}
-                  onLoad={handleThumbnailImageLoad}
-                  onError={handleThumbnailImageError}
-                  loading="lazy"
-                />
-              )}
+    // ENHANCED: Render thumbnail with better error handling and SVG support
+    const renderThumbnailContent = () => {
+      if (showLoadingContent || (thumbnailLoading && !thumbnailUrl)) {
+        return (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 relative">
+            <svg className="w-8 h-8 animate-spin mb-3" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            <div className="text-xs opacity-60 font-medium">
+              {thumbnailGenerating ? 'Updating preview...' : 'Loading preview...'}
             </div>
-          ) : (
-            <div className="w-full h-full">
-              {displayUrl && !thumbnailLoadError ? (
-                displayUrl.includes('data:image/svg+xml') ? (
+          </div>
+        )
+      }
+  
+      const displayUrl = thumbnailUrl || placeholderUrl;
+      const showRealThumbnail = thumbnailUrl && isValidThumbnail && !thumbnailLoadError && imageLoadAttempts < 3;
+  
+      return (
+        <div className="w-full h-full relative rounded-lg overflow-hidden group">
+          <div className="absolute inset-0 w-full h-full">
+            {showRealThumbnail ? (
+              <div className="w-full h-full relative">
+                {/* FIXED: Enhanced SVG handling */}
+                {(displayUrl.endsWith('.svg') || displayUrl.includes('.svg') || displayUrl.includes('data:image/svg+xml')) ? (
                   <div 
-                    className="w-full h-full"
+                    className="w-full h-full svg-thumbnail"
                     style={{
                       backgroundImage: `url("${displayUrl}")`,
                       backgroundSize: 'cover',
@@ -458,98 +434,128 @@ export default function PreviewFrame({
                 ) : (
                   <img 
                     src={displayUrl}
-                    alt="Thumbnail placeholder"
-                    className="w-full h-full object-cover opacity-70"
-                    onError={() => setThumbnailLoadError(true)}
+                    alt={`${title} thumbnail`}
+                    className="w-full h-full object-cover"
+                    data-thumbnail-frame={frame?.uuid}
+                    onLoad={handleThumbnailImageLoad}
+                    onError={handleThumbnailImageError}
+                    loading="lazy"
                   />
-                )
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900 dark:to-indigo-900 rounded-lg overflow-hidden">
-                  <div className="absolute inset-0 p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-3 h-3 rounded-full bg-red-400"></div>
-                      <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-                      <div className="w-3 h-3 rounded-full bg-green-400"></div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="h-2 bg-gray-300 dark:bg-gray-600 rounded w-3/4"></div>
-                      <div className="h-2 bg-gray-300 dark:bg-gray-600 rounded w-1/2"></div>
-                      <div className="h-6 bg-blue-200 dark:bg-blue-800 rounded mt-3"></div>
-                      <div className="grid grid-cols-2 gap-1 mt-2">
-                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                )}
+              </div>
+            ) : (
+              <div className="w-full h-full">
+                {displayUrl && !thumbnailLoadError ? (
+                  /* FIXED: Enhanced SVG detection and handling */
+                  (displayUrl.includes('data:image/svg+xml') || displayUrl.endsWith('.svg') || displayUrl.includes('.svg')) ? (
+                    <div 
+                      className="w-full h-full svg-fallback-thumbnail"
+                      style={{
+                        backgroundImage: `url("${displayUrl}")`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat'
+                      }}
+                      onError={(e) => {
+                        console.error('SVG background load failed:', e);
+                        setThumbnailLoadError(true);
+                      }}
+                    />
+                  ) : (
+                    <img 
+                      src={displayUrl}
+                      alt="Thumbnail placeholder"
+                      className="w-full h-full object-cover opacity-70"
+                      onError={() => setThumbnailLoadError(true)}
+                    />
+                  )
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900 dark:to-indigo-900 rounded-lg overflow-hidden">
+                    <div className="absolute inset-0 p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                        <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                        <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="h-2 bg-gray-300 dark:bg-gray-600 rounded w-3/4"></div>
+                        <div className="h-2 bg-gray-300 dark:bg-gray-600 rounded w-1/2"></div>
+                        <div className="h-6 bg-blue-200 dark:bg-blue-800 rounded mt-3"></div>
+                        <div className="grid grid-cols-2 gap-1 mt-2">
+                          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                        </div>
                       </div>
                     </div>
+                    
+                    {thumbnailLoadError && (
+                      <div className="absolute bottom-2 left-2 right-2">
+                        <div className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" />
+                          Preview unavailable
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  
-                  {thumbnailLoadError && (
-                    <div className="absolute bottom-2 left-2 right-2">
-                      <div className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" />
-                        Preview unavailable
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* FIXED: Thumbnail action overlay - only shows on hover and doesn't block clicks when hidden */}
-        {showThumbnailActions && (
-          <div className="thumbnail-actions absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center gap-2 transition-all duration-200">
-            <button
-              onClick={handleGenerateThumbnail}
-              disabled={thumbnailGenerating}
-              className="p-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg transition-colors disabled:opacity-50"
-              title="Generate thumbnail"
-            >
-              <Camera className={`w-4 h-4 text-white ${thumbnailGenerating ? 'animate-pulse' : ''}`} />
-            </button>
-            
-            <button
-              onClick={handleRefreshThumbnail}
-              disabled={thumbnailLoading}
-              className="p-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg transition-colors disabled:opacity-50"
-              title="Refresh thumbnail"
-            >
-              <RefreshCw className={`w-4 h-4 text-white ${thumbnailLoading ? 'animate-spin' : ''}`} />
-            </button>
+                )}
+              </div>
+            )}
           </div>
-        )}
-
-        {/* ENHANCED: Thumbnail status indicators */}
-        <div className="absolute top-2 left-2 flex gap-1">
-          {thumbnailGenerating && (
-            <div className="bg-blue-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-              <Camera className="w-3 h-3" />
-              Updating
+  
+          {/* FIXED: Thumbnail action overlay - only shows on hover and doesn't block clicks when hidden */}
+          {showThumbnailActions && (
+            <div className="thumbnail-actions absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center gap-2 transition-all duration-200">
+              <button
+                onClick={handleGenerateThumbnail}
+                disabled={thumbnailGenerating}
+                className="p-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg transition-colors disabled:opacity-50"
+                title="Generate thumbnail"
+              >
+                <Camera className={`w-4 h-4 text-white ${thumbnailGenerating ? 'animate-pulse' : ''}`} />
+              </button>
+              
+              <button
+                onClick={handleRefreshThumbnail}
+                disabled={thumbnailLoading}
+                className="p-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg transition-colors disabled:opacity-50"
+                title="Refresh thumbnail"
+              >
+                <RefreshCw className={`w-4 h-4 text-white ${thumbnailLoading ? 'animate-spin' : ''}`} />
+              </button>
             </div>
           )}
-          
-          {thumbnailLoadError && imageLoadAttempts >= 3 && (
-            <div className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" />
-              Error
-            </div>
-          )}
-          
-          {lastGenerated && isValidThumbnail && !thumbnailLoadError && (
-            <div className="bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-              Live
-            </div>
-          )}
-          
-          {imageLoadAttempts > 0 && imageLoadAttempts < 3 && (
-            <div className="bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-              Retry {imageLoadAttempts}/3
-            </div>
-          )}
+  
+          {/* ENHANCED: Thumbnail status indicators */}
+          <div className="absolute top-2 left-2 flex gap-1">
+            {thumbnailGenerating && (
+              <div className="bg-blue-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
+                <Camera className="w-3 h-3" />
+                Updating
+              </div>
+            )}
+            
+            {thumbnailLoadError && imageLoadAttempts >= 3 && (
+              <div className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                Error
+              </div>
+            )}
+            
+            {lastGenerated && isValidThumbnail && !thumbnailLoadError && (
+              <div className="bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+                Live
+              </div>
+            )}
+            
+            {imageLoadAttempts > 0 && imageLoadAttempts < 3 && (
+              <div className="bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+                Retry {imageLoadAttempts}/3
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    )
-  }
+      )
+    }
 
   return (
     <div

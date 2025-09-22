@@ -144,7 +144,7 @@ export class ThumbnailService {
       }
     }
     
-    // ENHANCED: Check for actual thumbnail file patterns
+    // ENHANCED: Check for actual thumbnail file patterns - including SVG
     const validThumbnailPatterns = [
       '/storage/thumbnails/frames/', // Our primary thumbnail storage
       '.png',
@@ -156,13 +156,13 @@ export class ThumbnailService {
     
     // Return true if URL contains any valid thumbnail patterns
     const isValid = validThumbnailPatterns.some(pattern => url.includes(pattern));
-    console.log(`[ThumbnailService] URL validation result: ${isValid}`);
+    console.log(`[ThumbnailService] URL validation result: ${isValid} for ${url}`);
     
     return isValid;
   }
 
   /**
-   * Get thumbnail with fallback to placeholder - ENHANCED
+   * Get thumbnail with fallback to placeholder - ENHANCED for SVG
    */
   static async getThumbnailUrlWithFallback(frameUuid, frameType = 'page') {
     try {
@@ -173,7 +173,7 @@ export class ThumbnailService {
       if (this.isValidThumbnail(url)) {
         // For SVG files, we don't need to verify accessibility via HEAD request
         // as some servers might not support it properly
-        if (url.endsWith('.svg')) {
+        if (url.endsWith('.svg') || url.includes('.svg')) {
           console.log(`[ThumbnailService] SVG thumbnail found: ${url}`);
           return url;
         }
@@ -205,6 +205,56 @@ export class ThumbnailService {
   }
 
   /**
+   * Preload thumbnail images for better UX - ENHANCED for SVG
+   */
+  static preloadThumbnail(url) {
+    if (!url) return Promise.resolve(null);
+
+    return new Promise((resolve, reject) => {
+      if (url.endsWith('.svg') || url.includes('.svg')) {
+        // For SVG, use fetch instead of Image() - but also try to validate it's actually an SVG
+        fetch(url)
+          .then(response => {
+            if (response.ok) {
+              // Check if content type is SVG
+              const contentType = response.headers.get('content-type');
+              if (contentType && contentType.includes('image/svg')) {
+                console.log(`[ThumbnailService] SVG preloaded successfully: ${url}`);
+                resolve(url);
+              } else {
+                // Try as regular image if it's not actually an SVG
+                this.preloadAsImage(url).then(resolve).catch(reject);
+              }
+            } else {
+              reject(new Error(`Failed to preload SVG: ${response.status}`));
+            }
+          })
+          .catch(reject);
+      } else {
+        // For raster images, use traditional Image preloading
+        this.preloadAsImage(url).then(resolve).catch(reject);
+      }
+    });
+  }
+
+  /**
+   * Helper to preload as regular image
+   */
+  static preloadAsImage(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        console.log(`[ThumbnailService] Image preloaded successfully: ${url}`);
+        resolve(url);
+      };
+      img.onerror = () => {
+        reject(new Error(`Failed to preload image: ${url}`));
+      };
+      img.src = url;
+    });
+  }
+
+  /**
    * Generate thumbnail URL with cache busting
    */
   static getThumbnailUrl(frameUuid) {
@@ -218,39 +268,8 @@ export class ThumbnailService {
     return null;
   }
 
-  /**
-   * Preload thumbnail images for better UX - ENHANCED for SVG
-   */
-  static preloadThumbnail(url) {
-    if (!url) return Promise.resolve(null);
 
-    return new Promise((resolve, reject) => {
-      if (url.endsWith('.svg')) {
-        // For SVG, use fetch instead of Image()
-        fetch(url)
-          .then(response => {
-            if (response.ok) {
-              console.log(`[ThumbnailService] SVG preloaded successfully: ${url}`);
-              resolve(url);
-            } else {
-              reject(new Error(`Failed to preload SVG: ${response.status}`));
-            }
-          })
-          .catch(reject);
-      } else {
-        // For raster images, use traditional Image preloading
-        const img = new Image();
-        img.onload = () => {
-          console.log(`[ThumbnailService] Image preloaded successfully: ${url}`);
-          resolve(url);
-        };
-        img.onerror = () => {
-          reject(new Error(`Failed to preload image: ${url}`));
-        };
-        img.src = url;
-      }
-    });
-  }
+  
 
   /**
    * Subscribe to thumbnail updates
