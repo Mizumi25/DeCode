@@ -187,6 +187,130 @@ Route::middleware('auth:sanctum')->group(function () {
 
     });
     
+    
+    // Frame thumbnail routes
+    Route::prefix('frames/{frame:uuid}')->group(function () {
+        // Generate thumbnail from frame data
+        Route::post('/thumbnail', [VoidController::class, 'generateThumbnail'])
+            ->name('frames.generate-thumbnail');
+            
+        // Generate thumbnail from current canvas state
+        Route::post('/thumbnail/canvas', [VoidController::class, 'generateThumbnailFromCanvas'])
+            ->name('frames.generate-thumbnail-canvas');
+            
+        // Get thumbnail status and URL
+        Route::get('/thumbnail/status', [VoidController::class, 'getThumbnailStatus'])
+            ->name('frames.thumbnail-status');
+    });
+    
+    // Batch thumbnail operations
+    Route::prefix('thumbnails')->group(function () {
+        // Batch generate thumbnails for multiple frames
+        Route::post('/batch-generate', [VoidController::class, 'batchGenerateThumbnails'])
+            ->name('thumbnails.batch-generate');
+            
+        // Clean up old thumbnail files
+        Route::post('/cleanup', [VoidController::class, 'cleanupThumbnails'])
+            ->name('thumbnails.cleanup');
+            
+        // Check Playwright availability
+        Route::get('/playwright-status', [VoidController::class, 'checkPlaywrightStatus'])
+            ->name('thumbnails.playwright-status');
+    });
+    
     // Cleanup route (can be called via scheduled task)
     Route::post('/presence/cleanup', [FramePresenceController::class, 'cleanup']);
+    
+    
+    
+
+    // Test thumbnail generation endpoint
+    Route::get('/test-thumbnails', function() {
+        $user = auth()->user();
+        $frames = \App\Models\Frame::where('project_id', 
+            \App\Models\Project::where('user_id', $user->id)->first()->id ?? 0
+        )->take(5)->get();
+        
+        $results = [];
+        
+        foreach ($frames as $frame) {
+            try {
+                // Check current thumbnail status
+                $settings = $frame->settings ?? [];
+                $currentThumbnail = $settings['thumbnail_path'] ?? null;
+                $currentUrl = $currentThumbnail ? asset('storage/' . $currentThumbnail) : null;
+                
+                // Generate new thumbnail
+                $thumbnailDir = storage_path('app/public/thumbnails/frames');
+                if (!file_exists($thumbnailDir)) {
+                    mkdir($thumbnailDir, 0755, true);
+                }
+                
+                $timestamp = time();
+                $thumbnailPath = $thumbnailDir . '/' . $frame->uuid . '_test_' . $timestamp . '.svg';
+                
+                // Create test SVG
+                $svg = '<?xml version="1.0" encoding="UTF-8"?>
+                <svg width="320" height="224" viewBox="0 0 320 224" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="320" height="224" fill="#f8fafc" rx="8"/>
+                    <rect x="0" y="0" width="320" height="32" fill="#3b82f6" rx="8"/>
+                    <circle cx="16" cy="16" r="4" fill="#ffffff"/>
+                    <circle cx="32" cy="16" r="4" fill="#ffffff" opacity="0.7"/>
+                    <circle cx="48" cy="16" r="4" fill="#ffffff" opacity="0.5"/>
+                    <text x="160" y="60" font-family="Arial" font-size="14" fill="#1f2937" text-anchor="middle" font-weight="bold">TEST THUMBNAIL</text>
+                    <text x="160" y="80" font-family="Arial" font-size="12" fill="#6b7280" text-anchor="middle">' . htmlspecialchars($frame->name) . '</text>
+                    <text x="160" y="100" font-family="Arial" font-size="10" fill="#9ca3af" text-anchor="middle">Generated: ' . date('Y-m-d H:i:s') . '</text>
+                    <rect x="40" y="120" width="240" height="60" fill="#e5e7eb" rx="4"/>
+                    <rect x="50" y="130" width="220" height="8" fill="#d1d5db" rx="2"/>
+                    <rect x="50" y="145" width="180" height="8" fill="#d1d5db" rx="2"/>
+                    <rect x="50" y="160" width="160" height="8" fill="#d1d5db" rx="2"/>
+                </svg>';
+                
+                file_put_contents($thumbnailPath, $svg);
+                
+                // Update frame settings
+                $newSettings = array_merge($settings, [
+                    'thumbnail_generated' => true,
+                    'thumbnail_path' => 'thumbnails/frames/' . $frame->uuid . '_test_' . $timestamp . '.svg',
+                    'thumbnail_generated_at' => now()->toISOString(),
+                    'thumbnail_version' => $timestamp,
+                    'thumbnail_method' => 'test'
+                ]);
+                
+                $frame->update(['settings' => $newSettings]);
+                
+                $newUrl = asset('storage/' . $newSettings['thumbnail_path']);
+                
+                $results[] = [
+                    'frame_uuid' => $frame->uuid,
+                    'frame_name' => $frame->name,
+                    'success' => true,
+                    'previous_thumbnail' => $currentUrl,
+                    'new_thumbnail' => $newUrl,
+                    'file_exists' => file_exists($thumbnailPath),
+                    'file_size' => filesize($thumbnailPath),
+                ];
+                
+            } catch (\Exception $e) {
+                $results[] = [
+                    'frame_uuid' => $frame->uuid,
+                    'frame_name' => $frame->name,
+                    'success' => false,
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Test thumbnail generation completed',
+            'results' => $results,
+            'storage_path' => storage_path('app/public/thumbnails/frames'),
+            'public_url_base' => asset('storage/thumbnails/frames/'),
+        ]);
+    });
 });
+
+
+
+  

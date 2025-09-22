@@ -7,7 +7,7 @@ import { Square, Code, Layers, User, Settings, ChevronUp, ChevronDown, Copy, Ref
 import { useForgeStore } from '@/stores/useForgeStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore';
-
+import { useThumbnail } from '@/hooks/useThumbnail';
 
 // Import separated forge components
 import ComponentsPanel from '@/Components/Forge/ComponentsPanel';
@@ -139,6 +139,16 @@ export default function ForgePage({
     position: { x: 100, y: 100 },
     size: { width: 600, height: 400 }
   })
+  
+  const {
+    scheduleCanvasUpdate: scheduleThumbnailUpdate,
+    isGenerating: thumbnailGenerating,
+    thumbnailUrl,
+    generateFromCanvas: generateThumbnailFromCanvas
+  } = useThumbnail(frame?.uuid, frame?.type || 'page', {
+    enableRealTimeUpdates: true,
+    debounceMs: 2000 // 2 second debounce for canvas updates
+  });
 
   const canvasRef = useRef(null)
   const codePanelRef = useRef(null)
@@ -572,99 +582,115 @@ export default function ForgePage({
   }, [])
 
     // REPLACE the handleCanvasDrop method in ForgePage.jsx (around line 400)
-      // Replace the existing handleCanvasDrop method
-  const handleCanvasDrop = useCallback((e) => {
-      e.preventDefault();
-      
-      if (!canvasRef.current) return;
+    // ENHANCED: Modified handleCanvasDrop to trigger thumbnail updates
+const handleCanvasDrop = useCallback((e) => {
+  e.preventDefault();
   
-      try {
-          const dragDataStr = e.dataTransfer.getData('text/plain');
-          let dragData;
-          
-          try {
-              dragData = JSON.parse(dragDataStr);
-          } catch {
-              dragData = { componentType: dragDataStr, variant: null };
-          }
-  
-          const { componentType, variant } = dragData;
-          
-          // CRITICAL: Validate drop for page types
-          if (frame?.type === 'page' && canvasComponents.length === 0) {
-              const layoutElements = ['div', 'section', 'container', 'flex', 'grid'];
-              if (!layoutElements.includes(componentType)) {
-                  alert('Pages must start with a Layout element (Section, Container, Div, etc.)');
-                  return;
-              }
-          }
-  
-          // Get component definition
-          let componentDef = null;
-          if (componentLibraryService?.getComponentDefinition) {
-              componentDef = componentLibraryService.getComponentDefinition(componentType);
-          }
-          
-          const canvasRect = canvasRef.current.getBoundingClientRect();
-          const x = Math.max(0, e.clientX - canvasRect.left - 50);
-          const y = Math.max(0, e.clientY - canvasRect.top - 20);
-  
-          // Create component with enhanced layout support
-          const newComponent = componentLibraryService?.createLayoutElement 
-              ? componentLibraryService.createLayoutElement(componentType, variant?.props || {})
-              : {
-                  id: `${componentType}_${Date.now()}`,
-                  type: componentType,
-                  props: {
-                      ...(componentDef?.default_props || {}),
-                      ...(variant?.props || {})
-                  },
-                  position: { x, y },
-                  name: variant ? `${componentType} (${variant.name})` : (componentDef?.name || componentType),
-                  variant: variant || null,
-                  style: {},
-                  animation: {},
-                  children: []
-              };
-  
-          // Position for absolute positioning
-          if (newComponent.style?.position !== 'static') {
-              newComponent.position = { x, y };
-          }
-  
-          console.log('ForgePage: Dropping component:', newComponent);
-  
-          const updatedComponents = [...canvasComponents, newComponent];
-          
-          setFrameCanvasComponents(prev => ({
-              ...prev,
-              [currentFrame]: updatedComponents
-          }));
-          
-          pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
-              componentName: newComponent.name,
-              componentType: newComponent.type,
-              position: { x, y },
-              componentId: newComponent.id
-          });
-          
-          setSelectedComponent(newComponent.id);
-          handleComponentDragEnd();
-          
-          // Auto-save
-          setTimeout(() => {
-              if (componentLibraryService?.saveProjectComponents) {
-                  componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedComponents);
-              }
-          }, 200);
-          
-          generateCode(updatedComponents);
-          
-      } catch (error) {
-          console.error('Error handling component drop:', error);
-          handleComponentDragEnd();
+  if (!canvasRef.current) return;
+
+  try {
+    const dragDataStr = e.dataTransfer.getData('text/plain');
+    let dragData;
+    
+    try {
+      dragData = JSON.parse(dragDataStr);
+    } catch {
+      dragData = { componentType: dragDataStr, variant: null };
+    }
+
+    const { componentType, variant } = dragData;
+    
+    if (frame?.type === 'page' && canvasComponents.length === 0) {
+      const layoutElements = ['div', 'section', 'container', 'flex', 'grid'];
+      if (!layoutElements.includes(componentType)) {
+        alert('Pages must start with a Layout element (Section, Container, Div, etc.)');
+        return;
       }
-  }, [canvasComponents, currentFrame, frame?.type, componentLibraryService, pushHistory, actionTypes, projectId, handleComponentDragEnd, generateCode]);
+    }
+
+    let componentDef = null;
+    if (componentLibraryService?.getComponentDefinition) {
+      componentDef = componentLibraryService.getComponentDefinition(componentType);
+    }
+    
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    const x = Math.max(0, e.clientX - canvasRect.left - 50);
+    const y = Math.max(0, e.clientY - canvasRect.top - 20);
+
+    const newComponent = componentLibraryService?.createLayoutElement 
+      ? componentLibraryService.createLayoutElement(componentType, variant?.props || {})
+      : {
+          id: `${componentType}_${Date.now()}`,
+          type: componentType,
+          props: {
+            ...(componentDef?.default_props || {}),
+            ...(variant?.props || {})
+          },
+          position: { x, y },
+          name: variant ? `${componentType} (${variant.name})` : (componentDef?.name || componentType),
+          variant: variant || null,
+          style: {},
+          animation: {},
+          children: []
+        };
+
+    if (newComponent.style?.position !== 'static') {
+      newComponent.position = { x, y };
+    }
+
+    console.log('ForgePage: Dropping component:', newComponent);
+
+    const updatedComponents = [...canvasComponents, newComponent];
+    
+    setFrameCanvasComponents(prev => ({
+      ...prev,
+      [currentFrame]: updatedComponents
+    }));
+    
+    pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
+      componentName: newComponent.name,
+      componentType: newComponent.type,
+      position: { x, y },
+      componentId: newComponent.id
+    });
+    
+    setSelectedComponent(newComponent.id);
+    handleComponentDragEnd();
+    
+    // ENHANCED: Schedule thumbnail update for new component
+    if (updatedComponents.length > 0) {
+      const canvasSettings = {
+        viewport: getCurrentCanvasDimensions(),
+        background_color: frame?.settings?.background_color || '#ffffff',
+        responsive_mode: responsiveMode,
+        zoom_level: zoomLevel,
+        grid_visible: gridVisible
+      };
+      
+      // Schedule immediate thumbnail update for new components (shorter debounce)
+      setTimeout(() => {
+        scheduleThumbnailUpdate(updatedComponents, canvasSettings);
+      }, 500); // 500ms delay for new components
+    }
+    
+    // Auto-save
+    setTimeout(() => {
+      if (componentLibraryService?.saveProjectComponents) {
+        componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedComponents);
+      }
+    }, 200);
+    
+    generateCode(updatedComponents);
+    
+  } catch (error) {
+    console.error('Error handling component drop:', error);
+    handleComponentDragEnd();
+  }
+}, [canvasComponents, currentFrame, frame?.type, componentLibraryService, pushHistory, actionTypes, projectId, 
+    handleComponentDragEnd, generateCode, scheduleThumbnailUpdate, getCurrentCanvasDimensions, 
+    responsiveMode, zoomLevel, gridVisible, frame?.settings]);
+
+
   
   // ALSO ADD this debug method to check component definitions after loading:
   const debugComponentDefinitions = useCallback(() => {
@@ -704,223 +730,297 @@ export default function ForgePage({
     setSelectedComponent(componentId)
   }, [])
 
-  // Component deletion handler - Updated for frame-specific components
-  const handleComponentDelete = useCallback((componentId) => {
-    const componentToDelete = canvasComponents.find(c => c.id === componentId);
-    const newComponents = canvasComponents.filter(c => c.id !== componentId)
+  // ENHANCED: Modified handleComponentDelete to trigger thumbnail updates
+const handleComponentDelete = useCallback((componentId) => {
+  const componentToDelete = canvasComponents.find(c => c.id === componentId);
+  const newComponents = canvasComponents.filter(c => c.id !== componentId)
+  
+  setFrameCanvasComponents(prev => ({
+    ...prev,
+    [currentFrame]: newComponents
+  }));
+  
+  pushHistory(currentFrame, newComponents, actionTypes.DELETE, {
+    componentName: componentToDelete?.name || componentToDelete?.type || 'component',
+    componentId,
+    deletedComponent: componentToDelete
+  });
+  
+  if (selectedComponent === componentId) {
+    setSelectedComponent(null)
+  }
+  
+  // ENHANCED: Schedule thumbnail update after deletion
+  if (currentFrame) {
+    const canvasSettings = {
+      viewport: getCurrentCanvasDimensions(),
+      background_color: frame?.settings?.background_color || '#ffffff',
+      responsive_mode: responsiveMode,
+      zoom_level: zoomLevel,
+      grid_visible: gridVisible
+    };
     
-    // Update local state immediately
-    setFrameCanvasComponents(prev => ({
-      ...prev,
-      [currentFrame]: newComponents
-    }));
-    
-    // CRITICAL: Push deletion to history for undo/redo
-    pushHistory(currentFrame, newComponents, actionTypes.DELETE, {
-      componentName: componentToDelete?.name || componentToDelete?.type || 'component',
-      componentId,
-      deletedComponent: componentToDelete
-    });
-    
-    if (selectedComponent === componentId) {
-      setSelectedComponent(null)
-    }
-    
-    // Schedule database save
+    // Schedule thumbnail update (with slight delay)
     setTimeout(() => {
-      if (componentLibraryService?.saveProjectComponents) {
-        componentLibraryService.saveProjectComponents(projectId, currentFrame, newComponents);
-      }
-    }, 200);
-    
-    generateCode(newComponents)
-  }, [selectedComponent, canvasComponents, currentFrame, pushHistory, actionTypes, projectId, componentLibraryService, generateCode]);
+      scheduleThumbnailUpdate(newComponents, canvasSettings);
+    }, 300);
+  }
+  setTimeout(() => {
+    if (componentLibraryService?.saveProjectComponents) {
+      componentLibraryService.saveProjectComponents(projectId, currentFrame, newComponents);
+    }
+  }, 200);
+  
+  generateCode(newComponents)
+}, [selectedComponent, canvasComponents, currentFrame, pushHistory, actionTypes, projectId, 
+    componentLibraryService, generateCode, scheduleThumbnailUpdate, getCurrentCanvasDimensions, 
+    responsiveMode, zoomLevel, gridVisible, frame?.settings]);
+
 
 
   
   // MODIFY: Enhanced property update handler with undo/redo
-   const handlePropertyUpdate = useCallback((componentId, propName, value) => {
-    const updatedComponents = canvasComponents.map(c => {
-      if (c.id === componentId) {
-        if (propName === 'position') {
-          return { ...c, position: value }
-        } else if (propName === 'style') {
-          return { ...c, style: { ...c.style, ...value } }
-        } else if (propName === 'animation') {
-          return { ...c, animation: { ...c.animation, ...value } }
-        } else if (propName === 'name') {
-          return { ...c, name: value }
-        } else if (propName === 'reset') {
-          return { 
-            ...c, 
-            style: {}, 
-            animation: {},
-            props: {}
-          }
-        } else {
-          return { ...c, props: { ...c.props, [propName]: value } }
+   // ENHANCED: Modified handlePropertyUpdate to trigger thumbnail updates
+const handlePropertyUpdate = useCallback((componentId, propName, value) => {
+  const updatedComponents = canvasComponents.map(c => {
+    if (c.id === componentId) {
+      if (propName === 'position') {
+        return { ...c, position: value }
+      } else if (propName === 'style') {
+        return { ...c, style: { ...c.style, ...value } }
+      } else if (propName === 'animation') {
+        return { ...c, animation: { ...c.animation, ...value } }
+      } else if (propName === 'name') {
+        return { ...c, name: value }
+      } else if (propName === 'reset') {
+        return { 
+          ...c, 
+          style: {}, 
+          animation: {},
+          props: {}
         }
+      } else {
+        return { ...c, props: { ...c.props, [propName]: value } }
       }
-      return c
-    })
+    }
+    return c
+  })
+  
+  // Update local state immediately
+  setFrameCanvasComponents(prev => ({
+    ...prev,
+    [currentFrame]: updatedComponents
+  }));
+  
+  // Push to history for undo/redo
+  const component = canvasComponents.find(c => c.id === componentId);
+  const componentName = component?.name || component?.type || 'component';
+  
+  let actionType = actionTypes.PROP_UPDATE;
+  if (propName === 'position') actionType = actionTypes.MOVE;
+  else if (propName === 'style') actionType = actionTypes.STYLE_UPDATE;
+  
+  if (propName === 'position') {
+    const oldPos = component?.position || { x: 0, y: 0 };
+    const deltaX = Math.abs(value.x - oldPos.x);
+    const deltaY = Math.abs(value.y - oldPos.y);
     
-    // Update local state immediately
-    setFrameCanvasComponents(prev => ({
-      ...prev,
-      [currentFrame]: updatedComponents
-    }));
-    
-    // CRITICAL: Push to history for undo/redo
-    const component = canvasComponents.find(c => c.id === componentId);
-    const componentName = component?.name || component?.type || 'component';
-    
-    // Determine action type
-    let actionType = actionTypes.PROP_UPDATE;
-    if (propName === 'position') actionType = actionTypes.MOVE;
-    else if (propName === 'style') actionType = actionTypes.STYLE_UPDATE;
-    
-    // CRITICAL: Always push significant changes to history
-    if (propName === 'position') {
-      // For position, only push if movement is significant
-      const oldPos = component?.position || { x: 0, y: 0 };
-      const deltaX = Math.abs(value.x - oldPos.x);
-      const deltaY = Math.abs(value.y - oldPos.y);
-      
-      if (deltaX > 5 || deltaY > 5) {
-        pushHistory(currentFrame, updatedComponents, actionType, {
-          componentName,
-          componentId,
-          propName,
-          value,
-          previousValue: oldPos
-        });
-      }
-    } else {
-      // Push all other property changes immediately
+    if (deltaX > 5 || deltaY > 5) {
       pushHistory(currentFrame, updatedComponents, actionType, {
         componentName,
         componentId,
         propName,
         value,
-        previousValue: propName === 'style' ? component?.style : component?.props?.[propName]
+        previousValue: oldPos
       });
     }
+  } else {
+    pushHistory(currentFrame, updatedComponents, actionType, {
+      componentName,
+      componentId,
+      propName,
+      value,
+      previousValue: propName === 'style' ? component?.style : component?.props?.[propName]
+    });
+  }
+  
+  // ENHANCED: Schedule thumbnail update for visual changes
+  const shouldUpdateThumbnail = propName !== 'name' && // Skip thumbnail update for name changes
+                               (propName === 'style' || propName === 'position' || 
+                                propName === 'props' || propName === 'animation');
+                                
+  if (shouldUpdateThumbnail && updatedComponents.length > 0) {
+    const canvasSettings = {
+      viewport: getCurrentCanvasDimensions(),
+      background_color: frame?.settings?.background_color || '#ffffff',
+      responsive_mode: responsiveMode,
+      zoom_level: zoomLevel,
+      grid_visible: gridVisible
+    };
     
-    // Schedule auto-save with longer delay to prevent conflicts
-    setTimeout(() => {
-      if (componentLibraryService?.saveProjectComponents) {
-        componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedComponents);
-      }
-    }, propName === 'position' ? 2000 : 1000);
-    
-    generateCode(updatedComponents);
-  }, [canvasComponents, currentFrame, projectId, pushHistory, actionTypes, componentLibraryService, generateCode]);
+    // Schedule debounced thumbnail update
+    scheduleThumbnailUpdate(updatedComponents, canvasSettings);
+  }
   
-
-  
-  
-  
-  
-   // ADD: Undo/Redo handlers
-  // CRITICAL: Enhanced Undo/Redo handlers with proper state management
-  const handleUndo = useCallback(async () => {
-    if (!currentFrame || !canUndo(currentFrame)) {
-      console.log('ForgePage: Undo blocked - no frame or cannot undo');
-      return;
+  // Auto-save with longer delay to prevent conflicts
+  setTimeout(() => {
+    if (componentLibraryService?.saveProjectComponents) {
+      componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedComponents);
     }
+  }, propName === 'position' ? 2000 : 1000);
+  
+  generateCode(updatedComponents);
+}, [canvasComponents, currentFrame, projectId, pushHistory, actionTypes, componentLibraryService, generateCode, 
+    scheduleThumbnailUpdate, getCurrentCanvasDimensions, responsiveMode, zoomLevel, gridVisible, frame?.settings]);
 
-    console.log('ForgePage: Starting undo operation');
+  
+
+  
+  
+  
+  
+  // ENHANCED: Modified undo/redo handlers to update thumbnails
+const handleUndo = useCallback(async () => {
+  if (!currentFrame || !canUndo(currentFrame)) {
+    console.log('ForgePage: Undo blocked - no frame or cannot undo');
+    return;
+  }
+
+  console.log('ForgePage: Starting undo operation');
+  
+  try {
+    if (componentLibraryService?.clearSaveQueue) {
+      componentLibraryService.clearSaveQueue(currentFrame);
+    }
     
-    try {
-      // CRITICAL: Stop auto-save during undo
-      if (componentLibraryService?.clearSaveQueue) {
-        componentLibraryService.clearSaveQueue(currentFrame);
+    const previousComponents = undo(currentFrame);
+    if (previousComponents) {
+      console.log('ForgePage: Executing undo - restoring', previousComponents.length, 'components');
+      
+      setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: previousComponents
+      }));
+      
+      if (selectedComponent && !previousComponents.find(c => c.id === selectedComponent)) {
+        setSelectedComponent(null);
       }
       
-      const previousComponents = undo(currentFrame);
-      if (previousComponents) {
-        console.log('ForgePage: Executing undo - restoring', previousComponents.length, 'components');
-        
-        // Update local state immediately - THIS IS THE KEY FIX
-        setFrameCanvasComponents(prev => ({
-          ...prev,
-          [currentFrame]: previousComponents
-        }));
-        
-        // Clear selection if component no longer exists
-        if (selectedComponent && !previousComponents.find(c => c.id === selectedComponent)) {
-          setSelectedComponent(null);
+      generateCode(previousComponents);
+      
+      // ENHANCED: Update thumbnail after undo
+      const canvasSettings = {
+        viewport: getCurrentCanvasDimensions(),
+        background_color: frame?.settings?.background_color || '#ffffff',
+        responsive_mode: responsiveMode,
+        zoom_level: zoomLevel,
+        grid_visible: gridVisible
+      };
+      
+      setTimeout(() => {
+        scheduleThumbnailUpdate(previousComponents, canvasSettings);
+      }, 200);
+      
+      setTimeout(async () => {
+        try {
+          if (componentLibraryService?.forceSave) {
+            await componentLibraryService.forceSave(projectId, currentFrame, previousComponents);
+            console.log('ForgePage: Undo state saved to database');
+          }
+        } catch (error) {
+          console.error('Failed to save undo state:', error);
         }
-        
-        // Regenerate code
-        generateCode(previousComponents);
-        
-        // CRITICAL: Force save the undone state to database after a delay
-        setTimeout(async () => {
-          try {
-            if (componentLibraryService?.forceSave) {
-              await componentLibraryService.forceSave(projectId, currentFrame, previousComponents);
-              console.log('ForgePage: Undo state saved to database');
-            }
-          } catch (error) {
-            console.error('Failed to save undo state:', error);
-          }
-        }, 100);
-        
-        console.log('ForgePage: Undo completed successfully');
-      }
-    } catch (error) {
-      console.error('ForgePage: Undo failed:', error);
+      }, 100);
+      
+      console.log('ForgePage: Undo completed successfully');
     }
-  }, [currentFrame, undo, canUndo, selectedComponent, generateCode, projectId, componentLibraryService]);
+  } catch (error) {
+    console.error('ForgePage: Undo failed:', error);
+  }
+}, [currentFrame, undo, canUndo, selectedComponent, generateCode, projectId, componentLibraryService, 
+    scheduleThumbnailUpdate, getCurrentCanvasDimensions, responsiveMode, zoomLevel, gridVisible, frame?.settings]);
+
 
 
   
-    const handleRedo = useCallback(async () => {
-    if (!currentFrame || !canRedo(currentFrame)) {
-      console.log('ForgePage: Redo blocked - no frame or cannot redo');
-      return;
-    }
+  const handleRedo = useCallback(async () => {
+  if (!currentFrame || !canRedo(currentFrame)) {
+    console.log('ForgePage: Redo blocked - no frame or cannot redo');
+    return;
+  }
 
-    console.log('ForgePage: Starting redo operation');
-    
-    try {
-      // CRITICAL: Stop auto-save during redo
-      if (componentLibraryService?.clearSaveQueue) {
-        componentLibraryService.clearSaveQueue(currentFrame);
-      }
-      
-      const nextComponents = redo(currentFrame);
-      if (nextComponents) {
-        console.log('ForgePage: Executing redo - restoring', nextComponents.length, 'components');
-        
-        // Update local state immediately - THIS IS THE KEY FIX
-        setFrameCanvasComponents(prev => ({
-          ...prev,
-          [currentFrame]: nextComponents
-        }));
-        
-        // Regenerate code
-        generateCode(nextComponents);
-        
-        // CRITICAL: Force save the redone state to database after a delay
-        setTimeout(async () => {
-          try {
-            if (componentLibraryService?.forceSave) {
-              await componentLibraryService.forceSave(projectId, currentFrame, nextComponents);
-              console.log('ForgePage: Redo state saved to database');
-            }
-          } catch (error) {
-            console.error('Failed to save redo state:', error);
-          }
-        }, 100);
-        
-        console.log('ForgePage: Redo completed successfully');
-      }
-    } catch (error) {
-      console.error('ForgePage: Redo failed:', error);
+  console.log('ForgePage: Starting redo operation');
+  
+  try {
+    if (componentLibraryService?.clearSaveQueue) {
+      componentLibraryService.clearSaveQueue(currentFrame);
     }
-  }, [currentFrame, redo, canRedo, generateCode, projectId, componentLibraryService]);
+    
+    const nextComponents = redo(currentFrame);
+    if (nextComponents) {
+      console.log('ForgePage: Executing redo - restoring', nextComponents.length, 'components');
+      
+      setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: nextComponents
+      }));
+      
+      generateCode(nextComponents);
+      
+      // ENHANCED: Update thumbnail after redo
+      const canvasSettings = {
+        viewport: getCurrentCanvasDimensions(),
+        background_color: frame?.settings?.background_color || '#ffffff',
+        responsive_mode: responsiveMode,
+        zoom_level: zoomLevel,
+        grid_visible: gridVisible
+      };
+      
+      setTimeout(() => {
+        scheduleThumbnailUpdate(nextComponents, canvasSettings);
+      }, 200);
+      
+      setTimeout(async () => {
+        try {
+          if (componentLibraryService?.forceSave) {
+            await componentLibraryService.forceSave(projectId, currentFrame, nextComponents);
+            console.log('ForgePage: Redo state saved to database');
+          }
+        } catch (error) {
+          console.error('Failed to save redo state:', error);
+        }
+      }, 100);
+      
+      console.log('ForgePage: Redo completed successfully');
+    }
+  } catch (error) {
+    console.error('ForgePage: Redo failed:', error);
+  }
+}, [currentFrame, redo, canRedo, generateCode, projectId, componentLibraryService, 
+    scheduleThumbnailUpdate, getCurrentCanvasDimensions, responsiveMode, zoomLevel, gridVisible, frame?.settings]);
+    
+   // ENHANCED: Add thumbnail status indicator to the UI (optional)
+  const renderThumbnailStatus = () => {
+    if (!thumbnailGenerating && !thumbnailUrl) return null;
+    
+    return (
+      <div className="fixed bottom-4 left-4 z-50">
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg backdrop-blur-sm border transition-all duration-200 ${
+          thumbnailGenerating 
+            ? 'bg-blue-50/90 border-blue-200 text-blue-700' 
+            : 'bg-green-50/90 border-green-200 text-green-700'
+        }`}>
+          <div className={`w-2 h-2 rounded-full ${
+            thumbnailGenerating ? 'bg-blue-500 animate-pulse' : 'bg-green-500'
+          }`}></div>
+          <span className="text-sm font-medium">
+            {thumbnailGenerating ? 'Updating preview...' : 'Preview updated'}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
 
   // FIXED: Auto-save with conflict prevention
   useEffect(() => {
@@ -1596,6 +1696,8 @@ export default function ForgePage({
           </button>
         </div>
       )}
+      
+      {renderThumbnailStatus()}
 
       {/* Enhanced mobile performance optimization styles */}
       {isMobile && (

@@ -21,9 +21,6 @@ Route::get('/', function () {
     ]);
 });
 
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
 
 // Public invite routes - MUST be outside auth middleware
 Route::get('/invite/{token}', [InviteController::class, 'showInvite'])->name('invite.show');

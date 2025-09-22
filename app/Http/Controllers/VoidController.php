@@ -15,12 +15,23 @@ use Inertia\Response;
 use App\Events\FrameCreated;
 use App\Events\FrameUpdated;
 use App\Events\FrameDeleted;
+use App\Services\PlaywrightThumbnailService;
+use App\Events\ThumbnailGenerated;
 
 class VoidController extends Controller
 {
     /**
      * Display the void page for a project (moved from ProjectController)
      */
+     
+     protected PlaywrightThumbnailService $thumbnailService;
+     
+     public function __construct(PlaywrightThumbnailService $thumbnailService)
+    {
+        $this->thumbnailService = $thumbnailService;
+    }
+
+     
     public function show(Project $project): Response
     {
         $user = Auth::user();
@@ -363,13 +374,36 @@ class VoidController extends Controller
             'type' => ['sometimes', Rule::in(['page', 'component'])],
             'canvas_data' => 'sometimes|array',
             'settings' => 'sometimes|array',
+            'generate_thumbnail' => 'sometimes|boolean' // NEW: Optional thumbnail generation flag
         ]);
 
         // Store original data for change tracking
-        $originalData = $frame->toArray();
+        $originalCanvasData = $frame->canvas_data;
         
         $frame->update($validated);
         $frame->load('project');
+        
+        // TRIGGER THUMBNAIL REGENERATION if canvas data changed
+        $shouldGenerateThumbnail = $validated['generate_thumbnail'] ?? false;
+        $canvasDataChanged = isset($validated['canvas_data']) && 
+                           json_encode($originalCanvasData) !== json_encode($validated['canvas_data']);
+
+        if (($shouldGenerateThumbnail || $canvasDataChanged) && $this->thumbnailService->checkPlaywrightAvailability()) {
+            try {
+                // Generate thumbnail in background (non-blocking)
+                dispatch(function() use ($frame) {
+                    $this->thumbnailService->generateThumbnail($frame);
+                })->afterResponse();
+                
+                Log::info('Thumbnail generation queued for frame:', ['frame_id' => $frame->id]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to queue thumbnail generation:', [
+                    'frame_id' => $frame->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+        
         // BROADCAST FRAME UPDATE
         if ($project->workspace) {
             try {
@@ -390,9 +424,11 @@ class VoidController extends Controller
 
         return response()->json([
             'message' => 'Frame updated successfully',
-            'frame' => $frame
+            'frame' => $frame,
+            'thumbnail_queued' => $canvasDataChanged || $shouldGenerateThumbnail
         ]);
     }
+
     
     /**
      * Remove the specified frame.
@@ -580,36 +616,204 @@ class VoidController extends Controller
         ]);
     }
 
-
+ /**
+ * Enhanced thumbnail generation with better error handling
+ */
+  public function generateThumbnail(Request $request, Frame $frame): JsonResponse
+  {
+      $user = Auth::user();
+      
+      if (!$this->checkFrameAccess($frame, $user)) {
+          return response()->json([
+              'success' => false,
+              'message' => 'Access denied'
+          ], 403);
+      }
+  
+      try {
+          Log::info('Starting thumbnail generation', ['frame_id' => $frame->uuid]);
+          
+          // Check if Playwright is available
+          if (!$this->thumbnailService->checkPlaywrightAvailability()) {
+              Log::warning('Playwright not available, using static thumbnail generation');
+              return $this->generateStaticThumbnailFallback($frame);
+          }
+  
+          // Generate thumbnail with enhanced error handling
+          $thumbnailPath = $this->thumbnailService->generateThumbnail($frame);
+          
+          if ($thumbnailPath && file_exists($thumbnailPath)) {
+              $thumbnailUrl = $this->thumbnailService->getThumbnailUrl($frame);
+              
+              Log::info('Thumbnail generated successfully', [
+                  'frame_id' => $frame->uuid,
+                  'path' => $thumbnailPath,
+                  'url' => $thumbnailUrl
+              ]);
+              
+              // Broadcast to workspace if available
+              if ($frame->project->workspace) {
+                  broadcast(new ThumbnailGenerated($frame, $frame->project->workspace));
+              }
+              
+                return response()->json([
+                  'success' => true,
+                  'message' => 'Thumbnail generated successfully',
+                  'thumbnail_url' => $thumbnailUrl,
+                  'generated_at' => now()->toISOString(),
+                  'method' => 'playwright'
+              ]);
+          }
+          
+          // Fallback to static generation if Playwright fails
+          Log::warning('Playwright thumbnail generation failed, falling back to static');
+          return $this->generateStaticThumbnailFallback($frame);
+          
+      } catch (\Exception $e) {
+          Log::error('Thumbnail generation failed', [
+              'frame_id' => $frame->uuid,
+              'error' => $e->getMessage(),
+              'trace' => $e->getTraceAsString()
+          ]);
+          
+          // Always provide a fallback
+          return $this->generateStaticThumbnailFallback($frame);
+      }
+  }
+    
     /**
-     * Generate thumbnail using Playwright (placeholder for now).
+    * Generate thumbnail from canvas state (for real-time updates)
      */
-    public function generateThumbnail(Request $request, Frame $frame): JsonResponse
+    public function generateThumbnailFromCanvas(Request $request, Frame $frame): JsonResponse
     {
-        // Ensure user owns the project that contains this frame
-        if ($frame->project->user_id !== auth()->id()) {
-            abort(403, 'Unauthorized');
+        $user = Auth::user();
+        
+        if (!$this->checkFrameAccess($frame, $user)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access denied'
+            ], 403);
         }
+
+        $validated = $request->validate([
+            'canvas_components' => 'required|array',
+            'canvas_settings' => 'nullable|array',
+            'viewport' => 'nullable|array',
+            'background_color' => 'nullable|string'
+        ]);
 
         try {
-            // For now, generate static thumbnail
-            // TODO: Implement Playwright thumbnail generation
-            $this->generateStaticThumbnail($frame);
+            // Merge canvas settings with frame settings
+            $canvasSettings = array_merge(
+                $frame->settings ?? [],
+                $validated['canvas_settings'] ?? [],
+                [
+                    'viewport' => $validated['viewport'] ?? ['width' => 1440, 'height' => 900],
+                    'background_color' => $validated['background_color'] ?? '#ffffff'
+                ]
+            );
+            
+            $thumbnailPath = $this->thumbnailService->generateThumbnailFromCanvas(
+                $frame,
+                $validated['canvas_components'],
+                $canvasSettings
+            );
+            
+            if ($thumbnailPath) {
+                $thumbnailUrl = $this->thumbnailService->getThumbnailUrl($frame);
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Thumbnail updated from canvas',
+                    'thumbnail_url' => $thumbnailUrl,
+                    'generated_at' => now()->toISOString(),
+                    'components_count' => count($validated['canvas_components'])
+                ]);
+            }
 
             return response()->json([
-                'message' => 'Thumbnail generated successfully',
-                'thumbnail_url' => $this->getThumbnailUrl($frame)
-            ]);
+                'success' => false,
+                'message' => 'Failed to generate thumbnail from canvas'
+            ], 500);
+
         } catch (\Exception $e) {
-            Log::error('Thumbnail generation error:', [
+            Log::error('Canvas thumbnail generation error:', [
                 'frame_id' => $frame->id,
-                'message' => $e->getMessage()
+                'error' => $e->getMessage()
             ]);
 
             return response()->json([
-                'message' => 'Failed to generate thumbnail'
+                'success' => false,
+                'message' => 'Canvas thumbnail generation failed'
             ], 500);
         }
+    }
+    
+      /**
+   * Enhanced thumbnail status method
+   */
+  public function getThumbnailStatus(Frame $frame): JsonResponse
+  {
+      $user = Auth::user();
+      
+      if (!$this->checkFrameAccess($frame, $user)) {
+          return response()->json([
+              'success' => false,
+              'message' => 'Access denied'
+          ], 403);
+      }
+  
+      $settings = $frame->settings ?? [];
+      $thumbnailGenerated = $settings['thumbnail_generated'] ?? false;
+      $thumbnailPath = $settings['thumbnail_path'] ?? null;
+      $thumbnailUrl = null;
+      $version = $settings['thumbnail_version'] ?? time();
+      
+      if ($thumbnailPath) {
+          $fullPath = storage_path('app/public/' . $thumbnailPath);
+          if (file_exists($fullPath)) {
+              $thumbnailUrl = asset('storage/' . $thumbnailPath . '?v=' . $version);
+          } else {
+              // File doesn't exist, regenerate
+              Log::warning('Thumbnail file missing, regenerating', [
+                  'frame_id' => $frame->uuid,
+                  'expected_path' => $fullPath
+              ]);
+              
+              // Trigger regeneration
+              return $this->generateStaticThumbnailFallback($frame);
+          }
+      }
+        return response()->json([
+          'success' => true,
+          'thumbnail_generated' => $thumbnailGenerated,
+          'thumbnail_url' => $thumbnailUrl,
+          'generated_at' => $settings['thumbnail_generated_at'] ?? null,
+          'version' => $version,
+          'file_exists' => $thumbnailPath ? file_exists(storage_path('app/public/' . $thumbnailPath)) : false,
+          'method' => $settings['thumbnail_method'] ?? 'unknown'
+      ]);
+  }
+    
+    /**
+     * Check if user has access to frame
+     */
+    private function checkFrameAccess(Frame $frame, $user): bool
+    {
+        $project = $frame->project;
+        
+        // User owns the project
+        if ($project->user_id === $user->id) {
+            return true;
+        }
+        
+        // Check workspace access
+        if ($project->workspace && $project->workspace->hasUser($user->id)) {
+            return true;
+        }
+        
+        // Project is public (read-only)
+        return $project->is_public;
     }
 
     /**
@@ -747,37 +951,269 @@ class VoidController extends Controller
     }
 
     /**
-     * Generate static thumbnail (placeholder until Playwright implementation).
-     */
-    private function generateStaticThumbnail(Frame $frame): void
-    {
-        try {
-            // Create thumbnails directory if it doesn't exist
-            $thumbnailDir = storage_path('app/public/thumbnails/frames');
-            if (!file_exists($thumbnailDir)) {
-                mkdir($thumbnailDir, 0755, true);
-            }
-
-            // Generate a simple SVG thumbnail based on frame type and content
-            $svg = $this->generateStaticSvgThumbnail($frame);
-            
-            $thumbnailPath = $thumbnailDir . '/' . $frame->uuid . '.svg';
-            file_put_contents($thumbnailPath, $svg);
-
-            // Update frame settings to indicate thumbnail was generated
-            $settings = $frame->settings ?? [];
-            $settings['thumbnail_generated'] = true;
-            $settings['thumbnail_path'] = 'thumbnails/frames/' . $frame->uuid . '.svg';
-            
-            $frame->update(['settings' => $settings]);
-
-        } catch (\Exception $e) {
-            Log::error('Static thumbnail generation failed:', [
-                'frame_id' => $frame->id,
-                'error' => $e->getMessage()
-            ]);
-        }
-    }
+   * Enhanced static thumbnail fallback
+   */
+  private function generateStaticThumbnailFallback(Frame $frame): JsonResponse
+  {
+      try {
+          // Create thumbnails directory if it doesn't exist
+          $thumbnailDir = storage_path('app/public/thumbnails/frames');
+          if (!file_exists($thumbnailDir)) {
+              mkdir($thumbnailDir, 0755, true);
+          }
+  
+          // Generate enhanced SVG thumbnail
+          $svg = $this->generateEnhancedStaticThumbnail($frame);
+          $timestamp = time();
+          $thumbnailPath = $thumbnailDir . '/' . $frame->uuid . '_' . $timestamp . '.svg';
+          
+          file_put_contents($thumbnailPath, $svg);
+  
+          // Update frame settings
+          $settings = $frame->settings ?? [];
+          $settings['thumbnail_generated'] = true;
+          $settings['thumbnail_path'] = 'thumbnails/frames/' . $frame->uuid . '_' . $timestamp . '.svg';
+          $settings['thumbnail_generated_at'] = now()->toISOString();
+          $settings['thumbnail_version'] = $timestamp;
+          
+          $frame->update(['settings' => $settings]);
+          
+          $thumbnailUrl = asset('storage/' . $settings['thumbnail_path']);
+          
+          Log::info('Static thumbnail generated', [
+              'frame_id' => $frame->uuid,
+              'path' => $thumbnailPath,
+              'url' => $thumbnailUrl
+          ]);
+          
+            return response()->json([
+              'success' => true,
+              'message' => 'Static thumbnail generated successfully',
+              'thumbnail_url' => $thumbnailUrl,
+              'generated_at' => now()->toISOString(),
+              'method' => 'static'
+          ]);
+          
+      } catch (\Exception $e) {
+          Log::error('Static thumbnail generation failed', [
+              'frame_id' => $frame->uuid,
+              'error' => $e->getMessage()
+          ]);
+          
+          return response()->json([
+              'success' => false,
+              'message' => 'Failed to generate thumbnail: ' . $e->getMessage()
+          ], 500);
+      }
+  }
+  
+    /**
+   * Generate enhanced static SVG thumbnail based on frame content
+   */
+    private function generateEnhancedStaticThumbnail(Frame $frame): string
+  {
+      // Get the actual canvas data from the frame
+      $canvasData = $frame->canvas_data ?? [];
+      $components = $canvasData['components'] ?? [];
+      
+      Log::info('Generating thumbnail for frame with components:', [
+          'frame_id' => $frame->uuid,
+          'component_count' => count($components),
+          'canvas_data_keys' => array_keys($canvasData)
+      ]);
+      
+      $frameType = $frame->type ?? 'page';
+      $backgroundColor = $frame->settings['background_color'] ?? '#ffffff';
+      
+      // If no components, show empty state
+      if (empty($components)) {
+          return $this->generateEmptyCanvasThumbnail($frame, $backgroundColor);
+      }
+      
+      // Generate thumbnail based on actual components
+      return $this->generateCanvasBasedThumbnail($frame, $components, $backgroundColor);
+  }
+  
+  
+    private function generateCanvasBasedThumbnail(Frame $frame, array $components, string $backgroundColor): string
+  {
+      $componentCount = count($components);
+      $primaryColor = '#3b82f6';
+      $secondaryColor = '#10b981';
+      $accentColor = '#f59e0b';
+      
+      // Analyze components to determine layout
+      $hasHeader = $this->hasComponentType($components, ['header', 'nav']);
+      $hasButtons = $this->hasComponentType($components, ['button']);
+      $hasInputs = $this->hasComponentType($components, ['input', 'textarea', 'form']);
+      $hasText = $this->hasComponentType($components, ['h1', 'h2', 'h3', 'p', 'text']);
+      $hasImages = $this->hasComponentType($components, ['img', 'image']);
+      
+      $svg = '<?xml version="1.0" encoding="UTF-8"?>
+  <svg width="320" height="224" viewBox="0 0 320 224" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+          <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:' . $backgroundColor . ';stop-opacity:1" />
+              <stop offset="100%" style="stop-color:' . $this->darkenColor($backgroundColor, 0.05) . ';stop-opacity:1" />
+          </linearGradient>
+          <filter id="shadow">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,0.1)"/>
+          </filter>
+      </defs>
+      
+      <!-- Background -->
+      <rect width="320" height="224" fill="url(#bgGrad)" rx="8"/>
+        <!-- Browser chrome for pages -->';
+      
+      if ($frame->type === 'page') {
+          $svg .= '
+      <rect x="0" y="0" width="320" height="32" fill="#f8fafc" stroke="#e2e8f0" rx="8"/>
+      <circle cx="16" cy="16" r="4" fill="#ef4444"/>
+      <circle cx="32" cy="16" r="4" fill="#f59e0b"/>
+      <circle cx="48" cy="16" r="4" fill="#10b981"/>
+      <rect x="70" y="10" width="180" height="12" rx="6" fill="white" stroke="#e2e8f0"/>
+          ';
+          $contentY = 40;
+      } else {
+          $contentY = 8;
+      }
+      
+      $svg .= '
+      <!-- Content based on actual components -->
+      <rect x="8" y="' . $contentY . '" width="304" height="' . (216 - $contentY) . '" fill="rgba(255,255,255,0.9)" rx="8" filter="url(#shadow)"/>';
+      
+      // Render components based on analysis
+      $currentY = $contentY + 16;
+      
+      // Header section
+      if ($hasHeader) {
+          $svg .= '
+      <rect x="20" y="' . $currentY . '" width="280" height="24" rx="4" fill="' . $primaryColor . '" opacity="0.8"/>
+      <rect x="30" y="' . ($currentY + 6) . '" width="60" height="12" rx="2" fill="white" opacity="0.9"/>
+      <rect x="250" y="' . ($currentY + 8) . '" width="40" height="8" rx="2" fill="white" opacity="0.7"/>';
+          $currentY += 35;
+      }
+        // Text content
+      if ($hasText && $currentY < 180) {
+          $svg .= '
+      <rect x="30" y="' . $currentY . '" width="180" height="16" rx="2" fill="#1f2937"/>
+      <rect x="30" y="' . ($currentY + 20) . '" width="220" height="8" rx="2" fill="#6b7280"/>
+      <rect x="30" y="' . ($currentY + 32) . '" width="160" height="8" rx="2" fill="#6b7280"/>';
+          $currentY += 50;
+      }
+      
+      // Interactive elements (buttons, inputs)
+      if (($hasButtons || $hasInputs) && $currentY < 180) {
+          $elementY = $currentY;
+          
+          if ($hasInputs) {
+              $svg .= '
+      <rect x="30" y="' . $elementY . '" width="120" height="20" rx="4" fill="white" stroke="#d1d5db" stroke-width="1"/>
+      <rect x="35" y="' . ($elementY + 5) . '" width="80" height="10" rx="2" fill="#e5e7eb"/>';
+              $elementY += 30;
+          }
+          
+          if ($hasButtons) {
+              $svg .= '
+      <rect x="30" y="' . $elementY . '" width="70" height="24" rx="4" fill="' . $secondaryColor . '"/>
+      <rect x="110" y="' . $elementY . '" width="70" height="24" rx="4" fill="' . $accentColor . '" opacity="0.8"/>';
+          }
+          
+          $currentY = $elementY + 35;
+      }
+        // Images placeholder
+      if ($hasImages && $currentY < 180) {
+          $svg .= '
+      <rect x="200" y="' . ($contentY + 16) . '" width="80" height="60" rx="4" fill="#f3f4f6" stroke="#d1d5db"/>
+      <rect x="220" y="' . ($contentY + 36) . '" width="40" height="20" rx="2" fill="#9ca3af" opacity="0.5"/>';
+      }
+      
+      // Component count and info
+      $svg .= '
+      <!-- Frame info -->
+      <text x="20" y="210" font-family="Arial, sans-serif" font-size="10" font-weight="500" fill="#6b7280">
+          ' . htmlspecialchars(substr($frame->name, 0, 25)) . ' • ' . $componentCount . ' components
+      </text>
+      
+      <!-- Live indicator -->
+      <circle cx="300" cy="210" r="3" fill="#10b981">
+          <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      
+      <!-- Component type indicators -->
+      <g transform="translate(250, 195)">';
+      
+      $indicatorX = 0;
+      if ($hasHeader) {
+          $svg .= '<rect x="' . $indicatorX . '" y="0" width="8" height="8" rx="2" fill="' . $primaryColor . '" opacity="0.8"/>';
+          $indicatorX += 12;
+      }
+      if ($hasButtons) {
+          $svg .= '<rect x="' . $indicatorX . '" y="0" width="8" height="8" rx="2" fill="' . $secondaryColor . '" opacity="0.8"/>';
+          $indicatorX += 12;
+      }
+      if ($hasInputs) {
+          $svg .= '<rect x="' . $indicatorX . '" y="0" width="8" height="8" rx="2" fill="' . $accentColor . '" opacity="0.8"/>';
+          $indicatorX += 12;
+      }
+        if ($hasText) {
+          $svg .= '<rect x="' . $indicatorX . '" y="0" width="8" height="8" rx="2" fill="#6366f1" opacity="0.8"/>';
+      }
+      
+      $svg .= '</g>
+  </svg>';
+      
+      return $svg;
+  }
+  
+    /**
+   * Generate empty canvas thumbnail
+   */
+  private function generateEmptyCanvasThumbnail(Frame $frame, string $backgroundColor): string
+  {
+      return '<?xml version="1.0" encoding="UTF-8"?>
+  <svg width="320" height="224" viewBox="0 0 320 224" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+          <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:' . $backgroundColor . ';stop-opacity:1" />
+              <stop offset="100%" style="stop-color:' . $this->darkenColor($backgroundColor, 0.03) . ';stop-opacity:1" />
+          </linearGradient>
+      </defs>
+      
+      <rect width="320" height="224" fill="url(#bgGrad)" rx="8"/>
+      ' . ($frame->type === 'page' ? '
+      <rect x="0" y="0" width="320" height="32" fill="#f8fafc" stroke="#e2e8f0" rx="8"/>
+      <circle cx="16" cy="16" r="4" fill="#ef4444"/>
+      <circle cx="32" cy="16" r="4" fill="#f59e0b"/>
+      <circle cx="48" cy="16" r="4" fill="#10b981"/>
+      ' : '') . '
+      
+      <rect x="8" y="' . ($frame->type === 'page' ? '40' : '8') . '" width="304" height="' . ($frame->type === 'page' ? '176' : '208') . '" fill="none" stroke="#e5e7eb" stroke-width="2" stroke-dasharray="8,8" rx="8"/>
+      <circle cx="160" cy="' . ($frame->type === 'page' ? '128' : '112') . '" r="20" fill="#3b82f6" opacity="0.1"/>
+      <text x="160" y="' . ($frame->type === 'page' ? '145' : '129') . '" font-family="Arial, sans-serif" font-size="12" fill="#9ca3af" text-anchor="middle">Empty Canvas</text>
+      <text x="160" y="' . ($frame->type === 'page' ? '160' : '144') . '" font-family="Arial, sans-serif" font-size="10" fill="#d1d5db" text-anchor="middle">Drop components to start building</text>
+      
+      <text x="20" y="210" font-family="Arial, sans-serif" font-size="10" fill="#6b7280">
+          ' . htmlspecialchars($frame->name) . ' • No components yet
+      </text>
+  </svg>';
+  }
+  
+    /**
+   * Check if components array contains specific types
+   */
+  private function hasComponentType(array $components, array $types): bool
+  {
+      foreach ($components as $component) {
+          $componentType = $component['type'] ?? '';
+          if (in_array($componentType, $types)) {
+              return true;
+          }
+      }
+      return false;
+  }
+  
+  
 
     /**
      * Generate SVG thumbnail based on frame content.
@@ -794,68 +1230,196 @@ class VoidController extends Controller
         }
     }
 
-    /**
-     * Generate page thumbnail SVG.
-     */
-    private function generatePageThumbnail(Frame $frame, array $elements): string
-    {
-        return '
-        <svg width="320" height="224" viewBox="0 0 320 224" xmlns="http://www.w3.org/2000/svg">
-            <!-- Background -->
-            <rect width="320" height="224" fill="#f8fafc"/>
-            
-            <!-- Header -->
-            <rect x="0" y="0" width="320" height="32" fill="#ffffff" stroke="#e2e8f0"/>
-            <circle cx="16" cy="16" r="4" fill="#ef4444"/>
-            <circle cx="32" cy="16" r="4" fill="#f59e0b"/>
-            <circle cx="48" cy="16" r="4" fill="#10b981"/>
-            <rect x="80" y="12" width="60" height="8" rx="4" fill="#1f2937"/>
-            
-            <!-- Main content area -->
-            <rect x="24" y="56" width="272" height="12" rx="6" fill="#3b82f6"/>
-            <rect x="24" y="80" width="200" height="8" rx="4" fill="#6b7280"/>
-            <rect x="24" y="96" width="240" height="8" rx="4" fill="#6b7280"/>
-            
-            <!-- Content blocks -->
-            <rect x="24" y="120" width="80" height="60" rx="8" fill="#e5e7eb"/>
-            <rect x="120" y="120" width="80" height="60" rx="8" fill="#e5e7eb"/>
-            <rect x="216" y="120" width="80" height="60" rx="8" fill="#e5e7eb"/>
-            
-            <!-- Footer elements -->
-            <rect x="24" y="196" width="40" height="6" rx="3" fill="#d1d5db"/>
-            <rect x="72" y="196" width="60" height="6" rx="3" fill="#d1d5db"/>
-        </svg>';
-    }
+      /**
+   * Generate enhanced page thumbnail SVG
+   */
+  private function generatePageThumbnailSVG($frame, $components, $bg, $primary, $secondary, $accent): string
+  {
+      $componentCount = count($components);
+      $hasComponents = $componentCount > 0;
+      
+      return '<?xml version="1.0" encoding="UTF-8"?>
+      <svg width="320" height="224" viewBox="0 0 320 224" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+              <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:' . $bg . ';stop-opacity:1" />
+                  <stop offset="100%" style="stop-color:' . $this->darkenColor($bg, 0.05) . ';stop-opacity:1" />
+              </linearGradient>
+              <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,0.1)"/>
+              </filter>
+          </defs>
+          
+          <!-- Background -->
+          <rect width="320" height="224" fill="url(#bgGrad)" rx="8"/>
+          
+          <!-- Browser Chrome -->
+          <rect x="0" y="0" width="320" height="32" fill="#f8fafc" stroke="#e2e8f0" rx="8" stroke-width="1"/>
+          
+          <!-- Traffic lights -->
+          <circle cx="16" cy="16" r="4" fill="#ef4444"/>
+          <circle cx="32" cy="16" r="4" fill="#f59e0b"/>
+          <circle cx="48" cy="16" r="4" fill="#10b981"/>
+          
+          <!-- URL bar -->
+          <rect x="70" y="10" width="180" height="12" rx="6" fill="white" stroke="#e2e8f0"/>
+          <rect x="75" y="13" width="8" height="6" rx="2" fill="#9ca3af"/>
+          <rect x="88" y="13" width="120" height="6" rx="2" fill="#e5e7eb"/>
+          
+            <!-- Page Content -->' . 
+          ($hasComponents ? $this->generateComponentsPreview($components, $primary, $secondary, $accent) : 
+           $this->generateEmptyPagePreview($primary)) . '
+          
+          <!-- Frame info -->
+          <text x="16" y="210" font-family="Arial, sans-serif" font-size="10" fill="#6b7280">
+              ' . htmlspecialchars($frame->name) . ' (' . $componentCount . ' components)
+          </text>
+          
+          <!-- Frame type indicator -->
+          <rect x="280" y="190" width="32" height="16" rx="8" fill="' . $primary . '" opacity="0.8"/>
+          <text x="296" y="200" font-family="Arial, sans-serif" font-size="8" fill="white" text-anchor="middle">PAGE</text>
+      </svg>';
+  }
 
-    /**
-     * Generate component thumbnail SVG.
-     */
-    private function generateComponentThumbnail(Frame $frame, array $elements): string
-    {
-        return '
-        <svg width="320" height="224" viewBox="0 0 320 224" xmlns="http://www.w3.org/2000/svg">
-            <!-- Background -->
-            <rect width="320" height="224" fill="#ffffff" stroke="#e2e8f0" stroke-width="2" rx="12"/>
+      /**
+   * Generate component thumbnail SVG
+   */
+  private function generateComponentThumbnailSVG($frame, $components, $bg, $primary, $secondary, $accent): string
+  {
+      $componentCount = count($components);
+      
+      return '<?xml version="1.0" encoding="UTF-8"?>
+      <svg width="320" height="224" viewBox="0 0 320 224" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+              <linearGradient id="compBg" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:' . $bg . ';stop-opacity:1" />
+                  <stop offset="100%" style="stop-color:' . $this->darkenColor($bg, 0.03) . ';stop-opacity:1" />
+              </linearGradient>
+              <filter id="compShadow" x="-10%" y="-10%" width="120%" height="120%">
+                  <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="rgba(0,0,0,0.15)"/>
+              </filter>
+          </defs>
+          
+          <!-- Background -->
+          <rect width="320" height="224" fill="url(#compBg)" rx="12"/>
+          
+          <!-- Component border -->
+          <rect x="8" y="8" width="304" height="208" fill="none" stroke="' . $primary . '" stroke-width="2" stroke-dasharray="8,4" rx="8" opacity="0.6"/>
+          
+          <!-- Component header -->
+          <rect x="24" y="24" width="272" height="40" rx="8" fill="white" filter="url(#compShadow)"/>
+          <circle cx="44" cy="44" r="8" fill="' . $primary . '"/>
+          <rect x="60" y="38" width="120" height="8" rx="4" fill="#1f2937"/>
+          <rect x="60" y="50" width="80" height="6" rx="3" fill="#6b7280"/>
+          
+              <!-- Component content -->
+            ' . ($componentCount > 0 ? '
+            <rect x="24" y="80" width="272" height="100" rx="8" fill="white" filter="url(#compShadow)" opacity="0.9"/>
+            <rect x="40" y="96" width="60" height="20" rx="4" fill="' . $secondary . '" opacity="0.8"/>
+            <rect x="120" y="96" width="80" height="20" rx="4" fill="' . $accent . '" opacity="0.8"/>
+            <rect x="40" y="128" width="200" height="8" rx="4" fill="#e5e7eb"/>
+            <rect x="40" y="144" width="160" height="8" rx="4" fill="#e5e7eb"/>
+            <rect x="40" y="160" width="120" height="8" rx="4" fill="#e5e7eb"/>
+            ' : '
+            <rect x="24" y="80" width="272" height="100" rx="8" fill="none" stroke="#e5e7eb" stroke-width="2" stroke-dasharray="4,4"/>
+            <text x="160" y="135" font-family="Arial, sans-serif" font-size="12" fill="#9ca3af" text-anchor="middle">Empty Component</text>
+            ') . '
             
-            <!-- Component header -->
-            <rect x="24" y="24" width="120" height="16" rx="8" fill="#1f2937"/>
-            <rect x="24" y="48" width="200" height="10" rx="5" fill="#6b7280"/>
+            <!-- Component footer -->
+            <text x="24" y="205" font-family="Arial, sans-serif" font-size="10" fill="#6b7280">
+                ' . htmlspecialchars($frame->name) . ' (' . $componentCount . ' elements)
+            </text>
             
-            <!-- Component content -->
-            <rect x="24" y="72" width="272" height="1" fill="#e5e7eb"/>
-            <rect x="24" y="88" width="80" height="24" rx="4" fill="#3b82f6"/>
-            <rect x="120" y="88" width="80" height="24" rx="4" fill="#10b981"/>
-            <rect x="216" y="88" width="80" height="24" rx="4" fill="#f59e0b"/>
-            
-            <!-- Additional elements -->
-            <circle cx="48" cy="140" r="8" fill="#8b5cf6"/>
-            <rect x="72" y="136" width="60" height="8" rx="4" fill="#ec4899"/>
-            <rect x="72" y="148" width="40" height="6" rx="3" fill="#d1d5db"/>
-            
-            <!-- Component border indicator -->
-            <rect x="8" y="8" width="304" height="208" fill="none" stroke="#3b82f6" stroke-width="2" stroke-dasharray="8 4" rx="8"/>
+            <!-- Component type indicator -->
+            <rect x="260" y="190" width="52" height="16" rx="8" fill="' . $secondary . '" opacity="0.8"/>
+            <text x="286" y="200" font-family="Arial, sans-serif" font-size="8" fill="white" text-anchor="middle">COMPONENT</text>
         </svg>';
     }
+    
+      /**
+   * Generate preview of actual components
+   */
+  private function generateComponentsPreview($components, $primary, $secondary, $accent): string
+  {
+      $preview = '<!-- Content Area -->
+      <rect x="8" y="40" width="304" height="140" fill="white" rx="8" opacity="0.95" filter="url(#shadow)"/>';
+      
+      // Simulate different component types
+      $y = 55;
+      $componentTypes = array_slice(array_column($components, 'type'), 0, 4); // Show max 4 components
+      
+      foreach ($componentTypes as $index => $type) {
+          $color = $index % 3 === 0 ? $primary : ($index % 3 === 1 ? $secondary : $accent);
+          $height = $this->getComponentHeight($type);
+          $width = $this->getComponentWidth($type, $index);
+          
+          $preview .= '<rect x="20" y="' . $y . '" width="' . $width . '" height="' . $height . '" rx="4" fill="' . $color . '" opacity="0.7"/>';
+          
+          // Add component label
+          if ($height >= 16) {
+              $preview .= '<text x="' . (20 + $width/2) . '" y="' . ($y + $height/2 + 3) . '" font-family="Arial, sans-serif" font-size="8" fill="white" text-anchor="middle">' . strtoupper($type) . '</text>';
+          }
+          
+          $y += $height + 8;
+          if ($y > 160) break; // Don't overflow
+      }
+      
+      return $preview;
+  }
+  
+    /**
+   * Generate empty page preview
+   */
+  private function generateEmptyPagePreview($primary): string
+  {
+      return '<!-- Empty State -->
+      <rect x="8" y="40" width="304" height="140" fill="none" stroke="#e5e7eb" stroke-width="2" stroke-dasharray="8,8" rx="8"/>
+      <circle cx="160" cy="110" r="20" fill="' . $primary . '" opacity="0.1"/>
+      <rect x="140" y="130" width="40" height="8" rx="4" fill="#d1d5db"/>
+      <rect x="130" y="145" width="60" height="6" rx="3" fill="#e5e7eb"/>
+      <text x="160" y="165" font-family="Arial, sans-serif" font-size="10" fill="#9ca3af" text-anchor="middle">Drop components here</text>';
+  }
+  
+    /**
+   * Helper methods for component preview
+   */
+  private function getComponentHeight($type): int
+  {
+      $heights = [
+          'header' => 32, 'nav' => 24, 'section' => 48, 'div' => 32,
+          'button' => 20, 'input' => 20, 'card' => 40, 'modal' => 36,
+          'h1' => 16, 'h2' => 14, 'h3' => 12, 'p' => 10
+      ];
+      return $heights[$type] ?? 24;
+  }
+  
+  private function getComponentWidth($type, $index): int
+  {
+      $baseWidths = [
+          'header' => 280, 'nav' => 280, 'section' => 280, 'div' => 200,
+          'button' => 80, 'input' => 120, 'card' => 140, 'modal' => 200,
+          'h1' => 180, 'h2' => 160, 'h3' => 140, 'p' => 220
+      ];
+      $base = $baseWidths[$type] ?? 160;
+      return $base - ($index * 20); // Vary width slightly
+  }
+  
+      /**
+   * Darken hex color
+   */
+  private function darkenColor(string $hex, float $percent): string
+  {
+      $hex = str_replace('#', '', $hex);
+      $r = hexdec(substr($hex, 0, 2));
+      $g = hexdec(substr($hex, 2, 2));
+      $b = hexdec(substr($hex, 4, 2));
+      
+      $r = max(0, min(255, $r * (1 - $percent)));
+      $g = max(0, min(255, $g * (1 - $percent)));
+      $b = max(0, min(255, $b * (1 - $percent)));
+      
+      return sprintf("#%02x%02x%02x", $r, $g, $b);
+  }
 
     /**
      * Get thumbnail URL for a frame.
@@ -883,4 +1447,125 @@ class VoidController extends Controller
             }
         }
     }
+  
+/**
+ * Batch generate thumbnails for multiple frames
+ */
+public function batchGenerateThumbnails(Request $request): JsonResponse
+{
+    $validated = $request->validate([
+        'frame_uuids' => 'required|array|min:1|max:20',
+        'frame_uuids.*' => 'required|string|exists:frames,uuid'
+    ]);
+
+    $user = Auth::user();
+    $results = [];
+    $successful = 0;
+    $failed = 0;
+
+    foreach ($validated['frame_uuids'] as $frameUuid) {
+        try {
+            $frame = Frame::where('uuid', $frameUuid)->first();
+            
+            if (!$frame || !$this->checkFrameAccess($frame, $user)) {
+                $results[] = [
+                    'frame_uuid' => $frameUuid,
+                    'success' => false,
+                    'error' => 'Access denied or frame not found'
+                ];
+                $failed++;
+                continue;
+            }
+
+            $thumbnailPath = $this->thumbnailService->generateThumbnail($frame);
+            
+            if ($thumbnailPath) {
+                $results[] = [
+                    'frame_uuid' => $frameUuid,
+                    'success' => true,
+                    'thumbnail_url' => $this->thumbnailService->getThumbnailUrl($frame)
+                ];
+                $successful++;
+            } else {
+                $results[] = [
+                    'frame_uuid' => $frameUuid,
+                    'success' => false,
+                    'error' => 'Failed to generate thumbnail'
+                ];
+                $failed++;
+            }
+
+        } catch (\Exception $e) {
+            Log::error("Batch thumbnail generation failed for frame {$frameUuid}:", [
+                'error' => $e->getMessage()
+            ]);
+            
+            $results[] = [
+                'frame_uuid' => $frameUuid,
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+            $failed++;
+        }
+    }
+
+    return response()->json([
+        'success' => true,
+        'results' => $results,
+        'summary' => [
+            'total' => count($validated['frame_uuids']),
+            'successful' => $successful,
+            'failed' => $failed
+        ]
+    ]);
+}
+
+/**
+ * Clean up old thumbnail files
+ */
+public function cleanupThumbnails(Request $request): JsonResponse
+{
+    $user = Auth::user();
+    
+    try {
+        $cleaned = $this->thumbnailService->cleanupTempFiles();
+        
+        return response()->json([
+            'success' => true,
+            'message' => "Cleaned up {$cleaned} temporary files",
+            'files_cleaned' => $cleaned
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('Thumbnail cleanup error:', ['error' => $e->getMessage()]);
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to cleanup thumbnails'
+        ], 500);
+    }
+}
+
+/**
+ * Check Playwright availability
+ */
+public function checkPlaywrightStatus(Request $request): JsonResponse
+{
+    try {
+        $available = $this->thumbnailService->checkPlaywrightAvailability();
+        
+        return response()->json([
+            'available' => $available,
+            'message' => $available 
+                ? 'Playwright is available and ready' 
+                : 'Playwright is not installed or not accessible'
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'available' => false,
+            'message' => 'Error checking Playwright: ' . $e->getMessage()
+        ]);
+    }
+}
 }
