@@ -1,11 +1,17 @@
 // @/Services/ComponentLibraryService.js - FIXED RENDERING
 import axios from 'axios';
 import React from 'react';
+import { ComponentLibraryServiceExtension } from './ComponentLibraryServiceExtension';
+
 
 class ComponentLibraryService {
   constructor() {
     this.components = new Map();
     this.componentDefinitions = new Map();
+    
+    // Initialize extension
+    this.extension = new ComponentLibraryServiceExtension(this);
+    
     
     // Save queue management to prevent conflicts
     this.saveQueue = new Map(); // frameId -> timeout
@@ -18,240 +24,244 @@ class ComponentLibraryService {
 
   // Load all components from the API
   async loadComponents() {
-      try {
-          console.log('=== LOADING COMPONENTS FROM DATABASE ===');
+    try {
+      console.log('=== LOADING COMPONENTS FROM DATABASE ===');
+      
+      const response = await axios.get('/api/components');
+      if (response.data.success) {
+        const componentsByCategory = response.data.data;
+        console.log('Raw API response:', componentsByCategory);
+        
+        let totalLoaded = 0;
+        
+        // Process both elements and components
+        Object.entries(componentsByCategory).forEach(([categoryType, letterGroups]) => {
+          console.log(`Processing category: ${categoryType}`);
           
-          const response = await axios.get('/api/components');
-          if (response.data.success) {
-              const componentsByCategory = response.data.data;
-              console.log('Raw API response:', componentsByCategory);
-              
-              let totalLoaded = 0;
-              
-              // Process both elements and components
-              Object.entries(componentsByCategory).forEach(([categoryType, letterGroups]) => {
-                  console.log(`Processing category: ${categoryType}`);
-                  
-                  Object.entries(letterGroups).forEach(([letter, componentList]) => {
-                      console.log(`Processing letter group: ${letter}, count: ${componentList.length}`);
-                      
-                      if (Array.isArray(componentList)) {
-                          componentList.forEach(component => {
-                              console.log('Processing component:', {
-                                  name: component.name,
-                                  type: component.type,
-                                  hasDefaults: !!component.default_props,
-                                  defaults: component.default_props
-                              });
-                              
-                              // Ensure variants are properly parsed
-                              let variants = component.variants;
-                              if (typeof variants === 'string') {
-                                  try {
-                                      variants = JSON.parse(variants);
-                                  } catch (e) {
-                                      console.warn('Failed to parse variants for component:', component.name, e);
-                                      variants = [];
-                                  }
-                              }
-                              if (!Array.isArray(variants)) {
-                                  variants = [];
-                              }
-  
-                              // CRITICAL: Ensure default_props is properly handled
-                              let defaultProps = component.default_props;
-                              if (typeof defaultProps === 'string') {
-                                  try {
-                                      defaultProps = JSON.parse(defaultProps);
-                                  } catch (e) {
-                                      console.warn('Failed to parse default_props for component:', component.name, e);
-                                      defaultProps = {};
-                                  }
-                              }
-                              if (!defaultProps || typeof defaultProps !== 'object') {
-                                  defaultProps = {};
-                              }
-  
-                              const processedComponent = {
-                                  ...component,
-                                  default_props: defaultProps,
-                                  variants: variants
-                              };
-  
-                              console.log('Storing component definition:', component.type, {
-                                  name: processedComponent.name,
-                                  default_props: processedComponent.default_props,
-                                  variants_count: processedComponent.variants.length
-                              });
-  
-                              this.componentDefinitions.set(component.type, processedComponent);
-                              this.components.set(component.type, this.createComponentRenderer(processedComponent));
-                              totalLoaded++;
-                          });
-                      }
-                  });
+          Object.entries(letterGroups).forEach(([letter, componentList]) => {
+            console.log(`Processing letter group: ${letter}, count: ${componentList.length}`);
+            
+            if (Array.isArray(componentList)) {
+              componentList.forEach(component => {
+                console.log('Processing component:', {
+                  name: component.name,
+                  type: component.type,
+                  hasDefaults: !!component.default_props,
+                  defaults: component.default_props
+                });
+                
+                // Ensure variants are properly parsed
+                let variants = component.variants;
+                if (typeof variants === 'string') {
+                  try {
+                    variants = JSON.parse(variants);
+                  } catch (e) {
+                    console.warn('Failed to parse variants for component:', component.name, e);
+                    variants = [];
+                  }
+                }
+                if (!Array.isArray(variants)) {
+                  variants = [];
+                }
+
+                // CRITICAL: Ensure default_props is properly handled
+                let defaultProps = component.default_props;
+                if (typeof defaultProps === 'string') {
+                  try {
+                    defaultProps = JSON.parse(defaultProps);
+                  } catch (e) {
+                    console.warn('Failed to parse default_props for component:', component.name, e);
+                    defaultProps = {};
+                  }
+                }
+                if (!defaultProps || typeof defaultProps !== 'object') {
+                  defaultProps = {};
+                }
+
+                const processedComponent = {
+                  ...component,
+                  default_props: defaultProps,
+                  variants: variants
+                };
+
+                console.log('Storing component definition:', component.type, {
+                  name: processedComponent.name,
+                  default_props: processedComponent.default_props,
+                  variants_count: processedComponent.variants.length
+                });
+
+                this.componentDefinitions.set(component.type, processedComponent);
+                this.components.set(component.type, this.createComponentRenderer(processedComponent));
+                totalLoaded++;
               });
-              
-              console.log('=== COMPONENT LOADING COMPLETE ===');
-              console.log('Total components loaded:', totalLoaded);
-              
-              return true;
-          }
-          
-          console.error('API response not successful:', response.data);
-          return false;
-      } catch (error) {
-          console.error('Failed to load components:', error);
-          throw error;
+            }
+          });
+        });
+        
+        console.log('=== COMPONENT LOADING COMPLETE ===');
+        console.log('Total components loaded:', totalLoaded);
+        
+        return true;
       }
+      
+      console.error('API response not successful:', response.data);
+      return false;
+    } catch (error) {
+      console.error('Failed to load components:', error);
+      throw error;
+    }
   }
 
   createComponentRenderer(componentDef) {
-      console.log('Creating renderer for:', componentDef.type, {
-          hasDefaults: !!componentDef.default_props,
-          defaults: componentDef.default_props
-      });
+    console.log('Creating renderer for:', componentDef.type, {
+      hasDefaults: !!componentDef.default_props,
+      defaults: componentDef.default_props
+    });
+    
+    return {
+      id: componentDef.type,
+      name: componentDef.name,
+      description: componentDef.description,
+      icon: componentDef.icon,
+      defaultProps: componentDef.default_props || {},
+      propDefinitions: componentDef.prop_definitions,
+      variants: componentDef.variants || [],
       
-      return {
-          id: componentDef.type,
-          name: componentDef.name,
-          description: componentDef.description,
-          icon: componentDef.icon,
-          defaultProps: componentDef.default_props || {}, // Ensure this exists
-          propDefinitions: componentDef.prop_definitions,
-          variants: componentDef.variants || [],
-          
-          // Dynamic render function
-          render: (props, id) => {
-              return this.renderComponent(componentDef, props, id);
-          },
-  
-          // Generate code function
-          generateCode: (props, allComponents, style) => {
-              return this.generateComponentCode(componentDef, props, allComponents, style);
-          }
-      };
+      // Dynamic render function
+      render: (props, id) => {
+        return this.renderComponent(componentDef, props, id);
+      },
+
+      // Generate code function
+      generateCode: (props, allComponents, style) => {
+        return this.generateComponentCode(componentDef, props, allComponents, style);
+      }
+    };
   }
 
-  // FIXED: Dynamic component renderer with proper prop merging
+   // Enhanced component renderer that uses extension
   renderComponent(componentDef, props, id) {
-      // Get the component definition if not passed
-      if (!componentDef && this.componentDefinitions.has(props.type || props.component_type)) {
-          componentDef = this.componentDefinitions.get(props.type || props.component_type);
+    // Get the component definition if not passed
+    if (!componentDef && this.componentDefinitions.has(props.type || props.component_type)) {
+      componentDef = this.componentDefinitions.get(props.type || props.component_type);
+    }
+    
+    if (!componentDef) {
+      console.warn('No component definition found for:', props.type || props.component_type);
+      return this.renderGeneric(props, id, { name: props.type || 'Unknown', type: props.type || 'unknown' });
+    }
+    
+    // Try extension first for new component types
+    const extendedComponent = this.extension.renderComponentExtension(componentDef, props, id);
+    if (extendedComponent) {
+      return extendedComponent;
+    }
+    
+    // Fall back to original renderer for basic components
+    const mergedProps = { 
+      ...componentDef.default_props,
+      ...props.props,
+      ...props
+    };
+    
+    console.log('Rendering component:', componentDef.type, 'with merged props:', mergedProps);
+    
+    // Check if there's a variant being used
+    if (props.variant && componentDef.variants) {
+      const variantData = componentDef.variants.find(v => v.name === props.variant.name);
+      if (variantData) {
+        if (variantData.preview_code) {
+          return React.createElement('div', {
+            key: id,
+            dangerouslySetInnerHTML: {
+              __html: variantData.preview_code.replace(/className=/g, 'class=')
+            }
+          });
+        }
+        
+        if (variantData.props) {
+          Object.assign(mergedProps, variantData.props);
+        }
       }
-      
-      if (!componentDef) {
-          console.warn('No component definition found for:', props.type || props.component_type);
-          return this.renderGeneric(props, id, { name: props.type || 'Unknown', type: props.type || 'unknown' });
-      }
-      
-      // CRITICAL FIX: Properly merge default props with instance props
-      const mergedProps = { 
-          ...componentDef.default_props,  // Start with component definition defaults
-          ...props.props,                 // Then apply instance props
-          ...props                        // Then apply any direct props
-      };
-      
-      console.log('Rendering component:', componentDef.type, 'with merged props:', mergedProps);
-      
-      // Check if there's a variant being used
-      if (props.variant && componentDef.variants) {
-          const variantData = componentDef.variants.find(v => v.name === props.variant.name);
-          if (variantData) {
-              // If variant has preview code, use it
-              if (variantData.preview_code) {
-                  return React.createElement('div', {
-                      key: id,
-                      dangerouslySetInnerHTML: {
-                          __html: variantData.preview_code.replace(/className=/g, 'class=')
-                      }
-                  });
-              }
-              
-              // Merge variant props with merged props
-              if (variantData.props) {
-                  Object.assign(mergedProps, variantData.props);
-              }
-          }
-      }
-      
-      // Apply custom styles if present
-      const layoutStyles = {
-          display: props.style?.display || mergedProps.display || 'block',
-          position: props.style?.position || 'relative',
-          width: props.style?.width || mergedProps.width || 'auto',
-          height: props.style?.height || mergedProps.height || 'auto',
-          ...props.style // Apply any additional custom styles
-      };
-      
-      // FIXED: Route to specific renderers with proper props
-      switch (componentDef.type) {
-          case 'button':
-              return this.renderButton(mergedProps, id, layoutStyles);
-          case 'input':
-              return this.renderInput(mergedProps, id, layoutStyles);
-          case 'card':
-              return this.renderCard(mergedProps, id, layoutStyles);
-          case 'avatar':
-              return this.renderAvatar(mergedProps, id, layoutStyles);
-          case 'badge':
-              return this.renderBadge(mergedProps, id, layoutStyles);
-          case 'searchbar':
-              return this.renderSearchbar(mergedProps, id, layoutStyles);
-          case 'navbar':
-              return this.renderNavbar(mergedProps, id, layoutStyles);
-          case 'hero':
-              return this.renderHero(mergedProps, id, layoutStyles);
-          case 'modal':
-              return this.renderModal(mergedProps, id, layoutStyles);
-          case 'tabs':
-              return this.renderTabs(mergedProps, id, layoutStyles);
-          case 'dropdown':
-              return this.renderDropdown(mergedProps, id, layoutStyles);
-          case 'toggle':
-              return this.renderToggle(mergedProps, id, layoutStyles);
-          case 'progress':
-              return this.renderProgress(mergedProps, id, layoutStyles);
-          case 'tooltip':
-              return this.renderTooltip(mergedProps, id, layoutStyles);
-          case 'alert':
-              return this.renderAlert(mergedProps, id, layoutStyles);
-          case 'textarea':
-              return this.renderTextarea(mergedProps, id, layoutStyles);
-          case 'checkbox':
-              return this.renderCheckbox(mergedProps, id, layoutStyles);
-          case 'radio':
-              return this.renderRadio(mergedProps, id, layoutStyles);
-          case 'select':
-              return this.renderSelect(mergedProps, id, layoutStyles);
-          case 'slider':
-              return this.renderSlider(mergedProps, id, layoutStyles);
-          case 'image':
-              return this.renderImage(mergedProps, id, layoutStyles);
-          case 'video':
-              return this.renderVideo(mergedProps, id, layoutStyles);
-          case 'icon':
-              return this.renderIcon(mergedProps, id, layoutStyles);
-          case 'separator':
-              return this.renderSeparator(mergedProps, id, layoutStyles);
-          case 'breadcrumb':
-              return this.renderBreadcrumb(mergedProps, id, layoutStyles);
-          case 'pagination':
-              return this.renderPagination(mergedProps, id, layoutStyles);
-          // Layout elements
-          case 'div':
-              return this.renderDiv(mergedProps, id, layoutStyles);
-          case 'section':
-              return this.renderSection(mergedProps, id, layoutStyles);
-          case 'container':
-              return this.renderContainer(mergedProps, id, layoutStyles);
-          case 'flex':
-              return this.renderFlex(mergedProps, id, layoutStyles);
-          case 'grid':
-              return this.renderGrid(mergedProps, id, layoutStyles);
-          default:
-              return this.renderGeneric(mergedProps, id, componentDef, layoutStyles);
-      }
+    }
+    
+    // Apply custom styles if present
+    const layoutStyles = {
+      display: props.style?.display || mergedProps.display || 'block',
+      position: props.style?.position || 'relative',
+      width: props.style?.width || mergedProps.width || 'auto',
+      height: props.style?.height || mergedProps.height || 'auto',
+      ...props.style
+    };
+    
+    // Route to specific renderers (original component types)
+    switch (componentDef.type) {
+      case 'button':
+        return this.renderButton(mergedProps, id, layoutStyles);
+      case 'input':
+        return this.renderInput(mergedProps, id, layoutStyles);
+      case 'card':
+        return this.renderCard(mergedProps, id, layoutStyles);
+      case 'avatar':
+        return this.renderAvatar(mergedProps, id, layoutStyles);
+      case 'badge':
+        return this.renderBadge(mergedProps, id, layoutStyles);
+      case 'searchbar':
+        return this.renderSearchbar(mergedProps, id, layoutStyles);
+      case 'navbar':
+        return this.renderNavbar(mergedProps, id, layoutStyles);
+      case 'hero':
+        return this.renderHero(mergedProps, id, layoutStyles);
+      case 'modal':
+        return this.renderModal(mergedProps, id, layoutStyles);
+      case 'tabs':
+        return this.renderTabs(mergedProps, id, layoutStyles);
+      case 'dropdown':
+        return this.renderDropdown(mergedProps, id, layoutStyles);
+      case 'toggle':
+        return this.renderToggle(mergedProps, id, layoutStyles);
+      case 'progress':
+        return this.renderProgress(mergedProps, id, layoutStyles);
+      case 'tooltip':
+        return this.renderTooltip(mergedProps, id, layoutStyles);
+      case 'alert':
+        return this.renderAlert(mergedProps, id, layoutStyles);
+      case 'textarea':
+        return this.renderTextarea(mergedProps, id, layoutStyles);
+      case 'checkbox':
+        return this.renderCheckbox(mergedProps, id, layoutStyles);
+      case 'radio':
+        return this.renderRadio(mergedProps, id, layoutStyles);
+      case 'select':
+        return this.renderSelect(mergedProps, id, layoutStyles);
+      case 'slider':
+        return this.renderSlider(mergedProps, id, layoutStyles);
+      case 'image':
+        return this.renderImage(mergedProps, id, layoutStyles);
+      case 'video':
+        return this.renderVideo(mergedProps, id, layoutStyles);
+      case 'icon':
+        return this.renderIcon(mergedProps, id, layoutStyles);
+      case 'separator':
+        return this.renderSeparator(mergedProps, id, layoutStyles);
+      case 'breadcrumb':
+        return this.renderBreadcrumb(mergedProps, id, layoutStyles);
+      case 'pagination':
+        return this.renderPagination(mergedProps, id, layoutStyles);
+      // Layout elements
+      case 'div':
+        return this.renderDiv(mergedProps, id, layoutStyles);
+      case 'section':
+        return this.renderSection(mergedProps, id, layoutStyles);
+      case 'container':
+        return this.renderContainer(mergedProps, id, layoutStyles);
+      case 'flex':
+        return this.renderFlex(mergedProps, id, layoutStyles);
+      case 'grid':
+        return this.renderGrid(mergedProps, id, layoutStyles);
+      default:
+        return this.renderGeneric(mergedProps, id, componentDef, layoutStyles);
+    }
   }
   
   // FIXED: Button renderer
@@ -1032,34 +1042,34 @@ class ComponentLibraryService {
 
   // Enhanced button classes with better variants
   getButtonClasses(props) {
-      const baseClasses = "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 shrink-0 cursor-pointer";
-      
-      const variantClasses = {
-          primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 shadow-sm hover:shadow-md",
-          secondary: "bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 focus:ring-gray-500 shadow-sm hover:shadow-md",
-          success: "bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 shadow-sm hover:shadow-md",
-          warning: "bg-yellow-600 text-white hover:bg-yellow-700 focus:ring-yellow-500 shadow-sm hover:shadow-md",
-          danger: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 shadow-sm hover:shadow-md",
-          ghost: "bg-transparent text-blue-600 hover:bg-blue-50 focus:ring-blue-500 border border-transparent hover:border-blue-200",
-          gradient: "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all",
-          neon: "bg-black border-2 border-cyan-400 text-cyan-400 shadow-lg shadow-cyan-400/50 hover:shadow-cyan-400/75 transition-all",
-          glass: "bg-white/20 backdrop-blur-md border border-white/30 text-white shadow-xl",
-          outline: "border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white transition-all",
-          minimal: "text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-all"
-      };
-      
-      const sizeClasses = {
-          xs: "px-2 py-1 text-xs",
-          sm: "px-3 py-1.5 text-sm", 
-          md: "px-6 py-2.5 text-base",
-          lg: "px-8 py-4 text-lg",
-          xl: "px-10 py-5 text-xl"
-      };
-      
-      const variant = props.variant || 'primary';
-      const size = props.size || 'md';
-      
-      return `${baseClasses} ${variantClasses[variant] || variantClasses.primary} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
+    const baseClasses = "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 shrink-0 cursor-pointer";
+    
+    const variantClasses = {
+      primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 shadow-sm hover:shadow-md",
+      secondary: "bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 focus:ring-gray-500 shadow-sm hover:shadow-md",
+      success: "bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 shadow-sm hover:shadow-md",
+      warning: "bg-yellow-600 text-white hover:bg-yellow-700 focus:ring-yellow-500 shadow-sm hover:shadow-md",
+      danger: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 shadow-sm hover:shadow-md",
+      ghost: "bg-transparent text-blue-600 hover:bg-blue-50 focus:ring-blue-500 border border-transparent hover:border-blue-200",
+      gradient: "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all",
+      neon: "bg-black border-2 border-cyan-400 text-cyan-400 shadow-lg shadow-cyan-400/50 hover:shadow-cyan-400/75 transition-all",
+      glass: "bg-white/20 backdrop-blur-md border border-white/30 text-white shadow-xl",
+      outline: "border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white transition-all",
+      minimal: "text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-all"
+    };
+    
+    const sizeClasses = {
+      xs: "px-2 py-1 text-xs",
+      sm: "px-3 py-1.5 text-sm", 
+      md: "px-6 py-2.5 text-base",
+      lg: "px-8 py-4 text-lg",
+      xl: "px-10 py-5 text-xl"
+    };
+    
+    const variant = props.variant || 'primary';
+    const size = props.size || 'md';
+    
+    return `${baseClasses} ${variantClasses[variant] || variantClasses.primary} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
   }
 
   // Enhanced avatar classes
@@ -1165,7 +1175,189 @@ class ComponentLibraryService {
   }
 
   // Rest of the existing methods remain the same...
-  // (generateComponentCode, clientSideCodeGeneration, etc.)
+    // Enhanced code generation for new component types
+  async generateComponentCode(componentDef, props, allComponents, style) {
+    const componentType = componentDef.type;
+    
+    // Check if extension can handle code generation
+    if (this.extension.generateCodeForComponent) {
+      const extensionCode = this.extension.generateCodeForComponent(componentType, props, style);
+      if (extensionCode) {
+        return extensionCode;
+      }
+    }
+    
+    // Fall back to default code generation
+    return this.defaultCodeGeneration(componentDef, props, style);
+  }
+
+  defaultCodeGeneration(componentDef, props, style) {
+    const componentType = componentDef.type;
+    
+    switch (style) {
+      case 'react-tailwind':
+        return this.generateReactTailwindCode(componentType, props);
+      case 'react-css':
+        return this.generateReactCSSCode(componentType, props);
+      case 'html-tailwind':
+        return this.generateHTMLTailwindCode(componentType, props);
+      default:
+        return {
+          react: `// ${componentDef.name} component\n// Type: ${componentType}`,
+          html: `<!-- ${componentDef.name} -->`,
+          css: `/* ${componentDef.name} styles */`,
+          tailwind: `/* ${componentDef.name} classes */`
+        };
+    }
+  }
+  
+  generateReactTailwindCode(componentType, props) {
+    // Enhanced code generation with support for new component types
+    const codeMap = {
+      // Form Components
+      'text-input': () => `
+import React from 'react';
+
+const TextInput = ({ label, placeholder, type = 'text', variant = 'default' }) => {
+  const variantClasses = {
+    default: 'border-gray-300 focus:border-blue-500',
+    glass: 'bg-white/20 backdrop-blur-md border-white/30 text-white placeholder-white/70',
+    floating: 'peer border-gray-300 focus:border-blue-500 placeholder-transparent'
+  };
+
+  return (
+    <div className="relative">
+      {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
+      <input
+        type={type}
+        placeholder={placeholder}
+        className={\`w-full px-4 py-2.5 rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 \${variantClasses[variant]}\`}
+      />
+      {variant === 'floating' && (
+        <label className="absolute left-4 -top-2.5 text-sm text-blue-600 bg-white px-1">
+          {label}
+        </label>
+      )}
+    </div>
+  );
+};
+
+export default TextInput;`,
+
+      // Media Components
+      'image-gallery': () => `
+import React, { useState } from 'react';
+
+const ImageGallery = ({ images, columns = 3, layout = 'grid' }) => {
+  const [selectedImage, setSelectedImage] = useState(null);
+
+  return (
+    <div>
+      <div className={\`grid grid-cols-\${columns} gap-4\`}>
+        {images.map((image, index) => (
+          <div
+            key={index}
+            className="aspect-square cursor-pointer rounded-lg overflow-hidden hover:opacity-80 transition-opacity"
+            onClick={() => setSelectedImage(image)}
+          >
+            <img src={image} alt={\`Gallery \${index + 1}\`} className="w-full h-full object-cover" />
+          </div>
+        ))}
+      </div>
+      
+      {/* Lightbox Modal */}
+      {selectedImage && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setSelectedImage(null)}>
+          <img src={selectedImage} alt="Selected" className="max-w-full max-h-full object-contain" />
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ImageGallery;`,
+
+      // Interactive Components
+      'kanban-board': () => `
+import React, { useState } from 'react';
+
+const KanbanBoard = ({ columns: initialColumns }) => {
+  const [columns, setColumns] = useState(initialColumns);
+
+  const handleDragStart = (e, item, sourceColumn) => {
+    e.dataTransfer.setData('text/plain', JSON.stringify({ item, sourceColumn }));
+  };
+
+  const handleDrop = (e, targetColumn) => {
+    e.preventDefault();
+    const { item, sourceColumn } = JSON.parse(e.dataTransfer.getData('text/plain'));
+    
+    if (sourceColumn !== targetColumn) {
+      // Move item between columns
+      setColumns(prev => ({
+        ...prev,
+        [sourceColumn]: prev[sourceColumn].filter(i => i.id !== item.id),
+        [targetColumn]: [...prev[targetColumn], item]
+      }));
+    }
+  };
+
+  return (
+    <div className="flex gap-4 p-4 bg-gray-50 rounded-lg overflow-x-auto">
+      {Object.entries(columns).map(([columnId, column]) => (
+        <div
+          key={columnId}
+          className="flex-shrink-0 w-72 bg-white rounded-lg p-4 shadow-sm"
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => handleDrop(e, columnId)}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-800">{column.title}</h3>
+            <span className="text-xs bg-gray-100 px-2 py-1 rounded-full">
+              {column.items.length}
+            </span>
+          </div>
+          
+          <div className="space-y-3 min-h-32">
+            {column.items.map((item) => (
+              <div
+                key={item.id}
+                draggable
+                onDragStart={e => handleDragStart(e, item, columnId)}
+                className="bg-gray-50 border border-gray-200 rounded-lg p-3 cursor-move hover:shadow-md transition-shadow"
+              >
+                <h4 className="font-medium text-sm mb-1">{item.title}</h4>
+                <p className="text-xs text-gray-600">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export default KanbanBoard;`
+    };
+
+    const generator = codeMap[componentType];
+    if (generator) {
+      return {
+        react: generator(),
+        tailwind: `/* ${componentType} component uses Tailwind utility classes */`,
+        html: '',
+        css: ''
+      };
+    }
+
+    // Default fallback
+    return {
+      react: `// ${componentType} component\nconst ${componentType.charAt(0).toUpperCase() + componentType.slice(1)} = () => {\n  return <div>{/* Component implementation */}</div>;\n};`,
+      tailwind: `/* ${componentType} classes */`,
+      html: '',
+      css: ''
+    };
+  }
 
   // Enhanced component validation
   validateComponentDrop(componentType, dropTarget, frameType) {
@@ -1253,19 +1445,20 @@ class ComponentLibraryService {
       return this.components.get(type);
   }
 
-  // Get component definition
+  getComponent(type) {
+    return this.components.get(type);
+  }
+
   getComponentDefinition(type) {
-      return this.componentDefinitions.get(type);
+    return this.componentDefinitions.get(type);
   }
 
-  // Get all components
   getAllComponents() {
-      return Object.fromEntries(this.components);
+    return Object.fromEntries(this.components);
   }
 
-  // Get all component definitions
   getAllComponentDefinitions() {
-      return Object.fromEntries(this.componentDefinitions);
+    return Object.fromEntries(this.componentDefinitions);
   }
 
   // Save/load methods remain the same...

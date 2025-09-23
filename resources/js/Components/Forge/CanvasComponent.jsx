@@ -155,11 +155,33 @@ const CanvasComponent = ({
   }, [canvasComponents, dragOffset, onPropertyUpdate, onComponentClick, responsiveMode, canvasSize, currentFrame, pushHistory, actionTypes]);
 
   // Enhanced component rendering with document flow support
-  const renderComponent = useCallback((component, index) => {
+    const renderComponent = useCallback((component, index) => {
     const componentRenderer = componentLibraryService?.getComponent(component.type);
     const isSelected = selectedComponent === component.id;
     const isFlowComponent = flowComponents.includes(component.type);
     const shouldUseAbsolute = absoluteComponents.includes(component.type) || component.style?.position === 'absolute';
+    
+    // Get the actual rendered component content
+    let renderedContent = null;
+    
+    if (componentRenderer && componentRenderer.render) {
+      try {
+        // Render the actual component with proper styling
+        renderedContent = componentRenderer.render({
+          ...component.props,
+          ...component,
+          style: component.style
+        }, component.id);
+      } catch (error) {
+        console.warn('Component render error:', error);
+        // Fallback to placeholder
+        renderedContent = (
+          <div className="border rounded-lg p-3 min-w-[100px] min-h-[40px] flex items-center justify-center">
+            <span className="text-sm font-medium">{component.name || component.type}</span>
+          </div>
+        );
+      }
+    }
     
     // Determine positioning strategy
     const positioningStyle = shouldUseAbsolute ? {
@@ -185,11 +207,6 @@ const CanvasComponent = ({
       flexWrap: component.style?.flexWrap,
       gap: component.style?.gap,
       
-      // Grid properties
-      gridTemplateColumns: component.style?.gridTemplateColumns,
-      gridTemplateRows: component.style?.gridTemplateRows,
-      gridGap: component.style?.gridGap,
-      
       // Sizing with defaults for document flow
       width: component.style?.width || getDefaultWidth(component.type),
       height: component.style?.height || 'auto',
@@ -210,6 +227,10 @@ const CanvasComponent = ({
       opacity: component.style?.opacity,
       transform: component.style?.transform,
       
+      // Animation properties
+      animation: component.animation?.name ? `${component.animation.name} ${component.animation.duration || '1s'} ${component.animation.timing || 'ease'} ${component.animation.iteration || 'infinite'}` : undefined,
+      transition: component.animation?.transition || 'all 0.3s ease',
+      
       // Typography
       fontSize: component.style?.fontSize,
       fontFamily: component.style?.fontFamily,
@@ -223,82 +244,7 @@ const CanvasComponent = ({
       wordBreak: 'break-word',
       boxSizing: 'border-box'
     };
-
-    // Use component library renderer if available
-    if (componentRenderer && componentRenderer.render) {
-      try {
-        return (
-          <motion.div
-            key={component.id}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ 
-              opacity: 1, 
-              scale: 1,
-              boxShadow: isSelected ? '0 0 0 2px var(--color-primary), 0 0 20px rgba(160, 82, 255, 0.3)' : 'none'
-            }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className={`${shouldUseAbsolute ? 'absolute' : 'relative'} group transition-all`}
-            style={componentStyles}
-            onMouseDown={shouldUseAbsolute ? (e) => handleComponentMouseDown(e, component.id) : undefined}
-            onClick={(e) => onComponentClick(component.id, e)}
-          >
-            {/* Component Content */}
-            <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-              {componentRenderer.render(component.props, component.id)}
-            </div>
-            
-            {/* Selection Outline and Handles */}
-            {isSelected && (
-              <>
-                <div 
-                  className="absolute -inset-1 border-2 pointer-events-none rounded"
-                  style={{ borderColor: 'var(--color-primary)' }}
-                >
-                  {/* Resize handles for absolute positioned components */}
-                  {shouldUseAbsolute && (
-                    <>
-                      <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
-                      <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
-                      <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
-                      <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
-                    </>
-                  )}
-                </div>
-                
-                {/* Component label */}
-                <div 
-                  className="absolute -top-6 left-0 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap"
-                  style={{ 
-                    backgroundColor: 'var(--color-primary)',
-                    color: 'white'
-                  }}
-                >
-                  {component.name || component.type}
-                  {component.style?.display && component.style.display !== 'block' && (
-                    <span className="opacity-75"> • {component.style.display}</span>
-                  )}
-                </div>
-              </>
-            )}
-            
-            {/* Quick Actions */}
-            {renderComponentActions(component)}
-            
-            {/* Hover state for unselected components */}
-            {!isSelected && (
-              <div 
-                className="absolute inset-0 border border-transparent group-hover:border-gray-300 pointer-events-none rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ backgroundColor: 'rgba(160, 82, 255, 0.05)' }}
-              />
-            )}
-          </motion.div>
-        );
-      } catch (error) {
-        console.warn('Component render error:', error);
-      }
-    }
-
-    // Fallback to simple component representation
+  
     return (
       <motion.div
         key={component.id}
@@ -309,25 +255,60 @@ const CanvasComponent = ({
           boxShadow: isSelected ? '0 0 0 2px var(--color-primary), 0 0 20px rgba(160, 82, 255, 0.3)' : 'none'
         }}
         exit={{ opacity: 0, scale: 0.8 }}
-        className={`${shouldUseAbsolute ? 'absolute' : 'relative'} group transition-all cursor-pointer`}
+        className={`${shouldUseAbsolute ? 'absolute' : 'relative'} group transition-all ${component.animation?.cssClass || ''}`}
         style={componentStyles}
         onMouseDown={shouldUseAbsolute ? (e) => handleComponentMouseDown(e, component.id) : undefined}
         onClick={(e) => onComponentClick(component.id, e)}
       >
-        <div 
-          className="border rounded-lg p-3 min-w-[100px] min-h-[40px] flex items-center justify-center transition-all"
-          style={{
-            backgroundColor: 'var(--color-surface)',
-            borderColor: isSelected ? 'var(--color-primary)' : 'var(--color-border)',
-            color: 'var(--color-text)'
-          }}
-        >
-          <span className="text-sm font-medium truncate">
-            {component.name || component.type}
-          </span>
+        {/* Render the actual component content */}
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+          {renderedContent}
         </div>
         
-        {isSelected && renderComponentActions(component)}
+        {/* Selection Outline and Handles */}
+        {isSelected && (
+          <>
+            <div 
+              className="absolute -inset-1 border-2 pointer-events-none rounded"
+              style={{ borderColor: 'var(--color-primary)' }}
+            >
+              {/* Resize handles for absolute positioned components */}
+              {shouldUseAbsolute && (
+                <>
+                  <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
+                  <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
+                  <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
+                  <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
+                </>
+              )}
+            </div>
+            
+            {/* Component label */}
+            <div 
+              className="absolute -top-6 left-0 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap"
+              style={{ 
+                backgroundColor: 'var(--color-primary)',
+                color: 'white'
+              }}
+            >
+              {component.name || component.type}
+              {component.style?.display && component.style.display !== 'block' && (
+                <span className="opacity-75"> • {component.style.display}</span>
+              )}
+            </div>
+          </>
+        )}
+        
+        {/* Quick Actions */}
+        {renderComponentActions(component)}
+        
+        {/* Hover state for unselected components */}
+        {!isSelected && (
+          <div 
+            className="absolute inset-0 border border-transparent group-hover:border-gray-300 pointer-events-none rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ backgroundColor: 'rgba(160, 82, 255, 0.05)' }}
+          />
+        )}
       </motion.div>
     );
   }, [componentLibraryService, selectedComponent, handleComponentMouseDown, onComponentClick, flowComponents, absoluteComponents]);

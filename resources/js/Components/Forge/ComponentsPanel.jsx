@@ -104,6 +104,13 @@ const ComponentsPanel = ({
       { id: 'components', label: 'Components', icon: Code }
     ]
   };
+  
+  useEffect(() => {
+    if (showVariants) {
+      setShowVariants(false);
+      setSelectedComponent(null);
+    }
+  }, [currentActiveTab]);
 
   useEffect(() => {
     fetchComponents();
