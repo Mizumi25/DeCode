@@ -29,7 +29,7 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 RUN composer install --no-dev --optimize-autoloader
 
 # Install npm dependencies
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Ensure SQLite, storage, cache permissions
 RUN chown -R www-data:www-data /var/www/database /var/www/storage /var/www/bootstrap/cache
