@@ -1494,51 +1494,19 @@ class VoidController extends Controller
         return asset('storage/' . $settings['thumbnail_path']);
     }
 
-      /**
-   * Delete thumbnail file for a frame.
-   */
-  private function deleteThumbnail(Frame $frame): void
-  {
-      try {
-          $settings = $frame->settings ?? [];
-          if (isset($settings['thumbnail_path'])) {
-              $fullPath = storage_path('app/public/' . $settings['thumbnail_path']);
-              if (file_exists($fullPath)) {
-                  if (unlink($fullPath)) {
-                      Log::info('Thumbnail deleted successfully', [
-                          'frame_id' => $frame->uuid,
-                          'path' => $fullPath
-                      ]);
-                  } else {
-                      Log::warning('Failed to delete thumbnail file', [
-                          'frame_id' => $frame->uuid,
-                          'path' => $fullPath
-                      ]);
-                  }
-              } else {
-                  Log::info('Thumbnail file does not exist, skipping deletion', [
-                      'frame_id' => $frame->uuid,
-                      'path' => $fullPath
-                  ]);
-              }
-              
-              // Clear thumbnail settings from frame
-              $updatedSettings = $settings;
-              unset($updatedSettings['thumbnail_path']);
-              unset($updatedSettings['thumbnail_generated']);
-              unset($updatedSettings['thumbnail_generated_at']);
-              unset($updatedSettings['thumbnail_version']);
-              
-              $frame->update(['settings' => $updatedSettings]);
-          }
-      } catch (\Exception $e) {
-          Log::error('Error deleting thumbnail', [
-              'frame_id' => $frame->uuid,
-              'error' => $e->getMessage(),
-              'trace' => $e->getTraceAsString()
-          ]);
-      }
-  }
+    /**
+     * Delete thumbnail file for a frame.
+     */
+    private function deleteThumbnail(Frame $frame): void
+    {
+        $settings = $frame->settings ?? [];
+        if (isset($settings['thumbnail_path'])) {
+            $fullPath = storage_path('app/public/' . $settings['thumbnail_path']);
+            if (file_exists($fullPath)) {
+                unlink($fullPath);
+            }
+        }
+    }
   
 /**
  * Batch generate thumbnails for multiple frames
