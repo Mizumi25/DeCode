@@ -906,23 +906,79 @@ class ComponentLibraryService {
   }
 
   renderIcon(props, id, layoutStyles = {}) {
-      const iconStyle = {
-          width: props.size || '24px',
-          height: props.size || '24px',
-          color: props.color || 'currentColor',
-          ...layoutStyles,
-          ...props.style
-      };
-      
-      // Default to a generic icon if no specific icon is provided
-      return React.createElement('svg', {
-          key: id,
-          style: iconStyle,
-          fill: 'currentColor',
-          viewBox: '0 0 24 24'
-      }, React.createElement('path', {
-          d: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'
-      }));
+    const iconStyle = {
+      width: props.size || '24px',
+      height: props.size || '24px',
+      color: props.color || 'currentColor',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...layoutStyles,
+      ...props.style
+    };
+  
+    // Handle different icon types
+    if (props.iconType === 'svg' && props.svgData) {
+      return React.createElement('div', {
+        key: id,
+        style: iconStyle,
+        dangerouslySetInnerHTML: { __html: props.svgData }
+      });
+    }
+  
+    if (props.iconType === 'heroicons' && props.iconName) {
+      // For heroicons, you'd need to import dynamically or have a mapping
+      return React.createElement('div', {
+        key: id,
+        style: {
+          ...iconStyle,
+          border: '2px dashed var(--color-border)',
+          borderRadius: '4px',
+          backgroundColor: 'var(--color-bg-muted)',
+          fontSize: '10px'
+        }
+      }, `${props.iconName}`);
+    }
+  
+    if (props.iconType === 'lucide') {
+      // Similar for lucide icons
+      return React.createElement('div', {
+        key: id,
+        style: {
+          ...iconStyle,
+          border: '2px dashed var(--color-border)',
+          borderRadius: '4px',
+          backgroundColor: 'var(--color-bg-muted)',
+          fontSize: '10px'
+        }
+      }, `${props.iconName}`);
+    }
+  
+    if (props.iconType === 'lottie') {
+      return React.createElement('div', {
+        key: id,
+        style: {
+          ...iconStyle,
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          borderRadius: '50%',
+          color: 'white',
+          fontSize: '12px'
+        }
+      }, '▶');
+    }
+
+    // Default fallback
+    return React.createElement('div', {
+      key: id,
+      style: {
+        ...iconStyle,
+        border: '2px dashed var(--color-border)',
+        borderRadius: '4px',
+        backgroundColor: 'var(--color-bg-muted)',
+        fontSize: '10px',
+        color: 'var(--color-text-muted)'
+      }
+    }, 'Icon');
   }
 
   renderSeparator(props, id, layoutStyles = {}) {

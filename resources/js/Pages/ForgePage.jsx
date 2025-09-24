@@ -23,7 +23,7 @@ import WindowPanel from '@/Components/WindowPanel';
 import LayoutPresets from '@/Components/Forge/LayoutPresets';
 import EmptyCanvasState from '@/Components/Forge/EmptyCanvasState';
 import SectionDropZone from '@/Components/Forge/SectionDropZone';
-
+import IconWindowPanel from '@/Components/Forge/IconWindowPanel';
 
 // Import dynamic component service
 import { componentLibraryService } from '@/Services/ComponentLibraryService';
@@ -466,6 +466,121 @@ export default function ForgePage({
     return () => clearTimeout(timeoutId);
 }, [canvasComponents, projectId, currentFrame, componentsLoaded, isFrameSwitching]);
 
+
+
+
+
+
+// ADD: Asset drop handler
+const handleAssetDrop = useCallback((e) => {
+  e.preventDefault();
+  
+  if (!canvasRef.current) return;
+
+  try {
+    const dragDataStr = e.dataTransfer.getData('application/json');
+    let dragData;
+    
+    try {
+      dragData = JSON.parse(dragDataStr);
+    } catch {
+      return; // Not an asset drop
+    }
+
+    // Check if it's an asset drop
+    if (dragData.type !== 'asset') return;
+
+    const { asset, assetType } = dragData;
+    
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    const x = Math.max(0, e.clientX - canvasRect.left - 50);
+    const y = Math.max(0, e.clientY - canvasRect.top - 20);
+
+    // Create appropriate component based on asset type
+    let componentType;
+    let defaultProps = {};
+
+    switch (assetType) {
+      case 'image':
+        componentType = 'image';
+        defaultProps = {
+          src: asset.url,
+          alt: asset.name,
+          width: asset.dimensions?.width || 'auto',
+          height: asset.dimensions?.height || 'auto'
+        };
+        break;
+      case 'video':
+        componentType = 'video';
+        defaultProps = {
+          src: asset.url,
+          controls: true,
+          width: asset.dimensions?.width || 640,
+          height: asset.dimensions?.height || 360
+        };
+        break;
+      case 'audio':
+        componentType = 'audio-player';
+        defaultProps = {
+          src: asset.url,
+          title: asset.name,
+          duration: asset.duration
+        };
+        break;
+      default:
+        // For documents, create a download link component
+        componentType = 'link';
+        defaultProps = {
+          href: asset.url,
+          text: asset.name,
+          target: '_blank'
+        };
+        break;
+    }
+
+    const newComponent = componentLibraryService?.createLayoutElement 
+      ? componentLibraryService.createLayoutElement(componentType, defaultProps)
+      : {
+          id: `${componentType}_${Date.now()}`,
+          type: componentType,
+          props: defaultProps,
+          position: { x, y },
+          name: `${asset.name} (${assetType})`,
+          style: {},
+          animation: {},
+          children: []
+        };
+
+    console.log('ForgePage: Dropping asset as component:', newComponent);
+
+    const updatedComponents = [...canvasComponents, newComponent];
+    
+    setFrameCanvasComponents(prev => ({
+      ...prev,
+      [currentFrame]: updatedComponents
+    }));
+    
+    pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
+      componentName: newComponent.name,
+      componentType: newComponent.type,
+      position: { x, y },
+      componentId: newComponent.id
+    });
+    
+    setSelectedComponent(newComponent.id);
+    generateCode(updatedComponents);
+    
+  } catch (error) {
+    console.error('Error handling asset drop:', error);
+  }
+}, [canvasComponents, currentFrame, componentLibraryService, pushHistory, actionTypes, generateCode]);
+
+
+
+
+
+
+
   // Initialize undo/redo when frame and components are ready
   useEffect(() => {
     if (currentFrame && componentsLoaded) {
@@ -583,22 +698,35 @@ export default function ForgePage({
 
     // REPLACE the handleCanvasDrop method in ForgePage.jsx (around line 400)
     // ENHANCED: Modified handleCanvasDrop to trigger thumbnail updates
-const handleCanvasDrop = useCallback((e) => {
-  e.preventDefault();
-  
-  if (!canvasRef.current) return;
-
-  try {
-    const dragDataStr = e.dataTransfer.getData('text/plain');
-    let dragData;
+  const handleCanvasDrop = useCallback((e) => {
+    e.preventDefault();
     
+    if (!canvasRef.current) return;
+  
     try {
-      dragData = JSON.parse(dragDataStr);
-    } catch {
-      dragData = { componentType: dragDataStr, variant: null };
-    }
-
-    const { componentType, variant } = dragData;
+      // First try to handle as asset
+      const assetDataStr = e.dataTransfer.getData('application/json');
+      if (assetDataStr) {
+        try {
+          const assetData = JSON.parse(assetDataStr);
+          if (assetData.type === 'asset') {
+            handleAssetDrop(e);
+            return;
+          }
+        } catch {}
+      }
+  
+      // Then handle as component (existing logic)
+      const componentDataStr = e.dataTransfer.getData('text/plain');
+      let dragData;
+      
+      try {
+        dragData = JSON.parse(componentDataStr);
+      } catch {
+        dragData = { componentType: componentDataStr, variant: null };
+      }
+  
+      const { componentType, variant } = dragData;
     
     if (frame?.type === 'page' && canvasComponents.length === 0) {
       const layoutElements = ['div', 'section', 'container', 'flex', 'grid'];
@@ -777,6 +905,68 @@ const handleComponentDelete = useCallback((componentId) => {
     responsiveMode, zoomLevel, gridVisible, frame?.settings]);
 
 
+const handleIconSelect = useCallback((icon) => {
+    console.log('Icon selected in Forge:', icon);
+    
+    // Create icon component based on selected icon
+    const iconComponent = componentLibraryService?.createLayoutElement 
+      ? componentLibraryService.createLayoutElement('icon', {
+          iconType: icon.type,
+          iconName: icon.name,
+          size: 24,
+          color: 'var(--color-text)',
+          svgData: icon.data || null
+        })
+      : {
+          id: `icon_${Date.now()}`,
+          type: 'icon',
+          props: {
+            iconType: icon.type,
+            iconName: icon.name,
+            size: 24,
+            color: 'var(--color-text)',
+            svgData: icon.data || null
+          },
+          position: { x: 100, y: 100 },
+          name: `${icon.name} Icon`,
+          style: {
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '24px',
+            height: '24px'
+          },
+          animation: {},
+          children: []
+        };
+
+    // Add to canvas components
+    const updatedComponents = [...canvasComponents, iconComponent];
+    
+    setFrameCanvasComponents(prev => ({
+      ...prev,
+      [currentFrame]: updatedComponents
+    }));
+    
+    // Push to undo/redo history
+    pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
+      componentName: iconComponent.name,
+      componentType: iconComponent.type,
+      position: iconComponent.position,
+      componentId: iconComponent.id
+    });
+    
+    setSelectedComponent(iconComponent.id);
+    generateCode(updatedComponents);
+    
+    // Auto-save
+    setTimeout(() => {
+      if (componentLibraryService?.saveProjectComponents) {
+        componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedComponents);
+      }
+    }, 200);
+    
+  }, [canvasComponents, currentFrame, projectId, pushHistory, actionTypes, componentLibraryService, generateCode]);
 
   
   // MODIFY: Enhanced property update handler with undo/redo
@@ -1225,7 +1415,12 @@ const handleUndo = useCallback(async () => {
       ) : null
     ),
     createMockPanel('assets-panel', 'Assets',
-      AssetsPanel ? <AssetsPanel /> : null
+      AssetsPanel ? (
+        <AssetsPanel
+          onAssetDrop={handleAssetDrop}
+          onAssetSelect={(asset) => console.log('Asset selected:', asset)}
+        />
+      ) : null
     )
   ], [
     activeComponentTab,
@@ -1236,8 +1431,9 @@ const handleUndo = useCallback(async () => {
     selectedComponent,
     handlePropertyUpdate,
     handleComponentDelete,
-    generateCode
-  ])
+    generateCode,
+    handleAssetDrop
+  ]);
 
   // Memoize the sidebar code panel
   const sidebarCodePanel = useMemo(() => ({
@@ -1563,7 +1759,7 @@ const handleUndo = useCallback(async () => {
           onPanelStateChange={handlePanelStateChange}
           snapToEdge={false}
           mergePanels={true}
-          mergePosition={isMobile ? "left" : "right"}
+          mergePosition="right" // Default merge position for properties + assets
           defaultDockPosition={{
             'properties-panel': 'right',
             'assets-panel': 'right',
@@ -1698,6 +1894,8 @@ const handleUndo = useCallback(async () => {
       )}
       
       {renderThumbnailStatus()}
+      
+      <IconWindowPanel onIconSelect={handleIconSelect} />
 
       {/* Enhanced mobile performance optimization styles */}
       {isMobile && (

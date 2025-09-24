@@ -1,14 +1,14 @@
-import React from 'react'
-import { motion } from 'framer-motion'
-import { Settings, EyeOff, Eye } from 'lucide-react'
-import SearchBar from './SearchBar'
-import VoidUndoRedo from './VoidUndoRedo'
-import ZoomControls from './ZoomControls'
-import VoidZoomControls from './VoidZoomControls' // Import the new component
-import BinaryToggle from './BinaryToggle'
-import MiddlePanelControls from './MiddlePanelControls'
-import { MousePointer, Hand } from 'lucide-react'
-import { useHeaderStore } from '@/stores/useHeaderStore'
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Settings, EyeOff, Eye, Sparkles } from 'lucide-react';
+import SearchBar from './SearchBar';
+import VoidUndoRedo from './VoidUndoRedo';
+import VoidZoomControls from './VoidZoomControls';
+import BinaryToggle from './BinaryToggle';
+import MiddlePanelControls from './MiddlePanelControls';
+import { MousePointer, Hand } from 'lucide-react';
+import { useHeaderStore } from '@/stores/useHeaderStore';
+import { useIconStore } from '@/stores/useIconStore';
 
 const fadeIn = {
   hidden: { opacity: 0, y: -10 },
@@ -21,7 +21,7 @@ const fadeIn = {
       ease: 'easeOut',
     },
   }),
-}
+};
 
 const CenterSection = ({ 
   currentRoute,
@@ -32,22 +32,23 @@ const CenterSection = ({
   onPanelToggle,
   panelStates
 }) => {
-  const { toggleStyleModal } = useHeaderStore()
+  const { toggleStyleModal } = useHeaderStore();
+  const { toggleIconPanel, isIconPanelOpen } = useIconStore();
   
-  const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects')
-  const onForgePage    = currentRoute.includes('/modeForge')
-  const onSourcePage   = currentRoute.includes('/modeSource')
+  const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects');
+  const onForgePage = currentRoute.includes('/modeForge');
+  const onSourcePage = currentRoute.includes('/modeSource');
   
   // Pure void page (must have /void but not forge or source)
   const onVoidPage = 
     currentRoute.startsWith('/void') &&
     !onForgePage &&
-    !onSourcePage
+    !onSourcePage;
 
   const interactionOptions = [
     { key: 'cursor', icon: MousePointer },
     { key: 'hand', icon: Hand }
-  ]
+  ];
 
   // Desktop Searchbar - Only on Projects Page
   if (onProjectsPage) {
@@ -57,14 +58,14 @@ const CenterSection = ({
         initial="hidden"
         animate="visible"
         custom={2}
-        className="hidden md:block flex-grow px-10"
+        className="hidden md:block flex-grow px-6" // Reduced padding
       >
         <SearchBar />
       </motion.div>
-    )
+    );
   }
 
-  // Void Page Center Controls - Enhanced with better zoom controls
+  // Void Page Center Controls
   if (onVoidPage) {
     return (
       <motion.div
@@ -72,41 +73,43 @@ const CenterSection = ({
         initial="hidden"
         animate="visible"
         custom={2}
-        className="flex items-center gap-3 flex-shrink-0"
+        className="flex items-center gap-2 flex-shrink-0" // Reduced gap
       >
         {/* Undo/Redo */}
-        <VoidUndoRedo size="normal" />
-
-        {/* Vertical Divider */}
-        <div className="w-px h-4 bg-[var(--color-border)]"></div>
+        <VoidUndoRedo size="small" /> {/* Made smaller */}
         
-        {/* Enhanced Zoom Controls - Specific for Void Page */}
+        {/* Vertical Divider */}
+        <div className="w-px h-3 bg-[var(--color-border)]"></div>
+        
+        {/* Enhanced Zoom Controls */}
         <VoidZoomControls 
           zoomLevel={zoomLevel} 
           onZoomChange={setZoomLevel}
-          className="px-1"
+          className="px-0.5" // Reduced padding
         />
-
+        
         {/* Vertical Divider */}
-        <div className="w-px h-4 bg-[var(--color-border)]"></div>
-
+        <div className="w-px h-3 bg-[var(--color-border)]"></div>
+        
         {/* Interaction Mode Toggle */}
         <BinaryToggle 
           activeMode={interactionMode} 
           setActiveMode={setInteractionMode}
           options={interactionOptions}
+          size="small" // Added size prop
         />
-
+        
+        
         {/* Visual indicator for enhanced functionality */}
-        <div className="flex items-center gap-1 px-2 py-1 bg-[var(--color-bg-muted)] rounded-md opacity-60">
+        <div className="flex items-center gap-1 px-1.5 py-0.5 bg-[var(--color-bg-muted)] rounded-md opacity-60">
           <div className="w-1 h-1 bg-[var(--color-primary)] rounded-full animate-pulse"></div>
-          <span className="text-xs text-[var(--color-text-muted)] font-mono">VOID</span>
+          <span className="text-[8px] text-[var(--color-text-muted)] font-mono">VOID</span>
         </div>
       </motion.div>
-    )
+    );
   }
 
-  // Forge and Source Page Middle Icons - Use standard zoom controls
+  // Forge and Source Page Middle Icons
   if (onForgePage || onSourcePage) {
     return (
       <motion.div
@@ -114,21 +117,34 @@ const CenterSection = ({
         initial="hidden"
         animate="visible"
         custom={2}
-        className="flex items-center gap-1.5 flex-shrink-0"
+        className="flex items-center gap-1 flex-shrink-0" // Reduced gap
       >
         <MiddlePanelControls 
           currentRoute={currentRoute}
           onPanelToggle={onPanelToggle}
           panelStates={panelStates}
         />
-
+        
+        {/* Icon Panel Button */}
+        <button
+          onClick={toggleIconPanel}
+          className={`p-1 rounded transition-colors ${
+            isIconPanelOpen 
+              ? 'bg-[var(--color-primary)] text-white' 
+              : 'hover:bg-[var(--color-bg-muted)] text-[var(--color-text)]'
+          }`}
+          title="Icon Browser"
+        >
+          <Sparkles className="w-3 h-3" />
+        </button>
+        
         {/* Vertical Divider */}
-        <div className="w-px h-3 bg-[var(--color-border)]"></div>
+        <div className="w-px h-2.5 bg-[var(--color-border)]"></div>
       </motion.div>
-    )
+    );
   }
 
-  return null
-}
+  return null;
+};
 
-export default CenterSection
+export default CenterSection;

@@ -1,15 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, GripVertical, Group, Ungroup, Search, Plus } from 'lucide-react'
-import { usePanelStore } from '@/stores/usePanelStore'
-
 
 export default function Panel({ 
   isOpen = true, 
   panels = [],
   initialPanels = [], 
   allowedDockPositions = ['left', 'right'],
-  maxPanelsPerDock = 4,
+  maxPanelsPerDock = 4, // NEW: Allow customizing max panels per dock
   onPanelClose,
   onPanelStateChange, 
   className = '',
@@ -25,106 +23,53 @@ export default function Panel({
   isMobile = false,
   defaultWidth = 320,
   minWidth = 280,
-  maxWidth = 400,
-  pageId = 'default', // Unique identifier for this page/context
-  enableAnimations = true, // Allow disabling animations if needed
-  animationPreset = 'slide' // 'slide', 'fade', 'scale'
+  maxWidth = 400
 }) {
   // Memoize the panels to use to prevent unnecessary re-calculations
   const panelsToUse = useMemo(() => {
     return initialPanels.length > 0 ? initialPanels : panels
   }, [initialPanels, panels])
 
-
-  const { savePanelState, getPanelState } = usePanelStore()
   // Tab and search state
-  const [activeTab, setActiveTab] = useState(() => {
-    const savedState = getPanelState(pageId)
-    return savedState?.activeTab || tabConfig?.defaultTab || 'tab1'
-  })
+  const [activeTab, setActiveTab] = useState(tabConfig?.defaultTab || 'tab1')
   const [searchTerm, setSearchTerm] = useState('')
-  
-  const animationVariants = useMemo(() => {
-    if (!enableAnimations) return {}
-    
-    switch (animationPreset) {
-      case 'fade':
-        return {
-          initial: { opacity: 0 },
-          animate: { opacity: 1 },
-          exit: { opacity: 0 },
-          transition: { duration: 0.3, ease: "easeInOut" }
-        }
-      case 'scale':
-        return {
-          initial: { opacity: 0, scale: 0.9 },
-          animate: { opacity: 1, scale: 1 },
-          exit: { opacity: 0, scale: 0.9 },
-          transition: { duration: 0.4, ease: [0.4, 0, 0.2, 1] }
-        }
-      case 'slide':
-      default:
-        return {
-          initial: { opacity: 0, y: 20 },
-          animate: { opacity: 1, y: 0 },
-          exit: { opacity: 0, y: -20 },
-          transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] }
-        }
-    }
-  }, [enableAnimations, animationPreset])
 
   // Memoize the initial state calculation - NOW USES maxPanelsPerDock
-    const initialPanelState = useMemo(() => {
-      // Try to get saved state first
-      const savedState = getPanelState(pageId)
-      
-      if (savedState && savedState.dockedPanels) {
-        return savedState.dockedPanels
-      }
-      
-      // Fallback to your existing logic
-      if (panelsToUse.length === 0) {
-        return { left: [], right: [] }
-      }
-  
-      if (allowedDockPositions.includes('right') && !allowedDockPositions.includes('left')) {
-        return { 
-          left: [], 
-          right: panelsToUse.slice(0, maxPanelsPerDock)
-        }
-      }
-      
-      if (allowedDockPositions.includes('left') && !allowedDockPositions.includes('right')) {
-        return { 
-          left: panelsToUse.slice(0, maxPanelsPerDock),
-          right: []
-        }
-      }
-  
-      const leftPanels = panelsToUse.slice(0, Math.min(maxPanelsPerDock, Math.ceil(panelsToUse.length / 2)))
-      const rightPanels = panelsToUse.slice(Math.ceil(panelsToUse.length / 2), Math.ceil(panelsToUse.length / 2) + maxPanelsPerDock)
-      
-      return {
-        left: allowedDockPositions.includes('left') ? leftPanels : [],
-        right: allowedDockPositions.includes('right') ? rightPanels : leftPanels.slice(0, maxPanelsPerDock)
-      }
-    }, [panelsToUse, allowedDockPositions, maxPanelsPerDock, pageId, getPanelState])
+  const initialPanelState = useMemo(() => {
+    if (panelsToUse.length === 0) {
+      return { left: [], right: [] }
+    }
 
+    if (allowedDockPositions.includes('right') && !allowedDockPositions.includes('left')) {
+      return { 
+        left: [], 
+        right: panelsToUse.slice(0, maxPanelsPerDock)
+      }
+    }
+    
+    if (allowedDockPositions.includes('left') && !allowedDockPositions.includes('right')) {
+      return { 
+        left: panelsToUse.slice(0, maxPanelsPerDock),
+        right: []
+      }
+    }
+
+    const leftPanels = panelsToUse.slice(0, Math.min(maxPanelsPerDock, Math.ceil(panelsToUse.length / 2)))
+    const rightPanels = panelsToUse.slice(Math.ceil(panelsToUse.length / 2), Math.ceil(panelsToUse.length / 2) + maxPanelsPerDock)
+    
+    return {
+      left: allowedDockPositions.includes('left') ? leftPanels : [],
+      right: allowedDockPositions.includes('right') ? rightPanels : leftPanels.slice(0, maxPanelsPerDock)
+    }
+  }, [panelsToUse, allowedDockPositions, maxPanelsPerDock])
 
   const [dockedPanels, setDockedPanels] = useState(initialPanelState)
   const [mergedStates, setMergedStates] = useState(() => {
-    const savedState = getPanelState(pageId)
-    
-    if (savedState && savedState.mergedStates) {
-      return savedState.mergedStates
-    }
-    
     return {
       left: mergePosition === 'left',
       right: mergePosition === 'right'
     }
   })
-  
   const [dragState, setDragState] = useState({
     isDragging: false,
     draggedPanel: null,
@@ -185,19 +130,6 @@ export default function Panel({
     // Dynamic calculation for maxPanelsPerDock
     return `calc(${100 / Math.min(currentCount, maxPanelsPerDock)}% - 0.75rem)`
   }, [dockedPanels, mergedStates, maxPanelsPerDock])
-  
-  useEffect(() => {
-    const saveTimer = setTimeout(() => {
-      savePanelState(pageId, {
-        dockedPanels,
-        mergedStates,
-        activeTab
-      })
-    }, 500) // Debounce saves
-    
-    return () => clearTimeout(saveTimer)
-  }, [dockedPanels, mergedStates, activeTab, pageId, savePanelState])
-
 
   // Get target drop zone
   const getDropZone = useCallback(() => {
@@ -739,122 +671,69 @@ export default function Panel({
     const panelHeight = getPanelHeight(position)
     const positionPanels = dockedPanels[position] || []
     const canMerge = positionPanels.length > 1
-  
-    // Enhanced animation variants for individual panels
-    const panelVariants = enableAnimations ? {
-      initial: {
-        opacity: 0,
-        y: position === 'left' ? -30 : 30,
-        x: position === 'left' ? -20 : 20,
-        scale: 0.95,
-        rotateY: position === 'left' ? -15 : 15
-      },
-      animate: {
-        opacity: isDragged ? 0.3 : 1,
-        y: 0,
-        x: 0,
-        scale: willBeAffected ? 0.95 : 1,
-        rotateY: 0,
-        height: panelHeight
-      },
-      exit: {
-        opacity: 0,
-        y: position === 'left' ? -30 : 30,
-        x: position === 'left' ? -30 : 30,
-        scale: 0.9,
-        rotateY: position === 'left' ? 15 : -15,
-        height: 0
-      },
-      hover: {
-        scale: isDragged ? 1 : 1.02,
-        transition: { duration: 0.2, ease: "easeOut" }
-      }
-    } : {}
-  
+
     return (
       <motion.div
         key={panel.id}
         className={`w-full panel-container ${isDragged ? 'opacity-30' : 'opacity-100'}`}
-        {...(enableAnimations && panelVariants)}
-        transition={{
-          type: "spring",
-          damping: 25,
-          stiffness: 300,
-          duration: 0.6,
-          height: { duration: 0.4, ease: "easeInOut" },
-          scale: { duration: 0.3, ease: "easeOut" }
+        initial={{ opacity: 0, y: 20, height: 0 }}
+        animate={{ 
+          opacity: isDragged ? 0.3 : 1, 
+          y: 0, 
+          height: panelHeight,
+          scale: willBeAffected ? 0.95 : 1,
         }}
-        whileHover={enableAnimations ? "hover" : undefined}
-        layout={enableAnimations}
-        layoutId={`panel-${panel.id}-${position}`}
+        exit={{ 
+          opacity: 0, 
+          y: -20, 
+          height: 0
+        }}
+        transition={{ 
+          type: "spring", 
+          damping: 25, 
+          stiffness: 300,
+          height: { duration: 0.3, ease: "easeInOut" },
+          scale: { duration: 0.2, ease: "easeOut" }
+        }}
+        layout
       >
-        <motion.div 
+        <div 
           className="rounded-lg border overflow-hidden h-full transition-all duration-200"
           style={{
             backgroundColor: willBeAffected ? 'rgba(251, 146, 60, 0.1)' : 'var(--color-surface)',
             borderColor: willBeAffected ? 'rgb(251, 146, 60)' : 'var(--color-border)',
             boxShadow: willBeAffected ? 'var(--shadow-lg)' : 'var(--shadow-md)',
           }}
-          animate={enableAnimations ? {
-            borderColor: willBeAffected ? 'rgb(251, 146, 60)' : 'var(--color-border)',
-            boxShadow: willBeAffected ? 
-              '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' : 
-              '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-          } : undefined}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
         >
-          {/* Enhanced Panel Header with micro-animations */}
-          <motion.div 
+          {/* Panel Header */}
+          <div 
             className="flex items-center justify-between border-b"
             style={{
               backgroundColor: 'var(--color-bg-muted)',
               borderColor: 'var(--color-border)',
               minHeight: '48px',
             }}
-            initial={enableAnimations ? { opacity: 0, y: -10 } : undefined}
-            animate={enableAnimations ? { opacity: 1, y: 0 } : undefined}
-            transition={{ delay: 0.2, duration: 0.3 }}
           >
-            {/* Drag handle area with enhanced interactions */}
-            <motion.div 
+            {/* Drag handle area */}
+            <div 
               className="flex items-center gap-2 px-3 py-3 cursor-grab active:cursor-grabbing select-none touch-manipulation flex-1"
               onMouseDown={(e) => handleMouseDown(e, panel, position)}
               onTouchStart={(e) => handleTouchStart(e, panel, position)}
-              whileHover={enableAnimations ? { x: 2, transition: { duration: 0.2 } } : undefined}
-              whileTap={enableAnimations ? { scale: 0.98, transition: { duration: 0.1 } } : undefined}
             >
-              <motion.div
-                animate={enableAnimations ? { 
-                  rotate: isDragged ? 90 : 0,
-                  scale: isDragged ? 1.2 : 1
-                } : undefined}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-              >
-                <GripVertical className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
-              </motion.div>
+              <GripVertical className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
               <h3 className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>{panel.title}</h3>
               {willBeAffected && (
-                <motion.span 
-                  className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-600 font-medium"
-                  initial={enableAnimations ? { opacity: 0, scale: 0.8 } : undefined}
-                  animate={enableAnimations ? { opacity: 1, scale: 1 } : undefined}
-                  exit={enableAnimations ? { opacity: 0, scale: 0.8 } : undefined}
-                  transition={{ duration: 0.2 }}
-                >
+                <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-600 font-medium">
                   {dropTarget?.action === 'swap' ? 'Will Swap' : 'Will Move'}
-                </motion.span>
+                </span>
               )}
-            </motion.div>
+            </div>
             
-            {/* Action buttons with stagger animation */}
-            <motion.div 
-              className="flex items-center gap-1 px-3"
-              initial={enableAnimations ? { opacity: 0, x: 20 } : undefined}
-              animate={enableAnimations ? { opacity: 1, x: 0 } : undefined}
-              transition={{ delay: 0.3, duration: 0.3 }}
-            >
+            {/* Action buttons - prevent event propagation */}
+            <div className="flex items-center gap-1 px-3">
+              {/* Single merge button - only show when there are multiple panels */}
               {canMerge && (
-                <motion.button
+                <button
                   onClick={(e) => {
                     e.stopPropagation()
                     e.preventDefault()
@@ -865,25 +744,22 @@ export default function Panel({
                     color: 'var(--color-text-muted)',
                     backgroundColor: 'transparent'
                   }}
-                  whileHover={enableAnimations ? { 
-                    scale: 1.05, 
-                    backgroundColor: 'var(--color-bg-hover)',
-                    color: 'var(--color-primary)'
-                  } : undefined}
-                  whileTap={enableAnimations ? { scale: 0.95 } : undefined}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = 'var(--color-bg-hover)'
+                    e.target.style.color = 'var(--color-primary)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'transparent'
+                    e.target.style.color = 'var(--color-text-muted)'
+                  }}
                   title="Merge all panels in this position"
                 >
-                  <motion.div
-                    whileHover={enableAnimations ? { rotate: 180 } : undefined}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <Group className="w-3 h-3" />
-                  </motion.div>
+                  <Group className="w-3 h-3" />
                   Merge
-                </motion.button>
+                </button>
               )}
               
-              <motion.button
+              <button
                 onClick={(e) => {
                   e.stopPropagation()
                   e.preventDefault()
@@ -891,44 +767,28 @@ export default function Panel({
                 }}
                 className="p-1 rounded transition-colors"
                 style={{ color: 'var(--color-text-muted)' }}
-                whileHover={enableAnimations ? { 
-                  scale: 1.1, 
-                  color: 'var(--color-primary)',
-                  rotate: 90
-                } : undefined}
-                whileTap={enableAnimations ? { scale: 0.9 } : undefined}
+                onMouseEnter={(e) => e.target.style.color = 'var(--color-primary)'}
+                onMouseLeave={(e) => e.target.style.color = 'var(--color-text-muted)'}
                 title="Close Panel"
               >
                 <X className="w-4 h-4" />
-              </motion.button>
-            </motion.div>
-          </motion.div>
+              </button>
+            </div>
+          </div>
           
-          {/* Tabs and Search with stagger animation */}
-          <motion.div
-            initial={enableAnimations ? { opacity: 0, y: 10 } : undefined}
-            animate={enableAnimations ? { opacity: 1, y: 0 } : undefined}
-            transition={{ delay: 0.4, duration: 0.3 }}
-          >
-            {renderTabs(panel)}
-            {renderSearchBar(panel)}
-          </motion.div>
+          {/* Tabs and Search - only for components panel */}
+          {renderTabs(panel)}
+          {renderSearchBar(panel)}
           
-          {/* Panel Content with smooth reveal */}
-          <motion.div 
-            className="overflow-y-auto" 
-            style={{ 
-              height: `calc(100% - ${48 + (shouldShowTabsAndSearch(panel) ? 140 : 0)}px)` 
-            }}
-            initial={enableAnimations ? { opacity: 0 } : undefined}
-            animate={enableAnimations ? { opacity: 1 } : undefined}
-            transition={{ delay: 0.5, duration: 0.4 }}
-          >
+          {/* Panel Content */}
+          <div className="overflow-y-auto" style={{ 
+            height: `calc(100% - ${48 + (shouldShowTabsAndSearch(panel) ? 140 : 0)}px)` 
+          }}>
             <div className="p-4">
               {panel.content}
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       </motion.div>
     )
   }

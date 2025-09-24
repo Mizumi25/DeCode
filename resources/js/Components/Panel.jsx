@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, GripVertical, Group, Ungroup, Search, Plus } from 'lucide-react'
+import { X, GripVertical, Group, Ungroup, Search, Plus, Layers, MoreHorizontal } from 'lucide-react'
 
 export default function Panel({ 
   isOpen = true, 
   panels = [],
   initialPanels = [], 
   allowedDockPositions = ['left', 'right'],
-  maxPanelsPerDock = 4, // NEW: Allow customizing max panels per dock
+  maxPanelsPerDock = 4,
   onPanelClose,
   onPanelStateChange, 
   className = '',
@@ -23,9 +23,10 @@ export default function Panel({
   isMobile = false,
   defaultWidth = 320,
   minWidth = 280,
-  maxWidth = 400
+  maxWidth = 400,
+  // NEW: Default merge configurations
+  defaultDockPosition = {}
 }) {
-  // Memoize the panels to use to prevent unnecessary re-calculations
   const panelsToUse = useMemo(() => {
     return initialPanels.length > 0 ? initialPanels : panels
   }, [initialPanels, panels])
@@ -34,52 +35,70 @@ export default function Panel({
   const [activeTab, setActiveTab] = useState(tabConfig?.defaultTab || 'tab1')
   const [searchTerm, setSearchTerm] = useState('')
 
-  // Memoize the initial state calculation - NOW USES maxPanelsPerDock
+  // ENHANCED: Merge display modes for each position
+  const [mergeDisplayModes, setMergeDisplayModes] = useState({
+    left: 'tabs', // 'tabs' or 'stacked'
+    right: 'tabs'
+  })
+
+  // ENHANCED: Active tab for merged panels
+  const [mergedActiveTabs, setMergedActiveTabs] = useState({
+    left: 0,
+    right: 0
+  })
+
+  // FIXED: Initialize with default merging for properties + assets
   const initialPanelState = useMemo(() => {
     if (panelsToUse.length === 0) {
       return { left: [], right: [] }
     }
 
-    if (allowedDockPositions.includes('right') && !allowedDockPositions.includes('left')) {
-      return { 
-        left: [], 
-        right: panelsToUse.slice(0, maxPanelsPerDock)
-      }
-    }
+    // Separate panels by their default dock positions
+    const leftPanels = []
+    const rightPanels = []
     
-    if (allowedDockPositions.includes('left') && !allowedDockPositions.includes('right')) {
-      return { 
-        left: panelsToUse.slice(0, maxPanelsPerDock),
-        right: []
+    panelsToUse.forEach(panel => {
+      const dockPosition = defaultDockPosition[panel.id] || 'left'
+      if (dockPosition === 'left' && allowedDockPositions.includes('left')) {
+        leftPanels.push(panel)
+      } else if (dockPosition === 'right' && allowedDockPositions.includes('right')) {
+        rightPanels.push(panel)
+      } else if (allowedDockPositions.includes('left')) {
+        leftPanels.push(panel)
+      } else {
+        rightPanels.push(panel)
       }
-    }
+    })
 
-    const leftPanels = panelsToUse.slice(0, Math.min(maxPanelsPerDock, Math.ceil(panelsToUse.length / 2)))
-    const rightPanels = panelsToUse.slice(Math.ceil(panelsToUse.length / 2), Math.ceil(panelsToUse.length / 2) + maxPanelsPerDock)
-    
     return {
-      left: allowedDockPositions.includes('left') ? leftPanels : [],
-      right: allowedDockPositions.includes('right') ? rightPanels : leftPanels.slice(0, maxPanelsPerDock)
+      left: leftPanels.slice(0, maxPanelsPerDock),
+      right: rightPanels.slice(0, maxPanelsPerDock)
     }
-  }, [panelsToUse, allowedDockPositions, maxPanelsPerDock])
+  }, [panelsToUse, allowedDockPositions, maxPanelsPerDock, defaultDockPosition])
 
   const [dockedPanels, setDockedPanels] = useState(initialPanelState)
+  
+  // FIXED: Default merge state - merge properties and assets by default
   const [mergedStates, setMergedStates] = useState(() => {
-    return {
+    const defaultMerged = {
       left: mergePosition === 'left',
-      right: mergePosition === 'right'
+      right: mergePosition === 'right' || true // Default merge for right dock (properties + assets)
     }
+    return defaultMerged
   })
+
+  // Drag state - ENHANCED with better position tracking
   const [dragState, setDragState] = useState({
     isDragging: false,
     draggedPanel: null,
     startPosition: null,
+    startIndex: null, // Track original index
     currentPosition: { x: 0, y: 0 },
     offset: { x: 0, y: 0 },
-    dragElement: null
+    dragElement: null,
+    snapBackTimeout: null // For snap-back animation
   })
 
-  // Use ref for drag position to avoid re-renders during drag
   const dragPositionRef = useRef({ x: 0, y: 0 })
   const rafRef = useRef(null)
 
@@ -95,17 +114,18 @@ export default function Panel({
     onSearch?.(value)
   }, [onSearch])
 
-  // Only update panels when the memoized panelsToUse actually changes
+  // Update panels when the memoized panelsToUse changes
   useEffect(() => {
     setDockedPanels(initialPanelState)
   }, [initialPanelState])
 
   // Update merged states when mergePosition prop changes
   useEffect(() => {
-    setMergedStates({
+    setMergedStates(prev => ({
+      ...prev,
       left: mergePosition === 'left',
-      right: mergePosition === 'right'
-    })
+      right: mergePosition === 'right' || prev.right // Keep default right merge
+    }))
   }, [mergePosition])
 
   // Notify parent of panel state changes
@@ -116,7 +136,22 @@ export default function Panel({
     }
   }, [dockedPanels.right?.length, onPanelStateChange])
 
-  // Calculate panel height with hover preview and merging - USES maxPanelsPerDock
+  // ENHANCED: Merge display mode toggle
+  const toggleMergeDisplayMode = useCallback((position) => {
+    setMergeDisplayModes(prev => ({
+      ...prev,
+      [position]: prev[position] === 'tabs' ? 'stacked' : 'tabs'
+    }))
+  }, [])
+
+  // ENHANCED: Set active tab for merged panels
+  const setMergedActiveTab = useCallback((position, tabIndex) => {
+    setMergedActiveTabs(prev => ({
+      ...prev,
+      [position]: tabIndex
+    }))
+  }, [])
+
   const getPanelHeight = useCallback((position) => {
     const currentCount = dockedPanels[position]?.length || 0
     const isMerged = mergedStates[position]
@@ -127,11 +162,9 @@ export default function Panel({
     if (currentCount === 3) return 'calc(33.333% - 0.67rem)'
     if (currentCount >= 4) return 'calc(25% - 0.75rem)'
     
-    // Dynamic calculation for maxPanelsPerDock
     return `calc(${100 / Math.min(currentCount, maxPanelsPerDock)}% - 0.75rem)`
   }, [dockedPanels, mergedStates, maxPanelsPerDock])
 
-  // Get target drop zone
   const getDropZone = useCallback(() => {
     if (!dragState.isDragging) return null
     const windowWidth = window.innerWidth
@@ -139,7 +172,7 @@ export default function Panel({
     return mouseX < windowWidth / 2 ? 'left' : 'right'
   }, [dragState.isDragging])
 
-  // Updated getDropTarget to handle maxPanelsPerDock
+  // FIXED: Improved drop target calculation with snap-back prevention
   const getDropTarget = useCallback(() => {
     if (!dragState.isDragging) return null
     
@@ -152,42 +185,40 @@ export default function Panel({
     if (!allowedDockPositions.includes(targetPosition)) return null
     
     const targetPanels = dockedPanels[targetPosition] || []
-    const { startPosition, draggedPanel } = dragState
+    const { startPosition, draggedPanel, startIndex } = dragState
     
-    // Same dock reordering - USES maxPanelsPerDock
-    if (targetPosition === startPosition && targetPanels.length >= 2) {
-      let targetIndex
+    // FIXED: Same position, same index = no change (prevent unnecessary updates)
+    if (targetPosition === startPosition) {
       const panelCount = Math.min(targetPanels.length, maxPanelsPerDock)
       
+      if (panelCount <= 1) return null // Single panel, nowhere to move
+      
+      let targetIndex
       if (panelCount === 2) {
         const midY = windowHeight / 2
         targetIndex = mouseY < midY ? 0 : 1
       } else if (panelCount === 3) {
-        const thirdY = windowHeight / 3
-        const twoThirdY = (windowHeight / 3) * 2
-        if (mouseY < thirdY) targetIndex = 0
-        else if (mouseY < twoThirdY) targetIndex = 1
-        else targetIndex = 2
-      } else if (panelCount >= 4) {
-        const quarterY = windowHeight / 4
-        if (mouseY < quarterY) targetIndex = 0
-        else if (mouseY < quarterY * 2) targetIndex = 1
-        else if (mouseY < quarterY * 3) targetIndex = 2
-        else targetIndex = Math.min(3, maxPanelsPerDock - 1)
+        const sectionHeight = windowHeight / 3
+        targetIndex = Math.floor(mouseY / sectionHeight)
+      } else {
+        const sectionHeight = windowHeight / 4
+        targetIndex = Math.floor(mouseY / sectionHeight)
+        targetIndex = Math.min(targetIndex, maxPanelsPerDock - 1)
       }
       
-      const currentIndex = targetPanels.findIndex(p => p.id === draggedPanel.id)
+      // FIXED: If target index equals start index, return null to prevent updates
+      if (targetIndex === startIndex) {
+        return null
+      }
       
-      if (targetIndex !== currentIndex) {
-        return {
-          position: targetPosition,
-          index: targetIndex,
-          action: 'reorder'
-        }
+      return {
+        position: targetPosition,
+        index: targetIndex,
+        action: 'reorder'
       }
     }
     
-    // Different dock or empty dock - USES maxPanelsPerDock
+    // Different dock
     if (targetPosition !== startPosition) {
       if (targetPanels.length === 0) {
         return {
@@ -195,7 +226,7 @@ export default function Panel({
           index: 0,
           action: 'move'
         }
-      } else if (targetPanels.length < maxPanelsPerDock) { // Use maxPanelsPerDock
+      } else if (targetPanels.length < maxPanelsPerDock) {
         let targetIndex
         const panelCount = targetPanels.length
         
@@ -203,12 +234,10 @@ export default function Panel({
           const midY = windowHeight / 2
           targetIndex = mouseY < midY ? 0 : 1
         } else if (panelCount === 2) {
-          const thirdY = windowHeight / 3
-          const twoThirdY = (windowHeight / 3) * 2
-          if (mouseY < thirdY) targetIndex = 0
-          else if (mouseY < twoThirdY) targetIndex = 1
-          else targetIndex = 2
-        } else if (panelCount >= 3 && panelCount < maxPanelsPerDock) {
+          const sectionHeight = windowHeight / 3
+          targetIndex = Math.floor(mouseY / sectionHeight)
+          targetIndex = Math.min(targetIndex, 2)
+        } else {
           const sectionHeight = windowHeight / (panelCount + 1)
           targetIndex = Math.floor(mouseY / sectionHeight)
           targetIndex = Math.min(targetIndex, panelCount)
@@ -219,7 +248,8 @@ export default function Panel({
           index: targetIndex,
           action: 'add'
         }
-      } else if (targetPanels.length >= maxPanelsPerDock) { // Swap when at max capacity
+      } else {
+        // Swap when at max capacity
         let targetIndex
         const sectionHeight = windowHeight / maxPanelsPerDock
         targetIndex = Math.floor(mouseY / sectionHeight)
@@ -234,7 +264,7 @@ export default function Panel({
     }
     
     return null
-  }, [dragState.isDragging, dragState.startPosition, dragState.draggedPanel, dockedPanels, allowedDockPositions, maxPanelsPerDock])
+  }, [dragState, dockedPanels, allowedDockPositions, maxPanelsPerDock])
 
   // Optimized drag update using RAF
   const updateDragPosition = useCallback((clientX, clientY) => {
@@ -262,9 +292,11 @@ export default function Panel({
     })
   }, [dragState.isDragging, dragState.offset])
 
-  // Unified drag start handler
+  // Unified drag start handler - ENHANCED with index tracking
   const startDrag = useCallback((clientX, clientY, panel, position, element) => {
     const rect = element.getBoundingClientRect()
+    const panelsInPosition = dockedPanels[position] || []
+    const startIndex = panelsInPosition.findIndex(p => p.id === panel.id)
     
     dragPositionRef.current = { x: clientX, y: clientY }
     
@@ -272,23 +304,23 @@ export default function Panel({
       isDragging: true,
       draggedPanel: panel,
       startPosition: position,
+      startIndex: startIndex,
       currentPosition: { x: clientX, y: clientY },
       offset: {
         x: clientX - rect.left,
         y: clientY - rect.top
       },
-      dragElement: element
+      dragElement: element,
+      snapBackTimeout: null
     })
 
     document.body.style.userSelect = 'none'
     document.body.style.touchAction = 'none'
     document.body.style.cursor = 'grabbing'
-    document.body.style.overflow = 'hidden'
-    
     document.body.classList.add('dragging-panel')
-  }, [])
+  }, [dockedPanels])
 
-  // Simplified drag end handler
+  // FIXED: Enhanced drag end with snap-back prevention
   const endDrag = useCallback((clientX, clientY) => {
     if (!dragState.isDragging) return
 
@@ -298,9 +330,10 @@ export default function Panel({
     }
 
     const dropTarget = getDropTarget()
-    const { draggedPanel, startPosition } = dragState
+    const { draggedPanel, startPosition, startIndex } = dragState
 
-    if (dropTarget) {
+    // FIXED: Only update if there's a valid drop target
+    if (dropTarget && dropTarget.action && dropTarget.position && dropTarget.index !== undefined) {
       const { position: targetPosition, index: targetIndex, action } = dropTarget
       
       setDockedPanels(prev => {
@@ -308,11 +341,9 @@ export default function Panel({
         
         switch (action) {
           case 'reorder': {
-            const panels = [...(prev[targetPosition] || [])]
-            const draggedIndex = panels.findIndex(p => p.id === draggedPanel.id)
-            
-            if (draggedIndex !== -1 && draggedIndex !== targetIndex) {
-              panels.splice(draggedIndex, 1)
+            if (startPosition === targetPosition && startIndex !== targetIndex) {
+              const panels = [...(prev[targetPosition] || [])]
+              panels.splice(startIndex, 1)
               panels.splice(targetIndex, 0, draggedPanel)
               newState[targetPosition] = panels
             }
@@ -339,10 +370,8 @@ export default function Panel({
             
             if (panelToSwap) {
               newState[startPosition] = (prev[startPosition] || []).filter(p => p.id !== draggedPanel.id)
-              
               targetPanels[targetIndex] = draggedPanel
               newState[targetPosition] = targetPanels
-              
               newState[startPosition] = [...newState[startPosition], panelToSwap]
             }
             break
@@ -352,24 +381,25 @@ export default function Panel({
         return newState
       })
     }
+    // If no valid drop target, panel stays in original position (no snap-back needed)
 
     setDragState({
       isDragging: false,
       draggedPanel: null,
       startPosition: null,
+      startIndex: null,
       currentPosition: { x: 0, y: 0 },
       offset: { x: 0, y: 0 },
-      dragElement: null
+      dragElement: null,
+      snapBackTimeout: null
     })
 
     document.body.style.userSelect = ''
     document.body.style.touchAction = ''
     document.body.style.cursor = ''
-    document.body.style.overflow = ''
     document.body.classList.remove('dragging-panel')
   }, [dragState, getDropTarget])
 
-  // Mouse handlers
   const handleMouseDown = useCallback((e, panel, position) => {
     e.preventDefault()
     startDrag(e.clientX, e.clientY, panel, position, e.currentTarget.closest('.panel-container'))
@@ -402,7 +432,6 @@ export default function Panel({
     }
   }, [dragState.isDragging, updateDragPosition, endDrag])
 
-  // Touch handlers
   const handleTouchStart = useCallback((e, panel, position) => {
     e.preventDefault()
     const touch = e.touches[0]
@@ -438,7 +467,6 @@ export default function Panel({
     }
   }, [dragState.isDragging, updateDragPosition, endDrag])
 
-  // Panel close handler
   const handleClose = useCallback((panelId, position) => {
     setDockedPanels(prev => ({
       ...prev,
@@ -447,18 +475,200 @@ export default function Panel({
     onPanelClose?.(panelId)
   }, [onPanelClose])
 
-  // SIMPLIFIED MERGE SYSTEM - Single function to toggle merge state
   const toggleMerge = useCallback((position) => {
     setMergedStates(prev => ({
       ...prev,
       [position]: !prev[position]
     }))
-  }, [])
+    
+    // Reset active tab when merging/unmerging
+    if (!mergedStates[position]) {
+      setMergedActiveTab(position, 0)
+    }
+  }, [mergedStates, setMergedActiveTab])
 
-  // Check if panel should show tabs and search (only components panel)
   const shouldShowTabsAndSearch = useCallback((panel) => {
-    return panel.id === 'components' && showTabs && showSearch
+    return panel.id === 'components-panel' && showTabs && showSearch
   }, [showTabs, showSearch])
+
+  // ENHANCED: Render merged panels with tabbing system
+  const renderMergedPanels = (panels, position) => {
+    if (!panels || panels.length === 0) return null
+    
+    const displayMode = mergeDisplayModes[position]
+    const activeTabIndex = mergedActiveTabs[position]
+    const activePanel = panels[activeTabIndex] || panels[0]
+    
+    return (
+      <motion.div
+        className="w-full h-full panel-container"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+      >
+        <div 
+          className="rounded-lg border overflow-hidden h-full"
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+            boxShadow: 'var(--shadow-lg)',
+          }}
+        >
+          {/* Merged Header */}
+          <div 
+            className="flex items-center justify-between border-b"
+            style={{
+              backgroundColor: 'var(--color-bg-muted)',
+              borderColor: 'var(--color-border)',
+              minHeight: '48px',
+            }}
+          >
+            <div className="flex items-center flex-1">
+              <div className="flex items-center gap-2 px-3">
+                <Group className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+                <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+                  {panels.length} Panels Merged
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 px-3">
+              {/* Display Mode Toggle */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleMergeDisplayMode(position)
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors"
+                style={{ 
+                  color: 'var(--color-text)',
+                  backgroundColor: displayMode === 'tabs' ? 'var(--color-primary-soft)' : 'transparent'
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-bg-hover)'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = displayMode === 'tabs' ? 'var(--color-primary-soft)' : 'transparent'}
+                title={displayMode === 'tabs' ? 'Switch to Stacked View' : 'Switch to Tabbed View'}
+              >
+                <Layers className="w-3 h-3" />
+                {displayMode === 'tabs' ? 'Tabs' : 'Stack'}
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleMerge(position)
+                }}
+                className="flex items-center gap-2 px-3 py-1 rounded-md text-sm font-medium transition-colors"
+                style={{ 
+                  color: 'var(--color-text)',
+                  backgroundColor: 'transparent'
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-bg-hover)'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                title="Split Panels"
+              >
+                <Ungroup className="w-4 h-4" />
+                Split
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleClose(panels[0].id, position)
+                }}
+                className="p-1 rounded transition-colors"
+                style={{ color: 'var(--color-text-muted)' }}
+                onMouseEnter={(e) => e.target.style.color = 'var(--color-primary)'}
+                onMouseLeave={(e) => e.target.style.color = 'var(--color-text-muted)'}
+                title="Close All"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          
+          {/* Tab Navigation */}
+          <div className="flex border-b" style={{ borderColor: 'var(--color-border)' }}>
+            {panels.map((panel, index) => (
+              <button
+                key={panel.id}
+                onClick={() => setMergedActiveTab(position, index)}
+                className={`px-4 py-2 text-sm font-medium border-r transition-colors flex-1 ${
+                  index === activeTabIndex 
+                    ? 'text-white' 
+                    : 'text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]'
+                }`}
+                style={{ 
+                  borderColor: 'var(--color-border)',
+                  backgroundColor: index === activeTabIndex ? 'var(--color-primary)' : 'transparent'
+                }}
+              >
+                {panel.title}
+              </button>
+            ))}
+          </div>
+          
+          {/* Content Area */}
+          <div className="flex-1 overflow-hidden" style={{ height: 'calc(100% - 96px)' }}>
+            {displayMode === 'tabs' ? (
+              // TABBED VIEW
+              <div className="h-full">
+                {/* Tabs and Search for active panel */}
+                {renderTabs(activePanel)}
+                {renderSearchBar(activePanel)}
+                
+                {/* Active Panel Content */}
+                <div className="h-full overflow-y-auto" style={{ 
+                  height: `calc(100% - ${shouldShowTabsAndSearch(activePanel) ? 140 : 0}px)` 
+                }}>
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={activeTabIndex}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2 }}
+                      className="p-4 h-full"
+                    >
+                      {activePanel?.content}
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+              </div>
+            ) : (
+              // STACKED VIEW
+              <div className="h-full overflow-y-auto">
+                {panels.map((panel, index) => (
+                  <div key={panel.id} className={index > 0 ? 'border-t' : ''} style={{ borderColor: 'var(--color-border)' }}>
+                    <div className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-sm" style={{ color: 'var(--color-text)' }}>
+                          {panel.title}
+                        </h4>
+                        <button
+                          onClick={() => setMergedActiveTab(position, index)}
+                          className="text-xs px-2 py-1 rounded transition-colors"
+                          style={{ 
+                            color: 'var(--color-primary)',
+                            backgroundColor: 'var(--color-primary-soft)'
+                          }}
+                        >
+                          Focus
+                        </button>
+                      </div>
+                      <div className="text-sm">
+                        {panel.content}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    )
+  }
 
   // Render tabs (only for components panel)
   const renderTabs = (panel) => {
@@ -522,7 +732,7 @@ export default function Panel({
             style={{ 
               borderColor: 'var(--color-border)',
               color: 'var(--color-text)',
-              '::placeholder': { color: 'var(--color-text-muted)' }
+              backgroundColor: 'var(--color-bg)'
             }}
             onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
             onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
@@ -532,133 +742,7 @@ export default function Panel({
     )
   }
 
-  // Render merged panels
-  const renderMergedPanels = (panels, position) => {
-    if (!panels || panels.length === 0) return null
-    
-    return (
-      <motion.div
-        className="w-full h-full panel-container"
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ type: "spring", damping: 25, stiffness: 300 }}
-      >
-        <div 
-          className="rounded-lg border overflow-hidden h-full"
-          style={{
-            backgroundColor: 'var(--color-surface)',
-            borderColor: 'var(--color-border)',
-            boxShadow: 'var(--shadow-lg)',
-          }}
-        >
-          {/* Merged Header with tabs */}
-          <div 
-            className="flex items-center justify-between border-b"
-            style={{
-              backgroundColor: 'var(--color-bg-muted)',
-              borderColor: 'var(--color-border)',
-              minHeight: '48px',
-            }}
-          >
-            <div className="flex items-center flex-1">
-              <div className="flex items-center gap-2 px-3">
-                <Group className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
-                <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
-                  {panels.length} Panels Merged
-                </span>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2 px-3">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  toggleMerge(position)
-                }}
-                className="flex items-center gap-2 px-3 py-1 rounded-md text-sm font-medium transition-colors"
-                style={{ 
-                  color: 'var(--color-text)',
-                  backgroundColor: 'transparent'
-                }}
-                onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-bg-hover)'}
-                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                title="Split Panels"
-              >
-                <Ungroup className="w-4 h-4" />
-                Split
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleClose(panels[0].id, position)
-                }}
-                className="p-1 rounded transition-colors"
-                style={{ color: 'var(--color-text-muted)' }}
-                onMouseEnter={(e) => e.target.style.color = 'var(--color-primary)'}
-                onMouseLeave={(e) => e.target.style.color = 'var(--color-text-muted)'}
-                title="Close All"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-          
-          {/* Panel tabs within merged view */}
-          <div className="flex border-b" style={{ borderColor: 'var(--color-border)' }}>
-            {panels.map((panel, index) => (
-              <button
-                key={panel.id}
-                className={`px-4 py-2 text-sm font-medium border-r transition-colors ${
-                  index === 0 
-                    ? 'text-white' 
-                    : 'text-[var(--color-text)]'
-                }`}
-                style={{ 
-                  borderColor: 'var(--color-border)',
-                  backgroundColor: index === 0 ? 'var(--color-primary)' : 'transparent'
-                }}
-                onMouseEnter={(e) => {
-                  if (index !== 0) e.target.style.backgroundColor = 'var(--color-bg-hover)'
-                }}
-                onMouseLeave={(e) => {
-                  if (index !== 0) e.target.style.backgroundColor = 'transparent'
-                }}
-              >
-                {panel.title}
-              </button>
-            ))}
-          </div>
-          
-          {/* Tabs and Search - only for components panel */}
-          {renderTabs(panels[0])}
-          {renderSearchBar(panels[0])}
-          
-          {/* Merged Content */}
-          <div className="overflow-y-auto" style={{ 
-            height: `calc(100% - ${88 + (shouldShowTabsAndSearch(panels[0]) ? 140 : 0)}px)` 
-          }}>
-            <div className="p-4">
-              {panels[0]?.content}
-            </div>
-            
-            {panels.slice(1).map((panel) => (
-              <div key={panel.id} className="border-t p-4" style={{ borderColor: 'var(--color-border)' }}>
-                <div className="text-sm font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>
-                  {panel.title}
-                </div>
-                <div className="text-sm opacity-60">
-                  {panel.content}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </motion.div>
-    )
-  }
-
-  // Render single panel with visual feedback
+  // Rest of the render functions remain the same...
   const renderPanel = (panel, position, index) => {
     const isDragged = dragState.isDragging && dragState.draggedPanel?.id === panel.id
     const dropTarget = getDropTarget()
@@ -729,9 +813,8 @@ export default function Panel({
               )}
             </div>
             
-            {/* Action buttons - prevent event propagation */}
+            {/* Action buttons */}
             <div className="flex items-center gap-1 px-3">
-              {/* Single merge button - only show when there are multiple panels */}
               {canMerge && (
                 <button
                   onClick={(e) => {
@@ -776,7 +859,7 @@ export default function Panel({
             </div>
           </div>
           
-          {/* Tabs and Search - only for components panel */}
+          {/* Tabs and Search */}
           {renderTabs(panel)}
           {renderSearchBar(panel)}
           
@@ -793,7 +876,7 @@ export default function Panel({
     )
   }
 
-  // Render dock area with merge suggestion - UPDATED SMALLER MERGE BANNER
+  // Render dock area
   const renderDockArea = (position) => {
     const panels = dockedPanels[position] || []
     const dropTarget = getDropTarget()
@@ -840,7 +923,7 @@ export default function Panel({
             stiffness: 300
           }}
         >
-          {/* SMALLER Merge suggestion banner when there are multiple panels */}
+          {/* Merge suggestion banner when there are multiple panels */}
           {!isMerged && panels.length > 1 && (
             <motion.div 
               className="border rounded-md px-3 py-2 mb-1"
@@ -891,7 +974,7 @@ export default function Panel({
           </AnimatePresence>
         </motion.div>
 
-        {/* Drop zone indicators - UPDATED FOR 4 PANELS */}
+        {/* Drop zone indicators */}
         {isDropTarget && !isMerged && dragState.isDragging && (
           <motion.div 
             className="absolute inset-0 pointer-events-none"
@@ -914,201 +997,35 @@ export default function Panel({
                   Drop Here
                 </div>
               </div>
-            ) : panels.length === 1 ? (
-              <>
-                <div 
-                  className="absolute top-0 left-0 right-0 h-1/2 rounded-t-lg border-2 border-dashed flex items-center justify-center"
-                  style={{
-                    borderColor: 'var(--color-primary)',
-                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
-                  }}
-                >
-                  <div 
-                    className="px-3 py-1 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
-                  >
-                    Drop Top
-                  </div>
-                </div>
-                <div 
-                  className="absolute bottom-0 left-0 right-0 h-1/2 rounded-b-lg border-2 border-dashed flex items-center justify-center"
-                  style={{
-                    borderColor: 'var(--color-primary)',
-                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
-                  }}
-                >
-                  <div 
-                    className="px-3 py-1 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
-                  >
-                    Drop Bottom
-                  </div>
-                </div>
-              </>
-            ) : panels.length === 2 ? (
-              <>
-                <div 
-                  className="absolute top-0 left-0 right-0 h-1/3 rounded-t-lg border-2 border-dashed flex items-center justify-center"
-                  style={{
-                    borderColor: 'var(--color-primary)',
-                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
-                  }}
-                >
-                  <div 
-                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
-                  >
-                    Drop Top
-                  </div>
-                </div>
-                <div 
-                  className="absolute top-1/3 left-0 right-0 h-1/3 border-2 border-dashed flex items-center justify-center"
-                  style={{
-                    borderColor: 'var(--color-primary)',
-                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
-                  }}
-                >
-                  <div 
-                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
-                  >
-                    Drop Middle
-                  </div>
-                </div>
-                <div 
-                  className="absolute bottom-0 left-0 right-0 h-1/3 rounded-b-lg border-2 border-dashed flex items-center justify-center"
-                  style={{
-                    borderColor: 'var(--color-primary)',
-                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
-                  }}
-                >
-                  <div 
-                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
-                  >
-                    Drop Bottom
-                  </div>
-                </div>
-              </>
-            ) : panels.length === 3 ? (
-              <>
-                <div 
-                  className="absolute top-0 left-0 right-0 h-1/4 rounded-t-lg border-2 border-dashed flex items-center justify-center"
-                  style={{
-                    borderColor: 'var(--color-primary)',
-                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
-                  }}
-                >
-                  <div 
-                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
-                  >
-                    Drop 1st
-                  </div>
-                </div>
-                <div 
-                  className="absolute top-1/4 left-0 right-0 h-1/4 border-2 border-dashed flex items-center justify-center"
-                  style={{
-                    borderColor: 'var(--color-primary)',
-                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
-                  }}
-                >
-                  <div 
-                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
-                  >
-                    Drop 2nd
-                  </div>
-                </div>
-                <div 
-                  className="absolute top-2/4 left-0 right-0 h-1/4 border-2 border-dashed flex items-center justify-center"
-                  style={{
-                    borderColor: 'var(--color-primary)',
-                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
-                  }}
-                >
-                  <div 
-                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
-                  >
-                    Drop 3rd
-                  </div>
-                </div>
-                <div 
-                  className="absolute bottom-0 left-0 right-0 h-1/4 rounded-b-lg border-2 border-dashed flex items-center justify-center"
-                  style={{
-                    borderColor: 'var(--color-primary)',
-                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 10%, transparent)'
-                  }}
-                >
-                  <div 
-                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
-                  >
-                    Drop 4th
-                  </div>
-                </div>
-              </>
             ) : (
-              // When at max capacity (4 panels), show swap indicators
-              <>
-                <div 
-                  className="absolute top-0 left-0 right-0 h-1/4 rounded-t-lg border-2 border-dashed flex items-center justify-center"
-                  style={{
-                    borderColor: 'rgb(251, 146, 60)',
-                    backgroundColor: 'rgba(251, 146, 60, 0.1)'
-                  }}
-                >
+              // Multi-zone drop indicators based on panel count
+              Array.from({ length: Math.min(panels.length + 1, maxPanelsPerDock) }, (_, i) => {
+                const isSwap = panels.length >= maxPanelsPerDock
+                const zones = isSwap ? maxPanelsPerDock : panels.length + 1
+                const height = `${100 / zones}%`
+                const top = `${(100 / zones) * i}%`
+                
+                return (
                   <div 
-                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: 'rgb(251, 146, 60)' }}
+                    key={i}
+                    className="absolute left-0 right-0 border-2 border-dashed flex items-center justify-center"
+                    style={{
+                      height,
+                      top,
+                      borderColor: isSwap ? 'rgb(251, 146, 60)' : 'var(--color-primary)',
+                      backgroundColor: isSwap ? 'rgba(251, 146, 60, 0.1)' : 'color-mix(in srgb, var(--color-primary) 10%, transparent)',
+                      borderRadius: i === 0 ? '0.5rem 0.5rem 0 0' : i === zones - 1 ? '0 0 0.5rem 0.5rem' : '0'
+                    }}
                   >
-                    Swap 1st
+                    <div 
+                      className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                      style={{ backgroundColor: isSwap ? 'rgb(251, 146, 60)' : 'var(--color-primary)' }}
+                    >
+                      {isSwap ? `Swap ${i + 1}` : i === panels.length ? 'Drop Last' : `Drop ${i + 1}`}
+                    </div>
                   </div>
-                </div>
-                <div 
-                  className="absolute top-1/4 left-0 right-0 h-1/4 border-2 border-dashed flex items-center justify-center"
-                  style={{
-                    borderColor: 'rgb(251, 146, 60)',
-                    backgroundColor: 'rgba(251, 146, 60, 0.1)'
-                  }}
-                >
-                  <div 
-                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: 'rgb(251, 146, 60)' }}
-                  >
-                    Swap 2nd
-                  </div>
-                </div>
-                <div 
-                  className="absolute top-2/4 left-0 right-0 h-1/4 border-2 border-dashed flex items-center justify-center"
-                  style={{
-                    borderColor: 'rgb(251, 146, 60)',
-                    backgroundColor: 'rgba(251, 146, 60, 0.1)'
-                  }}
-                >
-                  <div 
-                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: 'rgb(251, 146, 60)' }}
-                  >
-                    Swap 3rd
-                  </div>
-                </div>
-                <div 
-                  className="absolute bottom-0 left-0 right-0 h-1/4 rounded-b-lg border-2 border-dashed flex items-center justify-center"
-                  style={{
-                    borderColor: 'rgb(251, 146, 60)',
-                    backgroundColor: 'rgba(251, 146, 60, 0.1)'
-                  }}
-                >
-                  <div 
-                    className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: 'rgb(251, 146, 60)' }}
-                  >
-                    Swap 4th
-                  </div>
-                </div>
-              </>
+                )
+              })
             )}
           </motion.div>
         )}

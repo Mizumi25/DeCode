@@ -35,6 +35,9 @@ class DatabaseSeeder extends Seeder
             EcommerceMarketingSeeder::class,
             ContentMapSeeder::class,
             InteractiveAdvancedSeeder::class,
+            
+            CustomIconSeeder::class,
+            AssetSeeder::class,
         ]);
         
         $this->command->info('🎉 All components seeded successfully!');
