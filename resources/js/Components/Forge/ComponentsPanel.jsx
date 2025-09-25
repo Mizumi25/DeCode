@@ -1,5 +1,5 @@
-// @/Components/Forge/ComponentsPanel.jsx - Enhanced with Category Dropdowns
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+// @/Components/Forge/ComponentsPanel.jsx - FIXED Tab Switching Reset
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Layers, 
@@ -105,12 +105,18 @@ const ComponentsPanel = ({
     ]
   };
   
+  // CLEANER FIX: Use a ref to track tab changes and avoid the useEffect loop
+  const previousTabRef = useRef(currentActiveTab);
+  
   useEffect(() => {
-    if (showVariants) {
+    // Only reset if the tab actually changed
+    if (previousTabRef.current !== currentActiveTab) {
+      console.log('ComponentsPanel: Tab changed from', previousTabRef.current, 'to:', currentActiveTab);
       setShowVariants(false);
       setSelectedComponent(null);
+      previousTabRef.current = currentActiveTab;
     }
-  }, [currentActiveTab]);
+  }, [currentActiveTab]); // Remove showVariants from dependencies
 
   useEffect(() => {
     fetchComponents();
@@ -207,18 +213,29 @@ const ComponentsPanel = ({
     return categorized;
   }, [components, currentActiveTab, currentSearchTerm]);
 
+  // FIXED: Enhanced tab change handler with proper reset
   const handleTabChange = (tab) => {
+    console.log('ComponentsPanel: handleTabChange called with tab:', tab);
+    
     if (onTabChange) {
       onTabChange(tab);
     } else {
       setInternalActiveTab(tab);
     }
+    
+    // CRITICAL: Always reset variants view when changing tabs
+    setShowVariants(false);
+    setSelectedComponent(null);
     setSelectedLetter(null);
+    
+    // Clear search as well
     if (onSearch) {
       onSearch('');
     } else {
       setInternalSearchTerm('');
     }
+    
+    console.log('ComponentsPanel: Tab change completed, variants view reset');
   };
 
   const handleSearch = (value) => {
@@ -238,9 +255,11 @@ const ComponentsPanel = ({
 
   const handleComponentClick = (component) => {
     if (component.variants && Array.isArray(component.variants) && component.variants.length > 0) {
+      console.log('ComponentsPanel: Showing variants for component:', component.name);
       setSelectedComponent(component);
       setShowVariants(true);
     } else {
+      console.log('ComponentsPanel: No variants, starting drag for component:', component.name);
       handleMainComponentDragStart(component);
     }
   };
@@ -349,7 +368,9 @@ const ComponentsPanel = ({
     }
   };
 
+  // FIXED: Back button with better reset
   const handleBackClick = () => {
+    console.log('ComponentsPanel: Back button clicked, returning to category view');
     setShowVariants(false);
     setSelectedComponent(null);
   };
@@ -388,7 +409,7 @@ const ComponentsPanel = ({
 
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
-      {/* Tabs Section */}
+      {/* FIXED: Enhanced Tabs Section with better visual feedback */}
       <div className="p-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
         <div className="relative rounded-xl p-1" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
           <motion.div
@@ -448,7 +469,7 @@ const ComponentsPanel = ({
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content with improved transitions */}
       <div className="flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
           {!showVariants ? (
@@ -604,7 +625,7 @@ const ComponentsPanel = ({
             </motion.div>
           ) : (
             <motion.div
-              key="variants"
+              key={`variants-${selectedComponent?.id || 'none'}`}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
