@@ -101,11 +101,11 @@ export default function FloatingToolbox({ tools }) {
               <button
                 onClick={(e) => handleToolClick(tool, e)}
                 className={`
-                  w-8 h-8 rounded-full flex items-center justify-center
+                  relative w-8 h-8 rounded-full flex items-center justify-center
                   transition-all duration-300 ease-out
                   hover:scale-110 hover:-translate-y-1 active:scale-95
                   focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
-                  relative overflow-hidden
+                  overflow-hidden
                   ${tool.isPrimary 
                     ? 'shadow-md hover:shadow-lg' 
                     : 'shadow-sm hover:shadow-md'
@@ -134,6 +134,15 @@ export default function FloatingToolbox({ tools }) {
                 aria-label={tool.label}
                 aria-pressed={isActive}
               >
+                {/* Badge for notifications (e.g., pending requests) */}
+                {tool.badge && (
+                  <div className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 rounded-full flex items-center justify-center">
+                    <span className="text-[10px] font-bold text-white px-1">
+                      {tool.badge > 9 ? '9+' : tool.badge}
+                    </span>
+                  </div>
+                )}
+
                 {/* Active state indicator */}
                 {isActive && !tool.isPrimary && (
                   <div 

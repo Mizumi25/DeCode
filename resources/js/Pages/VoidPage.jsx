@@ -1,7 +1,7 @@
 // Pages/VoidPage.jsx - Modified sections only
 import { useRef, useState, useCallback, useMemo, useEffect } from 'react'
 import { Head, usePage, router } from '@inertiajs/react'
-import { Plus, Layers, FolderOpen, Code, Users, Upload, Briefcase } from 'lucide-react'
+import { Plus, Layers, FolderOpen, Code, Users, Upload, Briefcase, UserPlus } from 'lucide-react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import Panel from '@/Components/Panel'
 import BackgroundLayers from '@/Components/Void/BackgroundLayers'
@@ -17,6 +17,7 @@ import NotificationToastContainer from '@/Components/Notifications/NotificationT
 import { useScrollHandler } from '@/Components/Void/ScrollHandler'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useEditorStore } from '@/stores/useEditorStore'
+import { useWorkspaceStore } from '@/stores/useWorkspaceStore'
 import useFrameLockStore from '@/stores/useFrameLockStore'
 
 // Import panel components
@@ -24,6 +25,12 @@ import FramesPanel from '@/Components/Void/FramesPanel'
 import ProjectFilesPanel from '@/Components/Void/ProjectFilesPanel'
 import CodeHandlerPanel from '@/Components/Void/CodeHandlerPanel'
 import TeamCollaborationPanel from '@/Components/Void/TeamCollaborationPanel'
+
+import CreateWorkspaceModal from '@/Components/Workspaces/CreateWorkspaceModal'
+import InviteModal from '@/Components/Workspaces/InviteModal'
+import ProjectSwitcherModal from '@/Components/Void/ProjectSwitcherModal'
+
+
 
 export default function VoidPage() {
   const { project, auth } = usePage().props
@@ -42,6 +49,12 @@ export default function VoidPage() {
     gridVisible, 
     setGridVisible
   } = useEditorStore()
+  
+  const { 
+    currentWorkspace,
+    workspaces 
+  } = useWorkspaceStore()
+  
   const { 
     initialize: initializeLockSystem, 
     setLockStatus,
@@ -71,6 +84,11 @@ export default function VoidPage() {
   const [frames, setFrames] = useState([])
   const [draggedFrame, setDraggedFrame] = useState(null)
   const [isFrameDragging, setIsFrameDragging] = useState(false)
+  
+  const [showCreateWorkspace, setShowCreateWorkspace] = useState(false)
+  const [showInviteModal, setShowInviteModal] = useState(false)
+  const [showProjectSwitcher, setShowProjectSwitcher] = useState(false)
+
 
   // Frame dimensions for collision detection
   const frameWidth = 320
@@ -381,6 +399,19 @@ export default function VoidPage() {
       case 'Team Collaborations':
         togglePanel('team-panel')
         break
+      case 'Import':
+        console.log('Import action - redirect to project creation with import tab')
+        // You can implement import logic here or redirect to project page
+        break
+      case 'Project':
+        setShowProjectSwitcher(true)
+        break
+      case 'Invite to Workspace':
+        setShowInviteModal(true)
+        break
+      case 'Create Workspace':
+        setShowCreateWorkspace(true)
+        break
       default:
         console.log(`Action for ${toolLabel} not implemented yet`)
     }
@@ -489,8 +520,22 @@ export default function VoidPage() {
       label: 'Project', 
       isPrimary: false, 
       action: () => handleToolAction('Project') 
+    },
+    // Add new workspace management tools
+    ...(currentWorkspace && currentWorkspace.type !== 'personal' ? [{
+      icon: UserPlus,
+      label: 'Invite to Workspace',
+      isPrimary: false,
+      action: () => handleToolAction('Invite to Workspace')
+    }] : []),
+    {
+      icon: Plus,
+      label: 'Create Workspace',
+      isPrimary: false,
+      action: () => handleToolAction('Create Workspace')
     }
-  ], [handleToolAction, isPanelOpen, getPendingRequestsCount])
+  ], [handleToolAction, isPanelOpen, getPendingRequestsCount, currentWorkspace])
+
 
   // Dynamic panel configuration based on state
   const activePanels = useMemo(() => {
@@ -546,7 +591,7 @@ export default function VoidPage() {
       zoomLevel={zoomLevel}
       onZoomChange={handleZoom}
       project={project}
-      frame: null
+      frame={null}
     >
       <Head title={`Void - ${project?.name || 'Project'}`} />
       <div 
@@ -618,7 +663,28 @@ export default function VoidPage() {
             onPanelMaximize={handlePanelMaximize}
           />
         )}
-
+        
+        {/* Project Switcher Modal */}
+        <ProjectSwitcherModal
+          show={showProjectSwitcher}
+          onClose={() => setShowProjectSwitcher(false)}
+          currentProject={project}
+        />
+  
+        {/* Create Workspace Modal */}
+        <CreateWorkspaceModal 
+          show={showCreateWorkspace}
+          onClose={() => setShowCreateWorkspace(false)}
+        />
+  
+        {/* Invite Modal */}
+        <InviteModal
+          show={showInviteModal}
+          onClose={() => setShowInviteModal(false)}
+          workspaceId={currentWorkspace?.uuid}
+          forceInviteMode={true}
+        />
+        
         {/* Frame Creator Modal */}
         <Modal
           show={showFrameCreator}
