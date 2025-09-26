@@ -164,14 +164,23 @@ const CanvasComponent = ({
     // Get the actual rendered component content
     let renderedContent = null;
     
+    // FIXED: Proper component rendering with merged props
     if (componentRenderer && componentRenderer.render) {
       try {
+        // Get component definition for default props
+        const componentDef = componentLibraryService?.getComponentDefinition(component.type);
+        
+        // CRITICAL: Properly merge default props with component props
+        const mergedProps = {
+          ...componentDef?.default_props, // Default props from definition
+          ...component.props,             // User-set props
+          style: component.style          // Component styling
+        };
+        
+        console.log('Rendering component with merged props:', component.type, mergedProps);
+        
         // Render the actual component with proper styling
-        renderedContent = componentRenderer.render({
-          ...component.props,
-          ...component,
-          style: component.style
-        }, component.id);
+        renderedContent = componentRenderer.render(mergedProps, component.id);
       } catch (error) {
         console.warn('Component render error:', error);
         // Fallback to placeholder
@@ -181,6 +190,17 @@ const CanvasComponent = ({
           </div>
         );
       }
+    } else {
+      // Fallback when no renderer is available
+      console.warn('No renderer found for component type:', component.type);
+      renderedContent = (
+        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 min-w-[100px] min-h-[40px] flex items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <div className="text-sm font-medium text-gray-700">{component.name || component.type}</div>
+            <div className="text-xs text-gray-500 mt-1">Renderer not found</div>
+          </div>
+        </div>
+      );
     }
     
     // Determine positioning strategy
