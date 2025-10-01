@@ -843,7 +843,7 @@ export default function ProjectList({
                   <div className="relative" ref={filterDropdownRef}>
                     <button 
                       onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                      className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition bg-[var(--color-bg-muted)] px-3 py-1.5 rounded-lg border border-[var(--color-border)]"
+                      className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition bg-transparent px-3 py-1.5 rounded-lg"
                     >
                       {filterOptions.find(f => f.value === currentFilter)?.label || 'All Projects'}
                       <ChevronDown className="w-4 h-4" />
@@ -870,18 +870,6 @@ export default function ProjectList({
                     )}
                   </div>
 
-                  {/* Sort Dropdown */}
-                  <button 
-                    className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition"
-                    onClick={() => {
-                      const currentIndex = sortOptions.findIndex(s => s.value === currentSort);
-                      const nextIndex = (currentIndex + 1) % sortOptions.length;
-                      handleSortChange(sortOptions[nextIndex].value);
-                    }}
-                  >
-                    {sortOptions.find(s => s.value === currentSort)?.label || 'Last Updated'}
-                    <ChevronDown className="w-4 h-4" />
-                  </button>
 
                   {/* Paste button (shown when clipboard has content) */}
                   {clipboardStatus?.has_project && (

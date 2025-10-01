@@ -13,12 +13,14 @@ class ProjectComponent extends Model
     protected $fillable = [
         'project_id',
         'frame_id', // Change from frame_uuid to frame_id for consistency
+        'parent_id',
         'component_instance_id',
         'component_type',
         'props',
         'position',
         'name',
         'z_index',
+        'sort_order',
         'is_locked',
         'variant',        // ADD
         'style',          // ADD
@@ -35,6 +37,19 @@ class ProjectComponent extends Model
         'style' => 'array',       // ADD
         'animation' => 'array'    // ADD
     ];
+    
+    // ADD this relationship
+  public function parent()
+  {
+      return $this->belongsTo(ProjectComponent::class, 'parent_id');
+  }
+  
+  // ADD this relationship
+  public function children()
+  {
+      return $this->hasMany(ProjectComponent::class, 'parent_id');
+  }
+    
 
     public function component()
     {

@@ -10,10 +10,10 @@ const HeaderToggleButton = () => {
     <AnimatePresence>
       <motion.button
         onClick={toggleHeaderVisibility}
-        className={`fixed top-12 right-2 z-[60] p-2 rounded-full transition-all duration-300 ${
+        className={`fixed right-10 z-[60] p-2 rounded-full transition-all duration-300 ${
           isHeaderVisible 
-            ? 'bg-[var(--color-bg-muted)] text-[var(--color-text)] shadow-md hover:bg-[var(--color-border)]' 
-            : 'bg-black/20 text-white/60 backdrop-blur-sm hover:bg-black/30 hover:text-white/80'
+            ? 'bg-[var(--color-bg)] text-[var(--color-primary)] shadow-md hover:bg-[var(--color-border)] top-10' 
+            : 'bg-black/40 text-[var(--color-primary)] backdrop-blur-sm hover:bg-black/30 hover:text-white/80 top-0'
         }`}
         initial={{ opacity: 0, y: -20 }}
         animate={{ 

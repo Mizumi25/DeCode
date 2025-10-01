@@ -315,11 +315,11 @@ const RightSection = ({
             {/* === Invite Button === */}
             <button
               onClick={() => handleInviteClick(null)} // null will use current workspace
-              className="hidden md:flex items-center gap-2 px-3 py-2 bg-[var(--color-bg-muted)] hover:bg-[var(--color-bg-hover)] border border-[var(--color-border)] rounded-lg text-[var(--color-text)] transition-colors"
+              className="flex items-center gap-2 px-3 py-2 bg-[var(--color-bg)] hover:bg-[var(--color-bg-hover)] rounded-lg text-[var(--color-text)] transition-colors shadow-sm shadow-[var(--color-primary)]"
               title="Invite team members"
             >
               <Users className="w-4 h-4" />
-              <span className="text-sm font-medium">Invite</span>
+              <span className="hidden md:flex text-sm font-medium">Invite</span>
             </button>
 
             {/* === Mobile Search Button === */}

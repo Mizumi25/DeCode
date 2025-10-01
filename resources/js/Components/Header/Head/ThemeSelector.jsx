@@ -169,7 +169,7 @@ const ColorPicker = ({ color, onChange, onClose }) => {
 
 // Theme colors matching the store
 const themeColors = [
-  { name: 'Framer', color: '#0055FF', gradient: 'linear-gradient(135deg, #0055FF, #0099FF)', isDefault: true },
+  { name: 'DeCode', color: '#0055FF', gradient: 'linear-gradient(135deg, #0055FF, #0099FF)', isDefault: true },
   { name: 'Mint', color: '#7dd3fc', gradient: 'linear-gradient(135deg, #7dd3fc, #a7f3d0)' },
   { name: 'Sunset', color: '#fbbf24', gradient: 'linear-gradient(135deg, #fbbf24, #f97316)' },
   { name: 'Lavender', color: '#c084fc', gradient: 'linear-gradient(135deg, #c084fc, #a855f7)' },

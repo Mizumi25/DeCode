@@ -23,18 +23,24 @@ class DatabaseSeeder extends Seeder
         
         // Seed all component types
         $this->call([
+          //THIS ARE COMPLEX NON ORAGNIZE ONES,POSSIBILITY OF REMOVING
             // Original seeders (updated)
-            ComponentSeeder::class,
-            LayoutElementSeeder::class,
-            ChartComponentSeeder::class,
-            
-            // NEW: Advanced component seeders
-            FormComponentSeeder::class,
-            MediaComponentSeeder::class,
-            ThreeDAnimationSeeder::class,
-            EcommerceMarketingSeeder::class,
-            ContentMapSeeder::class,
-            InteractiveAdvancedSeeder::class,
+          //   ComponentSeeder::class,
+//             LayoutElementSeeder::class,
+//             ChartComponentSeeder::class,
+//             
+//             // NEW: Advanced component seeders
+//             FormComponentSeeder::class,
+//             MediaComponentSeeder::class,
+//             ThreeDAnimationSeeder::class,
+//             EcommerceMarketingSeeder::class,
+//             ContentMapSeeder::class,
+//             InteractiveAdvancedSeeder::class,
+
+            LayoutContainerSeeder::class,
+            BasicElementsSeeder::class,
+            TypographyElementsSeeder::class,
+            MediaElementsSeeder::class,
             
             CustomIconSeeder::class,
             AssetSeeder::class,

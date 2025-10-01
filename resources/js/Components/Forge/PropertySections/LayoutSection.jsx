@@ -143,6 +143,35 @@ const LayoutSection = ({
         setExpandedSections={setExpandedSections}
         defaultExpanded={true}
       >
+      {/* Add layout mode converter */}
+    <div className="bg-gradient-to-br from-blue-50 to-purple-50 p-4 rounded-lg border-2 border-blue-200">
+        <SubsectionHeader title="Convert Layout Mode" />
+        <div className="grid grid-cols-2 gap-2">
+            <button
+                onClick={() => {
+                    onPropertyChange('display', 'flex', 'style');
+                    onPropertyChange('flexDirection', 'row', 'style');
+                    onPropertyChange('gap', '16px', 'style');
+                }}
+                className="px-4 py-3 bg-white rounded-lg border-2 hover:border-blue-500 transition-all"
+            >
+                <Columns className="w-5 h-5 mx-auto mb-1" />
+                <div className="text-xs font-semibold">Flexbox</div>
+            </button>
+            
+            <button
+                onClick={() => {
+                    onPropertyChange('display', 'grid', 'style');
+                    onPropertyChange('gridTemplateColumns', 'repeat(3, 1fr)', 'style');
+                    onPropertyChange('gap', '16px', 'style');
+                }}
+                className="px-4 py-3 bg-white rounded-lg border-2 hover:border-purple-500 transition-all"
+            >
+                <Grid3X3 className="w-5 h-5 mx-auto mb-1" />
+                <div className="text-xs font-semibold">Grid</div>
+            </button>
+        </div>
+    </div>
         {/* Position Type - Visual Buttons */}
         <VisualButtonGroup
           label="Position"

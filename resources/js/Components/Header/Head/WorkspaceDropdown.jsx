@@ -221,7 +221,7 @@ const WorkspaceDropdown = ({
   return (
     <>
       <div
-        className="hidden md:flex items-center gap-2 cursor-pointer relative bg-[var(--color-bg-muted)] hover:bg-[var(--color-bg-hover)] rounded-lg px-3 py-2 transition-colors"
+        className="flex items-center gap-2 cursor-pointer relative bg-[var(--color-bg-muted)] hover:bg-[var(--color-bg-hover)] rounded-lg px-3 py-2 transition-colors"
         onClick={() => setDropdownOpen(!dropdownOpen)}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -230,7 +230,7 @@ const WorkspaceDropdown = ({
               {getPrivacyIcon(currentWorkspace)}
             </div>
           )}
-          <span className="text-[var(--color-text)] font-medium text-sm truncate max-w-[120px]">
+          <span className="text-[var(--color-text)] font-medium text-sm truncate max-w-[50px] md:max-w-[120px]">
             {isLoading ? 'Loading...' : currentWorkspaceName}
           </span>
         </div>

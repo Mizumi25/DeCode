@@ -77,6 +77,11 @@ export default function ForgePage({
   // Mobile detection
   const [isMobile, setIsMobile] = useState(false)
   const [windowDimensions, setWindowDimensions] = useState({ width: 0, height: 0 })
+  
+  
+  // Add these states near your other useState declarations
+  const [dragPosition, setDragPosition] = useState(null);
+  const [isCanvasSelected, setIsCanvasSelected] = useState(false);
 
   // Canvas state for dropped components - Now frame-specific
   const [frameCanvasComponents, setFrameCanvasComponents] = useState(() => {
@@ -174,6 +179,19 @@ export default function ForgePage({
     
     return basePadding;
   };
+  
+  
+  // ADD these at the TOP of ForgePage.jsx, after imports and before the component
+
+const LAYOUT_TYPES = ['section', 'container', 'div', 'flex', 'grid'];
+const isLayoutElement = (type) => LAYOUT_TYPES.includes(type);
+
+
+
+
+  
+  
+  
   
     // ADD: Detect if project is GitHub import
   const [isGitHubProject, setIsGitHubProject] = useState(false);
@@ -692,60 +710,59 @@ const handleAssetDrop = useCallback((e) => {
 
   // Canvas drop handlers - Updated to work with frame-specific components
   const handleCanvasDragOver = useCallback((e) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'copy'
-  }, [])
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    
+    // Track drag position for snap lines
+    if (canvasRef.current) {
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      setDragPosition({
+        x: e.clientX - canvasRect.left,
+        y: e.clientY - canvasRect.top
+      });
+    }
+  }, []);
 
     // REPLACE the handleCanvasDrop method in ForgePage.jsx (around line 400)
-    // ENHANCED: Modified handleCanvasDrop to trigger thumbnail updates
-  const handleCanvasDrop = useCallback((e) => {
-    e.preventDefault();
-    
-    if (!canvasRef.current) return;
+  // In ForgePage.jsx - REPLACE handleCanvasDrop
+
+const handleCanvasDrop = useCallback((e) => {
+  e.preventDefault();
   
+  // Clear drag position
+  setDragPosition(null)
+  
+  if (!canvasRef.current) return;
+
+  try {
+    const componentDataStr = e.dataTransfer.getData('text/plain');
+    let dragData;
+    
     try {
-      // First try to handle as asset
-      const assetDataStr = e.dataTransfer.getData('application/json');
-      if (assetDataStr) {
-        try {
-          const assetData = JSON.parse(assetDataStr);
-          if (assetData.type === 'asset') {
-            handleAssetDrop(e);
-            return;
-          }
-        } catch {}
-      }
-  
-      // Then handle as component (existing logic)
-      const componentDataStr = e.dataTransfer.getData('text/plain');
-      let dragData;
-      
-      try {
-        dragData = JSON.parse(componentDataStr);
-      } catch {
-        dragData = { componentType: componentDataStr, variant: null };
-      }
-  
-      const { componentType, variant } = dragData;
-    
-    if (frame?.type === 'page' && canvasComponents.length === 0) {
-      const layoutElements = ['div', 'section', 'container', 'flex', 'grid'];
-      if (!layoutElements.includes(componentType)) {
-        alert('Pages must start with a Layout element (Section, Container, Div, etc.)');
-        return;
-      }
+      dragData = JSON.parse(componentDataStr);
+    } catch {
+      dragData = { componentType: componentDataStr, variant: null };
     }
 
+    const { componentType, variant } = dragData;
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    const dropX = e.clientX - canvasRect.left;
+    const dropY = e.clientY - canvasRect.top;
+    
+    // Check if dropped component is a layout
+    const isLayout = isLayoutElement(componentType);
+    
+    // Find drop target
+    const targetContainer = findDropTarget(canvasComponents, dropX, dropY, canvasRect);
+    
+    // Get component definition
     let componentDef = null;
     if (componentLibraryService?.getComponentDefinition) {
       componentDef = componentLibraryService.getComponentDefinition(componentType);
     }
-    
-    const canvasRect = canvasRef.current.getBoundingClientRect();
-    const x = Math.max(0, e.clientX - canvasRect.left - 50);
-    const y = Math.max(0, e.clientY - canvasRect.top - 20);
 
-    const newComponent = componentLibraryService?.createLayoutElement 
+    // Create new component
+    const newComponent = isLayout 
       ? componentLibraryService.createLayoutElement(componentType, variant?.props || {})
       : {
           id: `${componentType}_${Date.now()}`,
@@ -754,21 +771,50 @@ const handleAssetDrop = useCallback((e) => {
             ...(componentDef?.default_props || {}),
             ...(variant?.props || {})
           },
-          position: { x, y },
           name: variant ? `${componentType} (${variant.name})` : (componentDef?.name || componentType),
           variant: variant || null,
           style: {},
           animation: {},
-          children: []
+          children: [],
+          isLayoutContainer: false
         };
 
-    if (newComponent.style?.position !== 'static') {
-      newComponent.position = { x, y };
+    let updatedComponents;
+    
+    if (canvasComponents.length === 0) {
+      // FIRST DROP: Create base section if needed
+      if (!isLayout) {
+        // Auto-wrap element in section
+        const baseSection = componentLibraryService.createLayoutElement('section', {
+          name: 'Base Section (Auto)',
+          style: {
+            minHeight: '400px',
+            padding: '48px 24px'
+          }
+        });
+        baseSection.children = [newComponent];
+        updatedComponents = [baseSection];
+      } else {
+        // It's a layout, use it as base
+        updatedComponents = [newComponent];
+      }
+    } else if (targetContainer) {
+      // Drop into existing container
+      updatedComponents = addChildToContainer(canvasComponents, targetContainer.id, newComponent);
+    } else {
+      // Drop at root level
+      if (!isLayout && frame?.type === 'page') {
+        // Auto-wrap in div container
+        const autoWrapper = componentLibraryService.createLayoutElement('div', {
+          name: 'Auto Container',
+          style: { padding: '16px' }
+        });
+        autoWrapper.children = [newComponent];
+        updatedComponents = [...canvasComponents, autoWrapper];
+      } else {
+        updatedComponents = [...canvasComponents, newComponent];
+      }
     }
-
-    console.log('ForgePage: Dropping component:', newComponent);
-
-    const updatedComponents = [...canvasComponents, newComponent];
     
     setFrameCanvasComponents(prev => ({
       ...prev,
@@ -778,45 +824,81 @@ const handleAssetDrop = useCallback((e) => {
     pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
       componentName: newComponent.name,
       componentType: newComponent.type,
-      position: { x, y },
-      componentId: newComponent.id
+      targetContainer: targetContainer?.id || 'root',
+      autoWrapped: canvasComponents.length === 0 && !isLayout
     });
     
     setSelectedComponent(newComponent.id);
     handleComponentDragEnd();
-    
-    // ENHANCED: Schedule thumbnail update for new component
-    if (updatedComponents.length > 0) {
-      const canvasSettings = {
-        viewport: getCurrentCanvasDimensions(),
-        background_color: frame?.settings?.background_color || '#ffffff',
-        responsive_mode: responsiveMode,
-        zoom_level: zoomLevel,
-        grid_visible: gridVisible
-      };
-      
-      // Schedule immediate thumbnail update for new components (shorter debounce)
-      setTimeout(() => {
-        scheduleThumbnailUpdate(updatedComponents, canvasSettings);
-      }, 500); // 500ms delay for new components
-    }
-    
-    // Auto-save
-    setTimeout(() => {
-      if (componentLibraryService?.saveProjectComponents) {
-        componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedComponents);
-      }
-    }, 200);
-    
     generateCode(updatedComponents);
     
   } catch (error) {
     console.error('Error handling component drop:', error);
     handleComponentDragEnd();
   }
-}, [canvasComponents, currentFrame, frame?.type, componentLibraryService, pushHistory, actionTypes, projectId, 
-    handleComponentDragEnd, generateCode, scheduleThumbnailUpdate, getCurrentCanvasDimensions, 
-    responsiveMode, zoomLevel, gridVisible, frame?.settings]);
+}, [canvasComponents, currentFrame, componentLibraryService, pushHistory, actionTypes, generateCode, frame?.type]);
+  
+  // ADD this helper function
+const findDropTarget = (components, dropX, dropY, canvasRect) => {
+  const sorted = [...components].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
+  
+  for (const comp of sorted) {
+    if (comp.isLayoutContainer) {
+      const element = document.querySelector(`[data-component-id="${comp.id}"]`);
+      if (element) {
+        const rect = element.getBoundingClientRect();
+        const relativeX = dropX + canvasRect.left;
+        const relativeY = dropY + canvasRect.top;
+        
+        if (relativeX >= rect.left && relativeX <= rect.right &&
+            relativeY >= rect.top && relativeY <= rect.bottom) {
+          
+          if (comp.children?.length > 0) {
+            const childTarget = findDropTarget(comp.children, dropX, dropY, canvasRect);
+            if (childTarget) return childTarget;
+          }
+          
+          return comp;
+        }
+      }
+    }
+  }
+  
+  return null;
+};
+  
+  const getComponentBounds = (comp) => {
+      return {
+          x: comp.position?.x || 0,
+          y: comp.position?.y || 0,
+          width: parseInt(comp.style?.width) || 100,
+          height: parseInt(comp.style?.minHeight) || 50
+      };
+  };
+  
+  const isPointInBounds = (point, bounds) => {
+      return point.x >= bounds.x && point.x <= bounds.x + bounds.width &&
+             point.y >= bounds.y && point.y <= bounds.y + bounds.height;
+  };
+  
+ // ADD this helper function
+const addChildToContainer = (components, containerId, newChild) => {
+  return components.map(comp => {
+    if (comp.id === containerId) {
+      return {
+        ...comp,
+        children: [...(comp.children || []), newChild]
+      };
+    }
+    if (comp.children?.length > 0) {
+      return {
+        ...comp,
+        children: addChildToContainer(comp.children, containerId, newChild)
+      };
+    }
+    return comp;
+  });
+};
 
 
   
@@ -1249,12 +1331,15 @@ const handleUndo = useCallback(async () => {
     }))
   }, [])
 
-  // Canvas click handler to deselect components
   const handleCanvasClick = useCallback((e) => {
-    if (e.target === canvasRef.current) {
-      setSelectedComponent(null)
+    // If clicking directly on canvas (not a component), select the canvas root
+    if (e.target === canvasRef.current || e.target.classList.contains('canvas-root')) {
+      setSelectedComponent('__canvas_root__');
+      setIsCanvasSelected(true);
+    } else {
+      setIsCanvasSelected(false);
     }
-  }, [])
+  }, []);
 
   // Move code panel to right sidebar
   const moveCodePanelToRightSidebar = useCallback(() => {
@@ -1678,6 +1763,8 @@ const handleUndo = useCallback(async () => {
                             canvasComponents={canvasComponents}
                             selectedComponent={selectedComponent}
                             dragState={dragState}
+                            dragPosition={dragPosition}          // ADD
+                            isCanvasSelected={isCanvasSelected}
                             componentLibraryService={componentLibraryService}
                             onCanvasDragOver={handleCanvasDragOver}
                             onCanvasDrop={handleCanvasDrop}

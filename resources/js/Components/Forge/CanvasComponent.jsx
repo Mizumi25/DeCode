@@ -5,6 +5,8 @@ import { Square, Sparkles, Monitor, Tablet, Smartphone, Move, RotateCcw } from '
 
 import SectionDropZone from './SectionDropZone';
 import EmptyCanvasState from './EmptyCanvasState';
+import SelectionOverlay from './SelectionOverlay';
+import DragSnapLines from './DragSnapLines';
 
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore';
@@ -14,6 +16,8 @@ const CanvasComponent = ({
   canvasComponents,
   selectedComponent,
   dragState,
+  dragPosition,
+  isCanvasSelected,
   componentLibraryService,
   onCanvasDragOver,
   onCanvasDrop,
@@ -36,6 +40,7 @@ const CanvasComponent = ({
     getResponsiveCanvasClasses,
     getResponsiveGridBackground
   } = useEditorStore();
+  
   
   // Get undo/redo functionality
   const { pushHistory, actionTypes } = useForgeUndoRedoStore();
@@ -80,6 +85,8 @@ const CanvasComponent = ({
   };
 
   const canvasSize = getCanvasSize();
+  
+  
 
   // Document flow components (those that should flow naturally)
   const flowComponents = ['div', 'section', 'header', 'main', 'footer', 'nav', 'article', 'aside', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p'];
@@ -154,184 +161,114 @@ const CanvasComponent = ({
     document.addEventListener('mouseup', handleMouseUp);
   }, [canvasComponents, dragOffset, onPropertyUpdate, onComponentClick, responsiveMode, canvasSize, currentFrame, pushHistory, actionTypes]);
 
-  // Enhanced component rendering with document flow support
-    const renderComponent = useCallback((component, index) => {
-    const componentRenderer = componentLibraryService?.getComponent(component.type);
-    const isSelected = selectedComponent === component.id;
-    const isFlowComponent = flowComponents.includes(component.type);
-    const shouldUseAbsolute = absoluteComponents.includes(component.type) || component.style?.position === 'absolute';
-    
-    // Get the actual rendered component content
-    let renderedContent = null;
-    
-    // FIXED: Proper component rendering with merged props
-    if (componentRenderer && componentRenderer.render) {
-      try {
-        // Get component definition for default props
-        const componentDef = componentLibraryService?.getComponentDefinition(component.type);
-        
-        // CRITICAL: Properly merge default props with component props
-        const mergedProps = {
-          ...componentDef?.default_props, // Default props from definition
-          ...component.props,             // User-set props
-          style: component.style          // Component styling
-        };
-        
-        console.log('Rendering component with merged props:', component.type, mergedProps);
-        
-        // Render the actual component with proper styling
-        renderedContent = componentRenderer.render(mergedProps, component.id);
-      } catch (error) {
-        console.warn('Component render error:', error);
-        // Fallback to placeholder
-        renderedContent = (
-          <div className="border rounded-lg p-3 min-w-[100px] min-h-[40px] flex items-center justify-center">
-            <span className="text-sm font-medium">{component.name || component.type}</span>
-          </div>
-        );
-      }
-    } else {
-      // Fallback when no renderer is available
-      console.warn('No renderer found for component type:', component.type);
-      renderedContent = (
-        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 min-w-[100px] min-h-[40px] flex items-center justify-center bg-gray-50">
-          <div className="text-center">
-            <div className="text-sm font-medium text-gray-700">{component.name || component.type}</div>
-            <div className="text-xs text-gray-500 mt-1">Renderer not found</div>
-          </div>
-        </div>
-      );
-    }
-    
-    // Determine positioning strategy
-    const positioningStyle = shouldUseAbsolute ? {
-      position: 'absolute',
-      left: component.position?.x || 0,
-      top: component.position?.y || 0,
-      zIndex: isSelected ? 999 : (component.style?.zIndex || index + 1)
-    } : {
-      position: 'relative',
-      zIndex: isSelected ? 999 : (component.style?.zIndex || index + 1),
-      marginBottom: component.style?.marginBottom || '1rem'
-    };
-    
-    // Enhanced styles with proper document flow
-    const componentStyles = {
-      ...positioningStyle,
-      
-      // Layout properties
-      display: component.style?.display || getDefaultDisplay(component.type),
-      flexDirection: component.style?.flexDirection,
-      justifyContent: component.style?.justifyContent,
-      alignItems: component.style?.alignItems,
-      flexWrap: component.style?.flexWrap,
-      gap: component.style?.gap,
-      
-      // Sizing with defaults for document flow
-      width: component.style?.width || getDefaultWidth(component.type),
-      height: component.style?.height || 'auto',
-      minWidth: component.style?.minWidth,
-      minHeight: component.style?.minHeight || getDefaultMinHeight(component.type),
-      maxWidth: component.style?.maxWidth || getDefaultMaxWidth(component.type),
-      maxHeight: component.style?.maxHeight,
-      
-      // Spacing
-      margin: component.style?.margin,
-      padding: component.style?.padding || getDefaultPadding(component.type),
-      
-      // Visual properties
-      backgroundColor: component.style?.backgroundColor,
-      border: component.style?.border,
-      borderRadius: component.style?.borderRadius,
-      boxShadow: component.style?.boxShadow,
-      opacity: component.style?.opacity,
-      transform: component.style?.transform,
-      
-      // Animation properties
-      animation: component.animation?.name ? `${component.animation.name} ${component.animation.duration || '1s'} ${component.animation.timing || 'ease'} ${component.animation.iteration || 'infinite'}` : undefined,
-      transition: component.animation?.transition || 'all 0.3s ease',
-      
-      // Typography
-      fontSize: component.style?.fontSize,
-      fontFamily: component.style?.fontFamily,
-      fontWeight: component.style?.fontWeight,
-      color: component.style?.color,
-      textAlign: component.style?.textAlign,
-      lineHeight: component.style?.lineHeight,
-      
-      // Overflow handling
-      overflow: component.style?.overflow || 'visible',
-      wordBreak: 'break-word',
-      boxSizing: 'border-box'
-    };
   
-    return (
-      <motion.div
-        key={component.id}
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ 
-          opacity: 1, 
-          scale: 1,
-          boxShadow: isSelected ? '0 0 0 2px var(--color-primary), 0 0 20px rgba(160, 82, 255, 0.3)' : 'none'
-        }}
-        exit={{ opacity: 0, scale: 0.8 }}
-        className={`${shouldUseAbsolute ? 'absolute' : 'relative'} group transition-all ${component.animation?.cssClass || ''}`}
-        style={componentStyles}
-        onMouseDown={shouldUseAbsolute ? (e) => handleComponentMouseDown(e, component.id) : undefined}
-        onClick={(e) => onComponentClick(component.id, e)}
-      >
-        {/* Render the actual component content */}
-        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-          {renderedContent}
+
+// REPLACE the renderComponent function
+const renderComponent = useCallback((component, index, parentStyle = {}, depth = 0) => {
+  const componentRenderer = componentLibraryService?.getComponent(component.type);
+  const isSelected = selectedComponent === component.id;
+  const isLayout = component.isLayoutContainer;
+  
+  let renderedContent = null;
+  
+  if (componentRenderer && componentRenderer.render) {
+    try {
+      const componentDef = componentLibraryService?.getComponentDefinition(component.type);
+      const mergedProps = {
+        ...componentDef?.default_props,
+        ...component.props,
+        style: component.style
+      };
+      renderedContent = componentRenderer.render(mergedProps, component.id);
+    } catch (error) {
+      console.warn('Component render error:', error);
+      renderedContent = <div className="border rounded p-3">{component.name}</div>;
+    }
+  } else {
+    renderedContent = <div className="border-2 border-dashed p-4">{component.name}</div>;
+  }
+  
+  // Layout styles - NO absolute positioning
+  const componentStyles = {
+    position: 'relative', // Always relative for document flow
+    display: component.style?.display || getDefaultDisplay(component.type),
+    flexDirection: component.style?.flexDirection,
+    justifyContent: component.style?.justifyContent,
+    alignItems: component.style?.alignItems,
+    gap: component.style?.gap,
+    gridTemplateColumns: component.style?.gridTemplateColumns,
+    width: component.style?.width || getDefaultWidth(component.type),
+    minHeight: component.style?.minHeight || getDefaultMinHeight(component.type),
+    padding: component.style?.padding || getDefaultPadding(component.type),
+    ...component.style
+  };
+
+  return (
+    <motion.div
+      key={component.id}
+      data-component-id={component.id}
+      data-depth={depth}
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ 
+        opacity: 1, 
+        scale: 1,
+        outline: isSelected ? '2px solid var(--color-primary)' : 'none',
+        outlineOffset: isSelected ? '2px' : '0px'
+      }}
+      className={`
+        relative group transition-all
+        ${component.animation?.cssClass || ''}
+        ${isLayout ? 'layout-container' : 'layout-element'}
+      `}
+      style={componentStyles}
+      onClick={(e) => {
+        e.stopPropagation();
+        onComponentClick(component.id, e);
+      }}
+    >
+      {/* Layout Container Content */}
+      {isLayout ? (
+        <div className="w-full h-full relative" style={{ minHeight: componentStyles.minHeight }}>
+          {/* Drop Zone Indicator */}
+          {component.children?.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center border-2 border-dashed border-gray-300 rounded bg-gray-50/50">
+              <span className="text-sm text-gray-400 font-medium">
+                Drop elements here
+              </span>
+            </div>
+          )}
+          
+          {/* Render children */}
+          {component.children?.map((child, childIndex) => 
+            renderComponent(child, childIndex, {}, depth + 1)
+          )}
         </div>
-        
-        {/* Selection Outline and Handles */}
-        {isSelected && (
-          <>
-            <div 
-              className="absolute -inset-1 border-2 pointer-events-none rounded"
-              style={{ borderColor: 'var(--color-primary)' }}
-            >
-              {/* Resize handles for absolute positioned components */}
-              {shouldUseAbsolute && (
-                <>
-                  <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
-                  <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
-                  <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
-                  <div className="absolute -bottom-1 -right-1 w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
-                </>
-              )}
-            </div>
-            
-            {/* Component label */}
-            <div 
-              className="absolute -top-6 left-0 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap"
-              style={{ 
-                backgroundColor: 'var(--color-primary)',
-                color: 'white'
-              }}
-            >
-              {component.name || component.type}
-              {component.style?.display && component.style.display !== 'block' && (
-                <span className="opacity-75"> • {component.style.display}</span>
-              )}
-            </div>
-          </>
-        )}
-        
-        {/* Quick Actions */}
-        {renderComponentActions(component)}
-        
-        {/* Hover state for unselected components */}
-        {!isSelected && (
-          <div 
-            className="absolute inset-0 border border-transparent group-hover:border-gray-300 pointer-events-none rounded opacity-0 group-hover:opacity-100 transition-opacity"
-            style={{ backgroundColor: 'rgba(160, 82, 255, 0.05)' }}
-          />
-        )}
-      </motion.div>
-    );
-  }, [componentLibraryService, selectedComponent, handleComponentMouseDown, onComponentClick, flowComponents, absoluteComponents]);
+      ) : (
+        // Regular element content
+        renderedContent
+      )}
+      
+      {/* Selection Indicator */}
+      {isSelected && (
+        <div className="absolute -inset-1 pointer-events-none rounded z-50" 
+             style={{ outline: '2px solid var(--color-primary)' }}>
+          <div className="absolute -top-7 left-0 px-2 py-1 rounded text-xs font-medium whitespace-nowrap z-50"
+               style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}>
+            {component.name} • Depth: {depth}
+          </div>
+        </div>
+      )}
+      
+      {/* Layout Container Label */}
+      {isLayout && (
+        <div className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity bg-white border shadow-sm z-10"
+             style={{ color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' }}>
+          {component.type.toUpperCase()}
+        </div>
+      )}
+    </motion.div>
+  );
+}, [componentLibraryService, selectedComponent, onComponentClick]);
 
   // Helper functions for default styling
   const getDefaultDisplay = (componentType) => {
@@ -874,7 +811,26 @@ const CanvasComponent = ({
               }}
             />
           )}
-
+          
+          
+          {/* ADD HERE - Drag Snap Lines */}
+          {DragSnapLines && dragPosition && dragState.isDragging && (
+            <DragSnapLines
+              dragPosition={dragPosition}
+              canvasComponents={canvasComponents}
+              canvasRef={canvasRef}
+            />
+          )}
+          
+          {/* ADD HERE - Selection Overlay for selected component */}
+          {SelectionOverlay && selectedComponent && selectedComponent !== '__canvas_root__' && (
+            <SelectionOverlay
+              componentId={selectedComponent}
+              canvasRef={canvasRef}
+            />
+          )}
+                    
+          
           {/* Drop Zone Indicator */}
           {dragState.isDragging && (
             <div 

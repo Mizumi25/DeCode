@@ -27,6 +27,14 @@ return new class extends Migration
             $table->json('style')->nullable();
             $table->json('animation')->nullable();
             
+            $table->unsignedBigInteger('parent_id')->nullable()->after('frame_id');
+            $table->integer('sort_order')->default(0)->after('z_index');
+            
+            $table->foreign('parent_id')
+                  ->references('id')
+                  ->on('project_components')
+                  ->onDelete('cascade');
+            
             $table->timestamps();
             
             // Indexes for performance
