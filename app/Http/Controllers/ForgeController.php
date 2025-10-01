@@ -17,15 +17,31 @@ class ForgeController extends Controller
      */
     private function getFrameData(Frame $frame): array
     {
-        // FIXED: Ensure canvas_data is properly structured
-        $canvasData = $frame->canvas_data ?? [];
-        if (empty($canvasData) || !is_array($canvasData)) {
-            $canvasData = [
-                'components' => [],
-                'settings' => [],
-                'version' => '1.0'
-            ];
-        }
+        // Load components from ProjectComponents table
+        $projectComponents = \App\Models\ProjectComponent::where('frame_id', $frame->id)
+            ->with('component')
+            ->ordered()
+            ->get()
+            ->map(function($comp) {
+                return [
+                    'id' => $comp->component_instance_id,
+                    'type' => $comp->component_type,
+                    'props' => $comp->props ?? [],
+                    'position' => $comp->position ?? ['x' => 0, 'y' => 0],
+                    'name' => $comp->name,
+                    'zIndex' => $comp->z_index ?? 0,
+                    'variant' => $comp->variant,
+                    'style' => $comp->style ?? [],
+                    'animation' => $comp->animation ?? [],
+                    'children' => []
+                ];
+            })->toArray();
+        
+        $canvasData = [
+            'components' => $projectComponents, // USE DATABASE COMPONENTS
+            'settings' => $frame->settings ?? [],
+            'version' => '1.0'
+        ];
         
         // CRITICAL: Ensure components array exists and is valid
         if (!isset($canvasData['components']) || !is_array($canvasData['components'])) {

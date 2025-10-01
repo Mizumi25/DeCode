@@ -1,28 +1,50 @@
 // @/Components/Forge/SelectionOverlay.jsx
 import React, { useState, useEffect } from 'react';
+import { useEditorStore } from '@/stores/useEditorStore'; // ADD THIS
 
 const SelectionOverlay = ({ componentId, canvasRef }) => {
   const [bounds, setBounds] = useState(null);
   const [computedStyles, setComputedStyles] = useState(null);
+  
+  // GET responsive mode and scale factor
+  const { responsiveMode, getResponsiveScaleFactor } = useEditorStore();
 
-  useEffect(() => {
+   useEffect(() => {
     if (!componentId || !canvasRef.current) return;
-
+  
     const updateBounds = () => {
       const element = document.querySelector(`[data-component-id="${componentId}"]`);
-      if (!element) return;
-
+      if (!element) {
+        setBounds(null);
+        setComputedStyles(null);
+        return;
+      }
+  
       const rect = element.getBoundingClientRect();
       const canvasRect = canvasRef.current.getBoundingClientRect();
       const styles = window.getComputedStyle(element);
-
+  
+      // CRITICAL FIX: Get actual scale from canvas transform or use responsive scale
+      let scaleFactor = 1;
+      
+      if (responsiveMode !== 'desktop') {
+        scaleFactor = getResponsiveScaleFactor();
+      }
+      
+      // Also check if canvas has inline transform scale
+      const canvasTransform = window.getComputedStyle(canvasRef.current).transform;
+      if (canvasTransform && canvasTransform !== 'none') {
+        const matrix = new DOMMatrix(canvasTransform);
+        scaleFactor = matrix.a;
+      }
+  
       setBounds({
-        top: rect.top - canvasRect.top,
-        left: rect.left - canvasRect.left,
-        width: rect.width,
-        height: rect.height
+        top: (rect.top - canvasRect.top) / scaleFactor,
+        left: (rect.left - canvasRect.left) / scaleFactor,
+        width: rect.width / scaleFactor,
+        height: rect.height / scaleFactor
       });
-
+  
       setComputedStyles({
         marginTop: parseInt(styles.marginTop) || 0,
         marginRight: parseInt(styles.marginRight) || 0,
@@ -34,14 +56,29 @@ const SelectionOverlay = ({ componentId, canvasRef }) => {
         paddingLeft: parseInt(styles.paddingLeft) || 0
       });
     };
-
+  
+    // Immediate update
     updateBounds();
+    
     const observer = new ResizeObserver(updateBounds);
     const element = document.querySelector(`[data-component-id="${componentId}"]`);
     if (element) observer.observe(element);
-
-    return () => observer.disconnect();
-  }, [componentId, canvasRef]);
+    
+    // Listen for responsive mode changes
+    const handleModeChange = () => {
+      console.log('SelectionOverlay: Responsive mode changed, updating bounds');
+      setBounds(null);
+      setComputedStyles(null);
+      setTimeout(updateBounds, 150);
+    };
+    
+    window.addEventListener('responsive-mode-changed', handleModeChange);
+  
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('responsive-mode-changed', handleModeChange);
+    };
+  }, [componentId, canvasRef, responsiveMode, getResponsiveScaleFactor]);
 
   if (!bounds || !computedStyles) return null;
 
@@ -141,7 +178,7 @@ const SelectionOverlay = ({ componentId, canvasRef }) => {
         </>
       )}
 
-      {/* Padding Overlay - Green (showing padding space) */}
+      {/* Padding Overlay - Green */}
       {(computedStyles.paddingTop > 0 || computedStyles.paddingRight > 0 || 
         computedStyles.paddingBottom > 0 || computedStyles.paddingLeft > 0) && (
         <>
@@ -225,7 +262,7 @@ const SelectionOverlay = ({ componentId, canvasRef }) => {
             </div>
           )}
 
-          {/* Content Area Border - shows the actual usable space */}
+          {/* Content Area Border */}
           <div
             className="absolute border border-dashed"
             style={{

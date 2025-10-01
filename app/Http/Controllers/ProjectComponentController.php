@@ -71,8 +71,8 @@ class ProjectComponentController extends Controller
   public function bulkUpdate(Request $request): JsonResponse
   {
       $validated = $request->validate([
-          'project_id' => 'required|string', // UUID
-          'frame_id' => 'required|string',   // UUID
+          'project_id' => 'required|string',
+          'frame_id' => 'required|string',
           'components' => 'required|array',
           'components.*.component_instance_id' => 'required|string',
           'components.*.component_type' => 'required|string',
@@ -91,7 +91,6 @@ class ProjectComponentController extends Controller
       DB::beginTransaction();
       
       try {
-          // CRITICAL FIX: Use proper frame lookup
           $frame = \App\Models\Frame::where('uuid', $validated['frame_id'])->first();
           $project = \App\Models\Project::where('uuid', $validated['project_id'])->first();
           
@@ -102,17 +101,24 @@ class ProjectComponentController extends Controller
               ], 404);
           }
   
-          // Clear existing components for this frame using database IDs
+          \Log::info('BulkUpdate: Starting save', [
+              'project_id' => $project->id,
+              'frame_id' => $frame->id,
+              'component_count' => count($validated['components'])
+          ]);
+  
+          // Clear existing components for this frame
           ProjectComponent::where('project_id', $project->id)
                          ->where('frame_id', $frame->id)
                          ->delete();
   
-          // Insert new components
-          $savedComponents = [];
+          // Use Collection instead of array
+          $savedComponents = collect();
+          
           foreach ($validated['components'] as $componentData) {
               $component = ProjectComponent::create([
-                  'project_id' => $project->id,      // Use database ID
-                  'frame_id' => $frame->id,          // Use database ID
+                  'project_id' => $project->id,
+                  'frame_id' => $frame->id,
                   'component_instance_id' => $componentData['component_instance_id'],
                   'component_type' => $componentData['component_type'],
                   'props' => $componentData['props'] ?? [],
@@ -124,13 +130,18 @@ class ProjectComponentController extends Controller
                   'animation' => $componentData['animation'] ?? []
               ]);
               
-              $savedComponents[] = $component->load('component');
+              $savedComponents->push($component->load('component'));
           }
   
-          // Update frame's canvas_data for immediate access
+          \Log::info('BulkUpdate: Components created', [
+              'saved_count' => $savedComponents->count(),
+              'component_ids' => $savedComponents->pluck('component_instance_id')->toArray()
+          ]);
+  
+          // Update frame canvas_data to match
           $frame->update([
-              'canvas_data' => array_merge($frame->canvas_data ?? [], [
-                  'components' => collect($savedComponents)->map(function($comp) {
+              'canvas_data' => [
+                  'components' => $savedComponents->map(function($comp) {
                       return [
                           'id' => $comp->component_instance_id,
                           'type' => $comp->component_type,
@@ -140,18 +151,23 @@ class ProjectComponentController extends Controller
                           'zIndex' => $comp->z_index,
                           'variant' => $comp->variant,
                           'style' => $comp->style ?? [],
-                          'animation' => $comp->animation ?? []
+                          'animation' => $comp->animation ?? [],
+                          'children' => []
                       ];
                   })->toArray(),
+                  'settings' => $frame->settings ?? [],
+                  'version' => '1.0',
                   'updated_at' => now()->toISOString()
-              ])
+              ]
           ]);
-            
+  
+          \Log::info('BulkUpdate: Frame canvas_data updated');
+          
           // Create revision snapshot if requested
           if ($validated['create_revision'] ?? false) {
               Revision::createSnapshot(
-                  $project->id,           // Use database ID
-                  $frame->id,             // Use database ID
+                  $project->id,
+                  $frame->id,
                   auth()->id(),
                   $savedComponents->toArray(),
                   'auto'
@@ -160,16 +176,24 @@ class ProjectComponentController extends Controller
   
           DB::commit();
   
+          \Log::info('BulkUpdate: Transaction committed successfully');
+  
           return response()->json([
               'success' => true,
               'data' => $savedComponents,
-              'message' => 'Components saved successfully'
+              'message' => 'Components saved successfully',
+              'debug' => [
+                  'saved_count' => $savedComponents->count(),
+                  'frame_updated' => true
+              ]
           ]);
   
       } catch (\Exception $e) {
           DB::rollback();
-          \Log::error('Component save failed', [
+          
+          \Log::error('BulkUpdate: Save failed', [
               'error' => $e->getMessage(),
+              'trace' => $e->getTraceAsString(),
               'project_id' => $validated['project_id'],
               'frame_id' => $validated['frame_id'],
               'component_count' => count($validated['components'])
@@ -177,7 +201,8 @@ class ProjectComponentController extends Controller
           
           return response()->json([
               'success' => false,
-              'message' => 'Failed to save components: ' . $e->getMessage()
+              'message' => 'Failed to save components: ' . $e->getMessage(),
+              'error' => $e->getMessage()
           ], 500);
       }
   }

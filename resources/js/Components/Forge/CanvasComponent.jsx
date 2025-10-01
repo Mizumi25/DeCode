@@ -204,7 +204,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
   };
 
   return (
-    <motion.div
+     <motion.div
       key={component.id}
       data-component-id={component.id}
       data-depth={depth}
@@ -220,11 +220,15 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
         ${component.animation?.cssClass || ''}
         ${isLayout ? 'layout-container' : 'layout-element'}
       `}
-      style={componentStyles}
+      style={{
+        ...componentStyles,
+        cursor: !isLayout ? 'move' : 'default' // ADD THIS
+      }}
       onClick={(e) => {
         e.stopPropagation();
         onComponentClick(component.id, e);
       }}
+      onMouseDown={!isLayout ? (e) => handleComponentMouseDown(e, component.id) : undefined} // ADD THIS
     >
       {/* Layout Container Content */}
       {isLayout ? (
@@ -783,16 +787,16 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
           style={{
             width: '100%',
             minHeight: responsiveMode === 'desktop' ? '100vh' : '667px',
+            height: responsiveMode === 'desktop' ? 'auto' : `${canvasSize.height}px`, // ADD THIS
             maxWidth: canvasSize.maxWidth,
             backgroundColor: 'var(--color-surface)',
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
             lineHeight: '1.6',
             color: 'var(--color-text)',
             cursor: dragState.isDragging ? 'copy' : 'default',
-            // Remove the gray background for mobile/tablet
             borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
-            // Add subtle inner shadow for mobile/tablet to simulate depth
-            boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none'
+            boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
+            position: 'relative' // ADD THIS
           }}
           onDragOver={onCanvasDragOver}
           onDrop={onCanvasDrop}
@@ -831,30 +835,30 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
           )}
                     
           
-          {/* Drop Zone Indicator */}
-          {dragState.isDragging && (
+         {/* Drop Zone Indicator - ONLY show when canvas is empty */}
+        {dragState.isDragging && canvasComponents.length === 0 && (
+          <div 
+            className="absolute inset-0 border-4 border-dashed flex items-center justify-center z-50"
+            style={{ 
+              borderColor: 'var(--color-primary)',
+              backgroundColor: 'rgba(160, 82, 255, 0.05)',
+              backdropFilter: 'blur(2px)',
+              borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0'
+            }}
+          >
             <div 
-              className="absolute inset-0 border-4 border-dashed flex items-center justify-center z-50"
+              className="font-medium text-lg px-6 py-3 rounded-xl"
               style={{ 
-                borderColor: 'var(--color-primary)',
-                backgroundColor: 'rgba(160, 82, 255, 0.05)',
-                backdropFilter: 'blur(2px)',
-                borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0'
+                color: 'var(--color-primary)',
+                backgroundColor: 'var(--color-surface)',
+                border: '2px solid var(--color-primary)',
+                boxShadow: 'var(--shadow-lg)'
               }}
             >
-              <div 
-                className="font-medium text-lg px-6 py-3 rounded-xl"
-                style={{ 
-                  color: 'var(--color-primary)',
-                  backgroundColor: 'var(--color-surface)',
-                  border: '2px solid var(--color-primary)',
-                  boxShadow: 'var(--shadow-lg)'
-                }}
-              >
-                Drop {dragState.draggedComponent?.name || 'component'} here
-              </div>
+              Drop {dragState.draggedComponent?.name || 'component'} here
             </div>
-          )}
+          </div>
+        )}
 
           {/* Render Components in Document Flow */}
           <div className="relative z-10" style={{ minHeight: '100%' }}>

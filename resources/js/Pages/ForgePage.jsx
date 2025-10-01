@@ -1332,14 +1332,17 @@ const handleUndo = useCallback(async () => {
   }, [])
 
   const handleCanvasClick = useCallback((e) => {
-    // If clicking directly on canvas (not a component), select the canvas root
-    if (e.target === canvasRef.current || e.target.classList.contains('canvas-root')) {
-      setSelectedComponent('__canvas_root__');
-      setIsCanvasSelected(true);
-    } else {
-      setIsCanvasSelected(false);
-    }
-  }, []);
+  // Check if we clicked directly on the canvas (not a component)
+  const clickedOnCanvas = e.target === canvasRef.current || 
+                         e.target.classList.contains('canvas-root') ||
+                         !e.target.closest('[data-component-id]');
+  
+  if (clickedOnCanvas) {
+    console.log('Canvas root clicked, deselecting component');
+    setSelectedComponent(null);
+    setIsCanvasSelected(false);
+  }
+}, []);
 
   // Move code panel to right sidebar
   const moveCodePanelToRightSidebar = useCallback(() => {
