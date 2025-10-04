@@ -24,7 +24,8 @@ class BasicElementsSeeder extends Seeder
                     'variant' => 'primary',
                     'size' => 'md',
                     'disabled' => false,
-                    'className' => ''
+                    'display' => 'inline-flex', // ADD THIS
+                    'width' => 'fit-content', // ADD THIS
                 ],
                 'prop_definitions' => [
                     'text' => ['type' => 'string', 'label' => 'Button Text', 'default' => 'Click me'],
@@ -134,7 +135,9 @@ class BasicElementsSeeder extends Seeder
                     'checked' => false,
                     'size' => 'md',
                     'color' => 'blue',
-                    'disabled' => false
+                    'disabled' => false,
+                    'display' => 'inline-flex', 
+                    'width' => 'fit-content',
                 ],
                 'prop_definitions' => [
                     'checked' => ['type' => 'boolean', 'label' => 'Checked', 'default' => false],

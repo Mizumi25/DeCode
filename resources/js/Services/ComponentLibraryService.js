@@ -118,36 +118,36 @@ class ComponentLibraryService {
   
   
     // In ComponentLibraryService.js - ADD this method
+    createLayoutElement(type, props = {}) {
+      const componentDef = this.componentDefinitions.get(type);
+      if (!componentDef) {
+          console.warn('No definition for layout type:', type);
+          return null;
+      }
   
-  createLayoutElement(type, props = {}) {
-    const componentDef = this.componentDefinitions.get(type);
-    if (!componentDef) {
-      console.warn('No definition for layout type:', type);
-      return null;
-    }
+      const layoutElement = {
+          id: `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          type: type,
+          props: {
+              ...componentDef.default_props,
+              ...props
+          },
+          name: props.name || componentDef.name,
+          style: {
+              display: type === 'flex' ? 'flex' : type === 'grid' ? 'grid' : 'block',
+              width: '100%',
+              minHeight: type === 'section' ? '200px' : '100px',
+              padding: props.style?.padding || '24px',
+              backgroundColor: 'transparent',
+              ...props.style
+          },
+          children: [],
+          isLayoutContainer: true,
+          acceptsChildren: true,
+          zIndex: props.zIndex || 0
+      };
   
-    const layoutElement = {
-      id: `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type: type,
-      props: {
-        ...componentDef.default_props,
-        ...props
-      },
-      name: props.name || componentDef.name,
-      style: {
-        display: type === 'flex' ? 'flex' : type === 'grid' ? 'grid' : 'block',
-        width: '100%',
-        minHeight: type === 'section' ? '200px' : '100px',
-        padding: props.style?.padding || '24px',
-        ...props.style
-      },
-      children: [],
-      isLayoutContainer: true,
-      acceptsChildren: true,
-      zIndex: props.zIndex || 0
-    };
-  
-    return layoutElement;
+      return layoutElement;
   }
 
 
@@ -180,9 +180,9 @@ class ComponentLibraryService {
   }
 
   // Dynamic component renderer with enhanced variant support
-      renderComponent(componentDef, props, id) {
+   renderComponent(componentDef, props, id) {
         // Get the component definition if not passed
-        if (!componentDef && this.componentDefinitions.has(props.type || props.component_type)) {
+       if (!componentDef && this.componentDefinitions.has(props.type || props.component_type)) {
             componentDef = this.componentDefinitions.get(props.type || props.component_type);
         }
         
@@ -193,10 +193,18 @@ class ComponentLibraryService {
         
         // CRITICAL FIX: Properly merge default props with instance props
         const mergedProps = { 
-            ...componentDef.default_props,  // Start with component definition defaults
-            ...props.props,                 // Then apply instance props
-            ...props                        // Then apply any direct props
+            ...componentDef.default_props,
+            ...props.props,
+            ...props
         };
+        
+        // Check if this is a layout container
+      const isLayoutContainer = props.isLayoutContainer || 
+                               ['section', 'container', 'div', 'flex', 'grid'].includes(componentDef.type);
+      
+      if (isLayoutContainer) {
+          return this.renderLayoutContainer(componentDef, mergedProps, id, props.children || []);
+      }
         
         console.log('Rendering component:', componentDef.type, 'with merged props:', mergedProps);
         
@@ -221,33 +229,93 @@ class ComponentLibraryService {
             }
         }
         
-        // Apply custom styles if present
-        const layoutStyles = {
-            display: props.style?.display || mergedProps.display || 'block',
-            position: props.style?.position || 'relative',
-            width: props.style?.width || mergedProps.width || 'auto',
-            height: props.style?.height || mergedProps.height || 'auto',
-            ...props.style // Apply any additional custom styles
-        };
+        
+        
         
         switch (componentDef.type) {
             case 'button':
-                return this.renderButton(mergedProps, id, layoutStyles);
+                return this.renderButton(mergedProps, id);
             case 'input':
-                return this.renderInput(mergedProps, id, layoutStyles);
-            case 'card':
-                return this.renderCard(mergedProps, id, layoutStyles);
-            case 'avatar':
-                return this.renderAvatar(mergedProps, id, layoutStyles);
-            case 'badge':
-                return this.renderBadge(mergedProps, id, layoutStyles);
-            case 'searchbar':
-                return this.renderSearchbar(mergedProps, id, layoutStyles);
+                return this.renderInput(mergedProps, id);
+            // case 'card':
+//                 return this.renderCard(mergedProps, id, layoutStyles);
+//             case 'avatar':
+//                 return this.renderAvatar(mergedProps, id, layoutStyles);
+//             case 'badge':
+//                 return this.renderBadge(mergedProps, id, layoutStyles);
+//             case 'searchbar':
+//                 return this.renderSearchbar(mergedProps, id, layoutStyles);
             default:
                 return this.renderGeneric(mergedProps, id, componentDef, layoutStyles);
         }
     }
-  
+    
+    
+    // ADD this new method
+     renderLayoutContainer(componentDef, props, id, children) {
+        const containerStyle = {
+            display: props.style?.display || this.getDefaultDisplay(componentDef.type),
+            flexDirection: props.style?.flexDirection,
+            justifyContent: props.style?.justifyContent,
+            alignItems: props.style?.alignItems,
+            gap: props.style?.gap,
+            gridTemplateColumns: props.style?.gridTemplateColumns,
+            width: props.style?.width || '100%',
+            minHeight: props.style?.minHeight || this.getDefaultMinHeight(componentDef.type),
+            padding: props.style?.padding || this.getDefaultPadding(componentDef.type),
+            backgroundColor: 'transparent',
+            border: props.style?.border,
+            borderRadius: props.style?.borderRadius,
+            ...props.style
+        };
+        
+        return React.createElement('div', {
+            key: id,
+            'data-layout-type': componentDef.type,
+            'data-component-id': id,
+            className: `layout-container ${componentDef.type}-container`,
+            style: containerStyle
+        }, children && children.length > 0 ? children.map(child => 
+            this.renderComponent(this.componentDefinitions.get(child.type), child, child.id)
+        ) : null);
+    }
+    
+    
+    // Helper methods
+    getDefaultDisplay(type) {
+        const displayMap = {
+            'flex': 'flex',
+            'grid': 'grid',
+            'section': 'block',
+            'container': 'block',
+            'div': 'block'
+        };
+        return displayMap[type] || 'block';
+    }
+    
+    getDefaultMinHeight(type) {
+        const minHeightMap = {
+            'section': '200px',
+            'container': '100px',
+            'div': '50px',
+            'flex': '100px',
+            'grid': '100px'
+        };
+        return minHeightMap[type] || 'auto';
+    }
+    
+    getDefaultPadding(type) {
+        const paddingMap = {
+            'section': '48px 24px',
+            'container': '24px',
+            'div': '16px',
+            'flex': '16px',
+            'grid': '16px'
+        };
+        return paddingMap[type] || '0';
+    }
+
+      
     // Button renderer with enhanced variant support
     renderButton(props, id, layoutStyles = {}) {
         const className = this.getButtonClasses(props);
@@ -1146,44 +1214,54 @@ ${htmlComponents}
   }
 
 // Save project components to backend
+// @/Services/ComponentLibraryService.js - MODIFY saveProjectComponents method
+
 async saveProjectComponents(projectId, frameId, components) {
-      try {
-          console.log('Saving', components.length, 'components to backend for frame:', frameId);
-          
-          const response = await axios.post('/api/project-components/bulk-update', {
-              project_id: projectId,
-              frame_id: frameId,
-              components: components.map(comp => {
-                  // Get component definition for validation
-                  const componentDef = this.componentDefinitions.get(comp.type);
-                  
-                  return {
-                      component_instance_id: comp.id,
-                      component_type: comp.type,
-                      props: comp.props || {},
-                      position: comp.position,
-                      name: comp.name || componentDef?.name || comp.type,
-                      z_index: comp.zIndex || 0,
-                      variant: comp.variant || null,
-                      style: comp.style || {},
-                      animation: comp.animation || {}
-                  };
-              }),
-              create_revision: false // Set to true for major saves
-          });
-          
-          if (response.data.success) {
-              console.log('Successfully saved components to backend');
-              return true;
-          } else {
-              console.error('Backend save failed:', response.data.message);
-              return false;
-          }
-      } catch (error) {
-          console.error('Failed to save project components:', error);
-          throw error;
-      }
-  }
+    try {
+        console.log('Saving', components.length, 'components with layout data');
+        
+        const response = await axios.post('/api/project-components/bulk-update', {
+            project_id: projectId,
+            frame_id: frameId,
+            components: components.map(comp => ({
+                component_instance_id: comp.id,
+                component_type: comp.type,
+                props: comp.props || {},
+                name: comp.name || comp.type,
+                z_index: comp.zIndex || 0,
+                sort_order: comp.sortOrder || 0,
+                variant: comp.variant || null,
+                style: comp.style || {},
+                animation: comp.animation || {},
+                
+                // NEW: Send layout data
+                display_type: comp.style?.display || 'block',
+                layout_props: {
+                    flexDirection: comp.style?.flexDirection,
+                    justifyContent: comp.style?.justifyContent,
+                    alignItems: comp.style?.alignItems,
+                    gap: comp.style?.gap,
+                    gridTemplateColumns: comp.style?.gridTemplateColumns,
+                    padding: comp.style?.padding,
+                    width: comp.style?.width,
+                    minHeight: comp.style?.minHeight,
+                },
+                is_layout_container: comp.isLayoutContainer || false,
+                children: comp.children || [] // Include children hierarchy
+            })),
+            create_revision: false
+        });
+        
+        if (response.data.success) {
+            console.log('Successfully saved with layout hierarchy');
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('Failed to save:', error);
+        throw error;
+    }
+}
 
   // Load project components from backend
   async loadProjectComponents(projectId, frameId) {

@@ -17,7 +17,6 @@ class ProjectComponent extends Model
         'component_instance_id',
         'component_type',
         'props',
-        'position',
         'name',
         'z_index',
         'sort_order',
@@ -25,17 +24,21 @@ class ProjectComponent extends Model
         'variant',        // ADD
         'style',          // ADD
         'animation',      // ADD
+        'display_type',      // 'block', 'flex', 'grid', 'inline-block', etc.
+        'layout_props',      // flexDirection, gap, gridTemplateColumns, etc.
+        'is_layout_container', // boolean
         'created_at',
         'updated_at'
     ];
     
     protected $casts = [
         'props' => 'array',
-        'position' => 'array',
         'is_locked' => 'boolean',
         'variant' => 'array',     // ADD
         'style' => 'array',       // ADD
-        'animation' => 'array'    // ADD
+        'animation' => 'array',   // ADD
+        'layout_props' => 'array',
+        'is_layout_container' => 'boolean',
     ];
     
     // ADD this relationship

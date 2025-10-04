@@ -8,6 +8,9 @@ import EmptyCanvasState from './EmptyCanvasState';
 import SelectionOverlay from './SelectionOverlay';
 import DragSnapLines from './DragSnapLines';
 
+import { DragDropContext, Droppable } from 'react-beautiful-dnd';
+import DraggableComponent from './DraggableComponent';
+
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore';
 
@@ -30,7 +33,9 @@ const CanvasComponent = ({
   frameType = 'page',
   responsiveMode,
   zoomLevel,
-  gridVisible
+  gridVisible,
+  projectId,  // ADD THIS
+  setFrameCanvasComponents  // ADD THIS
 }) => {
   // Get responsive state from EditorStore
   const {
@@ -160,119 +165,164 @@ const CanvasComponent = ({
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   }, [canvasComponents, dragOffset, onPropertyUpdate, onComponentClick, responsiveMode, canvasSize, currentFrame, pushHistory, actionTypes]);
-
   
+  
+    // Handle drag-to-reorder
+  const handleDragEnd = useCallback((result) => {
+    if (!result.destination) return;
+    
+    const sourceIndex = result.source.index;
+    const destIndex = result.destination.index;
+    
+    if (sourceIndex === destIndex) return;
+    
+    const items = Array.from(canvasComponents);
+    const [reorderedItem] = items.splice(sourceIndex, 1);
+    items.splice(destIndex, 0, reorderedItem);
+    
+    // Update z-index and sort_order based on new positions
+    const updatedItems = items.map((item, index) => ({
+        ...item,
+        zIndex: index,
+        sortOrder: index
+    }));
+    
+    setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: updatedItems
+    }));
+    
+    // Push to history
+    if (pushHistory && actionTypes) {
+        pushHistory(currentFrame, updatedItems, actionTypes.MOVE, {
+            componentName: reorderedItem.name || reorderedItem.type,
+            componentId: reorderedItem.id,
+            action: 'reorder',
+            fromIndex: sourceIndex,
+            toIndex: destIndex
+        });
+    }
+    
+    // Auto-save after reorder
+    setTimeout(() => {
+        if (componentLibraryService?.saveProjectComponents) {
+            componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedItems);
+        }
+    }, 500);
+    
+}, [canvasComponents, currentFrame, pushHistory, actionTypes, setFrameCanvasComponents, componentLibraryService, projectId]);
+
 
 // REPLACE the renderComponent function
-const renderComponent = useCallback((component, index, parentStyle = {}, depth = 0) => {
-  const componentRenderer = componentLibraryService?.getComponent(component.type);
-  const isSelected = selectedComponent === component.id;
-  const isLayout = component.isLayoutContainer;
-  
-  let renderedContent = null;
-  
-  if (componentRenderer && componentRenderer.render) {
-    try {
-      const componentDef = componentLibraryService?.getComponentDefinition(component.type);
-      const mergedProps = {
-        ...componentDef?.default_props,
-        ...component.props,
-        style: component.style
-      };
-      renderedContent = componentRenderer.render(mergedProps, component.id);
-    } catch (error) {
-      console.warn('Component render error:', error);
-      renderedContent = <div className="border rounded p-3">{component.name}</div>;
+   const renderComponent = useCallback((component, index, parentStyle = {}, depth = 0) => {
+    const componentRenderer = componentLibraryService?.getComponent(component.type);
+    const isSelected = selectedComponent === component.id;
+    const isLayout = component.isLayoutContainer;
+    
+    let renderedContent = null;
+    
+    if (componentRenderer && componentRenderer.render) {
+      try {
+        const componentDef = componentLibraryService?.getComponentDefinition(component.type);
+        const mergedProps = {
+          ...componentDef?.default_props,
+          ...component.props,
+          style: component.style
+        };
+        renderedContent = componentRenderer.render(mergedProps, component.id);
+      } catch (error) {
+        console.warn('Component render error:', error);
+        renderedContent = <div className="border rounded p-3">{component.name}</div>;
+      }
+    } else {
+      renderedContent = <div className="border-2 border-dashed p-4">{component.name}</div>;
     }
-  } else {
-    renderedContent = <div className="border-2 border-dashed p-4">{component.name}</div>;
-  }
+    
+    const componentStyles = {
+      position: 'relative',
+      display: component.style?.display || getDefaultDisplay(component.type),
+      flexDirection: component.style?.flexDirection,
+      justifyContent: component.style?.justifyContent,
+      alignItems: component.style?.alignItems,
+      gap: component.style?.gap,
+      gridTemplateColumns: component.style?.gridTemplateColumns,
+      width: component.style?.width || getDefaultWidth(component.type),
+      minHeight: component.style?.minHeight || getDefaultMinHeight(component.type),
+      padding: component.style?.padding || getDefaultPadding(component.type),
+      backgroundColor: 'transparent',
+      ...component.style
+    };
   
-  // Layout styles - NO absolute positioning
-  const componentStyles = {
-    position: 'relative', // Always relative for document flow
-    display: component.style?.display || getDefaultDisplay(component.type),
-    flexDirection: component.style?.flexDirection,
-    justifyContent: component.style?.justifyContent,
-    alignItems: component.style?.alignItems,
-    gap: component.style?.gap,
-    gridTemplateColumns: component.style?.gridTemplateColumns,
-    width: component.style?.width || getDefaultWidth(component.type),
-    minHeight: component.style?.minHeight || getDefaultMinHeight(component.type),
-    padding: component.style?.padding || getDefaultPadding(component.type),
-    ...component.style
-  };
-
-  return (
-     <motion.div
-      key={component.id}
-      data-component-id={component.id}
-      data-depth={depth}
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ 
-        opacity: 1, 
-        scale: 1,
-        outline: isSelected ? '2px solid var(--color-primary)' : 'none',
-        outlineOffset: isSelected ? '2px' : '0px'
-      }}
-      className={`
-        relative group transition-all
-        ${component.animation?.cssClass || ''}
-        ${isLayout ? 'layout-container' : 'layout-element'}
-      `}
-      style={{
-        ...componentStyles,
-        cursor: !isLayout ? 'move' : 'default' // ADD THIS
-      }}
-      onClick={(e) => {
-        e.stopPropagation();
-        onComponentClick(component.id, e);
-      }}
-      onMouseDown={!isLayout ? (e) => handleComponentMouseDown(e, component.id) : undefined} // ADD THIS
-    >
-      {/* Layout Container Content */}
-      {isLayout ? (
-        <div className="w-full h-full relative" style={{ minHeight: componentStyles.minHeight }}>
-          {/* Drop Zone Indicator */}
-          {component.children?.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center border-2 border-dashed border-gray-300 rounded bg-gray-50/50">
-              <span className="text-sm text-gray-400 font-medium">
-                Drop elements here
-              </span>
-            </div>
-          )}
-          
-          {/* Render children */}
-          {component.children?.map((child, childIndex) => 
-            renderComponent(child, childIndex, {}, depth + 1)
-          )}
-        </div>
-      ) : (
-        // Regular element content
-        renderedContent
-      )}
-      
-      {/* Selection Indicator */}
-      {isSelected && (
-        <div className="absolute -inset-1 pointer-events-none rounded z-50" 
-             style={{ outline: '2px solid var(--color-primary)' }}>
-          <div className="absolute -top-7 left-0 px-2 py-1 rounded text-xs font-medium whitespace-nowrap z-50"
-               style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}>
-            {component.name} • Depth: {depth}
+    // Component content
+    const componentContent = (
+      <motion.div
+        key={component.id}
+        data-component-id={component.id}
+        data-depth={depth}
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ 
+          opacity: 1, 
+          scale: 1,
+          outline: isSelected ? '2px solid var(--color-primary)' : 'none',
+          outlineOffset: isSelected ? '2px' : '0px'
+        }}
+        className={`
+          relative group transition-all
+          ${component.animation?.cssClass || ''}
+          ${isLayout ? 'layout-container' : 'layout-element'}
+        `}
+        style={componentStyles}
+        onClick={(e) => {
+          e.stopPropagation();
+          onComponentClick(component.id, e);
+        }}
+      >
+        {isLayout ? (
+          <div className="w-full h-full relative" style={{ minHeight: componentStyles.minHeight }}>
+            {component.children?.map((child, childIndex) => 
+              renderComponent(child, childIndex, {}, depth + 1)
+            )}
           </div>
-        </div>
-      )}
-      
-      {/* Layout Container Label */}
-      {isLayout && (
-        <div className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity bg-white border shadow-sm z-10"
-             style={{ color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' }}>
-          {component.type.toUpperCase()}
-        </div>
-      )}
-    </motion.div>
-  );
-}, [componentLibraryService, selectedComponent, onComponentClick]);
+        ) : (
+          renderedContent
+        )}
+        
+        {isSelected && (
+          <div className="absolute -inset-1 pointer-events-none rounded z-50" 
+               style={{ outline: '2px solid var(--color-primary)' }}>
+            <div className="absolute -top-7 left-0 px-2 py-1 rounded text-xs font-medium whitespace-nowrap z-50"
+                 style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}>
+              {component.name} • Depth: {depth}
+            </div>
+          </div>
+        )}
+        
+        {isLayout && (
+          <div className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity bg-white border shadow-sm z-10"
+               style={{ color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' }}>
+            {component.type.toUpperCase()}
+          </div>
+        )}
+      </motion.div>
+    );
+  
+    // Only wrap root-level components with DraggableComponent (depth === 0)
+    if (depth === 0) {
+      return (
+        <DraggableComponent
+          key={component.id}
+          component={component}
+          index={index}
+          isSelected={isSelected}
+          onSelect={onComponentClick}
+        >
+          {componentContent}
+        </DraggableComponent>
+      );
+    }
+  
+    return componentContent;
+  }, [componentLibraryService, selectedComponent, onComponentClick]);
 
   // Helper functions for default styling
   const getDefaultDisplay = (componentType) => {
@@ -777,31 +827,32 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
         )}
 
         {/* Main Canvas - Acts as Document Body */}
-        <div 
-          ref={canvasRef}
-          className={`
-            relative overflow-visible transition-all duration-500
-            ${canvasClasses}
-            ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
-          `}
-          style={{
-            width: '100%',
-            minHeight: responsiveMode === 'desktop' ? '100vh' : '667px',
-            height: responsiveMode === 'desktop' ? 'auto' : `${canvasSize.height}px`, // ADD THIS
-            maxWidth: canvasSize.maxWidth,
-            backgroundColor: 'var(--color-surface)',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            lineHeight: '1.6',
-            color: 'var(--color-text)',
-            cursor: dragState.isDragging ? 'copy' : 'default',
-            borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
-            boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
-            position: 'relative' // ADD THIS
-          }}
-          onDragOver={onCanvasDragOver}
-          onDrop={onCanvasDrop}
-          onClick={onCanvasClick}
-        >
+          <div 
+              ref={canvasRef}
+              className={`
+                  relative transition-all duration-500
+                  ${canvasClasses}
+                  ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
+              `}
+              style={{
+                  width: '100%',
+                  minHeight: responsiveMode === 'desktop' ? '100vh' : '667px',
+                  height: responsiveMode === 'desktop' ? 'auto' : `${canvasSize.height}px`,
+                  maxWidth: canvasSize.maxWidth,
+                  backgroundColor: 'var(--color-surface)',
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                  lineHeight: '1.6',
+                  color: 'var(--color-text)',
+                  cursor: dragState.isDragging ? 'copy' : 'default',
+                  borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
+                  boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
+                  position: 'relative',
+                  overflow: 'auto' // CRITICAL: Enable scrolling
+              }}
+              onDragOver={onCanvasDragOver}
+              onDrop={onCanvasDrop}
+              onClick={onCanvasClick}
+          >
           {/* Canvas Grid Background - Only show if enabled */}
           {gridVisible && (
             <div 
@@ -860,29 +911,50 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
           </div>
         )}
 
-          {/* Render Components in Document Flow */}
-          <div className="relative z-10" style={{ minHeight: '100%' }}>
-            {canvasComponents.length === 0 && !dragState.isDragging ? (
-              <EmptyCanvasState
-                frameType={frameType}
-                onAddSection={() => {
-                  // Auto-add a section
-                  const sectionComponent = componentLibraryService?.createLayoutElement('section');
-                  if (sectionComponent && onPropertyUpdate) {
-                    onPropertyUpdate('canvas', [...canvasComponents, sectionComponent]);
-                  }
-                }}
-                onDragOver={onCanvasDragOver}
-                onDrop={onCanvasDrop}
-                isDragOver={dragState.isDragging}
-              />
-            ) : (
-              <AnimatePresence>
-                {canvasComponents.map((component, index) => renderComponent(component, index))}
-              </AnimatePresence>
-            )}
-          </div>
-        </div>
+      {/* Render Components with Drag-to-Reorder */}
+      <div className="relative z-10" style={{ minHeight: '100%' }}>
+        {canvasComponents.length === 0 && !dragState.isDragging ? (
+          <EmptyCanvasState
+            frameType={frameType}
+            onAddSection={() => {
+              const sectionComponent = componentLibraryService?.createLayoutElement('section');
+              if (sectionComponent && onPropertyUpdate) {
+                onPropertyUpdate('canvas', [...canvasComponents, sectionComponent]);
+              }
+            }}
+            onDragOver={onCanvasDragOver}
+            onDrop={onCanvasDrop}
+            isDragOver={dragState.isDragging}
+            responsiveMode={responsiveMode}
+          />
+        ) : (
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="canvas-components">
+              {(provided) => (
+                <div 
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  style={{ minHeight: '100%' }}
+                >
+                  <AnimatePresence>
+                    {canvasComponents.map((component, index) => (
+                      <DraggableComponent
+                        key={component.id}
+                        component={component}
+                        index={index}
+                        isSelected={selectedComponent === component.id}
+                        onSelect={onComponentClick}
+                      >
+                        {renderComponent(component, index)}
+                      </DraggableComponent>
+                    ))}
+                  </AnimatePresence>
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
+        )}
       </div>
 
       {/* Status Bar - Only for Desktop */}
@@ -908,6 +980,8 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
           </div>
         </div>
       )}
+    </div>
+    </div>
     </div>
   );
 };

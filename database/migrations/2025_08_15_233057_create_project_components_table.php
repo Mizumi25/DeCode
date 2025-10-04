@@ -17,7 +17,6 @@ return new class extends Migration
             $table->string('component_instance_id'); // Frontend generated ID
             $table->string('component_type'); // References components.type
             $table->json('props')->nullable(); // Should be nullable
-            $table->json('position'); // {x: 100, y: 200}
             $table->string('name'); // User-defined name for this instance
             $table->integer('z_index')->default(0);
             $table->boolean('is_locked')->default(false);
@@ -26,6 +25,10 @@ return new class extends Migration
             $table->json('variant')->nullable();
             $table->json('style')->nullable();
             $table->json('animation')->nullable();
+            
+            $table->string('display_type')->default('block')->after('component_type');
+            $table->json('layout_props')->nullable()->after('display_type');
+            $table->boolean('is_layout_container')->default(false)->after('layout_props');
             
             $table->unsignedBigInteger('parent_id')->nullable()->after('frame_id');
             $table->integer('sort_order')->default(0)->after('z_index');

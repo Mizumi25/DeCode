@@ -1,5 +1,5 @@
 <?php
-// database/seeders/LayoutContainerSeeder.php - POWERFUL LAYOUT CONTAINERS
+// database/seeders/LayoutContainerSeeder.php
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
@@ -20,14 +20,11 @@ class LayoutContainerSeeder extends Seeder
                 'description' => 'Semantic section element - main page structure container',
                 'icon' => 'Layout',
                 'default_props' => [
-                    'padding' => 'py-16 px-6',
-                    'background' => 'bg-white',
-                    'maxWidth' => 'full',
-                    'className' => 'w-full min-h-screen'
+                    'className' => 'w-full'
                 ],
                 'prop_definitions' => [
                     'padding' => ['type' => 'select', 'label' => 'Padding', 'options' => ['py-8 px-4', 'py-16 px-6', 'py-24 px-8'], 'default' => 'py-16 px-6'],
-                    'background' => ['type' => 'string', 'label' => 'Background', 'default' => 'bg-white'],
+                    'background' => ['type' => 'string', 'label' => 'Background', 'default' => 'transparent'],
                     'maxWidth' => ['type' => 'select', 'label' => 'Max Width', 'options' => ['full', 'container', 'screen'], 'default' => 'full']
                 ],
                 'render_template' => 'section-template',
@@ -275,12 +272,10 @@ class LayoutContainerSeeder extends Seeder
                 'icon' => 'Square',
                 'default_props' => [
                     'display' => 'block',
-                    'className' => 'w-full h-auto',
-                    'showPlaceholder' => true
+                    'className' => 'w-full h-auto'
                 ],
                 'prop_definitions' => [
-                    'display' => ['type' => 'select', 'label' => 'Display', 'options' => ['block', 'flex', 'grid', 'inline-block', 'inline-flex'], 'default' => 'block'],
-                    'showPlaceholder' => ['type' => 'boolean', 'label' => 'Show Placeholder', 'default' => true]
+                    'display' => ['type' => 'select', 'label' => 'Display', 'options' => ['block', 'flex', 'grid', 'inline-block', 'inline-flex'], 'default' => 'block']
                 ],
                 'render_template' => 'div-template',
                 'code_generators' => ['react-tailwind' => 'templates/layout/div.js'],
@@ -289,8 +284,7 @@ class LayoutContainerSeeder extends Seeder
                         'name' => 'Content Block',
                         'description' => 'Basic content container',
                         'props' => [
-                            'className' => 'w-full p-6 bg-white rounded-lg border',
-                            'showPlaceholder' => false
+                            'className' => 'w-full p-6 bg-white rounded-lg border'
                         ],
                         'preview_code' => '<div class="w-full p-6 bg-white rounded-lg border"><div class="h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 text-sm font-medium">Content Block</div></div>'
                     ],
@@ -298,8 +292,7 @@ class LayoutContainerSeeder extends Seeder
                         'name' => 'Card Wrapper',
                         'description' => 'Card-style wrapper with shadow',
                         'props' => [
-                            'className' => 'w-full max-w-md mx-auto bg-white rounded-xl shadow-lg overflow-hidden',
-                            'showPlaceholder' => false
+                            'className' => 'w-full max-w-md mx-auto bg-white rounded-xl shadow-lg overflow-hidden'
                         ],
                         'preview_code' => '<div class="w-full max-w-md mx-auto bg-white rounded-xl shadow-lg overflow-hidden"><div class="p-8"><div class="h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg mb-4"></div><h3 class="text-xl font-bold text-gray-900">Card Title</h3><p class="text-gray-600 mt-2">Card description goes here</p></div></div>'
                     ],
@@ -307,8 +300,7 @@ class LayoutContainerSeeder extends Seeder
                         'name' => 'Overlay Container',
                         'description' => 'Container with overlay capabilities',
                         'props' => [
-                            'className' => 'relative w-full h-64 bg-gray-900 rounded-lg overflow-hidden',
-                            'showPlaceholder' => false
+                            'className' => 'relative w-full h-64 bg-gray-900 rounded-lg overflow-hidden'
                         ],
                         'preview_code' => '<div class="relative w-full h-64 bg-gray-900 rounded-lg overflow-hidden"><div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div><div class="absolute bottom-6 left-6 text-white"><h3 class="text-2xl font-bold">Overlay Content</h3><p class="text-gray-200">Perfect for hero sections</p></div></div>'
                     ]

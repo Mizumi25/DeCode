@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 
 use App\Models\ProjectComponent;
 use App\Models\Revision;
+use App\Models\Project;
+use App\Models\Frame;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -68,6 +70,7 @@ class ProjectComponentController extends Controller
         ]);
     }
 
+  
   public function bulkUpdate(Request $request): JsonResponse
   {
       $validated = $request->validate([
@@ -77,22 +80,28 @@ class ProjectComponentController extends Controller
           'components.*.component_instance_id' => 'required|string',
           'components.*.component_type' => 'required|string',
           'components.*.props' => 'array',
-          'components.*.position' => 'required|array',
-          'components.*.position.x' => 'required|numeric',
-          'components.*.position.y' => 'required|numeric',
           'components.*.name' => 'required|string',
           'components.*.z_index' => 'integer|min:0',
+          'components.*.parent_id' => 'nullable|integer',
+          'components.*.sort_order' => 'integer',
           'components.*.variant' => 'nullable|array',
           'components.*.style' => 'nullable|array',
           'components.*.animation' => 'nullable|array',
+          
+          // NEW: Layout fields
+          'components.*.display_type' => 'nullable|string',
+          'components.*.layout_props' => 'nullable|array',
+          'components.*.is_layout_container' => 'nullable|boolean',
+          'components.*.children' => 'nullable|array',
+          
           'create_revision' => 'boolean'
       ]);
   
       DB::beginTransaction();
       
       try {
-          $frame = \App\Models\Frame::where('uuid', $validated['frame_id'])->first();
-          $project = \App\Models\Project::where('uuid', $validated['project_id'])->first();
+          $frame = Frame::where('uuid', $validated['frame_id'])->first();
+          $project = Project::where('uuid', $validated['project_id'])->first();
           
           if (!$frame || !$project) {
               return response()->json([
@@ -101,44 +110,72 @@ class ProjectComponentController extends Controller
               ], 404);
           }
   
-          \Log::info('BulkUpdate: Starting save', [
-              'project_id' => $project->id,
-              'frame_id' => $frame->id,
-              'component_count' => count($validated['components'])
-          ]);
-  
           // Clear existing components for this frame
           ProjectComponent::where('project_id', $project->id)
                          ->where('frame_id', $frame->id)
                          ->delete();
   
-          // Use Collection instead of array
+          // Recursive function to save components with hierarchy
           $savedComponents = collect();
           
-          foreach ($validated['components'] as $componentData) {
+          $saveComponentTree = function($componentData, $parentDbId = null) use (&$saveComponentTree, &$savedComponents, $project, $frame) {
               $component = ProjectComponent::create([
                   'project_id' => $project->id,
                   'frame_id' => $frame->id,
+                  'parent_id' => $parentDbId,
                   'component_instance_id' => $componentData['component_instance_id'],
                   'component_type' => $componentData['component_type'],
                   'props' => $componentData['props'] ?? [],
-                  'position' => $componentData['position'],
                   'name' => $componentData['name'],
                   'z_index' => $componentData['z_index'] ?? 0,
+                  'sort_order' => $componentData['sort_order'] ?? 0,
                   'variant' => $componentData['variant'] ?? null,
                   'style' => $componentData['style'] ?? [],
-                  'animation' => $componentData['animation'] ?? []
+                  'animation' => $componentData['animation'] ?? [],
+                  
+                  // NEW: Save layout properties
+                  'display_type' => $componentData['style']['display'] ?? 'block',
+                  'layout_props' => [
+                      'flexDirection' => $componentData['style']['flexDirection'] ?? null,
+                      'justifyContent' => $componentData['style']['justifyContent'] ?? null,
+                      'alignItems' => $componentData['style']['alignItems'] ?? null,
+                      'gap' => $componentData['style']['gap'] ?? null,
+                      'gridTemplateColumns' => $componentData['style']['gridTemplateColumns'] ?? null,
+                      'gridTemplateRows' => $componentData['style']['gridTemplateRows'] ?? null,
+                      'padding' => $componentData['style']['padding'] ?? null,
+                      'width' => $componentData['style']['width'] ?? null,
+                      'minHeight' => $componentData['style']['minHeight'] ?? null,
+                  ],
+                  'is_layout_container' => $componentData['isLayoutContainer'] ?? false,
+                  
+                  // Keep position for backward compatibility during migration
+                  'position' => ['x' => 0, 'y' => 0], // Deprecated but keep for now
               ]);
               
               $savedComponents->push($component->load('component'));
+              
+              // Recursively save children
+              if (isset($componentData['children']) && is_array($componentData['children'])) {
+                  foreach ($componentData['children'] as $childData) {
+                      $saveComponentTree($childData, $component->id);
+                  }
+              }
+              
+              return $component;
+          };
+          
+          // Save all root-level components
+          foreach ($validated['components'] as $componentData) {
+              if (!isset($componentData['parent_id'])) {
+                  $saveComponentTree($componentData);
+              }
           }
   
-          \Log::info('BulkUpdate: Components created', [
-              'saved_count' => $savedComponents->count(),
-              'component_ids' => $savedComponents->pluck('component_instance_id')->toArray()
+          \Log::info('BulkUpdate: Components saved with hierarchy', [
+              'saved_count' => $savedComponents->count()
           ]);
   
-          // Update frame canvas_data to match
+          // Update frame canvas_data
           $frame->update([
               'canvas_data' => [
                   'components' => $savedComponents->map(function($comp) {
@@ -146,24 +183,23 @@ class ProjectComponentController extends Controller
                           'id' => $comp->component_instance_id,
                           'type' => $comp->component_type,
                           'props' => $comp->props,
-                          'position' => $comp->position,
                           'name' => $comp->name,
                           'zIndex' => $comp->z_index,
                           'variant' => $comp->variant,
                           'style' => $comp->style ?? [],
                           'animation' => $comp->animation ?? [],
-                          'children' => []
+                          'display_type' => $comp->display_type,
+                          'layout_props' => $comp->layout_props,
+                          'is_layout_container' => $comp->is_layout_container,
+                          'children' => [] // Children are loaded separately
                       ];
                   })->toArray(),
                   'settings' => $frame->settings ?? [],
-                  'version' => '1.0',
+                  'version' => '2.0', // Increment version for new layout system
                   'updated_at' => now()->toISOString()
               ]
           ]);
   
-          \Log::info('BulkUpdate: Frame canvas_data updated');
-          
-          // Create revision snapshot if requested
           if ($validated['create_revision'] ?? false) {
               Revision::createSnapshot(
                   $project->id,
@@ -176,33 +212,23 @@ class ProjectComponentController extends Controller
   
           DB::commit();
   
-          \Log::info('BulkUpdate: Transaction committed successfully');
-  
           return response()->json([
               'success' => true,
               'data' => $savedComponents,
-              'message' => 'Components saved successfully',
-              'debug' => [
-                  'saved_count' => $savedComponents->count(),
-                  'frame_updated' => true
-              ]
+              'message' => 'Components saved with layout hierarchy'
           ]);
   
       } catch (\Exception $e) {
           DB::rollback();
           
-          \Log::error('BulkUpdate: Save failed', [
+          \Log::error('BulkUpdate failed', [
               'error' => $e->getMessage(),
-              'trace' => $e->getTraceAsString(),
-              'project_id' => $validated['project_id'],
-              'frame_id' => $validated['frame_id'],
-              'component_count' => count($validated['components'])
+              'trace' => $e->getTraceAsString()
           ]);
           
           return response()->json([
               'success' => false,
-              'message' => 'Failed to save components: ' . $e->getMessage(),
-              'error' => $e->getMessage()
+              'message' => 'Failed to save components: ' . $e->getMessage()
           ], 500);
       }
   }
@@ -215,36 +241,42 @@ class ProjectComponentController extends Controller
           'frame_id' => 'nullable|string'
       ]);
   
-      // Lookup by UUID
-      $project = \App\Models\Project::where('uuid', $validated['project_id'])->first();
+      $project = Project::where('uuid', $validated['project_id'])->first();
       if (!$project) {
           return response()->json(['success' => false, 'message' => 'Project not found'], 404);
       }
   
       $query = ProjectComponent::where('project_id', $project->id)
-          ->with('component')
+          ->with(['component', 'children']) // Load children relationship
+          ->whereNull('parent_id') // Only get root components
           ->ordered();
   
       if (isset($validated['frame_id'])) {
-          $frame = \App\Models\Frame::where('uuid', $validated['frame_id'])->first();
+          $frame = Frame::where('uuid', $validated['frame_id'])->first();
           if ($frame) {
               $query->where('frame_id', $frame->id);
           }
       }
   
-      $components = $query->get()->map(function($comp) {
+      // Recursive function to build component tree
+      $buildTree = function($component) use (&$buildTree) {
           return [
-              'id' => $comp->component_instance_id,
-              'type' => $comp->component_type,
-              'props' => $comp->props,
-              'position' => $comp->position,
-              'name' => $comp->name,
-              'zIndex' => $comp->z_index,
-              'variant' => $comp->variant,
-              'style' => $comp->style ?? [],
-              'animation' => $comp->animation ?? []
+              'id' => $component->component_instance_id,
+              'type' => $component->component_type,
+              'props' => $component->props,
+              'name' => $component->name,
+              'zIndex' => $component->z_index,
+              'variant' => $component->variant,
+              'style' => $component->style ?? [],
+              'animation' => $component->animation ?? [],
+              'display_type' => $component->display_type,
+              'layout_props' => $component->layout_props,
+              'isLayoutContainer' => $component->is_layout_container,
+              'children' => $component->children->map($buildTree)->toArray()
           ];
-      });
+      };
+  
+      $components = $query->get()->map($buildTree);
   
       return response()->json([
           'success' => true,

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { X, Mail, Link as LinkIcon, Copy, Check, Users, Eye, Edit, Plus, AlertCircle, ChevronDown, ArrowRight, Zap, Home } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useForm } from '@inertiajs/react'
 import Modal from '@/Components/Modal'
 import CreateWorkspaceModal from './CreateWorkspaceModal'
 import { useInviteStore, copyToClipboard, validateEmail } from '@/stores/useInviteStore'

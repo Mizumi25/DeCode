@@ -1762,26 +1762,28 @@ const handleUndo = useCallback(async () => {
                     {/* Regular Canvas - only show if we have components or frame is component type */}
                     {(canvasComponents.length > 0 || frame?.type === 'component') && (
                         <CanvasComponent
-                            canvasRef={canvasRef}
-                            canvasComponents={canvasComponents}
-                            selectedComponent={selectedComponent}
-                            dragState={dragState}
-                            dragPosition={dragPosition}          // ADD
-                            isCanvasSelected={isCanvasSelected}
-                            componentLibraryService={componentLibraryService}
-                            onCanvasDragOver={handleCanvasDragOver}
-                            onCanvasDrop={handleCanvasDrop}
-                            onCanvasClick={handleCanvasClick}
-                            onComponentClick={handleComponentClick}
-                            onPropertyUpdate={handlePropertyUpdate}
-                            isMobile={isMobile}
-                            currentFrame={currentFrame}
-                            isFrameSwitching={isFrameSwitching}
-                            frameType={frame?.type || 'page'}
-                            responsiveMode={responsiveMode}
-                            zoomLevel={zoomLevel}
-                            gridVisible={gridVisible}
-                        />
+                          canvasRef={canvasRef}
+                          canvasComponents={canvasComponents}
+                          selectedComponent={selectedComponent}
+                          dragState={dragState}
+                          dragPosition={dragPosition}
+                          isCanvasSelected={isCanvasSelected}
+                          componentLibraryService={componentLibraryService}
+                          onCanvasDragOver={handleCanvasDragOver}
+                          onCanvasDrop={handleCanvasDrop}
+                          onCanvasClick={handleCanvasClick}
+                          onComponentClick={handleComponentClick}
+                          onPropertyUpdate={handlePropertyUpdate}
+                          isMobile={isMobile}
+                          currentFrame={currentFrame}
+                          isFrameSwitching={isFrameSwitching}
+                          frameType={frame?.type || 'page'}
+                          responsiveMode={responsiveMode}
+                          zoomLevel={zoomLevel}
+                          gridVisible={gridVisible}
+                          projectId={projectId}  // ADD
+                          setFrameCanvasComponents={setFrameCanvasComponents}  // ADD
+                      />
                     )}
                 </div>
             ) : (
