@@ -589,7 +589,16 @@ const BottomCodePanel = ({
             {getAvailableTabs().map(tab => (
               <button
                 key={tab}
-                onClick={() => setActiveCodeTab(tab)}
+                onClick={() => {
+                  setActiveCodeTab(tab);
+                  // Force editor to update
+                  if (editorRef.current) {
+                    setTimeout(() => {
+                      editorRef.current.setValue(generatedCode[tab] || '');
+                      editorRef.current.layout();
+                    }, 50);
+                  }
+                }}
                 className="px-3 py-2 rounded-md text-sm font-medium transition-all flex-1 relative"
                 style={{
                   backgroundColor: activeCodeTab === tab ? 'var(--color-surface)' : 'transparent',

@@ -697,73 +697,80 @@ getCardClasses(props) {
   }
 
   // Client-side code generation with enhanced variant support
-  clientSideCodeGeneration(allComponents, style) {
-    console.log('Generating code for', allComponents.length, 'components with style:', style);
-    
-    switch (style) {
-      case 'react-tailwind':
-        return this.generateReactTailwindCode(allComponents);
-      case 'react-css':
-        return this.generateReactCSSCode(allComponents);
-      case 'html-css':
-        return this.generateHTMLCSSCode(allComponents);
-      case 'html-tailwind':
-        return this.generateHTMLTailwindCode(allComponents);
-      default:
-        return this.generateReactTailwindCode(allComponents);
+  // Around line 500 in ComponentLibraryService.js
+    clientSideCodeGeneration(allComponents, style) {
+        console.log('Generating code for', allComponents.length, 'components with style:', style);
+        
+        const codeMap = {
+          'react-tailwind': () => this.generateReactTailwindCode(allComponents),
+          'react-css': () => this.generateReactCSSCode(allComponents),
+          'html-css': () => this.generateHTMLCSSCode(allComponents),
+          'html-tailwind': () => this.generateHTMLTailwindCode(allComponents)
+        };
+        
+        return codeMap[style]?.() || { react: '', html: '', css: '', tailwind: '' };
     }
-  }
+    
+    // ADD THIS NEW METHOD right after clientSideCodeGeneration
+    getTabsForStyle(style) {
+        const tabMap = {
+          'react-tailwind': ['react'], // Single combined tab
+          'react-css': ['react', 'css'], // Two separate tabs
+          'html-css': ['html', 'css'], // Two separate tabs
+          'html-tailwind': ['html'] // Single combined tab
+        };
+        
+        return tabMap[style] || ['react'];
+    }
 
   generateReactTailwindCode(allComponents) {
-    if (!allComponents || allComponents.length === 0) {
-      return {
-        react: `import React from 'react';
+  if (!allComponents || allComponents.length === 0) {
+    return {
+      react: `import React from 'react';
 
 const GeneratedComponent = () => {
   return (
-    <div className="relative w-full h-full min-h-[400px] bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl">
+    <div className="w-full min-h-screen p-8">
       {/* No components yet */}
     </div>
   );
 };
 
 export default GeneratedComponent;`,
-        tailwind: '// No components to generate classes for'
-      };
-    }
+      tailwind: '// No components to generate classes for'
+    };
+  }
 
-    const reactComponents = allComponents.map(comp => {
-      const classes = this.getComponentClasses(comp);
-      return `        <div style={{ position: 'absolute', left: '${comp.position.x}px', top: '${comp.position.y}px' }}>
-          ${this.generateComponentJSX(comp, classes)}
-        </div>`;
-    }).join('\n');
+  // REMOVE the position absolute wrapper - just render components directly
+  const reactComponents = allComponents.map(comp => {
+    const classes = this.getComponentClasses(comp);
+    return this.generateComponentJSX(comp, classes); // NO WRAPPER
+  }).join('\n');
 
-    return {
-      react: `import React from 'react';
+  return {
+    react: `import React from 'react';
 
 const GeneratedComponent = () => {
   return (
-    <div className="relative w-full h-full min-h-[400px] bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl">
+    <div className="w-full min-h-screen">
 ${reactComponents}
     </div>
   );
 };
 
 export default GeneratedComponent;`,
-      tailwind: allComponents.map(comp => `// ${comp.name} (${comp.type})\n${this.getComponentClasses(comp)}`).join('\n\n')
-    };
-  }
+    tailwind: allComponents.map(comp => `// ${comp.name} (${comp.type})\n${this.getComponentClasses(comp)}`).join('\n\n')
+  };
+}
 
   generateReactCSSCode(allComponents) {
-    const reactComponents = allComponents.map(comp => {
-      return `        <div style={{ position: 'absolute', left: '${comp.position.x}px', top: '${comp.position.y}px' }}>
-          ${this.generateComponentJSX(comp, `btn btn-${comp.props.variant || 'primary'} btn-${comp.props.size || 'md'}`)}
-        </div>`;
-    }).join('\n');
+  // REMOVE position absolute wrapper
+  const reactComponents = allComponents.map(comp => {
+    return this.generateComponentJSX(comp, `btn btn-${comp.props.variant || 'primary'} btn-${comp.props.size || 'md'}`);
+  }).join('\n');
 
-    return {
-      react: `import React from 'react';
+  return {
+    react: `import React from 'react';
 import './GeneratedComponent.css';
 
 const GeneratedComponent = () => {
@@ -775,19 +782,18 @@ ${reactComponents}
 };
 
 export default GeneratedComponent;`,
-      css: this.generateCSSStyles(allComponents)
-    };
-  }
+    css: this.generateCSSStyles(allComponents)
+  };
+}
 
   generateHTMLCSSCode(allComponents) {
-    const htmlComponents = allComponents.map(comp => {
-      return `    <div style="position: absolute; left: ${comp.position.x}px; top: ${comp.position.y}px;">
-      ${this.generateComponentHTML(comp, `btn btn-${comp.props.variant || 'primary'} btn-${comp.props.size || 'md'}`)}
-    </div>`;
-    }).join('\n');
+  // REMOVE position absolute wrapper
+  const htmlComponents = allComponents.map(comp => {
+    return this.generateComponentHTML(comp, `btn btn-${comp.props.variant || 'primary'} btn-${comp.props.size || 'md'}`);
+  }).join('\n');
 
-    return {
-      html: `<!DOCTYPE html>
+  return {
+    html: `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -801,20 +807,19 @@ ${htmlComponents}
     </div>
 </body>
 </html>`,
-      css: this.generateCSSStyles(allComponents)
-    };
-  }
+    css: this.generateCSSStyles(allComponents)
+  };
+}
 
   generateHTMLTailwindCode(allComponents) {
-    const htmlComponents = allComponents.map(comp => {
-      const classes = this.getComponentClasses(comp);
-      return `    <div style="position: absolute; left: ${comp.position.x}px; top: ${comp.position.y}px;">
-      ${this.generateComponentHTML(comp, classes)}
-    </div>`;
-    }).join('\n');
+  // REMOVE position absolute wrapper
+  const htmlComponents = allComponents.map(comp => {
+    const classes = this.getComponentClasses(comp);
+    return this.generateComponentHTML(comp, classes);
+  }).join('\n');
 
-    return {
-      html: `<!DOCTYPE html>
+  return {
+    html: `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -823,14 +828,14 @@ ${htmlComponents}
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
-    <div class="relative w-full h-full min-h-[400px] bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl">
+    <div class="w-full min-h-screen">
 ${htmlComponents}
     </div>
 </body>
 </html>`,
-      tailwind: allComponents.map(comp => `/* ${comp.name} (${comp.type}) */\n${this.getComponentClasses(comp)}`).join('\n\n')
-    };
-  }
+    tailwind: allComponents.map(comp => `/* ${comp.name} (${comp.type}) */\n${this.getComponentClasses(comp)}`).join('\n\n')
+  };
+}
 
   // Enhanced JSX generation with variant support
   generateComponentJSX(comp, classes) {

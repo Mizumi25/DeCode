@@ -1,4 +1,4 @@
-// @/Components/Forge/PropertiesPanel.jsx - Enhanced with Proper Dynamic Theming
+// @/Components/Forge/PropertiesPanel.jsx
 import React, { useState, useEffect } from 'react';
 import { Settings, Code, Trash2, RotateCcw } from 'lucide-react';
 
@@ -10,7 +10,6 @@ import AnimationSection from './PropertySections/AnimationSection';
 import ResponsiveSection from './PropertySections/ResponsiveSection';
 import InteractionsSection from './PropertySections/InteractionsSection';
 import CustomSection from './PropertySections/CustomSection';
-import LayoutPresets from './LayoutPresets';
 
 const PropertiesPanel = ({ 
   canvasComponents, 
@@ -95,7 +94,8 @@ const PropertiesPanel = ({
     currentAnimation,
     onPropertyChange: handlePropertyChange,
     expandedSections,
-    setExpandedSections
+    setExpandedSections,
+    selectedComponentData
   };
 
   return (
@@ -103,7 +103,7 @@ const PropertiesPanel = ({
       className="space-y-0 max-h-full overflow-y-auto"
       style={{ backgroundColor: 'var(--color-bg)' }}
     >
-      {/* Header - Fixed with proper theming */}
+      {/* Header */}
       <div 
         className="sticky top-0 z-10 p-4 border-b"
         style={{ 
@@ -136,16 +136,7 @@ const PropertiesPanel = ({
             style={{
               backgroundColor: 'var(--color-surface)',
               borderColor: 'var(--color-border)',
-              color: 'var(--color-text)',
-              '--focus-ring-color': 'var(--color-primary)'
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = 'var(--color-primary)';
-              e.target.style.boxShadow = '0 0 0 3px rgba(160, 82, 255, 0.1)';
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = 'var(--color-border)';
-              e.target.style.boxShadow = 'none';
+              color: 'var(--color-text)'
             }}
           />
         </div>
@@ -153,9 +144,7 @@ const PropertiesPanel = ({
 
       {/* Scrollable Content */}
       <div className="p-4 space-y-4">
-        {/* Property Sections */}
-        <LayoutPresets {...commonProps} />
-        <LayoutSection {...commonProps} selectedComponentData={selectedComponentData} />
+        <LayoutSection {...commonProps} />
         <TypographySection {...commonProps} />
         <StylingSection {...commonProps} />
         <AnimationSection {...commonProps} />
@@ -164,7 +153,7 @@ const PropertiesPanel = ({
         <CustomSection {...commonProps} />
       </div>
 
-      {/* Actions - Fixed at bottom with proper theming */}
+      {/* Actions */}
       <div 
         className="sticky bottom-0 p-4 border-t space-y-3"
         style={{ 
@@ -212,106 +201,6 @@ const PropertiesPanel = ({
           </button>
         </div>
       </div>
-
-      {/* Global Styles for Input Theming */}
-      <style jsx>{`
-        .space-y-0 input,
-        .space-y-0 select,
-        .space-y-0 textarea {
-          background-color: var(--color-surface) !important;
-          color: var(--color-text) !important;
-          border-color: var(--color-border) !important;
-        }
-        
-        .space-y-0 input:focus,
-        .space-y-0 select:focus,
-        .space-y-0 textarea:focus {
-          border-color: var(--color-primary) !important;
-          box-shadow: 0 0 0 3px rgba(160, 82, 255, 0.1) !important;
-        }
-        
-        .space-y-0 button:not(.w-full) {
-          background-color: var(--color-surface) !important;
-          color: var(--color-text) !important;
-          border-color: var(--color-border) !important;
-        }
-        
-        .space-y-0 button:not(.w-full):hover {
-          background-color: var(--color-bg-muted) !important;
-        }
-        
-        /* Range slider styling */
-        .space-y-0 input[type="range"] {
-          -webkit-appearance: none;
-          appearance: none;
-          background: transparent;
-          cursor: pointer;
-        }
-        
-        .space-y-0 input[type="range"]::-webkit-slider-track {
-          background: var(--color-border);
-          height: 6px;
-          border-radius: 3px;
-        }
-        
-        .space-y-0 input[type="range"]::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          appearance: none;
-          background: var(--color-primary);
-          height: 18px;
-          width: 18px;
-          border-radius: 50%;
-          border: 2px solid var(--color-surface);
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .space-y-0 input[type="range"]::-moz-range-track {
-          background: var(--color-border);
-          height: 6px;
-          border-radius: 3px;
-        }
-        
-        .space-y-0 input[type="range"]::-moz-range-thumb {
-          background: var(--color-primary);
-          height: 18px;
-          width: 18px;
-          border-radius: 50%;
-          border: 2px solid var(--color-surface);
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        /* Color input styling */
-        .space-y-0 input[type="color"] {
-          width: 40px;
-          height: 40px;
-          border-radius: 8px;
-          border: 2px solid var(--color-border);
-          cursor: pointer;
-        }
-        
-        .space-y-0 input[type="color"]::-webkit-color-swatch-wrapper {
-          padding: 0;
-        }
-        
-        .space-y-0 input[type="color"]::-webkit-color-swatch {
-          border: none;
-          border-radius: 6px;
-        }
-        
-        /* Checkbox styling */
-        .space-y-0 input[type="checkbox"] {
-          accent-color: var(--color-primary);
-        }
-        
-        /* Select styling */
-        .space-y-0 select {
-          background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-          background-position: right 8px center;
-          background-repeat: no-repeat;
-          background-size: 16px 12px;
-          padding-right: 32px;
-        }
-      `}</style>
     </div>
   );
 };

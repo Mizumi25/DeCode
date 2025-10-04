@@ -1,22 +1,16 @@
 import React from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-// Property Section Container
 export const PropertySection = ({ title, Icon, sectionKey, children, expandedSections, setExpandedSections }) => {
   const isExpanded = expandedSections[sectionKey];
   
-  const toggleSection = () => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [sectionKey]: !prev[sectionKey]
-    }));
-  };
-  
   return (
-    <div className="border rounded-lg mb-3" style={{ borderColor: 'var(--color-border)' }}>
+    <div className="border rounded-lg mb-3" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
       <button
-        onClick={toggleSection}
-        className="w-full flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        onClick={() => setExpandedSections(prev => ({ ...prev, [sectionKey]: !prev[sectionKey] }))}
+        className="w-full flex items-center justify-between p-3 transition-colors"
+        style={{ backgroundColor: 'var(--color-surface)' }}
       >
         <div className="flex items-center gap-2">
           <Icon className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
@@ -24,24 +18,36 @@ export const PropertySection = ({ title, Icon, sectionKey, children, expandedSec
             {title}
           </span>
         </div>
-        {isExpanded ? (
+        <motion.div
+          animate={{ rotate: isExpanded ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
           <ChevronDown className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
-        ) : (
-          <ChevronRight className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
-        )}
+        </motion.div>
       </button>
-      {isExpanded && (
-        <div className="p-3 border-t space-y-4" style={{ borderColor: 'var(--color-border)' }}>
-          {children}
-        </div>
-      )}
+      
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div className="p-3 border-t space-y-4" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
 
-// Input Field Component
+
 export const InputField = ({ label, value, onChange, type = 'text', options = {} }) => {
-  const baseInputClasses = "w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors text-sm";
+  const baseInputClasses = "w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm";
   
   return (
     <div className="space-y-1">
@@ -56,6 +62,11 @@ export const InputField = ({ label, value, onChange, type = 'text', options = {}
           value={value || ''}
           onChange={(e) => onChange(e.target.value)}
           className={baseInputClasses}
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+            color: 'var(--color-text)'
+          }}
         >
           <option value="">Default</option>
           {options.values?.map((option) => (
@@ -71,6 +82,7 @@ export const InputField = ({ label, value, onChange, type = 'text', options = {}
             value={value || '#000000'}
             onChange={(e) => onChange(e.target.value)}
             className="w-12 h-10 border rounded cursor-pointer"
+            style={{ borderColor: 'var(--color-border)' }}
           />
           <input
             type="text"
@@ -78,6 +90,11 @@ export const InputField = ({ label, value, onChange, type = 'text', options = {}
             onChange={(e) => onChange(e.target.value)}
             className={`${baseInputClasses} flex-1`}
             placeholder="#000000 or rgb() or hsl()"
+            style={{
+              backgroundColor: 'var(--color-surface)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-text)'
+            }}
           />
         </div>
       ) : type === 'range' ? (
@@ -89,7 +106,8 @@ export const InputField = ({ label, value, onChange, type = 'text', options = {}
             step={options.step || 1}
             value={value || options.min || 0}
             onChange={(e) => onChange(parseFloat(e.target.value))}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+            className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+            style={{ accentColor: 'var(--color-primary)' }}
           />
           <div className="text-xs text-center" style={{ color: 'var(--color-text-muted)' }}>
             {value || options.min || 0}{options.unit || ''}
@@ -101,6 +119,11 @@ export const InputField = ({ label, value, onChange, type = 'text', options = {}
           onChange={(e) => onChange(e.target.value)}
           className={`${baseInputClasses} resize-vertical min-h-[80px]`}
           rows={3}
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+            color: 'var(--color-text)'
+          }}
         />
       ) : type === 'checkbox' ? (
         <div className="flex items-center">
@@ -108,7 +131,8 @@ export const InputField = ({ label, value, onChange, type = 'text', options = {}
             type="checkbox"
             checked={value || false}
             onChange={(e) => onChange(e.target.checked)}
-            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+            className="w-4 h-4 rounded focus:ring-2"
+            style={{ accentColor: 'var(--color-primary)' }}
           />
           <label className="ml-2 text-sm font-medium" style={{ color: 'var(--color-text)' }}>
             {label}
@@ -121,11 +145,16 @@ export const InputField = ({ label, value, onChange, type = 'text', options = {}
               <button
                 key={key}
                 onClick={() => onChange(presetValue)}
-                className={`px-2 py-1 text-xs rounded border transition-colors ${
-                  value === presetValue 
-                    ? 'bg-blue-500 text-white border-blue-500' 
-                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-                }`}
+                className={`px-2 py-1 text-xs rounded border transition-colors`}
+                style={value === presetValue ? {
+                  backgroundColor: 'var(--color-primary)',
+                  color: 'white',
+                  borderColor: 'var(--color-primary)'
+                } : {
+                  backgroundColor: 'var(--color-bg-muted)',
+                  color: 'var(--color-text)',
+                  borderColor: 'var(--color-border)'
+                }}
               >
                 {key}
               </button>
@@ -137,6 +166,11 @@ export const InputField = ({ label, value, onChange, type = 'text', options = {}
             onChange={(e) => onChange(e.target.value)}
             className={baseInputClasses}
             placeholder="Custom value..."
+            style={{
+              backgroundColor: 'var(--color-surface)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-text)'
+            }}
           />
         </div>
       ) : (
@@ -149,27 +183,35 @@ export const InputField = ({ label, value, onChange, type = 'text', options = {}
           min={type === 'number' ? options.min : undefined}
           max={type === 'number' ? options.max : undefined}
           placeholder={options.placeholder}
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+            color: 'var(--color-text)'
+          }}
         />
       )}
     </div>
   );
 };
 
-// Subsection Header
 export const SubsectionHeader = ({ title }) => (
   <h5 className="text-sm font-medium mb-2" style={{ color: 'var(--color-text)' }}>
     {title}
   </h5>
 );
 
-// Button Grid for presets/actions
 export const ButtonGrid = ({ buttons, columns = 2 }) => (
   <div className={`grid grid-cols-${columns} gap-2`}>
     {buttons.map((button, index) => (
       <button
         key={index}
         onClick={button.onClick}
-        className={`px-3 py-2 rounded-lg text-sm transition-colors ${button.className || 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}
+        className={`px-3 py-2 rounded-lg text-sm transition-colors`}
+        style={button.style || {
+          backgroundColor: 'var(--color-bg-muted)',
+          color: 'var(--color-text)',
+          border: '1px solid var(--color-border)'
+        }}
       >
         {button.icon && <button.icon className="w-4 h-4 mr-1 inline" />}
         {button.label}
@@ -178,7 +220,6 @@ export const ButtonGrid = ({ buttons, columns = 2 }) => (
   </div>
 );
 
-// Preset Values (can be imported by sections)
 export const presetValues = {
   borderRadius: {
     none: '0px',
@@ -188,18 +229,16 @@ export const presetValues = {
     xl: '12px',
     '2xl': '16px',
     '3xl': '24px',
-    full: '9999px',
-    custom: ''
+    full: '9999px'
   },
   shadows: {
     none: 'none',
     sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-    md: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-    lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-    xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+    md: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+    lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+    xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
     '2xl': '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-    inner: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)',
-    custom: ''
+    inner: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)'
   },
   textShadows: {
     none: 'none',
@@ -207,21 +246,6 @@ export const presetValues = {
     md: '0 4px 8px rgba(0, 0, 0, 0.5)',
     lg: '0 8px 16px rgba(0, 0, 0, 0.5)',
     glow: '0 0 10px currentColor',
-    neon: '0 0 5px currentColor, 0 0 10px currentColor, 0 0 20px currentColor',
-    custom: ''
-  },
-  gradients: {
-    none: 'none',
-    'gradient-to-r': 'linear-gradient(to right, var(--tw-gradient-stops))',
-    'gradient-to-l': 'linear-gradient(to left, var(--tw-gradient-stops))',
-    'gradient-to-t': 'linear-gradient(to top, var(--tw-gradient-stops))',
-    'gradient-to-b': 'linear-gradient(to bottom, var(--tw-gradient-stops))',
-    'gradient-to-br': 'linear-gradient(to bottom right, var(--tw-gradient-stops))',
-    'gradient-to-bl': 'linear-gradient(to bottom left, var(--tw-gradient-stops))',
-    'gradient-to-tr': 'linear-gradient(to top right, var(--tw-gradient-stops))',
-    'gradient-to-tl': 'linear-gradient(to top left, var(--tw-gradient-stops))',
-    radial: 'radial-gradient(var(--tw-gradient-stops))',
-    conic: 'conic-gradient(var(--tw-gradient-stops))',
-    custom: ''
+    neon: '0 0 5px currentColor, 0 0 10px currentColor'
   }
 };
