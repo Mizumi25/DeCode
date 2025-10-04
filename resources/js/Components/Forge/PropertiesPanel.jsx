@@ -1,6 +1,6 @@
 // @/Components/Forge/PropertiesPanel.jsx
-import React, { useState, useEffect } from 'react';
-import { Settings, Code, Trash2, RotateCcw } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Settings, Code, Trash2, RotateCcw, Search, X } from 'lucide-react';
 
 // Import sub-components
 import LayoutSection from './PropertySections/LayoutSection';
@@ -17,7 +17,9 @@ const PropertiesPanel = ({
   onPropertyUpdate, 
   onComponentDelete, 
   onGenerateCode,
-  componentLibraryService
+  componentLibraryService,
+  searchTerm: externalSearchTerm = '',
+  onSearchChange
 }) => {
   const [selectedComponentData, setSelectedComponentData] = useState(null);
   const [expandedSections, setExpandedSections] = useState({
@@ -29,6 +31,9 @@ const PropertiesPanel = ({
     interactions: false,
     custom: false
   });
+  
+  const [internalSearchTerm, setInternalSearchTerm] = useState('');
+  const activeSearchTerm = externalSearchTerm || internalSearchTerm;
 
   useEffect(() => {
     if (selectedComponent && canvasComponents) {
@@ -38,6 +43,34 @@ const PropertiesPanel = ({
       setSelectedComponentData(null);
     }
   }, [selectedComponent, canvasComponents]);
+  
+  useEffect(() => {
+    if (activeSearchTerm && activeSearchTerm.trim() !== '') {
+      setExpandedSections({
+        layout: true,
+        typography: true,
+        styling: true,
+        animation: true,
+        responsive: true,
+        interactions: true,
+        custom: true
+      });
+    }
+  }, [activeSearchTerm]);
+  
+  const handleSearchChange = (value) => {
+    setInternalSearchTerm(value);
+    if (onSearchChange) {
+      onSearchChange(value);
+    }
+  };
+  
+  const handleClearSearch = () => {
+    setInternalSearchTerm('');
+    if (onSearchChange) {
+      onSearchChange('');
+    }
+  };
 
   const handlePropertyChange = (propName, value, category = 'style') => {
     if (!selectedComponent) return;
@@ -95,7 +128,8 @@ const PropertiesPanel = ({
     onPropertyChange: handlePropertyChange,
     expandedSections,
     setExpandedSections,
-    selectedComponentData
+    selectedComponentData,
+    searchTerm: activeSearchTerm
   };
 
   return (
@@ -105,40 +139,88 @@ const PropertiesPanel = ({
     >
       {/* Header */}
       <div 
-        className="sticky top-0 z-10 p-4 border-b"
+        className="sticky top-0 z-10 border-b"
         style={{ 
           backgroundColor: 'var(--color-surface)',
           borderColor: 'var(--color-border)'
         }}
       >
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
-            <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+        <div className="p-4">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+              <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+            </div>
+            <div>
+              <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Properties</h3>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                {componentDefinition?.name || selectedComponentData.type} #{selectedComponent.split('_').pop()}
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Properties</h3>
-            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-              {componentDefinition?.name || selectedComponentData.type} #{selectedComponent.split('_').pop()}
-            </p>
-          </div>
-        </div>
 
-        {/* Component Name Editor */}
-        <div className="space-y-2">
-          <label className="block text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            Component Name
-          </label>
-          <input
-            type="text"
-            value={selectedComponentData.name || ''}
-            onChange={(e) => onPropertyUpdate(selectedComponent, 'name', e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm"
-            style={{
-              backgroundColor: 'var(--color-surface)',
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-text)'
-            }}
-          />
+          <div className="space-y-2 mb-4">
+            <label className="block text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+              Component Name
+            </label>
+            <input
+              type="text"
+              value={selectedComponentData.name || ''}
+              onChange={(e) => onPropertyUpdate(selectedComponent, 'name', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <label className="block text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+              Search Properties
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+              <input
+                type="text"
+                value={activeSearchTerm}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="e.g., background, color, padding..."
+                className="w-full pl-10 pr-10 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)'
+                }}
+              />
+              {activeSearchTerm && (
+                <button
+                  onClick={handleClearSearch}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded transition-colors"
+                  style={{ 
+                    backgroundColor: 'transparent',
+                    color: 'var(--color-text-muted)'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-bg-muted)'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            
+            {activeSearchTerm && (
+              <div 
+                className="text-xs px-2 py-1 rounded text-center"
+                style={{ 
+                  backgroundColor: 'var(--color-primary-soft)',
+                  color: 'var(--color-primary)'
+                }}
+              >
+                Showing matching properties only
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -166,7 +248,7 @@ const PropertiesPanel = ({
           className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all hover:opacity-90"
           style={{ 
             backgroundColor: 'var(--color-primary)',
-            color: 'white'
+            color: '#ffffff'
           }}
         >
           <Code className="w-4 h-4" />

@@ -2,16 +2,16 @@ import React from 'react';
 import { Type, Wand2 } from 'lucide-react';
 import { PropertySection, InputField, SubsectionHeader, presetValues } from '../PropertyUtils';
 
-const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, setExpandedSections }) => {
+const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, setExpandedSections, searchTerm = '' }) => {
   return (
     <>
-      {/* TYPOGRAPHY */}
       <PropertySection
         title="Typography"
         Icon={Type}
         sectionKey="typography"
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
+        searchTerm={searchTerm}
       >
         <InputField
           label="Font Family"
@@ -21,6 +21,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           options={{
             values: ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 'Courier New', 'monospace', 'sans-serif', 'serif', 'Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Source Sans Pro', 'Oswald', 'Raleway', 'Ubuntu']
           }}
+          searchTerm={searchTerm}
         />
         
         <div className="grid grid-cols-2 gap-3">
@@ -29,6 +30,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
             value={currentStyles.fontSize}
             onChange={(value) => onPropertyChange('fontSize', value, 'style')}
             options={{ placeholder: '16px' }}
+            searchTerm={searchTerm}
           />
           <InputField
             label="Font Weight"
@@ -38,6 +40,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
             options={{
               values: ['100', '200', '300', '400', '500', '600', '700', '800', '900', 'normal', 'bold', 'bolder', 'lighter']
             }}
+            searchTerm={searchTerm}
           />
         </div>
         
@@ -47,12 +50,14 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
             value={currentStyles.lineHeight}
             onChange={(value) => onPropertyChange('lineHeight', value, 'style')}
             options={{ placeholder: 'normal' }}
+            searchTerm={searchTerm}
           />
           <InputField
             label="Letter Spacing"
             value={currentStyles.letterSpacing}
             onChange={(value) => onPropertyChange('letterSpacing', value, 'style')}
             options={{ placeholder: 'normal' }}
+            searchTerm={searchTerm}
           />
         </div>
         
@@ -61,6 +66,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           value={currentStyles.wordSpacing}
           onChange={(value) => onPropertyChange('wordSpacing', value, 'style')}
           options={{ placeholder: 'normal' }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -71,6 +77,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           options={{
             values: ['left', 'center', 'right', 'justify', 'start', 'end']
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -81,6 +88,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           options={{
             values: ['baseline', 'top', 'middle', 'bottom', 'text-top', 'text-bottom', 'super', 'sub']
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -91,6 +99,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           options={{
             values: ['none', 'uppercase', 'lowercase', 'capitalize', 'full-width']
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -101,6 +110,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           options={{
             values: ['normal', 'italic', 'oblique']
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -111,6 +121,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           options={{
             values: ['normal', 'small-caps', 'all-small-caps', 'petite-caps', 'all-petite-caps', 'unicase', 'titling-caps']
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -118,6 +129,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           value={currentStyles.textIndent}
           onChange={(value) => onPropertyChange('textIndent', value, 'style')}
           options={{ placeholder: '0px' }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -128,6 +140,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           options={{
             values: ['normal', 'nowrap', 'pre', 'pre-wrap', 'pre-line', 'break-spaces']
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -138,6 +151,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           options={{
             values: ['normal', 'break-all', 'keep-all', 'break-word']
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -148,16 +162,17 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           options={{
             values: ['none', 'manual', 'auto']
           }}
+          searchTerm={searchTerm}
         />
       </PropertySection>
 
-      {/* TEXT EFFECTS */}
       <PropertySection
         title="Text Effects"
         Icon={Wand2}
         sectionKey="textEffects"
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
+        searchTerm={searchTerm}
       >
         <InputField
           label="Text Decoration"
@@ -167,6 +182,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           options={{
             values: ['none', 'underline', 'overline', 'line-through', 'underline overline']
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -177,6 +193,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           options={{
             values: ['solid', 'double', 'dotted', 'dashed', 'wavy']
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -184,6 +201,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           value={currentStyles.textDecorationColor}
           onChange={(value) => onPropertyChange('textDecorationColor', value, 'style')}
           type="color"
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -194,6 +212,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           options={{
             presets: presetValues.textShadows
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -204,6 +223,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
             onPropertyChange('textStrokeWidth', value, 'style');
           }}
           options={{ placeholder: '0px' }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -214,6 +234,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
             onPropertyChange('textStrokeColor', value, 'style');
           }}
           type="color"
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -224,6 +245,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
             onPropertyChange('textFillColor', value, 'style');
           }}
           type="color"
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -234,6 +256,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           options={{
             values: ['none', 'filled', 'open', 'dot', 'circle', 'double-circle', 'triangle', 'sesame']
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -241,6 +264,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           value={currentStyles.textEmphasisColor}
           onChange={(value) => onPropertyChange('textEmphasisColor', value, 'style')}
           type="color"
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -251,6 +275,7 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
           options={{
             values: ['horizontal-tb', 'vertical-rl', 'vertical-lr']
           }}
+          searchTerm={searchTerm}
         />
       </PropertySection>
     </>
