@@ -204,6 +204,38 @@ const isLayoutElement = (type) => LAYOUT_TYPES.includes(type);
     }
   }, [project]);
   
+  
+  
+  // Load components lazily after mount
+useEffect(() => {
+  const loadFrameComponents = async () => {
+    if (!currentFrame || !projectId) return;
+    
+    try {
+      const response = await axios.get(`/api/frames/${currentFrame}/components`);
+      if (response.data.success) {
+        setFrameCanvasComponents(prev => ({
+          ...prev,
+          [currentFrame]: response.data.data
+        }));
+        
+        if (response.data.data.length > 0) {
+          generateCode(response.data.data);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load frame components:', error);
+    }
+  };
+  
+  // Delay loading slightly to allow page to render first
+  const timeoutId = setTimeout(loadFrameComponents, 100);
+  return () => clearTimeout(timeoutId);
+}, [currentFrame, projectId]);
+  
+  
+  
+  
   // ADD: GitHub sync handler
   const handleGitHubSync = useCallback(async () => {
     if (!isGitHubProject || !projectId) return;
@@ -723,120 +755,124 @@ const handleAssetDrop = useCallback((e) => {
     }
   }, []);
 
-    // REPLACE the handleCanvasDrop method in ForgePage.jsx (around line 400)
-  // In ForgePage.jsx - REPLACE handleCanvasDrop
 
-const handleCanvasDrop = useCallback((e) => {
-  e.preventDefault();
-  
-  // Clear drag position
-  setDragPosition(null)
-  
-  if (!canvasRef.current) return;
-
-  try {
-    const componentDataStr = e.dataTransfer.getData('text/plain');
-    let dragData;
+  const handleCanvasDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
     
+    setDragPosition(null);
+    
+    if (!canvasRef.current) return;
+  
     try {
-      dragData = JSON.parse(componentDataStr);
-    } catch {
-      dragData = { componentType: componentDataStr, variant: null };
-    }
-
-    const { componentType, variant } = dragData;
-    const canvasRect = canvasRef.current.getBoundingClientRect();
-    const dropX = e.clientX - canvasRect.left;
-    const dropY = e.clientY - canvasRect.top;
-    
-    // Check if dropped component is a layout
-    const isLayout = isLayoutElement(componentType);
-    
-    // Find drop target
-    const targetContainer = findDropTarget(canvasComponents, dropX, dropY, canvasRect);
-    
-    // Get component definition
-    let componentDef = null;
-    if (componentLibraryService?.getComponentDefinition) {
-      componentDef = componentLibraryService.getComponentDefinition(componentType);
-    }
-
-    // Create new component
-    const newComponent = isLayout 
-      ? componentLibraryService.createLayoutElement(componentType, variant?.props || {})
-      : {
-          id: `${componentType}_${Date.now()}`,
-          type: componentType,
-          props: {
-            ...(componentDef?.default_props || {}),
-            ...(variant?.props || {})
-          },
-          name: variant ? `${componentType} (${variant.name})` : (componentDef?.name || componentType),
-          variant: variant || null,
-          style: {},
-          animation: {},
-          children: [],
-          isLayoutContainer: false
-        };
-
-    let updatedComponents;
-    
-    if (canvasComponents.length === 0) {
-      // FIRST DROP: Create base section if needed
-      if (!isLayout) {
-        // Auto-wrap element in section
-        const baseSection = componentLibraryService.createLayoutElement('section', {
-          name: 'Base Section (Auto)',
-          style: {
-            minHeight: '400px',
-            padding: '48px 24px'
+      const componentDataStr = e.dataTransfer.getData('text/plain');
+      let dragData;
+      
+      try {
+        dragData = JSON.parse(componentDataStr);
+      } catch (err) {
+        console.error('Failed to parse drop data:', err);
+        return;
+      }
+  
+      const { componentType, variant } = dragData;
+      const isLayout = ['section', 'container', 'div', 'flex', 'grid'].includes(componentType);
+      
+      // Find target container by walking up the DOM
+      let targetId = null;
+      let element = e.target;
+      
+      while (element && element !== canvasRef.current) {
+        const compId = element.getAttribute('data-component-id');
+        const isLayoutAttr = element.getAttribute('data-is-layout');
+        
+        if (compId && isLayoutAttr === 'true') {
+          targetId = compId;
+          break;
+        }
+        
+        element = element.parentElement;
+      }
+  
+      let componentDef = componentLibraryService?.getComponentDefinition(componentType);
+  
+      const newComponent = {
+        id: `${componentType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: componentType,
+        props: {
+          ...(componentDef?.default_props || {}),
+          ...(variant?.props || {})
+        },
+        name: variant ? `${componentType} (${variant.name})` : (componentDef?.name || componentType),
+        variant: variant || null,
+        style: variant?.style || {},
+        animation: {},
+        children: [],
+        isLayoutContainer: isLayout,
+        zIndex: 0,
+        sortOrder: 0
+      };
+  
+      let updatedComponents;
+      
+      if (targetId) {
+        // CRITICAL FIX: Deep clone array before mutation
+        updatedComponents = JSON.parse(JSON.stringify(canvasComponents));
+        
+        // Find and update target recursively
+        const findAndAddChild = (comps, targetId, newChild) => {
+          for (let i = 0; i < comps.length; i++) {
+            if (comps[i].id === targetId) {
+              if (!comps[i].children) comps[i].children = [];
+              comps[i].children.push(newChild);
+              return true;
+            }
+            
+            if (comps[i].children && comps[i].children.length > 0) {
+              if (findAndAddChild(comps[i].children, targetId, newChild)) {
+                return true;
+              }
+            }
           }
-        });
+          return false;
+        };
+        
+        const found = findAndAddChild(updatedComponents, targetId, newComponent);
+        
+        if (!found) {
+          console.error('Target container not found:', targetId);
+          return;
+        }
+      } else if (canvasComponents.length === 0 && !isLayout) {
+        // Wrap non-layout in section
+        const baseSection = componentLibraryService.createLayoutElement('section');
         baseSection.children = [newComponent];
         updatedComponents = [baseSection];
       } else {
-        // It's a layout, use it as base
-        updatedComponents = [newComponent];
-      }
-    } else if (targetContainer) {
-      // Drop into existing container
-      updatedComponents = addChildToContainer(canvasComponents, targetContainer.id, newComponent);
-    } else {
-      // Drop at root level
-      if (!isLayout && frame?.type === 'page') {
-        // Auto-wrap in div container
-        const autoWrapper = componentLibraryService.createLayoutElement('div', {
-          name: 'Auto Container',
-          style: { padding: '16px' }
-        });
-        autoWrapper.children = [newComponent];
-        updatedComponents = [...canvasComponents, autoWrapper];
-      } else {
         updatedComponents = [...canvasComponents, newComponent];
       }
+      
+      // CRITICAL: Force new state reference
+      setFrameCanvasComponents(() => ({
+        [currentFrame]: updatedComponents
+      }));
+      
+      pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
+        componentName: newComponent.name,
+        componentType: newComponent.type,
+        targetContainer: targetId || 'root',
+        componentId: newComponent.id
+      });
+      
+      setSelectedComponent(newComponent.id);
+      handleComponentDragEnd();
+      generateCode(updatedComponents);
+      
+    } catch (error) {
+      console.error('Drop error:', error);
+      handleComponentDragEnd();
     }
-    
-    setFrameCanvasComponents(prev => ({
-      ...prev,
-      [currentFrame]: updatedComponents
-    }));
-    
-    pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
-      componentName: newComponent.name,
-      componentType: newComponent.type,
-      targetContainer: targetContainer?.id || 'root',
-      autoWrapped: canvasComponents.length === 0 && !isLayout
-    });
-    
-    setSelectedComponent(newComponent.id);
-    handleComponentDragEnd();
-    generateCode(updatedComponents);
-    
-  } catch (error) {
-    console.error('Error handling component drop:', error);
-    handleComponentDragEnd();
-  }
-}, [canvasComponents, currentFrame, componentLibraryService, pushHistory, actionTypes, generateCode, frame?.type]);
+  }, [canvasComponents, currentFrame, componentLibraryService, pushHistory, actionTypes, generateCode]);
   
   // ADD this helper function
 const findDropTarget = (components, dropX, dropY, canvasRect) => {
@@ -881,23 +917,67 @@ const findDropTarget = (components, dropX, dropY, canvasRect) => {
              point.y >= bounds.y && point.y <= bounds.y + bounds.height;
   };
   
- // ADD this helper function
+// Helper: Recursively add child to container
 const addChildToContainer = (components, containerId, newChild) => {
-  return components.map(comp => {
-    if (comp.id === containerId) {
-      return {
-        ...comp,
-        children: [...(comp.children || []), newChild]
-      };
-    }
-    if (comp.children?.length > 0) {
-      return {
-        ...comp,
-        children: addChildToContainer(comp.children, containerId, newChild)
-      };
-    }
-    return comp;
+  console.log('addChildToContainer called:', { 
+    containerId, 
+    newChildId: newChild.id,
+    componentsCount: components.length 
   });
+  
+  let found = false;
+  
+  const recursiveAdd = (comps) => {
+    return comps.map(comp => {
+      // Direct match
+      if (comp.id === containerId) {
+        console.log('✅ FOUND direct match:', comp.id);
+        found = true;
+        return {
+          ...comp,
+          children: [...(comp.children || []), {
+            ...newChild,
+            sortOrder: (comp.children || []).length
+          }]
+        };
+      }
+      
+      // Recursive check in children
+      if (comp.children && comp.children.length > 0) {
+        const updatedChildren = recursiveAdd(comp.children);
+        
+        // Check if children were actually modified
+        if (found) {
+          console.log('✅ Found in children of:', comp.id);
+          return {
+            ...comp,
+            children: updatedChildren
+          };
+        }
+      }
+      
+      return comp;
+    });
+  };
+  
+  const result = recursiveAdd(components);
+  
+  console.log('addChildToContainer result:', { 
+    found, 
+    resultLength: result.length,
+    originalLength: components.length
+  });
+  
+  if (!found) {
+    console.error('❌ Target container not found:', containerId);
+    console.error('Available containers:', components.map(c => ({
+      id: c.id,
+      name: c.name,
+      hasChildren: !!c.children?.length
+    })));
+  }
+  
+  return result;
 };
 
 

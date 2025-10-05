@@ -75,94 +75,66 @@ class ForgeController extends Controller
     /**
      * Enhanced show method with better debugging
      */
-    public function show(Project $project, Frame $frame): Response
-    {
-        $user = Auth::user();
-        
-        // Check if frame belongs to project
-        if ($frame->project_id !== $project->id) {
-            abort(404, 'Frame not found in this project');
-        }
-        
-        // Enhanced access control
-        $hasAccess = $this->checkProjectAccess($project, $user);
-        
-        if (!$hasAccess) {
-            abort(403, 'Access denied to this project.');
-        }
-    
-        // Get frame-specific data with enhanced structure
-        $frameData = $this->getFrameData($frame);
-        
-        // Get user permissions
-        $userPermissions = $this->getUserPermissions($project, $user);
-    
-        // Get all frames in this project for the frame switcher
-        $projectFrames = $project->frames()
-            ->select([
-                'uuid',
-                'name', 
-                'type',
-                'thumbnail_path',
-                'updated_at',
-                'created_at',
-                'meta_data'
-            ])
-            ->orderBy('created_at', 'asc')
-            ->get()
-            ->map(function ($frameItem) use ($frame) {
-                return [
-                    'id' => $frameItem->uuid,           
-                    'uuid' => $frameItem->uuid,         
-                    'name' => $frameItem->name,
-                    'type' => $frameItem->type ?? 'desktop',
-                    'thumbnail' => $frameItem->thumbnail_path ?? '/api/placeholder/200/120',
-                    'lastModified' => $frameItem->updated_at->diffForHumans(),
-                    'updated_at' => $frameItem->updated_at,
-                    'created_at' => $frameItem->created_at,
-                    'components' => $frameItem->meta_data['component_count'] ?? 0,
-                    'status' => $frameItem->meta_data['status'] ?? 'draft',
-                    'collaborators' => $frameItem->meta_data['collaborator_count'] ?? 0,
-                    'meta_data' => $frameItem->meta_data ?? [],
-                    'isActive' => $frameItem->uuid === $frame->uuid, // Mark the current frame as active
-                ];
-            });
-    
-        // Debug logging
-        \Log::info('ForgeController: Rendering frame', [
-            'project_id' => $project->uuid,
-            'frame_id' => $frame->uuid,
-            'frame_name' => $frame->name,
-            'canvas_components' => count($frameData['canvas_data']['components'] ?? []),
-            'total_project_frames' => $projectFrames->count(),
-        ]);
-    
-        \Log::info('ForgeController: Sending frame data', [
-            'frame_uuid' => $frame->uuid,
-            'canvas_components_count' => count($frameData['canvas_data']['components'] ?? []),
-            'canvas_data_structure' => array_keys($frameData['canvas_data'] ?? []),
-        ]);
-    
-        return Inertia::render('ForgePage', [
-            'project' => $project->load('workspace'),
-            'frame' => $frameData, // CRITICAL: Use enhanced frame data
-            'projectFrames' => $projectFrames,
-            'mode' => 'forge',
-            'userRole' => $project->workspace ? $project->workspace->getUserRole($user->id) : 'owner',
-            'canEdit' => $userPermissions['canEdit'],
-            'canCreateFrames' => $userPermissions['canCreateFrames'],
-            'canDeleteFrames' => $userPermissions['canDeleteFrames'],
-            'projectId' => $project->uuid,
-            'frameId' => $frame->uuid, // CRITICAL: Always use UUID
-            
-            // FIXED: Add debug info
-            'debug' => [
-                'frame_has_canvas_data' => !empty($frameData['canvas_data']['components']),
-                'component_count' => count($frameData['canvas_data']['components'] ?? []),
-                'timestamp' => now()->toISOString(),
-            ]
-        ]);
-    }
+      public function show(Project $project, Frame $frame): Response
+  {
+      $user = Auth::user();
+      
+      // Quick access check
+      if ($frame->project_id !== $project->id) {
+          abort(404);
+      }
+      
+      if (!$this->checkProjectAccess($project, $user)) {
+          abort(403);
+      }
+  
+      // CRITICAL: Minimal frame data loading
+      $frameData = [
+          'uuid' => $frame->uuid,
+          'id' => $frame->uuid,
+          'name' => $frame->name,
+          'type' => $frame->type ?? 'page',
+          'canvas_data' => [
+              'components' => [], // Load separately via API if needed
+              'settings' => $frame->settings ?? []
+          ],
+          'settings' => $frame->settings ?? []
+      ];
+  
+      // CRITICAL: Lazy load project frames (only basic info)
+      $projectFrames = $project->frames()
+          ->select(['uuid', 'name', 'type', 'updated_at'])
+          ->orderBy('created_at', 'asc')
+          ->get()
+          ->map(fn($f) => [
+              'id' => $f->uuid,
+              'uuid' => $f->uuid,
+              'name' => $f->name,
+              'type' => $f->type ?? 'desktop',
+              'lastModified' => $f->updated_at->diffForHumans(),
+              'isActive' => $f->uuid === $frame->uuid,
+          ]);
+  
+      // CRITICAL: Get user permissions without loading full workspace
+      $userPermissions = [
+          'canEdit' => $project->user_id === $user->id,
+          'canCreateFrames' => $project->user_id === $user->id,
+          'canDeleteFrames' => $project->user_id === $user->id,
+      ];
+  
+      return Inertia::render('ForgePage', [
+          'project' => [
+              'uuid' => $project->uuid,
+              'name' => $project->name,
+          ],
+          'frame' => $frameData,
+          'projectFrames' => $projectFrames,
+          'userRole' => 'owner',
+          'canEdit' => $userPermissions['canEdit'],
+          'projectId' => $project->uuid,
+          'frameId' => $frame->uuid,
+      ]);
+  }
 
     /**
      * Switch to a different frame (AJAX endpoint for smooth transitions)

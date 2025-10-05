@@ -14,6 +14,9 @@ use App\Http\Controllers\Auth\GithubController;
 use App\Http\Controllers\FramePresenceController;
 use App\Http\Controllers\FrameLockController;
 use App\Http\Controllers\RevisionController;
+use App\Models\Frame;
+use App\Models\ProjectComponent;
+use App\Http\Controllers\ForgePageController;
 /*
 |--------------------------------------------------------------------------
 | API Routes - All using UUIDs for resource identification
@@ -72,6 +75,20 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{frame:uuid}/duplicate', [VoidController::class, 'duplicate']);
         Route::put('/{frame:uuid}/position', [VoidController::class, 'updatePosition']);
         Route::post('/{frame:uuid}/thumbnail', [VoidController::class, 'generateThumbnail']);
+        
+        Route::get('/{frame:uuid}/components', function(Frame $frame) {
+            $components = \App\Models\ProjectComponent::where('frame_id', $frame->id)
+                ->with('component')
+                ->ordered()
+                ->get();
+                
+            $tree = buildComponentTree($components);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $tree
+            ]);
+        });
         
         // Frame presence routes
         Route::prefix('{frame:uuid}/presence')->group(function () {
@@ -311,6 +328,23 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 });
 
+function buildComponentTree($components, $parentId = null) {
+    $tree = [];
+    foreach ($components as $comp) {
+        if ($comp->parent_id == $parentId) {
+            $node = [
+                'id' => $comp->component_instance_id,
+                'type' => $comp->component_type,
+                'props' => $comp->props,
+                'name' => $comp->name,
+                'style' => $comp->style ?? [],
+                'children' => buildComponentTree($components, $comp->id)
+            ];
+            $tree[] = $node;
+        }
+    }
+    return $tree;
+}
 
 
   

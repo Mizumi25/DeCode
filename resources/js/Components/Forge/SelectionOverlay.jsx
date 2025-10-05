@@ -9,7 +9,8 @@ const SelectionOverlay = ({ componentId, canvasRef }) => {
   // GET responsive mode and scale factor
   const { responsiveMode, getResponsiveScaleFactor } = useEditorStore();
 
-   useEffect(() => {
+     // REPLACE the useEffect in SelectionOverlay.jsx (around line 8-60)
+  useEffect(() => {
     if (!componentId || !canvasRef.current) return;
   
     const updateBounds = () => {
@@ -24,14 +25,13 @@ const SelectionOverlay = ({ componentId, canvasRef }) => {
       const canvasRect = canvasRef.current.getBoundingClientRect();
       const styles = window.getComputedStyle(element);
   
-      // CRITICAL FIX: Get actual scale from canvas transform or use responsive scale
+      // Get actual scale from canvas transform or use responsive scale
       let scaleFactor = 1;
       
       if (responsiveMode !== 'desktop') {
         scaleFactor = getResponsiveScaleFactor();
       }
       
-      // Also check if canvas has inline transform scale
       const canvasTransform = window.getComputedStyle(canvasRef.current).transform;
       if (canvasTransform && canvasTransform !== 'none') {
         const matrix = new DOMMatrix(canvasTransform);
@@ -60,13 +60,32 @@ const SelectionOverlay = ({ componentId, canvasRef }) => {
     // Immediate update
     updateBounds();
     
-    const observer = new ResizeObserver(updateBounds);
     const element = document.querySelector(`[data-component-id="${componentId}"]`);
-    if (element) observer.observe(element);
+    if (!element) return;
+    
+    // Watch for size changes
+    const resizeObserver = new ResizeObserver(() => {
+      requestAnimationFrame(updateBounds);
+    });
+    resizeObserver.observe(element);
+    
+    // ADDED: Watch for attribute/style changes
+    const mutationObserver = new MutationObserver((mutations) => {
+      const hasStyleChange = mutations.some(m => 
+        m.type === 'attributes' && (m.attributeName === 'style' || m.attributeName === 'class')
+      );
+      if (hasStyleChange) {
+        requestAnimationFrame(updateBounds);
+      }
+    });
+    
+    mutationObserver.observe(element, {
+      attributes: true,
+      attributeFilter: ['style', 'class']
+    });
     
     // Listen for responsive mode changes
     const handleModeChange = () => {
-      console.log('SelectionOverlay: Responsive mode changed, updating bounds');
       setBounds(null);
       setComputedStyles(null);
       setTimeout(updateBounds, 150);
@@ -75,7 +94,8 @@ const SelectionOverlay = ({ componentId, canvasRef }) => {
     window.addEventListener('responsive-mode-changed', handleModeChange);
   
     return () => {
-      observer.disconnect();
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
       window.removeEventListener('responsive-mode-changed', handleModeChange);
     };
   }, [componentId, canvasRef, responsiveMode, getResponsiveScaleFactor]);

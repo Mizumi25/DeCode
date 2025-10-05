@@ -1,7 +1,7 @@
 // @/Components/Forge/CanvasComponent.jsx - Enhanced for True Responsive Canvas Sizing
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Square, Sparkles, Monitor, Tablet, Smartphone, Move, RotateCcw } from 'lucide-react';
+import { Square, Sparkles, Monitor, Tablet, Smartphone, Move, RotateCcw, GripVertical } from 'lucide-react';
 
 import SectionDropZone from './SectionDropZone';
 import EmptyCanvasState from './EmptyCanvasState';
@@ -215,114 +215,247 @@ const CanvasComponent = ({
 
 // REPLACE the renderComponent function
    const renderComponent = useCallback((component, index, parentStyle = {}, depth = 0) => {
-    const componentRenderer = componentLibraryService?.getComponent(component.type);
     const isSelected = selectedComponent === component.id;
-    const isLayout = component.isLayoutContainer;
+    const isLayout = component.isLayoutContainer || 
+                     ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
     
+    // Safety check
+    if (depth > 20) {
+      console.warn('Maximum nesting depth reached:', component.id);
+      return null;
+    }
+    
+    const componentStyles = {
+      display: component.style?.display || (isLayout ? 'block' : 'inline-block'),
+      flexDirection: component.style?.flexDirection,
+      justifyContent: component.style?.justifyContent,
+      alignItems: component.style?.alignItems,
+      gap: component.style?.gap,
+      width: component.style?.width || (isLayout ? '100%' : 'auto'),
+      minHeight: component.style?.minHeight || (isLayout ? '100px' : 'auto'),
+      padding: component.style?.padding || (isLayout ? '24px' : '0'),
+      backgroundColor: component.style?.backgroundColor || 'transparent',
+      ...component.style
+    };
+  
+    // LAYOUT CONTAINER RENDERING
+    if (isLayout) {
+      return (
+        <div
+          key={component.id}
+          data-component-id={component.id}
+          data-depth={depth}
+          data-is-layout="true"
+          className={`relative group layout-container ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+          style={componentStyles}
+          onClick={(e) => {
+            e.stopPropagation();
+            onComponentClick(component.id, e);
+          }}
+        >
+          {/* CRITICAL: Render children directly */}
+          {component.children && component.children.length > 0 ? (
+            <div className="space-y-2">
+              {component.children.map((child, childIndex) => {
+                // CRITICAL: Recursive render with depth tracking
+                return renderComponent(child, childIndex, componentStyles, depth + 1);
+              })}
+            </div>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
+              <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
+                Drop here • {component.type}
+              </div>
+            </div>
+          )}
+          
+          {/* Selection indicator */}
+          {isSelected && (
+            <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
+              {component.name} • {component.children?.length || 0} children • Depth {depth}
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    // NON-LAYOUT COMPONENT RENDERING
+    const componentRenderer = componentLibraryService?.getComponent(component.type);
     let renderedContent = null;
     
-    if (componentRenderer && componentRenderer.render) {
+    if (componentRenderer?.render) {
       try {
-        const componentDef = componentLibraryService?.getComponentDefinition(component.type);
         const mergedProps = {
-          ...componentDef?.default_props,
           ...component.props,
           style: component.style
         };
         renderedContent = componentRenderer.render(mergedProps, component.id);
       } catch (error) {
-        console.warn('Component render error:', error);
-        renderedContent = <div className="border rounded p-3">{component.name}</div>;
+        console.warn('Render error:', error);
+        renderedContent = <div className="p-2 border rounded">{component.name}</div>;
       }
-    } else {
-      renderedContent = <div className="border-2 border-dashed p-4">{component.name}</div>;
     }
     
-    const componentStyles = {
-      position: 'relative',
-      display: component.style?.display || getDefaultDisplay(component.type),
-      flexDirection: component.style?.flexDirection,
-      justifyContent: component.style?.justifyContent,
-      alignItems: component.style?.alignItems,
-      gap: component.style?.gap,
-      gridTemplateColumns: component.style?.gridTemplateColumns,
-      width: component.style?.width || getDefaultWidth(component.type),
-      minHeight: component.style?.minHeight || getDefaultMinHeight(component.type),
-      padding: component.style?.padding || getDefaultPadding(component.type),
-      backgroundColor: 'transparent',
-      ...component.style
-    };
-  
-    // Component content
-    const componentContent = (
-      <motion.div
+    return (
+      <div
         key={component.id}
         data-component-id={component.id}
         data-depth={depth}
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ 
-          opacity: 1, 
-          scale: 1,
-          outline: isSelected ? '2px solid var(--color-primary)' : 'none',
-          outlineOffset: isSelected ? '2px' : '0px'
-        }}
-        className={`
-          relative group transition-all
-          ${component.animation?.cssClass || ''}
-          ${isLayout ? 'layout-container' : 'layout-element'}
-        `}
+        data-is-layout="false"
+        className={`relative ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
         style={componentStyles}
         onClick={(e) => {
           e.stopPropagation();
           onComponentClick(component.id, e);
         }}
       >
-        {isLayout ? (
-          <div className="w-full h-full relative" style={{ minHeight: componentStyles.minHeight }}>
-            {component.children?.map((child, childIndex) => 
-              renderComponent(child, childIndex, {}, depth + 1)
-            )}
-          </div>
-        ) : (
-          renderedContent
-        )}
+        {renderedContent}
         
         {isSelected && (
-          <div className="absolute -inset-1 pointer-events-none rounded z-50" 
-               style={{ outline: '2px solid var(--color-primary)' }}>
-            <div className="absolute -top-7 left-0 px-2 py-1 rounded text-xs font-medium whitespace-nowrap z-50"
-                 style={{ backgroundColor: 'var(--color-primary)', color: 'white' }}>
-              {component.name} • Depth: {depth}
-            </div>
+          <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
+            {component.name} • Depth {depth}
           </div>
         )}
-        
-        {isLayout && (
-          <div className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity bg-white border shadow-sm z-10"
-               style={{ color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' }}>
-            {component.type.toUpperCase()}
-          </div>
-        )}
-      </motion.div>
+      </div>
     );
-  
-    // Only wrap root-level components with DraggableComponent (depth === 0)
-    if (depth === 0) {
-      return (
-        <DraggableComponent
-          key={component.id}
-          component={component}
-          index={index}
-          isSelected={isSelected}
-          onSelect={onComponentClick}
-        >
-          {componentContent}
-        </DraggableComponent>
-      );
-    }
-  
-    return componentContent;
   }, [componentLibraryService, selectedComponent, onComponentClick]);
+  
+  // ADD: Helper method to handle drag end for nested components
+  const handleNestedDragEnd = useCallback((result) => {
+    if (!result.destination) return;
+    
+    const { source, destination, draggableId } = result;
+    
+    // Extract container IDs from droppableId
+    const sourceContainerId = source.droppableId.replace('container-', '');
+    const destContainerId = destination.droppableId.replace('container-', '');
+    
+    // If moving within the same container
+    if (sourceContainerId === destContainerId) {
+      const updatedComponents = reorderWithinContainer(
+        canvasComponents, 
+        sourceContainerId, 
+        source.index, 
+        destination.index
+      );
+      
+      setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: updatedComponents
+      }));
+      
+      pushHistory(currentFrame, updatedComponents, actionTypes.MOVE, {
+        componentId: draggableId,
+        action: 'reorder_nested',
+        fromIndex: source.index,
+        toIndex: destination.index,
+        containerId: sourceContainerId
+      });
+    }
+    // If moving between containers
+    else {
+      const updatedComponents = moveBetweenContainers(
+        canvasComponents,
+        draggableId,
+        sourceContainerId,
+        destContainerId,
+        source.index,
+        destination.index
+      );
+      
+      setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: updatedComponents
+      }));
+      
+      pushHistory(currentFrame, updatedComponents, actionTypes.MOVE, {
+        componentId: draggableId,
+        action: 'move_between_containers',
+        fromContainer: sourceContainerId,
+        toContainer: destContainerId
+      });
+    }
+    
+    // Auto-save
+    setTimeout(() => {
+      if (componentLibraryService?.saveProjectComponents) {
+        componentLibraryService.saveProjectComponents(projectId, currentFrame, canvasComponents);
+      }
+    }, 500);
+  }, [canvasComponents, currentFrame, pushHistory, actionTypes, componentLibraryService, projectId]);
+  
+  // Helper: Reorder components within a container
+  const reorderWithinContainer = (components, containerId, sourceIndex, destIndex) => {
+    return components.map(comp => {
+      if (comp.id === containerId) {
+        const children = Array.from(comp.children || []);
+        const [moved] = children.splice(sourceIndex, 1);
+        children.splice(destIndex, 0, moved);
+        
+        return {
+          ...comp,
+          children: children.map((child, idx) => ({
+            ...child,
+            sortOrder: idx
+          }))
+        };
+      }
+      
+      if (comp.children?.length > 0) {
+        return {
+          ...comp,
+          children: reorderWithinContainer(comp.children, containerId, sourceIndex, destIndex)
+        };
+      }
+      
+      return comp;
+    });
+  };
+  
+  // Helper: Move component between containers
+  const moveBetweenContainers = (components, componentId, sourceContainerId, destContainerId, sourceIndex, destIndex) => {
+    let movedComponent = null;
+    
+    // First pass: Remove from source
+    const withoutMoved = components.map(comp => {
+      if (comp.id === sourceContainerId) {
+        const children = Array.from(comp.children || []);
+        [movedComponent] = children.splice(sourceIndex, 1);
+        return { ...comp, children };
+      }
+      
+      if (comp.children?.length > 0) {
+        const result = moveBetweenContainers(comp.children, componentId, sourceContainerId, destContainerId, sourceIndex, destIndex);
+        if (result.moved) {
+          movedComponent = result.moved;
+          return { ...comp, children: result.components };
+        }
+        return { ...comp, children: result.components || comp.children };
+      }
+      
+      return comp;
+    });
+    
+    // Second pass: Add to destination
+    const withMoved = withoutMoved.map(comp => {
+      if (comp.id === destContainerId && movedComponent) {
+        const children = Array.from(comp.children || []);
+        children.splice(destIndex, 0, movedComponent);
+        return { ...comp, children };
+      }
+      
+      if (comp.children?.length > 0) {
+        return {
+          ...comp,
+          children: moveBetweenContainers(comp.children, componentId, sourceContainerId, destContainerId, sourceIndex, destIndex).components
+        };
+      }
+      
+      return comp;
+    });
+    
+    return { components: withMoved, moved: movedComponent };
+  };
 
   // Helper functions for default styling
   const getDefaultDisplay = (componentType) => {
@@ -928,32 +1061,24 @@ const CanvasComponent = ({
             responsiveMode={responsiveMode}
           />
         ) : (
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="canvas-components">
-              {(provided) => (
-                <div 
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                  style={{ minHeight: '100%' }}
-                >
-                  <AnimatePresence>
-                    {canvasComponents.map((component, index) => (
-                      <DraggableComponent
-                        key={component.id}
-                        component={component}
-                        index={index}
-                        isSelected={selectedComponent === component.id}
-                        onSelect={onComponentClick}
-                      >
-                        {renderComponent(component, index)}
-                      </DraggableComponent>
-                    ))}
-                  </AnimatePresence>
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
-          </DragDropContext>
+         <DragDropContext onDragEnd={handleDragEnd}>
+          <Droppable droppableId="canvas-root">
+            {(provided) => (
+              <div 
+                {...provided.droppableProps}
+                ref={provided.innerRef}
+                style={{ minHeight: '100%' }}
+              >
+                <AnimatePresence>
+                  {canvasComponents.map((component, index) => 
+                    renderComponent(component, index, {}, 0)
+                  )}
+                </AnimatePresence>
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </DragDropContext>
         )}
       </div>
 

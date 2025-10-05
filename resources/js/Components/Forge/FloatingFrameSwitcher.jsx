@@ -1,5 +1,5 @@
 // Enhanced FloatingFrameSwitcher.jsx - Real Frame Navigation with URL Changes
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback,  useRef, useMemo } from 'react';
 import { motion, AnimatePresence, useSpring, useMotionValue } from 'framer-motion';
 import { router } from '@inertiajs/react'; // Add this import for navigation
 import { 
@@ -106,59 +106,33 @@ const FloatingFrameSwitcher = ({
   }, [isExpanded, triggerRotation]);
 
   // Enhanced frame selection with real URL navigation
-  const handleFrameSelect = async (frameId) => {
-      if (frameId === currentFrame || isFrameSwitching || isNavigating) return;
-  
-      console.log('FloatingFrameSwitcher: Frame switch requested:', frameId, 'from project:', projectId);
-      
-      setIsNavigating(true);
-      
-      try {
-          if (isMobile) {
-              setIsExpanded(false);
-          }
-  
-          setSearchTerm('');
-          
-          // CRITICAL: Find frame and get proper UUID
-          const targetFrame = frames.find(f => f.id === frameId || f.uuid === frameId);
-          const frameUuid = targetFrame?.uuid || targetFrame?.id || frameId;
-          
-          if (!projectId || !frameUuid) {
-              console.error('FloatingFrameSwitcher: Missing required data:', { projectId, frameUuid });
-              setIsNavigating(false);
-              return;
-          }
-          
-          const targetUrl = `/void/${projectId}/frame=${frameUuid}/modeForge`;
-          console.log('FloatingFrameSwitcher: Navigating to:', targetUrl);
-          
-          // FIXED: Use proper Inertia navigation
-          router.visit(targetUrl, {
-              method: 'get',
-              preserveState: false,
-              preserveScroll: false,
-              replace: true,
-              onBefore: () => {
-                  console.log('FloatingFrameSwitcher: Starting navigation...');
-              },
-              onSuccess: (page) => {
-                  console.log('FloatingFrameSwitcher: Navigation successful');
-                  console.log('Page props:', page.props);
-              },
-              onError: (errors) => {
-                  console.error('FloatingFrameSwitcher: Navigation error:', errors);
-              },
-              onFinish: () => {
-                  setIsNavigating(false);
-              }
-          });
-          
-      } catch (error) {
-          console.error('FloatingFrameSwitcher: Error during navigation:', error);
-          setIsNavigating(false);
-      }
-  };
+    const handleFrameSelect = useCallback((frameId) => {
+    if (frameId === currentFrame || isFrameSwitching || isNavigating) return;
+    
+    setIsNavigating(true);
+    
+    const targetFrame = frames.find(f => f.id === frameId || f.uuid === frameId);
+    const frameUuid = targetFrame?.uuid || frameId;
+    
+    if (!projectId || !frameUuid) {
+      setIsNavigating(false);
+      return;
+    }
+    
+    const targetUrl = `/void/${projectId}/frame=${frameUuid}/modeForge`;
+    
+    // CRITICAL: Use router.get instead of router.visit
+    router.get(targetUrl, {}, {
+      preserveState: false,
+      preserveScroll: false,
+      replace: true,
+      onFinish: () => setIsNavigating(false)
+    });
+    
+    if (isMobile) {
+      setIsExpanded(false);
+    }
+  }, [frames, currentFrame, projectId, isFrameSwitching, isNavigating, isMobile]);
 
   // Toggle panel with smooth animation
   const togglePanel = () => {
