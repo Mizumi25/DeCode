@@ -9,10 +9,16 @@ export const useForgeStore = create(
       forgePanelStates: {
         'components-panel': false,      // Left dock - toggleable
         'code-panel': false,            // Right dock or bottom - MADE toggleable
+        'code-modal-panel': false,
         'layers-panel': false,          // Left dock - toggleable
         'properties-panel': true,       // Right dock - open by default (top)
         'assets-panel': true            // Right dock - open by default (bottom)
       },
+      
+      codePanelMode: 'bottom', 
+      
+    // ADD action to change code panel mode
+    setCodePanelMode: (mode) => set({ codePanelMode: mode }),
       
       // Panel visibility state (for hide all functionality)
       allPanelsHidden: false,

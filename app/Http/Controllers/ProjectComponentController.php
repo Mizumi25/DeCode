@@ -110,18 +110,15 @@ class ProjectComponentController extends Controller
     }
 
   
-
-    /**
-     * Bulk update with full hierarchy support
-     */
-        public function bulkUpdate(Request $request): JsonResponse
+    
+    public function bulkUpdate(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'project_id' => 'required|string',
             'frame_id' => 'required|string',
             'components' => 'required|array',
-            'components.*.id' => 'required|string',  // CHANGED from component_instance_id
-            'components.*.type' => 'required|string', // CHANGED from component_type
+            'components.*.id' => 'required|string',
+            'components.*.type' => 'required|string',
             'components.*.props' => 'nullable|array',
             'components.*.name' => 'required|string',
             'components.*.zIndex' => 'nullable|integer',
@@ -147,32 +144,38 @@ class ProjectComponentController extends Controller
                 ], 404);
             }
     
-            // Delete existing components
+            // CRITICAL FIX: Delete existing components FIRST
             ProjectComponent::where('project_id', $project->id)
                            ->where('frame_id', $frame->id)
                            ->delete();
     
-            $savedComponents = collect();
+            // CRITICAL FIX: Track saved component IDs to prevent duplicates
+            $savedComponentIds = [];
             
-            // Save components recursively
+            // Save components recursively (only root-level components)
             foreach ($validated['components'] as $componentData) {
-                $component = $this->saveComponentTree(
+                // CRITICAL: Skip if already saved (prevents duplicates)
+                if (in_array($componentData['id'], $savedComponentIds)) {
+                    \Log::warning('Skipping duplicate component:', ['id' => $componentData['id']]);
+                    continue;
+                }
+                
+                $this->saveComponentTreeWithTracking(
                     $componentData, 
                     $project->id, 
-                    $frame->id
+                    $frame->id,
+                    null, // no parent for root components
+                    0,    // depth 0
+                    $savedComponentIds
                 );
-                
-                if ($component) {
-                    $savedComponents->push($component);
-                }
             }
     
             DB::commit();
     
             return response()->json([
                 'success' => true,
-                'data' => $savedComponents,
-                'message' => 'Components saved successfully'
+                'message' => 'Components saved successfully',
+                'saved_count' => count($savedComponentIds)
             ]);
     
         } catch (\Exception $e) {
@@ -189,6 +192,59 @@ class ProjectComponentController extends Controller
                 'message' => 'Failed to save: ' . $e->getMessage()
             ], 500);
         }
+    }
+    
+    // CRITICAL: New method with duplicate tracking
+    private function saveComponentTreeWithTracking($componentData, $projectId, $frameId, $parentDbId = null, $depth = 0, &$savedComponentIds)
+    {
+        if ($depth > 20) {
+            \Log::warning('Max depth reached', ['component' => $componentData['id'] ?? 'unknown']);
+            return null;
+        }
+        
+        // CRITICAL: Check if already saved
+        if (in_array($componentData['id'], $savedComponentIds)) {
+            \Log::warning('Component already saved, skipping:', ['id' => $componentData['id']]);
+            return null;
+        }
+    
+        // CRITICAL: Create component
+        $component = ProjectComponent::create([
+            'project_id' => $projectId,
+            'frame_id' => $frameId,
+            'parent_id' => $parentDbId,
+            'component_instance_id' => $componentData['id'],
+            'component_type' => $componentData['type'],
+            'props' => $componentData['props'] ?? [],
+            'name' => $componentData['name'],
+            'z_index' => $componentData['zIndex'] ?? 0,
+            'sort_order' => $componentData['sortOrder'] ?? 0,
+            'variant' => $componentData['variant'] ?? null,
+            'style' => $componentData['style'] ?? [],
+            'animation' => $componentData['animation'] ?? [],
+            'is_layout_container' => $componentData['isLayoutContainer'] ?? false,
+            'visible' => $componentData['visible'] ?? true,
+            'locked' => $componentData['locked'] ?? false,
+        ]);
+        
+        // CRITICAL: Mark as saved
+        $savedComponentIds[] = $componentData['id'];
+    
+        // Recursively save children
+        if (isset($componentData['children']) && is_array($componentData['children'])) {
+            foreach ($componentData['children'] as $childData) {
+                $this->saveComponentTreeWithTracking(
+                    $childData, 
+                    $projectId, 
+                    $frameId, 
+                    $component->id, 
+                    $depth + 1,
+                    $savedComponentIds
+                );
+            }
+        }
+    
+        return $component;
     }
     
     private function saveComponentTree($componentData, $projectId, $frameId, $parentDbId = null, $depth = 0)

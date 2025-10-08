@@ -1,53 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { FileText, Code2, Settings, Plus, X } from 'lucide-react';
 import Editor, { useMonaco } from '@monaco-editor/react';
-
-const sampleCode = `import React, { useState, useEffect } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, router } from '@inertiajs/react';
-import Panel from '@/Components/Panel';
-
-export default function SourcePage({ projectId, frameId }) {
-  const [panelStates, setPanelStates] = useState({
-    forge: false,
-    source: false
-  });
-
-  const handlePanelClose = (panelId) => {
-    console.log(\`Panel \${panelId} closed\`);
-    setPanelStates(prev => ({
-      ...prev,
-      [panelId]: false
-    }));
-  };
-
-  const handlePanelStateChange = (hasRightPanels) => {
-    console.log(\`Right panels active: \${hasRightPanels}\`);
-  };
-
-  useEffect(() => {
-    console.log('SourcePage mounted');
-    return () => {
-      console.log('SourcePage unmounted');
-    };
-  }, []);
-
-  const renderCodeEditor = () => {
-    return (
-      <div className="flex-grow">
-        <h1 className="text-2xl font-bold">Hello DeCode!</h1>
-        <p>Start building something amazing.</p>
-      </div>
-    );
-  };
-
-  return (
-    <AuthenticatedLayout>
-      <Head title="Source - Code Editor" />
-      {renderCodeEditor()}
-    </AuthenticatedLayout>
-  );
-}`;
+import { useCodeSyncStore } from '@/stores/useCodeSyncStore';
 
 const tabs = [
   { name: 'App.jsx', icon: FileText, color: '#61dafb', active: true },
@@ -60,6 +14,57 @@ export default function CodeEditor() {
   const monaco = useMonaco();
   const editorRef = useRef(null);
   const [theme, setTheme] = useState('decode-theme');
+
+  // ADDED: Connect to code sync store
+  const { 
+    syncedCode, 
+    codeStyle, 
+    activeCodeTab,
+    setActiveCodeTab,
+    updateSyncedCode 
+  } = useCodeSyncStore();
+
+  const [localValue, setLocalValue] = useState('');
+
+  // ADDED: Sync from store to editor
+  useEffect(() => {
+    const code = syncedCode[activeCodeTab] || '';
+    setLocalValue(code);
+    
+    // Update editor value if it's mounted
+    if (editorRef.current && code !== editorRef.current.getValue()) {
+      editorRef.current.setValue(code);
+    }
+    
+    console.log('CodeEditor: Synced code from store:', {
+      activeCodeTab,
+      codeLength: code.length,
+      codeStyle
+    });
+  }, [syncedCode, activeCodeTab, codeStyle]);
+
+  // ADDED: Handle editor changes (update back to store with debounce)
+  const handleEditorChange = useCallback((value) => {
+    if (value === undefined || value === null) return;
+    
+    setLocalValue(value);
+    
+    // Debounce sync back to store
+    const timeoutId = setTimeout(() => {
+      const updatedCode = { 
+        ...syncedCode, 
+        [activeCodeTab]: value 
+      };
+      updateSyncedCode(updatedCode);
+      
+      console.log('CodeEditor: Updated code in store:', {
+        activeCodeTab,
+        codeLength: value.length
+      });
+    }, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [activeCodeTab, syncedCode, updateSyncedCode]);
 
   // Get CSS variable value
   const getCSSVar = (name) =>
@@ -119,6 +124,21 @@ export default function CodeEditor() {
       mediaQuery.removeEventListener('change', updateTheme);
     };
   }, [monaco]);
+
+  // Get language based on active tab
+  const getLanguage = () => {
+    switch (activeCodeTab) {
+      case 'react':
+        return 'javascript';
+      case 'html':
+        return 'html';
+      case 'css':
+      case 'tailwind':
+        return 'css';
+      default:
+        return 'javascript';
+    }
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -187,12 +207,12 @@ export default function CodeEditor() {
         </div>
       </div>
 
-      {/* Monaco Code Editor */}
+      {/* Monaco Code Editor - MODIFIED to use synced code */}
       <div className="flex-grow flex flex-col min-h-0" style={{ backgroundColor: 'var(--color-surface)' }}>
         <Editor
           height="100%"
-          defaultLanguage="javascript"
-          defaultValue={sampleCode}
+          language={getLanguage()}
+          value={localValue}
           theme={theme}
           options={{
             automaticLayout: true,
@@ -203,8 +223,35 @@ export default function CodeEditor() {
             renderLineHighlight: 'line',
             padding: { top: 10, bottom: 10 }
           }}
-          onMount={(editor) => (editorRef.current = editor)}
+          onMount={(editor) => {
+            editorRef.current = editor;
+            // Set initial value from store
+            if (localValue) {
+              editor.setValue(localValue);
+            }
+          }}
+          onChange={handleEditorChange}
         />
+      </div>
+
+      {/* Code Info Bar */}
+      <div 
+        className="flex items-center justify-between px-4 py-2 text-xs border-t"
+        style={{
+          backgroundColor: 'var(--color-bg-muted)',
+          borderColor: 'var(--color-border)',
+          color: 'var(--color-text-muted)'
+        }}
+      >
+        <div className="flex items-center gap-4">
+          <span>Language: {getLanguage().toUpperCase()}</span>
+          <span>Style: {codeStyle}</span>
+          <span>Tab: {activeCodeTab}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${localValue ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+          <span>{localValue ? 'Synced' : 'No content'}</span>
+        </div>
       </div>
     </div>
   );

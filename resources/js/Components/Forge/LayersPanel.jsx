@@ -1,14 +1,14 @@
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Eye, EyeOff, Lock, Unlock, ChevronRight,
-  Layers, Trash2, Copy, MoreVertical, Move, Maximize2
-} from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+  Layers, Trash2, Copy, MoreVertical, Move
+} from 'lucide-react'
 
 const LayerItem = ({ component, depth = 0, isSelected, onSelect, onDelete, path = [] }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
-  const [isHovered, setIsHovered] = useState(false);
-  const [showActions, setShowActions] = useState(false);
+  const [isExpanded, setIsExpanded] = React.useState(true);
+  const [isHovered, setIsHovered] = React.useState(false);
+  const [showActions, setShowActions] = React.useState(false);
 
   const hasChildren = component.children && component.children.length > 0;
   const isLayout = component.isLayoutContainer;
@@ -231,7 +231,6 @@ const LayerItem = ({ component, depth = 0, isSelected, onSelect, onDelete, path 
             {[
               { icon: <Copy size={14} />, label: "Duplicate" },
               { icon: <Move size={14} />, label: "Move to..." },
-              { icon: <Maximize2 size={14} />, label: "Expand All" },
             ].map((item, idx) => (
               <button
                 key={idx}
@@ -323,10 +322,14 @@ const LayerItem = ({ component, depth = 0, isSelected, onSelect, onDelete, path 
   );
 };
 
-const LayersPanel = ({ canvasComponents, selectedComponent, onComponentSelect, onComponentDelete }) => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [expandAll, setExpandAll] = useState(true);
-
+// MODIFIED: Accept searchTerm as prop instead of managing internally
+const LayersPanel = ({ 
+  canvasComponents, 
+  selectedComponent, 
+  onComponentSelect, 
+  onComponentDelete,
+  searchTerm = "" // NEW: Receive from Panel component
+}) => {
   const filteredComponents = useMemo(() => {
     if (!searchTerm) return canvasComponents;
     const filterRecursive = (comps) =>
@@ -357,14 +360,14 @@ const LayersPanel = ({ canvasComponents, selectedComponent, onComponentSelect, o
         color: "var(--color-text)",
       }}
     >
-      {/* Header */}
+      {/* SIMPLIFIED Header - No search, no maximize */}
       <div
         style={{
           padding: "1rem",
           borderBottom: "1px solid var(--color-border)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
           <div
             style={{
               padding: "8px",
@@ -383,36 +386,7 @@ const LayersPanel = ({ canvasComponents, selectedComponent, onComponentSelect, o
               {canvasComponents.length} root layers
             </p>
           </div>
-          <button
-            onClick={() => setExpandAll(!expandAll)}
-            style={{
-              background: "transparent",
-              border: "none",
-              borderRadius: "var(--radius-md)",
-              padding: "8px",
-              cursor: "pointer",
-              transition: "var(--transition)",
-            }}
-          >
-            <Maximize2 size={16} color="var(--color-text-muted)" />
-          </button>
         </div>
-
-        <input
-          type="text"
-          placeholder="Search layers..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "8px 12px",
-            borderRadius: "var(--radius-md)",
-            border: "1px solid var(--color-border)",
-            background: "var(--color-bg-muted)",
-            color: "var(--color-text)",
-            fontSize: "var(--fs-sm)",
-          }}
-        />
       </div>
 
       {/* Layers list */}

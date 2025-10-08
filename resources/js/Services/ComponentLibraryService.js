@@ -116,6 +116,47 @@ class ComponentLibraryService {
       }
   }
   
+  renderIcon(props, id) {
+    const iconStyle = {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: props.size ? `${props.size}px` : '24px',
+      height: props.size ? `${props.size}px` : '24px',
+      color: props.color || 'currentColor',
+      ...props.style
+    };
+    
+    // Handle different icon types
+    if (props.iconType === 'svg' && props.svgData) {
+      return React.createElement('div', {
+        key: id,
+        className: 'icon-svg',
+        style: iconStyle,
+        dangerouslySetInnerHTML: { __html: props.svgData }
+      });
+    }
+    
+    if (props.iconType === 'lottie') {
+      // Lottie animation placeholder
+      return React.createElement('div', {
+        key: id,
+        className: 'icon-lottie',
+        style: iconStyle
+      }, '🎬');
+    }
+    
+    // For Lucide/Heroicons, show icon name placeholder
+    return React.createElement('div', {
+      key: id,
+      className: 'icon-element',
+      style: iconStyle,
+      title: `${props.iconName} (${props.iconType})`
+    }, React.createElement('span', {
+      style: { fontSize: '12px' }
+    }, '🎨'));
+  }
+  
   
     // In ComponentLibraryService.js - ADD this method
     createLayoutElement(type, props = {}) {
@@ -1218,92 +1259,151 @@ ${htmlComponents}
     return Object.fromEntries(this.componentDefinitions);
   }
 
-// Save project components to backend
-// @/Services/ComponentLibraryService.js - MODIFY saveProjectComponents method
 
 async saveProjectComponents(projectId, frameId, components) {
     try {
-        console.log('Saving', components.length, 'components with layout data');
+        console.log('=== SAVING TO DATABASE ===');
+        console.log('Components to save:', components.length);
+        
+        // CRITICAL: Create a Set to track component IDs and prevent duplicates
+        const seenIds = new Set();
+        
+        // CRITICAL: Flatten component tree for backend
+        const flattenedComponents = this.flattenComponentTree(components, seenIds);
+        
+        console.log('Flattened components:', flattenedComponents.length);
+        console.log('Duplicate IDs removed:', components.length - flattenedComponents.length);
         
         const response = await axios.post('/api/project-components/bulk-update', {
             project_id: projectId,
             frame_id: frameId,
-            components: components.map(comp => ({
-                component_instance_id: comp.id,
-                component_type: comp.type,
+            components: flattenedComponents.map((comp, index) => ({
+                // CRITICAL: Map frontend fields to backend fields
+                id: comp.id,                              
+                type: comp.type,                          
                 props: comp.props || {},
                 name: comp.name || comp.type,
-                z_index: comp.zIndex || 0,
-                sort_order: comp.sortOrder || 0,
+                zIndex: comp.zIndex || 0,
+                sortOrder: index,                         
                 variant: comp.variant || null,
                 style: comp.style || {},
                 animation: comp.animation || {},
-                
-                // NEW: Send layout data
-                display_type: comp.style?.display || 'block',
-                layout_props: {
-                    flexDirection: comp.style?.flexDirection,
-                    justifyContent: comp.style?.justifyContent,
-                    alignItems: comp.style?.alignItems,
-                    gap: comp.style?.gap,
-                    gridTemplateColumns: comp.style?.gridTemplateColumns,
-                    padding: comp.style?.padding,
-                    width: comp.style?.width,
-                    minHeight: comp.style?.minHeight,
-                },
-                is_layout_container: comp.isLayoutContainer || false,
-                children: comp.children || [] // Include children hierarchy
+                isLayoutContainer: comp.isLayoutContainer || false,
+                children: comp.children || [],            
+                parentId: comp.parentId || null,          
             })),
             create_revision: false
         });
         
         if (response.data.success) {
-            console.log('Successfully saved with layout hierarchy');
+            console.log('✅ Successfully saved to database');
             return true;
         }
+        
+        console.error('❌ Save failed:', response.data.message);
         return false;
     } catch (error) {
-        console.error('Failed to save:', error);
+        console.error('❌ Failed to save components:', error.response?.data || error.message);
         throw error;
     }
 }
 
-  // Load project components from backend
-  async loadProjectComponents(projectId, frameId) {
-    try {
-        console.log('Loading project components for:', { projectId, frameId });
-        
-        const response = await axios.get('/api/project-components', {
-            params: { project_id: projectId, frame_id: frameId }
-        });
-        
-        if (response.data.success) {
-            const components = response.data.data;
-            console.log('Loaded', components.length, 'components from backend:', components);
-            
-            // Transform backend data to frontend format
-            return components.map(comp => {
-                // Get component definition for proper rendering
-                const componentDef = this.componentDefinitions.get(comp.type);
-                
-                return {
-                    id: comp.id,
-                    type: comp.type,
-                    props: {
-                        ...componentDef?.default_props, // Apply component defaults first
-                        ...comp.props                   // Then apply saved props
-                    },
-                    position: comp.position,
-                    name: comp.name,
-                    zIndex: comp.zIndex || 0,
-                    variant: comp.variant,
-                    style: comp.style || {},
-                    animation: comp.animation || {}
-                };
-            });
+// ENHANCED: Flatten nested component tree with duplicate detection
+flattenComponentTree(components, seenIds = new Set(), parentId = null) {
+    const flattened = [];
+    
+    components.forEach(comp => {
+        // CRITICAL: Skip duplicates
+        if (seenIds.has(comp.id)) {
+            console.warn('⚠️ Duplicate component ID detected, skipping:', comp.id);
+            return;
         }
         
-        return [];
+        // Mark as seen
+        seenIds.add(comp.id);
+        
+        // Add current component with parent reference
+        const flatComp = {
+            ...comp,
+            parentId: parentId
+        };
+        
+        flattened.push(flatComp);
+        
+        // Recursively flatten children
+        if (comp.children && comp.children.length > 0) {
+            const childrenFlat = this.flattenComponentTree(comp.children, seenIds, comp.id);
+            flattened.push(...childrenFlat);
+        }
+    });
+    
+    return flattened;
+}
+
+// ENHANCED: Rebuild tree from flattened database records with duplicate prevention
+rebuildComponentTree(flatComponents) {
+    const componentMap = new Map();
+    const rootComponents = [];
+    const seenIds = new Set();
+    
+    // First pass: Create map of all components, skip duplicates
+    flatComponents.forEach(comp => {
+        if (seenIds.has(comp.id)) {
+            console.warn('⚠️ Duplicate component in database response, skipping:', comp.id);
+            return;
+        }
+        
+        seenIds.add(comp.id);
+        componentMap.set(comp.id, {
+            ...comp,
+            children: []
+        });
+    });
+    
+    // Second pass: Build parent-child relationships
+    flatComponents.forEach(comp => {
+        if (!seenIds.has(comp.id)) return; // Skip duplicates
+        
+        const component = componentMap.get(comp.id);
+        
+        if (comp.parentId) {
+            const parent = componentMap.get(comp.parentId);
+            if (parent) {
+                parent.children.push(component);
+            } else {
+                // Parent not found, treat as root
+                rootComponents.push(component);
+            }
+        } else {
+            rootComponents.push(component);
+        }
+    });
+    
+    return rootComponents;
+}
+
+    // ENHANCED: Load with tree reconstruction
+  async loadProjectComponents(projectId, frameId) {
+      try {
+          console.log('Loading project components for:', { projectId, frameId });
+          
+          const response = await axios.get('/api/project-components', {
+              params: { project_id: projectId, frame_id: frameId }
+          });
+          
+          if (response.data.success) {
+              const flatComponents = response.data.data;
+              console.log('Loaded', flatComponents.length, 'components from backend');
+              
+              // CRITICAL: Rebuild tree structure
+              const treeComponents = this.rebuildComponentTree(flatComponents);
+              
+              console.log('Rebuilt tree with', treeComponents.length, 'root components');
+              
+              return treeComponents;
+          }
+          
+          return [];
       } catch (error) {
           console.error('Failed to load project components:', error);
           return [];

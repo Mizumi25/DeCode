@@ -3,10 +3,14 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import Panel from '@/Components/Panel';
-import { Square, Code, Layers, User, Settings, ChevronUp, ChevronDown, Copy, RefreshCw, Monitor, PictureInPicture, Loader2 } from 'lucide-react';
+import { 
+  Square, Code, Layers, User, Settings, ChevronUp, ChevronDown, Copy, RefreshCw, 
+  Monitor, PictureInPicture, Loader2, ChevronRight  // ADD ChevronRight
+} from 'lucide-react';
 import { useForgeStore } from '@/stores/useForgeStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore';
+import { useCodeSyncStore } from '@/stores/useCodeSyncStore';
 import { useThumbnail } from '@/hooks/useThumbnail';
 
 // Import separated forge components
@@ -17,6 +21,8 @@ import AssetsPanel from '@/Components/Forge/AssetsPanel';
 import CanvasComponent from '@/Components/Forge/CanvasComponent';
 import BottomCodePanel from '@/Components/Forge/BottomCodePanel';
 import SidebarCodePanel from '@/Components/Forge/SidebarCodePanel';
+import ModalCodePanel from '@/Components/Forge/ModalCodePanel';
+
 import CodeTooltip from '@/Components/Forge/CodeTooltip';
 import FloatingFrameSwitcher from '@/Components/Forge/FloatingFrameSwitcher';
 import WindowPanel from '@/Components/WindowPanel';
@@ -68,6 +74,13 @@ export default function ForgePage({
     canUndo,
     canRedo
   } = useForgeUndoRedoStore();
+  
+  const { 
+    syncedCode,         
+    codeStyle,            
+    setCodeStyle: setSyncedCodeStyle,
+    updateSyncedCode 
+  } = useCodeSyncStore();
 
   // Frame switching state
   const [isFrameSwitching, setIsFrameSwitching] = useState(false)
@@ -118,7 +131,6 @@ export default function ForgePage({
   // Mobile-optimized code panel settings
   const [codePanelHeight, setCodePanelHeight] = useState(400)
   const [codePanelMinimized, setCodePanelMinimized] = useState(false)
-  const [codeStyle, setCodeStyle] = useState('react-tailwind')
   const [componentsLoaded, setComponentsLoaded] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('Initializing components...')
 
@@ -186,11 +198,54 @@ export default function ForgePage({
 const LAYOUT_TYPES = ['section', 'container', 'div', 'flex', 'grid'];
 const isLayoutElement = (type) => LAYOUT_TYPES.includes(type);
 
+  // Get current frame's canvas components
+  const canvasComponents = frameCanvasComponents[currentFrame] || []
 
+
+
+    // MODIFY existing generateCode callback
+  const generateCode = useCallback(async (components) => {
+    try {
+      if (!componentLibraryService || !componentLibraryService.clientSideCodeGeneration) {
+        const mockCode = {
+          react: `// Generated React Code for Frame: ${currentFrame}\nfunction App() {\n  return (\n    <div>\n      {/* ${components.length} components */}\n    </div>\n  );\n}`,
+          html: `<!-- Generated HTML for Frame: ${currentFrame} -->\n<div>\n  <!-- ${components.length} components -->\n</div>`,
+          css: `/* Generated CSS for Frame: ${currentFrame} */\n.container {\n  /* Styles for ${components.length} components */\n}`,
+          tailwind: `<!-- Generated Tailwind for Frame: ${currentFrame} -->\n<div class="container">\n  <!-- ${components.length} components -->\n</div>`
+        };
+        setGeneratedCode(mockCode);
+        updateSyncedCode(mockCode); // ADD THIS LINE
+        return;
+      }
+  
+      const code = await componentLibraryService.clientSideCodeGeneration(components, codeStyle);
+      setGeneratedCode(code);
+      updateSyncedCode(code); // ADD THIS LINE
+      
+      console.log('Code generated and synced successfully for frame:', currentFrame, Object.keys(code));
+    } catch (error) {
+      console.error('Failed to generate code:', error);
+      const mockCode = {
+        react: `// Error generating code\nfunction App() {\n  return <div>Error</div>;\n}`,
+        html: `<!-- Error generating code -->`,
+        css: `/* Error generating code */`,
+        tailwind: `<!-- Error generating code -->`
+      };
+      setGeneratedCode(mockCode);
+      updateSyncedCode(mockCode); // ADD THIS LINE
+    }
+  }, [codeStyle, currentFrame, updateSyncedCode]);
+
+ // REPLACE existing setCodeStyle with: 
+  const handleCodeStyleChange = useCallback((newStyle) => {
+    setSyncedCodeStyle(newStyle);         // ✅ Just use the synced setter
+    generateCode(canvasComponents);       // Will use updated codeStyle from store
+  }, [canvasComponents, generateCode, setSyncedCodeStyle]);
 
 
   
   
+
   
   
     // ADD: Detect if project is GitHub import
@@ -251,35 +306,7 @@ useEffect(() => {
     }
   }, [isGitHubProject, projectId]);
   
-  // Code generation
-  const generateCode = useCallback(async (components) => {
-    try {
-      if (!componentLibraryService || !componentLibraryService.clientSideCodeGeneration) {
-        const mockCode = {
-          react: `// Generated React Code for Frame: ${currentFrame}\nfunction App() {\n  return (\n    <div>\n      {/* ${components.length} components */}\n    </div>\n  );\n}`,
-          html: `<!-- Generated HTML for Frame: ${currentFrame} -->\n<div>\n  <!-- ${components.length} components -->\n</div>`,
-          css: `/* Generated CSS for Frame: ${currentFrame} */\n.container {\n  /* Styles for ${components.length} components */\n}`,
-          tailwind: `<!-- Generated Tailwind for Frame: ${currentFrame} -->\n<div class="container">\n  <!-- ${components.length} components -->\n</div>`
-        };
-        setGeneratedCode(mockCode);
-        return;
-      }
-
-      const code = await componentLibraryService.clientSideCodeGeneration(components, codeStyle);
-      setGeneratedCode(code);
-      
-      console.log('Code generated successfully for frame:', currentFrame, Object.keys(code));
-    } catch (error) {
-      console.error('Failed to generate code:', error);
-      const mockCode = {
-        react: `// Error generating code\nfunction App() {\n  return <div>Error</div>;\n}`,
-        html: `<!-- Error generating code -->`,
-        css: `/* Error generating code */`,
-        tailwind: `<!-- Error generating code -->`
-      };
-      setGeneratedCode(mockCode);
-    }
-  }, [codeStyle, currentFrame])
+ 
   
   useEffect(() => {
       console.log('ForgePage: Frame props changed:', { 
@@ -321,8 +348,7 @@ useEffect(() => {
       }
   }, [frameId, frame?.uuid, frame?.canvas_data?.components, currentFrame]);
   
-  // Get current frame's canvas components
-  const canvasComponents = frameCanvasComponents[currentFrame] || []
+
 
   // Mock project frames data - This should come from your backend
   const processedProjectFrames = useMemo(() => {
@@ -1567,6 +1593,8 @@ const handleUndo = useCallback(async () => {
           canvasComponents={canvasComponents}
           selectedComponent={selectedComponent}
           onComponentSelect={setSelectedComponent}
+          onComponentDelete={handleComponentDelete}  // ADD THIS IF MISSING
+          searchTerm={componentSearchTerm}  // ADD: Pass search term from Panel
         />
       ) : null
     ),
@@ -1612,7 +1640,7 @@ const handleUndo = useCallback(async () => {
         showTooltips={showTooltips && !isMobile}
         setShowTooltips={setShowTooltips}
         codeStyle={codeStyle}
-        setCodeStyle={setCodeStyle}
+        setCodeStyle={setSyncedCodeStyle}
         activeCodeTab={activeCodeTab}
         setActiveCodeTab={setActiveCodeTab}
         generatedCode={generatedCode}
@@ -1897,7 +1925,7 @@ const handleUndo = useCallback(async () => {
             showTooltips={showTooltips && !isMobile}
             setShowTooltips={setShowTooltips}
             codeStyle={codeStyle}
-            setCodeStyle={setCodeStyle}
+            setCodeStyle={setSyncedCodeStyle}
             activeCodeTab={activeCodeTab}
             setActiveCodeTab={setActiveCodeTab}
             generatedCode={generatedCode}
@@ -2044,9 +2072,43 @@ const handleUndo = useCallback(async () => {
         </div>
       )}
 
-      {/* Desktop quick action for window panel */}
+      {/* Desktop quick actions - MODIFIED */}
       {!isMobile && (
-        <div className="fixed bottom-6 right-6 z-30">
+        <div className="fixed bottom-6 right-6 z-30 flex flex-col gap-2">
+          {/* ADD Code Panel Mode Switcher */}
+          <div className="flex flex-col gap-1 p-2 rounded-lg shadow-lg" style={{ backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <button
+              onClick={() => {
+                setCodePanelPosition('bottom');
+                toggleForgePanel('code-panel');
+              }}
+              className={`p-2 rounded transition-all ${codePanelPosition === 'bottom' ? 'bg-blue-100' : ''}`}
+              title="Bottom Code Panel"
+            >
+              <ChevronUp className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
+                setCodePanelPosition('right');
+                toggleForgePanel('code-panel');
+              }}
+              className={`p-2 rounded transition-all ${codePanelPosition === 'right' ? 'bg-blue-100' : ''}`}
+              title="Side Code Panel"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
+                setCodePanelPosition('modal');
+                toggleForgePanel('code-modal-panel');
+              }}
+              className={`p-2 rounded transition-all ${codePanelPosition === 'modal' ? 'bg-blue-100' : ''}`}
+              title="Modal Code Panel"
+            >
+              <PictureInPicture className="w-4 h-4" />
+            </button>
+          </div>
+          
           <button
             onClick={handleOpenWindowPanel}
             className={`p-3 rounded-full shadow-lg transition-all duration-200 hover:scale-110 ${
@@ -2060,14 +2122,37 @@ const handleUndo = useCallback(async () => {
             title="Open Window Panel"
             disabled={isFrameSwitching}
           >
-            <Monitor className="w-5 h-5" />
-          </button>
-        </div>
-      )}
+              <Monitor className="w-5 h-5" />
+        </button>
+      </div>
+    )}
       
       {renderThumbnailStatus()}
       
       <IconWindowPanel onIconSelect={handleIconSelect} />
+      
+      
+      {/* Modal Code Panel */}
+      {isForgePanelOpen('code-modal-panel') && (
+        <ModalCodePanel
+          showCodePanel={true}
+          setShowCodePanel={() => toggleForgePanel('code-modal-panel')}
+          showTooltips={showTooltips}
+          setShowTooltips={setShowTooltips}
+          codeStyle={codeStyle}
+          setCodeStyle={handleCodeStyleChange}
+          activeCodeTab={activeCodeTab}
+          setActiveCodeTab={setActiveCodeTab}
+          generatedCode={generatedCode}
+          getAvailableTabs={getAvailableTabs}
+          copyCodeToClipboard={copyCodeToClipboard}
+          downloadCode={downloadCode}
+          generateCode={generateCode}
+          canvasComponents={canvasComponents}
+          handleCodeEdit={handleCodeEdit}
+          isMobile={isMobile}
+        />
+      )}
 
       {/* Enhanced mobile performance optimization styles */}
       {isMobile && (

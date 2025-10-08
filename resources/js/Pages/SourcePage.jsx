@@ -9,6 +9,7 @@ import CodeEditor from '@/Components/Source/CodeEditor';
 import TerminalPanel from '@/Components/Source/TerminalPanel';
 // Import the new Source store
 import { useSourceStore } from '@/stores/useSourceStore';
+import { useCodeSyncStore } from '@/stores/useCodeSyncStore';
 
 export default function SourcePage({ projectId, frameId }) {
   // Use Source Store for panel management
@@ -20,6 +21,29 @@ export default function SourcePage({ projectId, frameId }) {
     sourcePanelStates,
     _sourceTriggerUpdate // Include trigger for reactive updates
   } = useSourceStore()
+  
+  const { 
+    syncedCode, 
+    codeStyle, 
+    activeCodeTab,
+    setActiveCodeTab: setSyncedActiveTab,
+    lastUpdated 
+  } = useCodeSyncStore();
+  
+  const [editorValue, setEditorValue] = useState('');
+  
+  // Sync code from Forge to Source editor
+  useEffect(() => {
+    if (syncedCode && activeCodeTab) {
+      const code = syncedCode[activeCodeTab] || '';
+      setEditorValue(code);
+      console.log('SourcePage: Code synced from Forge:', {
+        tab: activeCodeTab,
+        codeLength: code.length,
+        lastUpdated
+      });
+    }
+  }, [syncedCode, activeCodeTab, lastUpdated]);
 
   // Legacy panel states for compatibility with other parts (if needed)
   const [legacyPanelStates, setLegacyPanelStates] = useState({

@@ -2,7 +2,53 @@ import React from 'react';
 import { Palette, Box, Circle, Sparkles, Filter, Paintbrush } from 'lucide-react';
 import { PropertySection, InputField, SubsectionHeader, ButtonGrid, presetValues } from '../PropertyUtils';
 
-const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, setExpandedSections }) => {
+const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, setExpandedSections, searchTerm }) => {
+  // Helper function to safely get filter value
+  const getFilterValue = (filterName, defaultValue) => {
+    const filterStr = currentStyles.filter || '';
+    if (typeof filterStr !== 'string') return defaultValue;
+    
+    const patterns = {
+      blur: /blur\(([^)]+)\)/,
+      brightness: /brightness\(([^)]+)\)/,
+      contrast: /contrast\(([^)]+)\)/,
+      saturate: /saturate\(([^)]+)\)/,
+      'hue-rotate': /hue-rotate\(([^)]+)\)/,
+      invert: /invert\(([^)]+)\)/,
+      sepia: /sepia\(([^)]+)\)/,
+      grayscale: /grayscale\(([^)]+)\)/
+    };
+    
+    const match = filterStr.match(patterns[filterName]);
+    if (!match) return defaultValue;
+    
+    const value = match[1];
+    if (filterName === 'blur' || filterName === 'hue-rotate') {
+      return parseInt(value.replace(/px|deg/g, '')) || defaultValue;
+    }
+    return parseFloat(value) || defaultValue;
+  };
+  
+  // Helper function to safely get backdrop filter value
+  const getBackdropFilterValue = (filterName, defaultValue) => {
+    const filterStr = currentStyles.backdropFilter || '';
+    if (typeof filterStr !== 'string') return defaultValue;
+    
+    const patterns = {
+      blur: /blur\(([^)]+)\)/,
+      brightness: /brightness\(([^)]+)\)/
+    };
+    
+    const match = filterStr.match(patterns[filterName]);
+    if (!match) return defaultValue;
+    
+    const value = match[1];
+    if (filterName === 'blur') {
+      return parseInt(value.replace('px', '')) || defaultValue;
+    }
+    return parseFloat(value) || defaultValue;
+  };
+  
   return (
     <>
       {/* COLORS */}
@@ -12,12 +58,14 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
         sectionKey="colors"
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
+        searchTerm={searchTerm}
       >
         <InputField
           label="Text Color"
           value={currentStyles.color}
           onChange={(value) => onPropertyChange('color', value, 'style')}
           type="color"
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -25,6 +73,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
           value={currentStyles.backgroundColor}
           onChange={(value) => onPropertyChange('backgroundColor', value, 'style')}
           type="color"
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -32,6 +81,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
           value={currentStyles.borderColor}
           onChange={(value) => onPropertyChange('borderColor', value, 'style')}
           type="color"
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -39,6 +89,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
           value={currentStyles.outlineColor}
           onChange={(value) => onPropertyChange('outlineColor', value, 'style')}
           type="color"
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -46,6 +97,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
           value={currentStyles.accentColor}
           onChange={(value) => onPropertyChange('accentColor', value, 'style')}
           type="color"
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -53,6 +105,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
           value={currentStyles.caretColor}
           onChange={(value) => onPropertyChange('caretColor', value, 'style')}
           type="color"
+          searchTerm={searchTerm}
         />
         
         {/* Opacity */}
@@ -62,6 +115,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
           onChange={(value) => onPropertyChange('opacity', value, 'style')}
           type="range"
           options={{ min: 0, max: 1, step: 0.01 }}
+          searchTerm={searchTerm}
         />
       </PropertySection>
 
@@ -72,12 +126,14 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
         sectionKey="background"
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
+        searchTerm={searchTerm}
       >
         <InputField
           label="Background Image"
           value={currentStyles.backgroundImage}
           onChange={(value) => onPropertyChange('backgroundImage', value, 'style')}
           options={{ placeholder: 'url() or none' }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -88,6 +144,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
           options={{
             values: ['auto', 'cover', 'contain', '100%', '50%']
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -98,6 +155,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
           options={{
             values: ['center', 'top', 'bottom', 'left', 'right', 'top left', 'top right', 'bottom left', 'bottom right']
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -108,6 +166,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
           options={{
             values: ['repeat', 'no-repeat', 'repeat-x', 'repeat-y', 'space', 'round']
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -118,6 +177,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
           options={{
             values: ['scroll', 'fixed', 'local']
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -128,6 +188,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
           options={{
             values: ['border-box', 'padding-box', 'content-box']
           }}
+          searchTerm={searchTerm}
         />
         
         <InputField
@@ -138,6 +199,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
           options={{
             values: ['border-box', 'padding-box', 'content-box', 'text']
           }}
+          searchTerm={searchTerm}
         />
         
         {/* Gradient Support */}
@@ -157,6 +219,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
             options={{
               values: ['none', 'linear-gradient', 'radial-gradient', 'conic-gradient']
             }}
+            searchTerm={searchTerm}
           />
           
           {currentStyles.backgroundImage?.includes('gradient') && (
@@ -170,6 +233,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
                   onPropertyChange('backgroundImage', newGradient, 'style');
                 }}
                 options={{ placeholder: '45deg or to right' }}
+                searchTerm={searchTerm}
               />
               
               <InputField
@@ -181,6 +245,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
                   onPropertyChange('backgroundImage', gradient, 'style');
                 }}
                 type="color"
+                searchTerm={searchTerm}
               />
               
               <InputField
@@ -192,6 +257,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
                   onPropertyChange('backgroundImage', gradient, 'style');
                 }}
                 type="color"
+                searchTerm={searchTerm}
               />
             </div>
           )}
@@ -205,6 +271,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
         sectionKey="borders"
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
+        searchTerm={searchTerm}
       >
         {/* Border Width */}
         <div>
@@ -214,27 +281,32 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
               label="Top"
               value={currentStyles.borderTopWidth}
               onChange={(value) => onPropertyChange('borderTopWidth', value, 'style')}
+              searchTerm={searchTerm}
             />
             <InputField
               label="Right"
               value={currentStyles.borderRightWidth}
               onChange={(value) => onPropertyChange('borderRightWidth', value, 'style')}
+              searchTerm={searchTerm}
             />
             <InputField
               label="Bottom"
               value={currentStyles.borderBottomWidth}
               onChange={(value) => onPropertyChange('borderBottomWidth', value, 'style')}
+              searchTerm={searchTerm}
             />
             <InputField
               label="Left"
               value={currentStyles.borderLeftWidth}
               onChange={(value) => onPropertyChange('borderLeftWidth', value, 'style')}
+              searchTerm={searchTerm}
             />
           </div>
           <InputField
             label="All Borders"
             value={currentStyles.borderWidth}
             onChange={(value) => onPropertyChange('borderWidth', value, 'style')}
+            searchTerm={searchTerm}
           />
         </div>
         
@@ -247,6 +319,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
           options={{
             values: ['none', 'solid', 'dashed', 'dotted', 'double', 'groove', 'ridge', 'inset', 'outset']
           }}
+          searchTerm={searchTerm}
         />
         
         {/* Individual Border Styles */}
@@ -259,6 +332,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
             options={{
               values: ['none', 'solid', 'dashed', 'dotted', 'double']
             }}
+            searchTerm={searchTerm}
           />
           <InputField
             label="Right Style"
@@ -268,6 +342,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
             options={{
               values: ['none', 'solid', 'dashed', 'dotted', 'double']
             }}
+            searchTerm={searchTerm}
           />
           <InputField
             label="Bottom Style"
@@ -277,6 +352,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
             options={{
               values: ['none', 'solid', 'dashed', 'dotted', 'double']
             }}
+            searchTerm={searchTerm}
           />
           <InputField
             label="Left Style"
@@ -286,6 +362,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
             options={{
               values: ['none', 'solid', 'dashed', 'dotted', 'double']
             }}
+            searchTerm={searchTerm}
           />
         </div>
         
@@ -298,24 +375,28 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
               value={currentStyles.borderTopColor}
               onChange={(value) => onPropertyChange('borderTopColor', value, 'style')}
               type="color"
+              searchTerm={searchTerm}
             />
             <InputField
               label="Right Color"
               value={currentStyles.borderRightColor}
               onChange={(value) => onPropertyChange('borderRightColor', value, 'style')}
               type="color"
+              searchTerm={searchTerm}
             />
             <InputField
               label="Bottom Color"
               value={currentStyles.borderBottomColor}
               onChange={(value) => onPropertyChange('borderBottomColor', value, 'style')}
               type="color"
+              searchTerm={searchTerm}
             />
             <InputField
               label="Left Color"
               value={currentStyles.borderLeftColor}
               onChange={(value) => onPropertyChange('borderLeftColor', value, 'style')}
               type="color"
+              searchTerm={searchTerm}
             />
           </div>
         </div>
@@ -328,6 +409,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
               label="Width"
               value={currentStyles.outlineWidth}
               onChange={(value) => onPropertyChange('outlineWidth', value, 'style')}
+              searchTerm={searchTerm}
             />
             <InputField
               label="Style"
@@ -337,11 +419,13 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
               options={{
                 values: ['none', 'solid', 'dashed', 'dotted', 'double']
               }}
+              searchTerm={searchTerm}
             />
             <InputField
               label="Offset"
               value={currentStyles.outlineOffset}
               onChange={(value) => onPropertyChange('outlineOffset', value, 'style')}
+              searchTerm={searchTerm}
             />
           </div>
         </div>
@@ -354,6 +438,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
         sectionKey="borderRadius"
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
+        searchTerm={searchTerm}
       >
         {/* Quick Presets */}
         <div>
@@ -366,6 +451,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
             options={{
               presets: presetValues.borderRadius
             }}
+            searchTerm={searchTerm}
           />
         </div>
         
@@ -377,21 +463,25 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
               label="Top Left"
               value={currentStyles.borderTopLeftRadius}
               onChange={(value) => onPropertyChange('borderTopLeftRadius', value, 'style')}
+              searchTerm={searchTerm}
             />
             <InputField
               label="Top Right"
               value={currentStyles.borderTopRightRadius}
               onChange={(value) => onPropertyChange('borderTopRightRadius', value, 'style')}
+              searchTerm={searchTerm}
             />
             <InputField
               label="Bottom Left"
               value={currentStyles.borderBottomLeftRadius}
               onChange={(value) => onPropertyChange('borderBottomLeftRadius', value, 'style')}
+              searchTerm={searchTerm}
             />
             <InputField
               label="Bottom Right"
               value={currentStyles.borderBottomRightRadius}
               onChange={(value) => onPropertyChange('borderBottomRightRadius', value, 'style')}
+              searchTerm={searchTerm}
             />
           </div>
         </div>
@@ -457,6 +547,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
                 'polygon(25% 0%, 100% 0%, 75% 100%, 0% 100%)'
               ]
             }}
+            searchTerm={searchTerm}
           />
         </div>
       </PropertySection>
@@ -468,6 +559,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
         sectionKey="shadows"
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
+        searchTerm={searchTerm}
       >
         {/* Box Shadow */}
         <div>
@@ -480,15 +572,23 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
             options={{
               presets: presetValues.shadows
             }}
+            searchTerm={searchTerm}
           />
         </div>
         
         {/* Drop Shadow Filter */}
         <InputField
           label="Drop Shadow (Filter)"
-          value={currentStyles.filter?.includes('drop-shadow') ? 'enabled' : 'disabled'}
+          value={(() => {
+            const filterStr = currentStyles.filter || '';
+            if (typeof filterStr === 'string') {
+              return filterStr.includes('drop-shadow') ? 'enabled' : 'disabled';
+            }
+            return 'disabled';
+          })()}
           onChange={(value) => {
-            const currentFilter = currentStyles.filter || '';
+            const filterStr = currentStyles.filter || '';
+            const currentFilter = typeof filterStr === 'string' ? filterStr : '';
             if (value === 'enabled') {
               const newFilter = currentFilter + ' drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))';
               onPropertyChange('filter', newFilter.trim(), 'style');
@@ -501,6 +601,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
           options={{
             values: ['disabled', 'enabled']
           }}
+          searchTerm={searchTerm}
         />
         
         {/* Inset Shadows */}
@@ -515,6 +616,7 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
             }
           }}
           type="checkbox"
+          searchTerm={searchTerm}
         />
         
         {/* Multiple Shadows */}
@@ -539,101 +641,118 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
         sectionKey="filters"
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
+        searchTerm={searchTerm}
       >
         <InputField
           label="Blur"
-          value={currentStyles.filter?.match(/blur\(([^)]+)\)/)?.[1] || 0}
+          value={getFilterValue('blur', 0)}
           onChange={(value) => {
-            const currentFilter = (currentStyles.filter || '').replace(/blur\([^)]+\)/g, '').trim();
+            const filterStr = currentStyles.filter || '';
+            const currentFilter = typeof filterStr === 'string' ? filterStr.replace(/blur\([^)]+\)/g, '').trim() : '';
             const newFilter = value > 0 ? `${currentFilter} blur(${value}px)`.trim() : currentFilter;
             onPropertyChange('filter', newFilter || 'none', 'style');
           }}
           type="range"
           options={{ min: 0, max: 50, step: 1, unit: 'px' }}
+          searchTerm={searchTerm}
         />
         
         <InputField
           label="Brightness"
-          value={currentStyles.filter?.match(/brightness\(([^)]+)\)/)?.[1] || 1}
+          value={getFilterValue('brightness', 1)}
           onChange={(value) => {
-            const currentFilter = (currentStyles.filter || '').replace(/brightness\([^)]+\)/g, '').trim();
+            const filterStr = currentStyles.filter || '';
+            const currentFilter = typeof filterStr === 'string' ? filterStr.replace(/brightness\([^)]+\)/g, '').trim() : '';
             const newFilter = value !== 1 ? `${currentFilter} brightness(${value})`.trim() : currentFilter;
             onPropertyChange('filter', newFilter || 'none', 'style');
           }}
           type="range"
           options={{ min: 0, max: 3, step: 0.1 }}
+          searchTerm={searchTerm}
         />
         
         <InputField
           label="Contrast"
-          value={currentStyles.filter?.match(/contrast\(([^)]+)\)/)?.[1] || 1}
+          value={getFilterValue('contrast', 1)}
           onChange={(value) => {
-            const currentFilter = (currentStyles.filter || '').replace(/contrast\([^)]+\)/g, '').trim();
+            const filterStr = currentStyles.filter || '';
+            const currentFilter = typeof filterStr === 'string' ? filterStr.replace(/contrast\([^)]+\)/g, '').trim() : '';
             const newFilter = value !== 1 ? `${currentFilter} contrast(${value})`.trim() : currentFilter;
             onPropertyChange('filter', newFilter || 'none', 'style');
           }}
           type="range"
           options={{ min: 0, max: 3, step: 0.1 }}
+          searchTerm={searchTerm}
         />
         
         <InputField
           label="Saturate"
-          value={currentStyles.filter?.match(/saturate\(([^)]+)\)/)?.[1] || 1}
+          value={getFilterValue('saturate', 1)}
           onChange={(value) => {
-            const currentFilter = (currentStyles.filter || '').replace(/saturate\([^)]+\)/g, '').trim();
+            const filterStr = currentStyles.filter || '';
+            const currentFilter = typeof filterStr === 'string' ? filterStr.replace(/saturate\([^)]+\)/g, '').trim() : '';
             const newFilter = value !== 1 ? `${currentFilter} saturate(${value})`.trim() : currentFilter;
             onPropertyChange('filter', newFilter || 'none', 'style');
           }}
           type="range"
           options={{ min: 0, max: 3, step: 0.1 }}
+          searchTerm={searchTerm}
         />
         
         <InputField
           label="Hue Rotate"
-          value={currentStyles.filter?.match(/hue-rotate\(([^)]+)\)/)?.[1] || 0}
+          value={getFilterValue('hue-rotate', 0)}
           onChange={(value) => {
-            const currentFilter = (currentStyles.filter || '').replace(/hue-rotate\([^)]+\)/g, '').trim();
+            const filterStr = currentStyles.filter || '';
+            const currentFilter = typeof filterStr === 'string' ? filterStr.replace(/hue-rotate\([^)]+\)/g, '').trim() : '';
             const newFilter = value !== 0 ? `${currentFilter} hue-rotate(${value}deg)`.trim() : currentFilter;
             onPropertyChange('filter', newFilter || 'none', 'style');
           }}
           type="range"
           options={{ min: 0, max: 360, step: 1, unit: 'deg' }}
+          searchTerm={searchTerm}
         />
         
         <InputField
           label="Invert"
-          value={currentStyles.filter?.match(/invert\(([^)]+)\)/)?.[1] || 0}
+          value={getFilterValue('invert', 0)}
           onChange={(value) => {
-            const currentFilter = (currentStyles.filter || '').replace(/invert\([^)]+\)/g, '').trim();
+            const filterStr = currentStyles.filter || '';
+            const currentFilter = typeof filterStr === 'string' ? filterStr.replace(/invert\([^)]+\)/g, '').trim() : '';
             const newFilter = value > 0 ? `${currentFilter} invert(${value})`.trim() : currentFilter;
             onPropertyChange('filter', newFilter || 'none', 'style');
           }}
           type="range"
           options={{ min: 0, max: 1, step: 0.1 }}
+          searchTerm={searchTerm}
         />
         
         <InputField
           label="Sepia"
-          value={currentStyles.filter?.match(/sepia\(([^)]+)\)/)?.[1] || 0}
+          value={getFilterValue('sepia', 0)}
           onChange={(value) => {
-            const currentFilter = (currentStyles.filter || '').replace(/sepia\([^)]+\)/g, '').trim();
+            const filterStr = currentStyles.filter || '';
+            const currentFilter = typeof filterStr === 'string' ? filterStr.replace(/sepia\([^)]+\)/g, '').trim() : '';
             const newFilter = value > 0 ? `${currentFilter} sepia(${value})`.trim() : currentFilter;
             onPropertyChange('filter', newFilter || 'none', 'style');
           }}
           type="range"
           options={{ min: 0, max: 1, step: 0.1 }}
+          searchTerm={searchTerm}
         />
         
         <InputField
           label="Grayscale"
-          value={currentStyles.filter?.match(/grayscale\(([^)]+)\)/)?.[1] || 0}
+          value={getFilterValue('grayscale', 0)}
           onChange={(value) => {
-            const currentFilter = (currentStyles.filter || '').replace(/grayscale\([^)]+\)/g, '').trim();
+            const filterStr = currentStyles.filter || '';
+            const currentFilter = typeof filterStr === 'string' ? filterStr.replace(/grayscale\([^)]+\)/g, '').trim() : '';
             const newFilter = value > 0 ? `${currentFilter} grayscale(${value})`.trim() : currentFilter;
             onPropertyChange('filter', newFilter || 'none', 'style');
           }}
           type="range"
           options={{ min: 0, max: 1, step: 0.1 }}
+          searchTerm={searchTerm}
         />
         
         {/* Backdrop Filters */}
@@ -641,26 +760,30 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
           <SubsectionHeader title="Backdrop Filters" />
           <InputField
             label="Backdrop Blur"
-            value={currentStyles.backdropFilter?.match(/blur\(([^)]+)\)/)?.[1] || 0}
+            value={getBackdropFilterValue('blur', 0)}
             onChange={(value) => {
-              const currentFilter = (currentStyles.backdropFilter || '').replace(/blur\([^)]+\)/g, '').trim();
+              const backdropFilterStr = currentStyles.backdropFilter || '';
+              const currentFilter = typeof backdropFilterStr === 'string' ? backdropFilterStr.replace(/blur\([^)]+\)/g, '').trim() : '';
               const newFilter = value > 0 ? `${currentFilter} blur(${value}px)`.trim() : currentFilter;
               onPropertyChange('backdropFilter', newFilter || 'none', 'style');
             }}
             type="range"
             options={{ min: 0, max: 50, step: 1, unit: 'px' }}
+            searchTerm={searchTerm}
           />
           
           <InputField
             label="Backdrop Brightness"
-            value={currentStyles.backdropFilter?.match(/brightness\(([^)]+)\)/)?.[1] || 1}
+            value={getBackdropFilterValue('brightness', 1)}
             onChange={(value) => {
-              const currentFilter = (currentStyles.backdropFilter || '').replace(/brightness\([^)]+\)/g, '').trim();
+              const backdropFilterStr = currentStyles.backdropFilter || '';
+              const currentFilter = typeof backdropFilterStr === 'string' ? backdropFilterStr.replace(/brightness\([^)]+\)/g, '').trim() : '';
               const newFilter = value !== 1 ? `${currentFilter} brightness(${value})`.trim() : currentFilter;
               onPropertyChange('backdropFilter', newFilter || 'none', 'style');
             }}
             type="range"
             options={{ min: 0, max: 3, step: 0.1 }}
+            searchTerm={searchTerm}
           />
         </div>
       </PropertySection>
