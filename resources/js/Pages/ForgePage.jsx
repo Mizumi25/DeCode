@@ -31,10 +31,52 @@ import EmptyCanvasState from '@/Components/Forge/EmptyCanvasState';
 import SectionDropZone from '@/Components/Forge/SectionDropZone';
 import IconWindowPanel from '@/Components/Forge/IconWindowPanel';
 
+
+
+import ErrorBoundary from '@/Components/ErrorBoundary';
+
 // Import dynamic component service
 import { componentLibraryService } from '@/Services/ComponentLibraryService';
 import { tooltipDatabase } from '@/Components/Forge/TooltipDatabase';
 import { formatCode, highlightCode, parseCodeAndUpdateComponents } from '@/Components/Forge/CodeUtils';
+
+
+
+
+
+
+// ADD THIS HELPER FUNCTION BEFORE export default function ForgePage:
+const safeLeaveChannel = (channelName) => {
+  if (!window.Echo) {
+    console.warn('Echo not available');
+    return;
+  }
+
+  try {
+    // Get the channel from Echo's connector
+    const channels = window.Echo.connector?.channels || {};
+    const channel = channels[channelName];
+
+    if (channel && typeof channel.leave === 'function') {
+      console.log('Leaving channel:', channelName);
+      channel.leave();
+    } else if (window.Echo.leave) {
+      console.log('Using Echo.leave for:', channelName);
+      window.Echo.leave(channelName);
+    } else {
+      console.warn('Cannot leave channel (not joined):', channelName);
+    }
+  } catch (error) {
+    console.error('Error leaving channel:', channelName, error);
+    // Don't throw - just log and continue
+  }
+};
+
+
+
+
+
+
 
 export default function ForgePage({ 
   projectId, 
@@ -139,6 +181,11 @@ export default function ForgePage({
   const [componentSearchTerm, setComponentSearchTerm] = useState('')
   
   const [undoRedoInProgress, setUndoRedoInProgress] = useState(false);
+  
+  // ADD these state variables for drag reordering
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [dragOverItem, setDragOverItem] = useState(null);
+  const [dragOverContainer, setDragOverContainer] = useState(null);
 
   // Enhanced drag state with variant support
   const [dragState, setDragState] = useState({
@@ -175,6 +222,30 @@ export default function ForgePage({
       console.log('ForgePage: Initial frame ID:', frameIdToUse);
       return frameIdToUse;
   });
+  
+  
+  
+  
+  // In ForgePage.jsx - REPLACE your existing useEffect for Echo cleanup
+
+useEffect(() => {
+  const currentFrameRef = frameId || frame?.uuid;
+  
+  return () => {
+    console.log('ForgePage: Component unmounting');
+    
+    // The store will handle cleanup via navigation listeners
+    // But we still cleanup on unmount as a safety measure
+    if (currentFrameRef) {
+      useFramePresenceStore.getState().cleanupFrame(currentFrameRef);
+    }
+  };
+}, [frameId, frame?.uuid]);
+  
+  
+  
+  
+  
   
   const getCanvasPadding = () => {
     // Now responsiveMode is accessible from useEditorStore
@@ -245,6 +316,185 @@ const isLayoutElement = (type) => LAYOUT_TYPES.includes(type);
 
   
   
+  
+  
+    // Handler: Start dragging an existing component to reorder it
+  const handleReorderDragStart = useCallback((e, componentId, parentId = null) => {
+    e.stopPropagation();
+    
+    const component = canvasComponents.find(c => c.id === componentId);
+    if (!component) return;
+    
+    setDraggedItem({ id: componentId, parentId });
+    setSelectedComponent(componentId);
+    
+    // Visual feedback
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', e.currentTarget);
+    
+    // Add dragging class for styling
+    e.currentTarget.classList.add('dragging');
+    
+    console.log('Started reordering component:', componentId, 'from parent:', parentId);
+  }, [canvasComponents]);
+  
+  // Handler: Dragging over another component (for reorder positioning)
+  const handleReorderDragOver = useCallback((e, componentId, parentId = null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!draggedItem || draggedItem.id === componentId) return;
+    
+    setDragOverItem({ id: componentId, parentId });
+    setDragOverContainer(parentId);
+    
+    // Change cursor to indicate drop is allowed
+    e.dataTransfer.dropEffect = 'move';
+  }, [draggedItem]);
+  
+  // Handler: Drop component to reorder
+  const handleReorderDrop = useCallback((e, targetComponentId, targetParentId = null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!draggedItem || draggedItem.id === targetComponentId) {
+      setDraggedItem(null);
+      setDragOverItem(null);
+      setDragOverContainer(null);
+      return;
+    }
+    
+    console.log('Reordering:', draggedItem.id, 'relative to:', targetComponentId);
+    
+    // Deep clone components
+    let updatedComponents = JSON.parse(JSON.stringify(canvasComponents));
+    
+    // Find and remove the dragged component
+    let draggedComponent = null;
+    
+    const removeComponent = (comps, id, parentId) => {
+      if (parentId === null) {
+        // Root level
+        const index = comps.findIndex(c => c.id === id);
+        if (index !== -1) {
+          draggedComponent = comps.splice(index, 1)[0];
+          return true;
+        }
+      } else {
+        // Nested in parent
+        for (let comp of comps) {
+          if (comp.id === parentId && comp.children) {
+            const index = comp.children.findIndex(c => c.id === id);
+            if (index !== -1) {
+              draggedComponent = comp.children.splice(index, 1)[0];
+              return true;
+            }
+          }
+          if (comp.children && removeComponent(comp.children, id, parentId)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+    
+    removeComponent(updatedComponents, draggedItem.id, draggedItem.parentId);
+    
+    if (!draggedComponent) {
+      console.error('Could not find dragged component');
+      setDraggedItem(null);
+      setDragOverItem(null);
+      return;
+    }
+    
+    // Insert at new position
+    const insertComponent = (comps, targetId, targetParent, draggedComp) => {
+      if (targetParent === null) {
+        // Root level insertion
+        const targetIndex = comps.findIndex(c => c.id === targetId);
+        if (targetIndex !== -1) {
+          comps.splice(targetIndex, 0, draggedComp);
+          return true;
+        }
+      } else {
+        // Nested insertion
+        for (let comp of comps) {
+          if (comp.id === targetParent && comp.children) {
+            const targetIndex = comp.children.findIndex(c => c.id === targetId);
+            if (targetIndex !== -1) {
+              comp.children.splice(targetIndex, 0, draggedComp);
+              return true;
+            }
+          }
+          if (comp.children && insertComponent(comp.children, targetId, targetParent, draggedComp)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+    
+    const inserted = insertComponent(updatedComponents, targetComponentId, targetParentId, draggedComponent);
+    
+    if (!inserted) {
+      console.error('Could not insert component at target position');
+      // Revert - add back to original position
+      if (draggedItem.parentId === null) {
+        updatedComponents.push(draggedComponent);
+      }
+      setDraggedItem(null);
+      setDragOverItem(null);
+      return;
+    }
+    
+    // Update sortOrder for all siblings
+    const updateSortOrders = (comps) => {
+      comps.forEach((comp, index) => {
+        comp.sortOrder = index;
+        if (comp.children) {
+          updateSortOrders(comp.children);
+        }
+      });
+    };
+    updateSortOrders(updatedComponents);
+    
+    // Update state
+    setFrameCanvasComponents(prev => ({
+      ...prev,
+      [currentFrame]: updatedComponents
+    }));
+    
+    pushHistory(currentFrame, updatedComponents, actionTypes.MOVE, {
+      componentName: draggedComponent.name,
+      componentId: draggedComponent.id,
+      fromParent: draggedItem.parentId || 'root',
+      toParent: targetParentId || 'root',
+      targetComponent: targetComponentId
+    });
+    
+    generateCode(updatedComponents);
+    
+    // Cleanup
+    setDraggedItem(null);
+    setDragOverItem(null);
+    setDragOverContainer(null);
+    
+    console.log('Reorder completed successfully');
+    
+  }, [draggedItem, canvasComponents, currentFrame, pushHistory, actionTypes, generateCode]);
+  
+  // Handler: Drag end (cleanup)
+  const handleReorderDragEnd = useCallback((e) => {
+    e.target.classList.remove('dragging');
+    setDraggedItem(null);
+    setDragOverItem(null);
+    setDragOverContainer(null);
+  }, []);
+  
+  
+  
+  
+  
 
   
   
@@ -308,45 +558,49 @@ useEffect(() => {
   
  
   
+   // MODIFY your frame data initialization to be more robust
   useEffect(() => {
-      console.log('ForgePage: Frame props changed:', { 
-          frameId, 
-          frameUuid: frame?.uuid, 
-          hasCanvasData: !!frame?.canvas_data,
-          componentCount: frame?.canvas_data?.components?.length || 0
-      });
+    console.log('ForgePage: Frame props changed:', { 
+      frameId, 
+      frameUuid: frame?.uuid, 
+      hasCanvasData: !!frame?.canvas_data,
+      componentCount: frame?.canvas_data?.components?.length || 0
+    });
+    
+    const currentFrameId = frameId || frame?.uuid;
+    
+    if (!currentFrameId) {
+      console.warn('ForgePage: No frame ID available');
+      return;
+    }
+    
+    if (currentFrameId !== currentFrame) {
+      console.log('ForgePage: Updating current frame from', currentFrame, 'to', currentFrameId);
+      setCurrentFrame(currentFrameId);
+      setSelectedComponent(null);
       
-      const currentFrameId = frameId || frame?.uuid;
-      
-      if (currentFrameId && currentFrameId !== currentFrame) {
-          console.log('ForgePage: Updating current frame from', currentFrame, 'to', currentFrameId);
-          setCurrentFrame(currentFrameId);
-          
-          // Clear previous selection
-          setSelectedComponent(null);
-          
-          // Load frame data if available from backend
-          if (frame?.canvas_data?.components && Array.isArray(frame.canvas_data.components)) {
-              console.log('ForgePage: Loading frame components from backend:', frame.canvas_data.components);
-              setFrameCanvasComponents(prev => ({
-                  ...prev,
-                  [currentFrameId]: frame.canvas_data.components
-              }));
-              
-              // Generate code for loaded components
-              if (frame.canvas_data.components.length > 0) {
-                  generateCode(frame.canvas_data.components);
-              }
-          } else if (!frameCanvasComponents[currentFrameId]) {
-              // Only initialize empty if we don't already have data for this frame
-              console.log('ForgePage: No backend data and no cached data, initializing empty');
-              setFrameCanvasComponents(prev => ({
-                  ...prev,
-                  [currentFrameId]: []
-              }));
-          }
+      // CRITICAL: Always initialize frame data to prevent blank state
+      if (frame?.canvas_data?.components && Array.isArray(frame.canvas_data.components)) {
+        console.log('ForgePage: Loading frame components from backend:', frame.canvas_data.components.length);
+        setFrameCanvasComponents(prev => ({
+          ...prev,
+          [currentFrameId]: frame.canvas_data.components
+        }));
+        
+        if (frame.canvas_data.components.length > 0) {
+          generateCode(frame.canvas_data.components);
+        }
+      } else {
+        // Initialize empty array to prevent undefined errors
+        console.log('ForgePage: Initializing empty frame data');
+        setFrameCanvasComponents(prev => ({
+          ...prev,
+          [currentFrameId]: []
+        }));
+        generateCode([]);
       }
-  }, [frameId, frame?.uuid, frame?.canvas_data?.components, currentFrame]);
+    }
+  }, [frameId, frame?.uuid, frame?.canvas_data, currentFrame]);
   
 
 
@@ -782,6 +1036,7 @@ const handleAssetDrop = useCallback((e) => {
   }, []);
 
 
+    // MODIFY your handleCanvasDrop to use the fixed version with error handling:
   const handleCanvasDrop = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -807,17 +1062,21 @@ const handleAssetDrop = useCallback((e) => {
       // Find target container by walking up the DOM
       let targetId = null;
       let element = e.target;
+      let searchDepth = 0;
+      const MAX_SEARCH_DEPTH = 20;
       
-      while (element && element !== canvasRef.current) {
+      while (element && element !== canvasRef.current && searchDepth < MAX_SEARCH_DEPTH) {
         const compId = element.getAttribute('data-component-id');
         const isLayoutAttr = element.getAttribute('data-is-layout');
         
         if (compId && isLayoutAttr === 'true') {
           targetId = compId;
+          console.log(`Found target container: ${targetId} at depth ${searchDepth}`);
           break;
         }
         
         element = element.parentElement;
+        searchDepth++;
       }
   
       let componentDef = componentLibraryService?.getComponentDefinition(componentType);
@@ -842,43 +1101,50 @@ const handleAssetDrop = useCallback((e) => {
       let updatedComponents;
       
       if (targetId) {
-        // CRITICAL FIX: Deep clone array before mutation
+        // Deep clone to prevent mutation issues
         updatedComponents = JSON.parse(JSON.stringify(canvasComponents));
         
-        // Find and update target recursively
-        const findAndAddChild = (comps, targetId, newChild) => {
-          for (let i = 0; i < comps.length; i++) {
-            if (comps[i].id === targetId) {
-              if (!comps[i].children) comps[i].children = [];
-              comps[i].children.push(newChild);
-              return true;
-            }
-            
-            if (comps[i].children && comps[i].children.length > 0) {
-              if (findAndAddChild(comps[i].children, targetId, newChild)) {
-                return true;
-              }
-            }
+        // Use fixed addChildToContainer with depth tracking
+        updatedComponents = addChildToContainer(updatedComponents, targetId, newComponent, 0);
+        
+        // Verify the update worked
+        const verifyComponent = (comps, id) => {
+          for (const comp of comps) {
+            if (comp.children?.some(child => child.id === id)) return true;
+            if (comp.children && verifyComponent(comp.children, id)) return true;
           }
           return false;
         };
         
-        const found = findAndAddChild(updatedComponents, targetId, newComponent);
+        const wasAdded = verifyComponent(updatedComponents, newComponent.id);
         
-        if (!found) {
-          console.error('Target container not found:', targetId);
-          return;
+        if (!wasAdded) {
+          console.error('Failed to add component to container, adding to root instead');
+          updatedComponents = [...canvasComponents, newComponent];
         }
+        
       } else if (canvasComponents.length === 0 && !isLayout) {
         // Wrap non-layout in section
-        const baseSection = componentLibraryService.createLayoutElement('section');
+        const baseSection = componentLibraryService?.createLayoutElement('section') || {
+          id: `section_${Date.now()}`,
+          type: 'section',
+          props: {},
+          children: [],
+          isLayoutContainer: true
+        };
         baseSection.children = [newComponent];
         updatedComponents = [baseSection];
       } else {
         updatedComponents = [...canvasComponents, newComponent];
       }
       
-      // CRITICAL: Force new state reference
+      // CRITICAL: Validate updated components before setting state
+      if (!Array.isArray(updatedComponents)) {
+        console.error('Invalid components array, reverting');
+        return;
+      }
+      
+      // Force new state reference
       setFrameCanvasComponents(() => ({
         [currentFrame]: updatedComponents
       }));
@@ -895,8 +1161,14 @@ const handleAssetDrop = useCallback((e) => {
       generateCode(updatedComponents);
       
     } catch (error) {
-      console.error('Drop error:', error);
+      console.error('❌ CRITICAL Drop error:', error);
+      console.error('Error stack:', error.stack);
+      
+      // Don't let the error crash the page
       handleComponentDragEnd();
+      
+      // Show user-friendly error
+      alert('Failed to drop component. Please try again or check console for details.');
     }
   }, [canvasComponents, currentFrame, componentLibraryService, pushHistory, actionTypes, generateCode]);
   
@@ -943,9 +1215,16 @@ const findDropTarget = (components, dropX, dropY, canvasRect) => {
              point.y >= bounds.y && point.y <= bounds.y + bounds.height;
   };
   
-// Helper: Recursively add child to container
-const addChildToContainer = (components, containerId, newChild) => {
-  console.log('addChildToContainer called:', { 
+// REPLACE your existing addChildToContainer with this fixed version:
+const addChildToContainer = (components, containerId, newChild, depth = 0) => {
+  // Prevent infinite recursion
+  const MAX_DEPTH = 10;
+  if (depth > MAX_DEPTH) {
+    console.error('❌ Maximum nesting depth exceeded:', depth);
+    return components;
+  }
+  
+  console.log(`addChildToContainer (depth ${depth}):`, { 
     containerId, 
     newChildId: newChild.id,
     componentsCount: components.length 
@@ -953,28 +1232,51 @@ const addChildToContainer = (components, containerId, newChild) => {
   
   let found = false;
   
-  const recursiveAdd = (comps) => {
+  const recursiveAdd = (comps, currentDepth) => {
+    if (currentDepth > MAX_DEPTH) {
+      console.error('Recursion depth exceeded in recursiveAdd');
+      return comps;
+    }
+    
     return comps.map(comp => {
+      // Prevent circular references
+      if (comp.id === newChild.id) {
+        console.warn('⚠️ Attempted to add component as its own child, skipping');
+        return comp;
+      }
+      
       // Direct match
       if (comp.id === containerId) {
         console.log('✅ FOUND direct match:', comp.id);
         found = true;
+        
+        // Ensure children array exists
+        const existingChildren = Array.isArray(comp.children) ? comp.children : [];
+        
+        // Prevent duplicate children
+        if (existingChildren.some(child => child.id === newChild.id)) {
+          console.warn('⚠️ Child already exists in container, skipping');
+          return comp;
+        }
+        
         return {
           ...comp,
-          children: [...(comp.children || []), {
+          children: [...existingChildren, {
             ...newChild,
-            sortOrder: (comp.children || []).length
+            sortOrder: existingChildren.length,
+            // Add parent reference for easier traversal
+            parentId: comp.id
           }]
         };
       }
       
       // Recursive check in children
-      if (comp.children && comp.children.length > 0) {
-        const updatedChildren = recursiveAdd(comp.children);
+      if (comp.children && Array.isArray(comp.children) && comp.children.length > 0) {
+        const updatedChildren = recursiveAdd(comp.children, currentDepth + 1);
         
-        // Check if children were actually modified
+        // Only update if children were actually modified
         if (found) {
-          console.log('✅ Found in children of:', comp.id);
+          console.log(`✅ Found in children of: ${comp.id} (depth ${currentDepth})`);
           return {
             ...comp,
             children: updatedChildren
@@ -986,20 +1288,15 @@ const addChildToContainer = (components, containerId, newChild) => {
     });
   };
   
-  const result = recursiveAdd(components);
-  
-  console.log('addChildToContainer result:', { 
-    found, 
-    resultLength: result.length,
-    originalLength: components.length
-  });
+  const result = recursiveAdd(components, depth);
   
   if (!found) {
     console.error('❌ Target container not found:', containerId);
     console.error('Available containers:', components.map(c => ({
       id: c.id,
       name: c.name,
-      hasChildren: !!c.children?.length
+      hasChildren: !!c.children?.length,
+      childrenIds: c.children?.map(ch => ch.id)
     })));
   }
   
@@ -1436,6 +1733,68 @@ const handleUndo = useCallback(async () => {
       [codeType]: newCode
     }))
   }, [])
+  
+  
+  
+  
+  // ADD cleanup effect when unmounting or changing frames
+useEffect(() => {
+  return () => {
+    // Cleanup function when component unmounts
+    console.log('ForgePage: Cleaning up before unmount/navigation');
+    
+    // Don't clear critical state, but ensure saves are complete
+    if (componentLibraryService?.flushPendingSaves) {
+      componentLibraryService.flushPendingSaves();
+    }
+  };
+}, []);
+
+
+// REPLACE WITH THIS (adds Echo cleanup):
+useEffect(() => {
+  const handleInertiaStart = () => {
+    console.log('ForgePage: Navigation starting, preparing to unmount...');
+    setIsFrameSwitching(true);
+    
+    // ✅ ADD THIS: Cleanup Echo channels before navigation
+    if (currentFrame) {
+      safeLeaveChannel(`presence-frame.${currentFrame}`);
+      safeLeaveChannel(`frame-lock.${currentFrame}`);
+    }
+  };
+  
+  const handleInertiaFinish = () => {
+    console.log('ForgePage: Navigation finished');
+    setIsFrameSwitching(false);
+  };
+  
+  router.on('start', handleInertiaStart);
+  router.on('finish', handleInertiaFinish);
+  
+  return () => {
+    console.log('ForgePage: Removing Inertia listeners');
+    router.off('start', handleInertiaStart);
+    router.off('finish', handleInertiaFinish);
+    
+    // ✅ ADD THIS: Final cleanup
+    if (currentFrame) {
+      safeLeaveChannel(`presence-frame.${currentFrame}`);
+      safeLeaveChannel(`frame-lock.${currentFrame}`);
+    }
+  };
+}, [currentFrame]);  // ✅ ADD currentFrame to dependencies
+
+
+
+
+
+  
+  
+  
+  
+  
+  
 
   const handleCanvasClick = useCallback((e) => {
   // Check if we clicked directly on the canvas (not a component)
@@ -1739,6 +2098,7 @@ const handleUndo = useCallback(async () => {
   // Show loading state while components are loading
   if (!componentsLoaded && loadingMessage) {
     return (
+      <ErrorBoundary>
       <AuthenticatedLayout
         headerProps={{
           onPanelToggle: handlePanelToggle,
@@ -1763,10 +2123,12 @@ const handleUndo = useCallback(async () => {
           </div>
         </div>
       </AuthenticatedLayout>
+      </ErrorBoundary>
     );
   }
 
   return (
+    <ErrorBoundary>
     <AuthenticatedLayout
       headerProps={{
         onPanelToggle: handlePanelToggle,
@@ -1891,6 +2253,12 @@ const handleUndo = useCallback(async () => {
                           gridVisible={gridVisible}
                           projectId={projectId}  // ADD
                           setFrameCanvasComponents={setFrameCanvasComponents}  // ADD
+                          onReorderDragStart={handleReorderDragStart}
+                          onReorderDragOver={handleReorderDragOver}
+                          onReorderDrop={handleReorderDrop}
+                          onReorderDragEnd={handleReorderDragEnd}
+                          draggedItem={draggedItem}
+                          dragOverItem={dragOverItem}
                       />
                     )}
                 </div>
@@ -2219,5 +2587,6 @@ const handleUndo = useCallback(async () => {
         `}</style>
       )}
     </AuthenticatedLayout>
+    </ErrorBoundary>
   );
 }

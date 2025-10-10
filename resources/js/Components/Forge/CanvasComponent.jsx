@@ -14,6 +14,8 @@ import DraggableComponent from './DraggableComponent';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore';
 
+import { Draggable } from 'react-beautiful-dnd';
+
 const CanvasComponent = ({
   canvasRef,
   canvasComponents,
@@ -35,7 +37,13 @@ const CanvasComponent = ({
   zoomLevel,
   gridVisible,
   projectId,  // ADD THIS
-  setFrameCanvasComponents  // ADD THIS
+  setFrameCanvasComponents, // ADD THIS
+  onReorderDragStart,
+  onReorderDragOver,
+  onReorderDrop,
+  onReorderDragEnd,
+  draggedItem,
+  dragOverItem,
 }) => {
   // Get responsive state from EditorStore
   const {
@@ -213,248 +221,377 @@ const CanvasComponent = ({
 }, [canvasComponents, currentFrame, pushHistory, actionTypes, setFrameCanvasComponents, componentLibraryService, projectId]);
 
 
-// REPLACE the renderComponent function
-   const renderComponent = useCallback((component, index, parentStyle = {}, depth = 0) => {
-    const isSelected = selectedComponent === component.id;
-    const isLayout = component.isLayoutContainer || 
-                     ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
-    
-    // Safety check
-    if (depth > 20) {
-      console.warn('Maximum nesting depth reached:', component.id);
-      return null;
-    }
-    
-    const componentStyles = {
-      display: component.style?.display || (isLayout ? 'block' : 'inline-block'),
-      flexDirection: component.style?.flexDirection,
-      justifyContent: component.style?.justifyContent,
-      alignItems: component.style?.alignItems,
-      gap: component.style?.gap,
-      width: component.style?.width || (isLayout ? '100%' : 'auto'),
-      minHeight: component.style?.minHeight || (isLayout ? '100px' : 'auto'),
-      padding: component.style?.padding || (isLayout ? '24px' : '0'),
-      backgroundColor: component.style?.backgroundColor || 'transparent',
-      ...component.style
-    };
+
+
+
+  // REPLACE your handleNestedDragEnd function with this FIXED version:
+const handleNestedDragEnd = useCallback((result, containerId = 'root') => {
+  console.log('Nested drag end:', result, 'in container:', containerId);
   
-    // LAYOUT CONTAINER RENDERING
-    if (isLayout) {
-      return (
-        <div
-          key={component.id}
-          data-component-id={component.id}
-          data-depth={depth}
-          data-is-layout="true"
-          className={`relative group layout-container ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
-          style={componentStyles}
-          onClick={(e) => {
-            e.stopPropagation();
-            onComponentClick(component.id, e);
-          }}
-        >
-          {/* CRITICAL: Render children directly */}
-          {component.children && component.children.length > 0 ? (
-            <div className="space-y-2">
-              {component.children.map((child, childIndex) => {
-                // CRITICAL: Recursive render with depth tracking
-                return renderComponent(child, childIndex, componentStyles, depth + 1);
-              })}
-            </div>
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
-              <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
-                Drop here • {component.type}
-              </div>
-            </div>
-          )}
-          
-          {/* Selection indicator */}
-          {isSelected && (
-            <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
-              {component.name} • {component.children?.length || 0} children • Depth {depth}
-            </div>
-          )}
-        </div>
-      );
-    }
-    
-    // NON-LAYOUT COMPONENT RENDERING
-    const componentRenderer = componentLibraryService?.getComponent(component.type);
-    let renderedContent = null;
-    
-    if (componentRenderer?.render) {
-      try {
-        const mergedProps = {
-          ...component.props,
-          style: component.style
-        };
-        renderedContent = componentRenderer.render(mergedProps, component.id);
-      } catch (error) {
-        console.warn('Render error:', error);
-        renderedContent = <div className="p-2 border rounded">{component.name}</div>;
-      }
-    }
-    
-    return (
-      <div
-        key={component.id}
-        data-component-id={component.id}
-        data-depth={depth}
-        data-is-layout="false"
-        className={`relative ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
-        style={componentStyles}
-        onClick={(e) => {
-          e.stopPropagation();
-          onComponentClick(component.id, e);
-        }}
-      >
-        {renderedContent}
-        
-        {isSelected && (
-          <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
-            {component.name} • Depth {depth}
-          </div>
-        )}
-      </div>
-    );
-  }, [componentLibraryService, selectedComponent, onComponentClick]);
+  if (!result.destination) {
+    console.log('No destination, drag cancelled');
+    return;
+  }
   
-  // ADD: Helper method to handle drag end for nested components
-  const handleNestedDragEnd = useCallback((result) => {
-    if (!result.destination) return;
+  const { source, destination, draggableId } = result;
+  
+  // Extract container IDs
+  const sourceContainerId = source.droppableId === 'canvas-root' 
+    ? null 
+    : source.droppableId.replace('container-', '');
     
-    const { source, destination, draggableId } = result;
+  const destContainerId = destination.droppableId === 'canvas-root' 
+    ? null 
+    : destination.droppableId.replace('container-', '');
+  
+  console.log('Source container:', sourceContainerId, 'Dest container:', destContainerId);
+  
+  // Deep clone components
+  let updatedComponents = JSON.parse(JSON.stringify(canvasComponents));
+  
+  // Same container reorder
+  if (sourceContainerId === destContainerId) {
+    console.log('Reordering within same container');
     
-    // Extract container IDs from droppableId
-    const sourceContainerId = source.droppableId.replace('container-', '');
-    const destContainerId = destination.droppableId.replace('container-', '');
-    
-    // If moving within the same container
-    if (sourceContainerId === destContainerId) {
-      const updatedComponents = reorderWithinContainer(
-        canvasComponents, 
+    if (sourceContainerId === null) {
+      // Root level reorder
+      const [moved] = updatedComponents.splice(source.index, 1);
+      updatedComponents.splice(destination.index, 0, moved);
+    } else {
+      // Nested reorder
+      updatedComponents = reorderWithinContainer(
+        updatedComponents, 
         sourceContainerId, 
         source.index, 
         destination.index
       );
-      
-      setFrameCanvasComponents(prev => ({
-        ...prev,
-        [currentFrame]: updatedComponents
-      }));
-      
-      pushHistory(currentFrame, updatedComponents, actionTypes.MOVE, {
-        componentId: draggableId,
-        action: 'reorder_nested',
-        fromIndex: source.index,
-        toIndex: destination.index,
-        containerId: sourceContainerId
-      });
     }
-    // If moving between containers
-    else {
-      const updatedComponents = moveBetweenContainers(
-        canvasComponents,
-        draggableId,
-        sourceContainerId,
-        destContainerId,
-        source.index,
-        destination.index
-      );
-      
-      setFrameCanvasComponents(prev => ({
-        ...prev,
-        [currentFrame]: updatedComponents
-      }));
-      
-      pushHistory(currentFrame, updatedComponents, actionTypes.MOVE, {
-        componentId: draggableId,
-        action: 'move_between_containers',
-        fromContainer: sourceContainerId,
-        toContainer: destContainerId
-      });
-    }
-    
-    // Auto-save
-    setTimeout(() => {
-      if (componentLibraryService?.saveProjectComponents) {
-        componentLibraryService.saveProjectComponents(projectId, currentFrame, canvasComponents);
-      }
-    }, 500);
-  }, [canvasComponents, currentFrame, pushHistory, actionTypes, componentLibraryService, projectId]);
+  } 
+  // Move between containers
+  else {
+    console.log('Moving between containers');
+    updatedComponents = moveBetweenContainers(
+      updatedComponents,
+      draggableId,
+      sourceContainerId,
+      destContainerId,
+      source.index,
+      destination.index
+    );
+  }
   
-  // Helper: Reorder components within a container
-  const reorderWithinContainer = (components, containerId, sourceIndex, destIndex) => {
-    return components.map(comp => {
-      if (comp.id === containerId) {
-        const children = Array.from(comp.children || []);
-        const [moved] = children.splice(sourceIndex, 1);
-        children.splice(destIndex, 0, moved);
-        
-        return {
-          ...comp,
-          children: children.map((child, idx) => ({
-            ...child,
-            sortOrder: idx
-          }))
-        };
+  // Update sortOrder
+  const updateSortOrders = (comps) => {
+    comps.forEach((comp, index) => {
+      comp.sortOrder = index;
+      comp.zIndex = index;
+      if (comp.children) {
+        updateSortOrders(comp.children);
       }
-      
-      if (comp.children?.length > 0) {
-        return {
-          ...comp,
-          children: reorderWithinContainer(comp.children, containerId, sourceIndex, destIndex)
-        };
-      }
-      
-      return comp;
     });
   };
+  updateSortOrders(updatedComponents);
   
-  // Helper: Move component between containers
+  // Update state
+  setFrameCanvasComponents(prev => ({
+    ...prev,
+    [currentFrame]: updatedComponents
+  }));
+  
+  // Push to history
+  if (pushHistory && actionTypes) {
+    pushHistory(currentFrame, updatedComponents, actionTypes.MOVE, {
+      componentId: draggableId,
+      action: sourceContainerId === destContainerId ? 'reorder' : 'move_container',
+      fromContainer: sourceContainerId || 'root',
+      toContainer: destContainerId || 'root',
+      fromIndex: source.index,
+      toIndex: destination.index
+    });
+  }
+  
+  // Auto-save
+  setTimeout(() => {
+    if (componentLibraryService?.saveProjectComponents) {
+      componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedComponents);
+    }
+  }, 500);
+  
+  console.log('Drag end completed, updated components:', updatedComponents.length);
+  
+}, [canvasComponents, currentFrame, pushHistory, actionTypes, componentLibraryService, projectId, setFrameCanvasComponents]);
+
+
+
+
+
+const renderComponent = useCallback((component, index, parentStyle = {}, depth = 0, parentId = null) => {
+  const isSelected = selectedComponent === component.id;
+  const isLayout = component.isLayoutContainer || 
+                   ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
+  
+  // Safety check
+  if (depth > 20) {
+    console.warn('Maximum nesting depth reached:', component.id);
+    return null;
+  }
+  
+  const componentStyles = {
+    display: component.style?.display || (isLayout ? 'block' : 'inline-block'),
+    flexDirection: component.style?.flexDirection,
+    justifyContent: component.style?.justifyContent,
+    alignItems: component.style?.alignItems,
+    gap: component.style?.gap,
+    width: component.style?.width || (isLayout ? '100%' : 'auto'),
+    minHeight: component.style?.minHeight || (isLayout ? '100px' : 'auto'),
+    padding: component.style?.padding || (isLayout ? '24px' : '0'),
+    backgroundColor: component.style?.backgroundColor || 'transparent',
+    ...component.style
+  };
+
+  // LAYOUT CONTAINER RENDERING with nested DragDropContext
+  if (isLayout) {
+    return (
+      <Draggable 
+        key={component.id} 
+        draggableId={component.id} 
+        index={index}
+      >
+        {(provided, snapshot) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            data-component-id={component.id}
+            data-depth={depth}
+            data-is-layout="true"
+            data-parent-id={parentId || 'root'}
+            className={`
+              relative group layout-container 
+              ${isSelected ? 'ring-2 ring-blue-500' : ''}
+              ${snapshot.isDragging ? 'opacity-50 shadow-2xl z-50' : ''}
+              ${draggedItem?.id === component.id ? 'ring-2 ring-dashed ring-purple-500' : ''}
+            `}
+            style={{
+              ...componentStyles,
+              transition: 'all 0.2s ease'
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onComponentClick(component.id, e);
+            }}
+          >
+            {/* Drag Handle - CRITICAL for dragging */}
+            <div 
+              {...provided.dragHandleProps}
+              className="absolute -left-6 top-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing z-50"
+            >
+              <GripVertical className="w-4 h-4 text-gray-400 hover:text-blue-500" />
+            </div>
+            
+            {/* CRITICAL: Nested Droppable for children */}
+            {component.children && component.children.length > 0 ? (
+              <DragDropContext onDragEnd={(result) => handleNestedDragEnd(result, component.id)}>
+                <Droppable droppableId={`container-${component.id}`} type={`depth-${depth + 1}`}>
+                  {(provided, snapshot) => (
+                    <div 
+                      {...provided.droppableProps}
+                      ref={provided.innerRef}
+                      className={`space-y-2 ${snapshot.isDraggingOver ? 'bg-blue-50 ring-2 ring-blue-300' : ''}`}
+                      style={{ minHeight: '50px' }}
+                    >
+                      {component.children.map((child, childIndex) => 
+                        renderComponent(child, childIndex, componentStyles, depth + 1, component.id)
+                      )}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
+                <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
+                  Drop here • {component.type}
+                </div>
+              </div>
+            )}
+            
+            {/* Selection indicator */}
+            {isSelected && (
+              <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
+                {component.name} • {component.children?.length || 0} children • Depth {depth}
+              </div>
+            )}
+          </div>
+        )}
+      </Draggable>
+    );
+  }
+  
+  // NON-LAYOUT COMPONENT RENDERING
+  return (
+    <Draggable 
+      key={component.id} 
+      draggableId={component.id} 
+      index={index}
+    >
+      {(provided, snapshot) => {
+        const componentRenderer = componentLibraryService?.getComponent(component.type);
+        let renderedContent = null;
+        
+        if (componentRenderer?.render) {
+          try {
+            const mergedProps = {
+              ...component.props,
+              style: component.style
+            };
+            renderedContent = componentRenderer.render(mergedProps, component.id);
+          } catch (error) {
+            console.warn('Render error:', error);
+            renderedContent = <div className="p-2 border rounded">{component.name}</div>;
+          }
+        }
+        
+        return (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            {...provided.dragHandleProps}
+            data-component-id={component.id}
+            data-depth={depth}
+            data-is-layout="false"
+            data-parent-id={parentId || 'root'}
+            className={`
+              relative 
+              ${isSelected ? 'ring-2 ring-blue-500' : ''}
+              ${snapshot.isDragging ? 'opacity-50 shadow-xl z-50' : ''}
+            `}
+            style={{
+              ...componentStyles,
+              ...provided.draggableProps.style,
+              transition: 'all 0.2s ease'
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onComponentClick(component.id, e);
+            }}
+          >
+            {renderedContent}
+            
+            {isSelected && (
+              <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
+                {component.name} • Depth {depth}
+              </div>
+            )}
+          </div>
+        );
+      }}
+    </Draggable>
+  );
+}, [componentLibraryService, selectedComponent, onComponentClick, draggedItem, handleNestedDragEnd]);
+  
+
+  
+    // FIXED reorderWithinContainer helper
+  const reorderWithinContainer = (components, containerId, sourceIndex, destIndex) => {
+    console.log('Reordering in container:', containerId, 'from', sourceIndex, 'to', destIndex);
+    
+    const reorder = (comps) => {
+      return comps.map(comp => {
+        if (comp.id === containerId) {
+          const children = Array.from(comp.children || []);
+          const [moved] = children.splice(sourceIndex, 1);
+          children.splice(destIndex, 0, moved);
+          
+          console.log('Reordered children:', children.map(c => c.id));
+          
+          return {
+            ...comp,
+            children: children.map((child, idx) => ({
+              ...child,
+              sortOrder: idx,
+              zIndex: idx
+            }))
+          };
+        }
+        
+        if (comp.children?.length > 0) {
+          return {
+            ...comp,
+            children: reorder(comp.children)
+          };
+        }
+        
+        return comp;
+      });
+    };
+    
+    return reorder(components);
+  };
+  
+  
+  
+  
   const moveBetweenContainers = (components, componentId, sourceContainerId, destContainerId, sourceIndex, destIndex) => {
+    console.log('Moving between containers:', { componentId, sourceContainerId, destContainerId });
+    
     let movedComponent = null;
     
-    // First pass: Remove from source
-    const withoutMoved = components.map(comp => {
-      if (comp.id === sourceContainerId) {
-        const children = Array.from(comp.children || []);
-        [movedComponent] = children.splice(sourceIndex, 1);
-        return { ...comp, children };
+    // Remove from source
+    const removeFromSource = (comps) => {
+      if (sourceContainerId === null) {
+        // Remove from root
+        [movedComponent] = comps.splice(sourceIndex, 1);
+        return comps;
       }
       
-      if (comp.children?.length > 0) {
-        const result = moveBetweenContainers(comp.children, componentId, sourceContainerId, destContainerId, sourceIndex, destIndex);
-        if (result.moved) {
-          movedComponent = result.moved;
-          return { ...comp, children: result.components };
+      return comps.map(comp => {
+        if (comp.id === sourceContainerId) {
+          const children = Array.from(comp.children || []);
+          [movedComponent] = children.splice(sourceIndex, 1);
+          return { ...comp, children };
         }
-        return { ...comp, children: result.components || comp.children };
-      }
-      
-      return comp;
-    });
+        
+        if (comp.children?.length > 0) {
+          return { ...comp, children: removeFromSource(comp.children) };
+        }
+        
+        return comp;
+      });
+    };
     
-    // Second pass: Add to destination
-    const withMoved = withoutMoved.map(comp => {
-      if (comp.id === destContainerId && movedComponent) {
-        const children = Array.from(comp.children || []);
-        children.splice(destIndex, 0, movedComponent);
-        return { ...comp, children };
-      }
-      
-      if (comp.children?.length > 0) {
-        return {
-          ...comp,
-          children: moveBetweenContainers(comp.children, componentId, sourceContainerId, destContainerId, sourceIndex, destIndex).components
-        };
-      }
-      
-      return comp;
-    });
+    let withoutMoved = removeFromSource(components);
     
-    return { components: withMoved, moved: movedComponent };
+    if (!movedComponent) {
+      console.error('Could not find component to move:', componentId);
+      return components;
+    }
+    
+    console.log('Moved component:', movedComponent.id);
+    
+    // Add to destination
+    const addToDestination = (comps) => {
+      if (destContainerId === null) {
+        // Add to root
+        comps.splice(destIndex, 0, movedComponent);
+        return comps;
+      }
+      
+      return comps.map(comp => {
+        if (comp.id === destContainerId) {
+          const children = Array.from(comp.children || []);
+          children.splice(destIndex, 0, movedComponent);
+          return { ...comp, children };
+        }
+        
+        if (comp.children?.length > 0) {
+          return { ...comp, children: addToDestination(comp.children) };
+        }
+        
+        return comp;
+      });
+    };
+    
+    return addToDestination(withoutMoved);
   };
 
   // Helper functions for default styling

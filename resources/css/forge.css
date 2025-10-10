@@ -519,3 +519,15 @@ input:hover, textarea:hover, select:hover {
 .long-press-active {
   animation: longPressGlow 1.5s ease-in-out infinite;
 }
+
+
+
+
+.dragging {
+  opacity: 0.5;
+  border: 2px dashed var(--color-primary);
+}
+
+.drag-over {
+  border-top: 3px solid var(--color-primary);
+}
