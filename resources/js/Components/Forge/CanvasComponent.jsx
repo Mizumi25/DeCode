@@ -1,5 +1,5 @@
 // @/Components/Forge/CanvasComponent.jsx - Enhanced for True Responsive Canvas Sizing
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Square, Sparkles, Monitor, Tablet, Smartphone, Move, RotateCcw, GripVertical } from 'lucide-react';
 
@@ -8,13 +8,24 @@ import EmptyCanvasState from './EmptyCanvasState';
 import SelectionOverlay from './SelectionOverlay';
 import DragSnapLines from './DragSnapLines';
 
-import { DragDropContext, Droppable } from 'react-beautiful-dnd';
-import DraggableComponent from './DraggableComponent';
-
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore';
 
-import { Draggable } from 'react-beautiful-dnd';
+import { 
+  DndContext, 
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragOverlay
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const CanvasComponent = ({
   canvasRef,
@@ -36,14 +47,8 @@ const CanvasComponent = ({
   responsiveMode,
   zoomLevel,
   gridVisible,
-  projectId,  // ADD THIS
-  setFrameCanvasComponents, // ADD THIS
-  onReorderDragStart,
-  onReorderDragOver,
-  onReorderDrop,
-  onReorderDragEnd,
-  draggedItem,
-  dragOverItem,
+  projectId,
+  setFrameCanvasComponents,
 }) => {
   // Get responsive state from EditorStore
   const {
@@ -54,7 +59,6 @@ const CanvasComponent = ({
     getResponsiveGridBackground
   } = useEditorStore();
   
-  
   // Get undo/redo functionality
   const { pushHistory, actionTypes } = useForgeUndoRedoStore();
 
@@ -62,6 +66,10 @@ const CanvasComponent = ({
   const [isDraggingComponent, setIsDraggingComponent] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [resizingComponent, setResizingComponent] = useState(null);
+  
+  const [activeId, setActiveId] = useState(null);
+  const [overId, setOverId] = useState(null);
+  const [draggedComponent, setDraggedComponent] = useState(null);
 
   // Get responsive device info and dimensions
   const deviceInfo = getResponsiveDeviceInfo();
@@ -99,8 +107,38 @@ const CanvasComponent = ({
 
   const canvasSize = getCanvasSize();
   
-  
+  // Configure dnd-kit sensors with better touch response
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 3, // Reduced from 5 for faster response
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 150,        // Reduced delay for faster touch response
+        tolerance: 12,     // Increased tolerance for finger movement
+      },
+    })
+  );
 
+  // Flatten components for reordering
+  const flattenForReorder = useCallback((components, parentId = null) => {
+    let result = [];
+    components.forEach(comp => {
+      result.push({ ...comp, parentId });
+      if (comp.children?.length > 0) {
+        result = result.concat(flattenForReorder(comp.children, comp.id));
+      }
+    });
+    return result;
+  }, []);
+
+  const flatComponents = useMemo(() => 
+    flattenForReorder(canvasComponents), 
+    [canvasComponents, flattenForReorder]
+  );
+  
   // Document flow components (those that should flow naturally)
   const flowComponents = ['div', 'section', 'header', 'main', 'footer', 'nav', 'article', 'aside', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p'];
   
@@ -174,8 +212,7 @@ const CanvasComponent = ({
     document.addEventListener('mouseup', handleMouseUp);
   }, [canvasComponents, dragOffset, onPropertyUpdate, onComponentClick, responsiveMode, canvasSize, currentFrame, pushHistory, actionTypes]);
   
-  
-    // Handle drag-to-reorder
+  // Handle drag-to-reorder
   const handleDragEnd = useCallback((result) => {
     if (!result.destination) return;
     
@@ -218,123 +255,233 @@ const CanvasComponent = ({
         }
     }, 500);
     
-}, [canvasComponents, currentFrame, pushHistory, actionTypes, setFrameCanvasComponents, componentLibraryService, projectId]);
+  }, [canvasComponents, currentFrame, pushHistory, actionTypes, setFrameCanvasComponents, componentLibraryService, projectId]);
 
-
-
-
-
-  // REPLACE your handleNestedDragEnd function with this FIXED version:
-const handleNestedDragEnd = useCallback((result, containerId = 'root') => {
-  console.log('Nested drag end:', result, 'in container:', containerId);
-  
-  if (!result.destination) {
-    console.log('No destination, drag cancelled');
-    return;
-  }
-  
-  const { source, destination, draggableId } = result;
-  
-  // Extract container IDs
-  const sourceContainerId = source.droppableId === 'canvas-root' 
-    ? null 
-    : source.droppableId.replace('container-', '');
+  // FIXED: handleNestedDragEnd function
+  const handleNestedDragEnd = useCallback((result, containerId = 'root') => {
+    console.log('Nested drag end:', result, 'in container:', containerId);
     
-  const destContainerId = destination.droppableId === 'canvas-root' 
-    ? null 
-    : destination.droppableId.replace('container-', '');
-  
-  console.log('Source container:', sourceContainerId, 'Dest container:', destContainerId);
-  
-  // Deep clone components
-  let updatedComponents = JSON.parse(JSON.stringify(canvasComponents));
-  
-  // Same container reorder
-  if (sourceContainerId === destContainerId) {
-    console.log('Reordering within same container');
+    if (!result.destination) {
+      console.log('No destination, drag cancelled');
+      return;
+    }
     
-    if (sourceContainerId === null) {
-      // Root level reorder
-      const [moved] = updatedComponents.splice(source.index, 1);
-      updatedComponents.splice(destination.index, 0, moved);
-    } else {
-      // Nested reorder
-      updatedComponents = reorderWithinContainer(
-        updatedComponents, 
-        sourceContainerId, 
-        source.index, 
+    const { source, destination, draggableId } = result;
+    
+    // Extract container IDs
+    const sourceContainerId = source.droppableId === 'canvas-root' 
+      ? null 
+      : source.droppableId.replace('container-', '');
+      
+    const destContainerId = destination.droppableId === 'canvas-root' 
+      ? null 
+      : destination.droppableId.replace('container-', '');
+    
+    console.log('Source container:', sourceContainerId, 'Dest container:', destContainerId);
+    
+    // Deep clone components
+    let updatedComponents = JSON.parse(JSON.stringify(canvasComponents));
+    
+    // Same container reorder
+    if (sourceContainerId === destContainerId) {
+      console.log('Reordering within same container');
+      
+      if (sourceContainerId === null) {
+        // Root level reorder
+        const [moved] = updatedComponents.splice(source.index, 1);
+        updatedComponents.splice(destination.index, 0, moved);
+      } else {
+        // Nested reorder
+        updatedComponents = reorderWithinContainer(
+          updatedComponents, 
+          sourceContainerId, 
+          source.index, 
+          destination.index
+        );
+      }
+    } 
+    // Move between containers
+    else {
+      console.log('Moving between containers');
+      updatedComponents = moveBetweenContainers(
+        updatedComponents,
+        draggableId,
+        sourceContainerId,
+        destContainerId,
+        source.index,
         destination.index
       );
     }
-  } 
-  // Move between containers
-  else {
-    console.log('Moving between containers');
-    updatedComponents = moveBetweenContainers(
-      updatedComponents,
-      draggableId,
-      sourceContainerId,
-      destContainerId,
-      source.index,
-      destination.index
-    );
-  }
-  
-  // Update sortOrder
-  const updateSortOrders = (comps) => {
-    comps.forEach((comp, index) => {
-      comp.sortOrder = index;
-      comp.zIndex = index;
-      if (comp.children) {
-        updateSortOrders(comp.children);
-      }
-    });
-  };
-  updateSortOrders(updatedComponents);
-  
-  // Update state
-  setFrameCanvasComponents(prev => ({
-    ...prev,
-    [currentFrame]: updatedComponents
-  }));
-  
-  // Push to history
-  if (pushHistory && actionTypes) {
-    pushHistory(currentFrame, updatedComponents, actionTypes.MOVE, {
-      componentId: draggableId,
-      action: sourceContainerId === destContainerId ? 'reorder' : 'move_container',
-      fromContainer: sourceContainerId || 'root',
-      toContainer: destContainerId || 'root',
-      fromIndex: source.index,
-      toIndex: destination.index
-    });
-  }
-  
-  // Auto-save
-  setTimeout(() => {
-    if (componentLibraryService?.saveProjectComponents) {
-      componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedComponents);
+    
+    // Update sortOrder
+    const updateSortOrders = (comps) => {
+      comps.forEach((comp, index) => {
+        comp.sortOrder = index;
+        comp.zIndex = index;
+        if (comp.children) {
+          updateSortOrders(comp.children);
+        }
+      });
+    };
+    updateSortOrders(updatedComponents);
+    
+    // Update state
+    setFrameCanvasComponents(prev => ({
+      ...prev,
+      [currentFrame]: updatedComponents
+    }));
+    
+    // Push to history
+    if (pushHistory && actionTypes) {
+      pushHistory(currentFrame, updatedComponents, actionTypes.MOVE, {
+        componentId: draggableId,
+        action: sourceContainerId === destContainerId ? 'reorder' : 'move_container',
+        fromContainer: sourceContainerId || 'root',
+        toContainer: destContainerId || 'root',
+        fromIndex: source.index,
+        toIndex: destination.index
+      });
     }
-  }, 500);
-  
-  console.log('Drag end completed, updated components:', updatedComponents.length);
-  
-}, [canvasComponents, currentFrame, pushHistory, actionTypes, componentLibraryService, projectId, setFrameCanvasComponents]);
+    
+    // Auto-save
+    setTimeout(() => {
+      if (componentLibraryService?.saveProjectComponents) {
+        componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedComponents);
+      }
+    }, 500);
+    
+    console.log('Drag end completed, updated components:', updatedComponents.length);
+    
+  }, [canvasComponents, currentFrame, pushHistory, actionTypes, componentLibraryService, projectId, setFrameCanvasComponents]);
 
+  const handleDndDragStart = useCallback((event) => {
+    const { active } = event;
+    setActiveId(active.id);
+    
+    const component = flatComponents.find(c => c.id === active.id);
+    setDraggedComponent(component);
+    
+    document.body.classList.add('dragging');
+    
+    console.log('🚀 DRAG STARTED:', active.id, component);
+    console.log('📱 Touch sensors active:', sensors);
+    
+    if ('vibrate' in navigator) {
+      navigator.vibrate(50);
+    }
+  }, [flatComponents, sensors]);
 
+  const handleDndDragOver = useCallback((event) => {
+    const { over } = event;
+    setOverId(over?.id || null);
+  }, []);
 
+  const handleDndDragEnd = useCallback((event) => {
+    const { active, over } = event;
+    
+    setActiveId(null);
+    setOverId(null);
+    setDraggedComponent(null);
 
+    if (!over || active.id === over.id) return;
 
-const renderComponent = useCallback((component, index, parentStyle = {}, depth = 0, parentId = null) => {
+    const oldIndex = flatComponents.findIndex(c => c.id === active.id);
+    const newIndex = flatComponents.findIndex(c => c.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    console.log('Reordering:', active.id, 'from', oldIndex, 'to', newIndex);
+
+    // Array move utility
+    const arrayMove = (array, from, to) => {
+      const newArray = [...array];
+      const [movedItem] = newArray.splice(from, 1);
+      newArray.splice(to, 0, movedItem);
+      return newArray;
+    };
+
+    // Rebuild tree from flat array
+    const rebuildTree = (flatArray) => {
+      const map = new Map();
+      const roots = [];
+
+      flatArray.forEach(item => {
+        map.set(item.id, { ...item, children: [] });
+      });
+
+      flatArray.forEach(item => {
+        const node = map.get(item.id);
+        if (item.parentId && map.has(item.parentId)) {
+          map.get(item.parentId).children.push(node);
+        } else {
+          roots.push(node);
+        }
+      });
+
+      return roots;
+    };
+
+    const reorderedFlat = arrayMove(flatComponents, oldIndex, newIndex);
+    const reorderedTree = rebuildTree(reorderedFlat);
+
+    setFrameCanvasComponents(prev => ({
+      ...prev,
+      [currentFrame]: reorderedTree
+    }));
+
+    if (pushHistory && actionTypes) {
+      pushHistory(currentFrame, reorderedTree, actionTypes.MOVE, {
+        componentId: active.id,
+        fromIndex: oldIndex,
+        toIndex: newIndex
+      });
+    }
+
+    setTimeout(() => {
+      if (componentLibraryService?.saveProjectComponents) {
+        componentLibraryService.saveProjectComponents(projectId, currentFrame, reorderedTree);
+      }
+    }, 500);
+    
+    document.body.classList.remove('dragging');
+
+    if ('vibrate' in navigator) {
+      navigator.vibrate(30);
+    }
+  }, [flatComponents, currentFrame, projectId, componentLibraryService, pushHistory, actionTypes, setFrameCanvasComponents]);
+
+  const handleDndDragCancel = useCallback(() => {
+    setActiveId(null);
+    setOverId(null);
+    setDraggedComponent(null);
+    document.body.classList.remove('dragging');  
+  }, []);
+
+// FIXED renderComponent function - move useSortable outside
+const SortableComponent = ({ component, depth, parentId, index, parentStyle }) => {
   const isSelected = selectedComponent === component.id;
   const isLayout = component.isLayoutContainer || 
                    ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
   
-  // Safety check
-  if (depth > 20) {
-    console.warn('Maximum nesting depth reached:', component.id);
-    return null;
-  }
+  // useSortable must be at the component level, not inside renderComponent callback
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ 
+    id: component.id,
+    data: { component, depth, parentId }
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    zIndex: isDragging ? 9999 : component.zIndex || depth,
+  };
   
   const componentStyles = {
     display: component.style?.display || (isLayout ? 'block' : 'inline-block'),
@@ -346,152 +493,185 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
     minHeight: component.style?.minHeight || (isLayout ? '100px' : 'auto'),
     padding: component.style?.padding || (isLayout ? '24px' : '0'),
     backgroundColor: component.style?.backgroundColor || 'transparent',
-    ...component.style
+    ...component.style,
+    ...style,
   };
 
-  // LAYOUT CONTAINER RENDERING with nested DragDropContext
+  // LAYOUT CONTAINER RENDERING
   if (isLayout) {
     return (
-      <Draggable 
-        key={component.id} 
-        draggableId={component.id} 
-        index={index}
-      >
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.draggableProps}
-            data-component-id={component.id}
-            data-depth={depth}
-            data-is-layout="true"
-            data-parent-id={parentId || 'root'}
-            className={`
-              relative group layout-container 
-              ${isSelected ? 'ring-2 ring-blue-500' : ''}
-              ${snapshot.isDragging ? 'opacity-50 shadow-2xl z-50' : ''}
-              ${draggedItem?.id === component.id ? 'ring-2 ring-dashed ring-purple-500' : ''}
-            `}
-            style={{
-              ...componentStyles,
-              transition: 'all 0.2s ease'
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onComponentClick(component.id, e);
-            }}
+        <div // CHANGE FROM motion.div to regular div
+          key={component.id}
+          ref={setNodeRef}
+          style={{
+            ...componentStyles,
+            touchAction: 'none',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+          }}
+          data-component-id={component.id}
+          data-depth={depth}
+          data-is-layout="true"
+          data-parent-id={parentId || 'root'}
+          className={`
+            relative group layout-container 
+            ${isSelected ? 'ring-2 ring-blue-500' : ''}
+            ${isDragging ? 'opacity-40' : ''}
+            ${overId === component.id ? 'ring-2 ring-green-400' : ''}
+            transition-opacity duration-150 // Simple opacity transition instead of motion
+          `}
+          onClick={(e) => {
+            e.stopPropagation();
+            onComponentClick(component.id, e);
+          }}
+        >
+        {/* Drag Handle - FIXED: Properly attach listeners */}
+        <div 
+          className={`
+            absolute -left-6 top-2 z-50 cursor-grab active:cursor-grabbing
+            transition-opacity
+            ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+          `}
+          style={{
+            touchAction: 'none',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            minWidth: isMobile ? '44px' : 'auto',
+            minHeight: isMobile ? '44px' : 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          {...attributes}
+          {...listeners} // THIS IS CRITICAL - attaches drag events
+        >
+          <div className={`bg-white rounded-full shadow-lg border-2 border-gray-300 ${isMobile ? 'p-2' : 'p-1'}`}>
+            <GripVertical className={`text-gray-600 ${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
+          </div>
+        </div>
+                
+        {/* Nested Sortable Context */}
+        {component.children && component.children.length > 0 ? (
+          <SortableContext 
+            items={component.children.map(c => c.id)}
+            strategy={verticalListSortingStrategy}
           >
-            {/* Drag Handle - CRITICAL for dragging */}
-            <div 
-              {...provided.dragHandleProps}
-              className="absolute -left-6 top-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing z-50"
-            >
-              <GripVertical className="w-4 h-4 text-gray-400 hover:text-blue-500" />
+            <div className="space-y-2">
+              {component.children.map((child, childIndex) => (
+                <SortableComponent
+                  key={child.id}
+                  component={child}
+                  depth={depth + 1}
+                  parentId={component.id}
+                  index={childIndex}
+                  parentStyle={componentStyles}
+                />
+              ))}
             </div>
-            
-            {/* CRITICAL: Nested Droppable for children */}
-            {component.children && component.children.length > 0 ? (
-              <DragDropContext onDragEnd={(result) => handleNestedDragEnd(result, component.id)}>
-                <Droppable droppableId={`container-${component.id}`} type={`depth-${depth + 1}`}>
-                  {(provided, snapshot) => (
-                    <div 
-                      {...provided.droppableProps}
-                      ref={provided.innerRef}
-                      className={`space-y-2 ${snapshot.isDraggingOver ? 'bg-blue-50 ring-2 ring-blue-300' : ''}`}
-                      style={{ minHeight: '50px' }}
-                    >
-                      {component.children.map((child, childIndex) => 
-                        renderComponent(child, childIndex, componentStyles, depth + 1, component.id)
-                      )}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              </DragDropContext>
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
-                <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
-                  Drop here • {component.type}
-                </div>
-              </div>
-            )}
-            
-            {/* Selection indicator */}
-            {isSelected && (
-              <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
-                {component.name} • {component.children?.length || 0} children • Depth {depth}
-              </div>
-            )}
+          </SortableContext>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
+            <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
+              Drop here • {component.type}
+            </div>
           </div>
         )}
-      </Draggable>
+        
+        {isSelected && (
+          <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
+            {component.name} • {component.children?.length || 0} children • Depth {depth}
+          </div>
+        )}
+      </div>
     );
   }
   
-  // NON-LAYOUT COMPONENT RENDERING
+  // NON-LAYOUT COMPONENT RENDERING - ALSO NEEDS DRAG HANDLE
+  const componentRenderer = componentLibraryService?.getComponent(component.type);
+  let renderedContent = null;
+  
+  if (componentRenderer?.render) {
+    try {
+      const mergedProps = {
+        ...component.props,
+        style: component.style
+      };
+      renderedContent = componentRenderer.render(mergedProps, component.id);
+    } catch (error) {
+      console.warn('Render error:', error);
+      renderedContent = <div className="p-2 border rounded">{component.name}</div>;
+    }
+  }
+  
   return (
-    <Draggable 
-      key={component.id} 
-      draggableId={component.id} 
-      index={index}
-    >
-      {(provided, snapshot) => {
-        const componentRenderer = componentLibraryService?.getComponent(component.type);
-        let renderedContent = null;
-        
-        if (componentRenderer?.render) {
-          try {
-            const mergedProps = {
-              ...component.props,
-              style: component.style
-            };
-            renderedContent = componentRenderer.render(mergedProps, component.id);
-          } catch (error) {
-            console.warn('Render error:', error);
-            renderedContent = <div className="p-2 border rounded">{component.name}</div>;
-          }
-        }
-        
-        return (
-          <div
-            ref={provided.innerRef}
-            {...provided.draggableProps}
-            {...provided.dragHandleProps}
-            data-component-id={component.id}
-            data-depth={depth}
-            data-is-layout="false"
-            data-parent-id={parentId || 'root'}
-            className={`
-              relative 
-              ${isSelected ? 'ring-2 ring-blue-500' : ''}
-              ${snapshot.isDragging ? 'opacity-50 shadow-xl z-50' : ''}
-            `}
-            style={{
-              ...componentStyles,
-              ...provided.draggableProps.style,
-              transition: 'all 0.2s ease'
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onComponentClick(component.id, e);
-            }}
-          >
-            {renderedContent}
-            
-            {isSelected && (
-              <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
-                {component.name} • Depth {depth}
-              </div>
-            )}
-          </div>
-        );
+    <div // CHANGE FROM motion.div to regular div
+      key={component.id}
+      ref={setNodeRef}
+      style={componentStyles}
+      data-component-id={component.id}
+      data-depth={depth}
+      data-is-layout="false"
+      data-parent-id={parentId || 'root'}
+      className={`
+        relative group
+        ${isSelected ? 'ring-2 ring-blue-500' : ''}
+        ${isDragging ? 'opacity-40' : ''}
+        transition-opacity duration-150 // Simple opacity transition
+      `}
+      onClick={(e) => {
+        e.stopPropagation();
+        onComponentClick(component.id, e);
       }}
-    </Draggable>
+    >
+      {/* Drag Handle for non-layout components */}
+      <div 
+        className={`
+          absolute -left-4 top-0 z-50 cursor-grab active:cursor-grabbing
+          transition-opacity opacity-0 group-hover:opacity-100
+        `}
+        style={{
+          touchAction: 'none',
+          userSelect: 'none',
+          minWidth: '32px',
+          minHeight: '32px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+        {...attributes}
+        {...listeners} // THIS IS CRITICAL
+      >
+        <div className="bg-white rounded shadow border border-gray-300 p-1">
+          <GripVertical className="w-3 h-3 text-gray-600" />
+        </div>
+      </div>
+      
+      {renderedContent}
+      
+      {isSelected && (
+        <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
+          {component.name} • Depth {depth}
+        </div>
+      )}
+    </div>
   );
-}, [componentLibraryService, selectedComponent, onComponentClick, draggedItem, handleNestedDragEnd]);
-  
+};
 
-  
-    // FIXED reorderWithinContainer helper
+// Simplified renderComponent that uses the SortableComponent
+const renderComponent = useCallback((component, index, parentStyle = {}, depth = 0, parentId = null) => {
+  return (
+    <SortableComponent
+      key={component.id}
+      component={component}
+      depth={depth}
+      parentId={parentId}
+      index={index}
+      parentStyle={parentStyle}
+    />
+  );
+}, [componentLibraryService, selectedComponent, onComponentClick, overId, isMobile]);
+
+  // FIXED reorderWithinContainer helper
   const reorderWithinContainer = (components, containerId, sourceIndex, destIndex) => {
     console.log('Reordering in container:', containerId, 'from', sourceIndex, 'to', destIndex);
     
@@ -527,9 +707,6 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
     
     return reorder(components);
   };
-  
-  
-  
   
   const moveBetweenContainers = (components, componentId, sourceContainerId, destContainerId, sourceIndex, destIndex) => {
     console.log('Moving between containers:', { componentId, sourceContainerId, destContainerId });
@@ -594,7 +771,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
     return addToDestination(withoutMoved);
   };
 
-  // Helper functions for default styling
+  // Helper functions for default styling (keep these as they are)
   const getDefaultDisplay = (componentType) => {
     const displayMap = {
       'nav': 'flex',
@@ -732,6 +909,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
     );
   }, [selectedComponent, onPropertyUpdate]);
 
+  // The rest of your return statement remains the same...
   return (
     <div className="w-full max-w-none flex justify-center" style={{ backgroundColor: 'transparent' }}>
       {/* Responsive Canvas Container */}
@@ -928,7 +1106,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
             </div>
           </div>
         )}
-
+        
         {responsiveMode === 'mobile' && (
           /* iPhone-Style Safari Frame */
           <div 
@@ -976,6 +1154,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
             </div>
           </div>
         )}
+        
         {/* Device Frame for Mobile/Tablet */}
         {responsiveMode !== 'desktop' && (
           <div 
@@ -1008,7 +1187,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                 {zoomLevel !== 100 && <span>• {zoomLevel}%</span>}
               </div>
             </div>
-
+        
             {/* Mobile/Tablet Browser Tabs at top of device frame */}
             {responsiveMode === 'tablet' && (
               <div 
@@ -1051,7 +1230,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                 </div>
               </div>
             )}
-
+        
             {responsiveMode === 'mobile' && (
               <div 
                 className="absolute -top-6 left-1/2 transform -translate-x-1/2 flex items-center gap-0.5"
@@ -1081,7 +1260,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                 >
                   <div className="w-1 h-1 rounded-full bg-gray-400"></div>
                 </div>
-
+        
                 {/* New Tab Button */}
                 <div 
                   className="w-5 h-3 rounded-t-md flex items-center justify-center"
@@ -1095,35 +1274,35 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
             )}
           </div>
         )}
-
+        
         {/* Main Canvas - Acts as Document Body */}
-          <div 
-              ref={canvasRef}
-              className={`
-                  relative transition-all duration-500
-                  ${canvasClasses}
-                  ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
-              `}
-              style={{
-                  width: '100%',
-                  minHeight: responsiveMode === 'desktop' ? '100vh' : '667px',
-                  height: responsiveMode === 'desktop' ? 'auto' : `${canvasSize.height}px`,
-                  maxWidth: canvasSize.maxWidth,
-                  backgroundColor: 'var(--color-surface)',
-                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                  lineHeight: '1.6',
-                  color: 'var(--color-text)',
-                  cursor: dragState.isDragging ? 'copy' : 'default',
-                  borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
-                  boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
-                  position: 'relative',
-                  overflow: 'auto' // CRITICAL: Enable scrolling
-              }}
-              onDragOver={onCanvasDragOver}
-              onDrop={onCanvasDrop}
-              onClick={onCanvasClick}
-          >
-          {/* Canvas Grid Background - Only show if enabled */}
+        <div 
+          ref={canvasRef}
+          className={`
+            relative transition-all duration-500
+            ${canvasClasses}
+            ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
+          `}
+          style={{
+            width: '100%',
+            minHeight: responsiveMode === 'desktop' ? '100vh' : '667px',
+            height: responsiveMode === 'desktop' ? 'auto' : `${canvasSize.height}px`,
+            maxWidth: canvasSize.maxWidth,
+            backgroundColor: 'var(--color-surface)',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            lineHeight: '1.6',
+            color: 'var(--color-text)',
+            cursor: dragState.isDragging ? 'copy' : 'default',
+            borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
+            boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
+            position: 'relative',
+            overflow: 'auto'
+          }}
+          onDragOver={onCanvasDragOver}
+          onDrop={onCanvasDrop}
+          onClick={onCanvasClick}
+        >
+          {/* Canvas Grid Background */}
           {gridVisible && (
             <div 
               className="absolute inset-0 pointer-events-none opacity-20 z-0"
@@ -1137,8 +1316,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
             />
           )}
           
-          
-          {/* ADD HERE - Drag Snap Lines */}
+          {/* Drag Snap Lines */}
           {DragSnapLines && dragPosition && dragState.isDragging && (
             <DragSnapLines
               dragPosition={dragPosition}
@@ -1147,7 +1325,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
             />
           )}
           
-          {/* ADD HERE - Selection Overlay for selected component */}
+          {/* Selection Overlay */}
           {SelectionOverlay && selectedComponent && selectedComponent !== '__canvas_root__' && (
             <SelectionOverlay
               componentId={selectedComponent}
@@ -1155,95 +1333,176 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
             />
           )}
                     
-          
-         {/* Drop Zone Indicator - ONLY show when canvas is empty */}
-        {dragState.isDragging && canvasComponents.length === 0 && (
-          <div 
-            className="absolute inset-0 border-4 border-dashed flex items-center justify-center z-50"
-            style={{ 
-              borderColor: 'var(--color-primary)',
-              backgroundColor: 'rgba(160, 82, 255, 0.05)',
-              backdropFilter: 'blur(2px)',
-              borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0'
-            }}
-          >
+          {/* Drop Zone Indicator */}
+          {dragState.isDragging && canvasComponents.length === 0 && (
             <div 
-              className="font-medium text-lg px-6 py-3 rounded-xl"
+              className="absolute inset-0 border-4 border-dashed flex items-center justify-center z-50"
               style={{ 
-                color: 'var(--color-primary)',
-                backgroundColor: 'var(--color-surface)',
-                border: '2px solid var(--color-primary)',
-                boxShadow: 'var(--shadow-lg)'
+                borderColor: 'var(--color-primary)',
+                backgroundColor: 'rgba(160, 82, 255, 0.05)',
+                backdropFilter: 'blur(2px)',
+                borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0'
               }}
             >
-              Drop {dragState.draggedComponent?.name || 'component'} here
-            </div>
-          </div>
-        )}
-
-      {/* Render Components with Drag-to-Reorder */}
-      <div className="relative z-10" style={{ minHeight: '100%' }}>
-        {canvasComponents.length === 0 && !dragState.isDragging ? (
-          <EmptyCanvasState
-            frameType={frameType}
-            onAddSection={() => {
-              const sectionComponent = componentLibraryService?.createLayoutElement('section');
-              if (sectionComponent && onPropertyUpdate) {
-                onPropertyUpdate('canvas', [...canvasComponents, sectionComponent]);
-              }
-            }}
-            onDragOver={onCanvasDragOver}
-            onDrop={onCanvasDrop}
-            isDragOver={dragState.isDragging}
-            responsiveMode={responsiveMode}
-          />
-        ) : (
-         <DragDropContext onDragEnd={handleDragEnd}>
-          <Droppable droppableId="canvas-root">
-            {(provided) => (
               <div 
-                {...provided.droppableProps}
-                ref={provided.innerRef}
-                style={{ minHeight: '100%' }}
+                className="font-medium text-lg px-6 py-3 rounded-xl"
+                style={{ 
+                  color: 'var(--color-primary)',
+                  backgroundColor: 'var(--color-surface)',
+                  border: '2px solid var(--color-primary)',
+                  boxShadow: 'var(--shadow-lg)'
+                }}
               >
-                <AnimatePresence>
-                  {canvasComponents.map((component, index) => 
-                    renderComponent(component, index, {}, 0)
-                  )}
-                </AnimatePresence>
-                {provided.placeholder}
+                Drop {dragState.draggedComponent?.name || 'component'} here
               </div>
-            )}
-          </Droppable>
-        </DragDropContext>
-        )}
-      </div>
+            </div>
+          )}
 
-      {/* Status Bar - Only for Desktop */}
-      {responsiveMode === 'desktop' && canvasComponents.length > 0 && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-          <div 
-            className="inline-flex items-center gap-4 text-sm px-4 py-2 rounded-full shadow-lg backdrop-blur-sm"
-            style={{ 
-              color: 'var(--color-text-muted)',
-              backgroundColor: 'rgba(255, 255, 255, 0.9)',
-              border: '1px solid var(--color-border)'
-            }}
-          >
-            <span>{canvasComponents.length} components</span>
-            {selectedComponent && (
-              <span style={{ color: 'var(--color-primary)' }}>
-                {canvasComponents.find(c => c.id === selectedComponent)?.name || 'Selected'} 
-                • {canvasComponents.find(c => c.id === selectedComponent)?.style?.display || 'block'}
-              </span>
+          {/* Render Components with Drag-to-Reorder */}
+          <div className="relative z-10" style={{ minHeight: '100%' }}>
+            {canvasComponents.length === 0 && !dragState.isDragging ? (
+              <EmptyCanvasState
+                frameType={frameType}
+                onAddSection={() => {
+                  const sectionComponent = componentLibraryService?.createLayoutElement('section');
+                  if (sectionComponent && onPropertyUpdate) {
+                    onPropertyUpdate('canvas', [...canvasComponents, sectionComponent]);
+                  }
+                }}
+                onDragOver={onCanvasDragOver}
+                onDrop={onCanvasDrop}
+                isDragOver={dragState.isDragging}
+                responsiveMode={responsiveMode}
+              />
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleDndDragStart}
+                onDragOver={handleDndDragOver}
+                onDragEnd={handleDndDragEnd}
+                onDragCancel={handleDndDragCancel}
+              >
+                {/* In your main render section - REMOVE AnimatePresence */}
+                <SortableContext 
+                  items={canvasComponents.map(c => c.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {/* REMOVE AnimatePresence - it causes glitching */}
+                  <div>
+                    {canvasComponents.map((component, index) => 
+                      renderComponent(component, index, {}, 0)
+                    )}
+                  </div>
+                </SortableContext>
+              
+                  {/* FIXED Drag Overlay - Uses ACTUAL component rendering */}
+                <DragOverlay
+                  dropAnimation={{
+                    duration: 250,
+                    easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+                  }}
+                  style={{ 
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    zIndex: 9999,
+                    cursor: 'grabbing',
+                    touchAction: 'none',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    pointerEvents: 'none'
+                  }}
+                  modifiers={[
+                    ({ transform }) => ({
+                      ...transform,
+                      y: transform.y - 10,
+                    }),
+                  ]}
+                >
+                  {draggedComponent && (
+                    <motion.div
+                      initial={{ 
+                        scale: 0.95, 
+                        opacity: 0.8,
+                      }}
+                      animate={{ 
+                        scale: 1,
+                        opacity: 1,
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+                        filter: 'brightness(1.1) saturate(1.1)',
+                      }}
+                      transition={{ 
+                        duration: 0.15,
+                        ease: "easeOut"
+                      }}
+                      className="bg-white/90 backdrop-blur-lg rounded-md border-2 border-blue-500 overflow-hidden"
+                      style={{
+                        pointerEvents: 'none',
+                        transformOrigin: 'center center',
+                      }}
+                    >
+                      {/* RENDER THE EXACT SAME COMPONENT AS IN CANVAS */}
+                      {(() => {
+                        const componentRenderer = componentLibraryService?.getComponent(draggedComponent.type);
+                        if (componentRenderer?.render) {
+                          try {
+                            // Render the EXACT same way as in canvas
+                            return componentRenderer.render(
+                              { 
+                                ...draggedComponent.props, 
+                                style: draggedComponent.style 
+                              }, 
+                              draggedComponent.id
+                            );
+                          } catch (error) {
+                            console.warn('Ghost render error:', error);
+                          }
+                        }
+                        
+                        // Fallback: render the actual component structure
+                        return (
+                          <div 
+                            style={draggedComponent.style}
+                            className="p-3"
+                          >
+                            <div className="font-medium text-gray-800">{draggedComponent.name}</div>
+                            <div className="text-xs text-gray-500">{draggedComponent.type}</div>
+                          </div>
+                        );
+                      })()}
+                    </motion.div>
+                  )}
+                </DragOverlay>
+              </DndContext>
             )}
-            <span style={{ color: 'var(--color-border)' }}>|</span>
-            <span>{canvasSize.deviceName}</span>
           </div>
+
+          {/* Status Bar - Only for Desktop */}
+          {responsiveMode === 'desktop' && canvasComponents.length > 0 && (
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+              <div 
+                className="inline-flex items-center gap-4 text-sm px-4 py-2 rounded-full shadow-lg backdrop-blur-sm"
+                style={{ 
+                  color: 'var(--color-text-muted)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                  border: '1px solid var(--color-border)'
+                }}
+              >
+                <span>{canvasComponents.length} components</span>
+                {selectedComponent && (
+                  <span style={{ color: 'var(--color-primary)' }}>
+                    {canvasComponents.find(c => c.id === selectedComponent)?.name || 'Selected'} 
+                    • {canvasComponents.find(c => c.id === selectedComponent)?.style?.display || 'block'}
+                  </span>
+                )}
+                <span style={{ color: 'var(--color-border)' }}>|</span>
+                <span>{canvasSize.deviceName}</span>
+              </div>
+            </div>
+          )}
         </div>
-      )}
-    </div>
-    </div>
+      </div>
     </div>
   );
 };

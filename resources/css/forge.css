@@ -531,3 +531,172 @@ input:hover, textarea:hover, select:hover {
 .drag-over {
   border-top: 3px solid var(--color-primary);
 }
+
+
+
+
+
+
+
+/* Smooth drag cursor */
+.cursor-grabbing * {
+  cursor: grabbing !important;
+}
+
+[data-component-id]:active {
+  cursor: grabbing !important;
+}
+
+/* Long press visual feedback */
+@keyframes long-press-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 15px rgba(139, 92, 246, 0);
+  }
+}
+
+
+
+
+/* ============================================
+   DRAG REORDER FIX - Prevent text selection
+   ============================================ */
+
+/* Prevent text selection during drag on ALL elements */
+.layout-container,
+[data-component-id] {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+  touch-action: none !important;
+}
+
+/* Re-enable text selection ONLY in actual text inputs */
+input, 
+textarea, 
+[contenteditable="true"] {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  touch-action: auto !important;
+}
+
+/* Global drag state - applied to body */
+body.dragging * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  cursor: grabbing !important;
+}
+
+body.dragging input,
+body.dragging textarea,
+body.dragging [contenteditable="true"] {
+  pointer-events: none !important;
+}
+
+/* Mobile drag handle optimization */
+@media (hover: none) and (pointer: coarse) {
+  /* Larger touch targets on mobile */
+  [class*="drag-handle"],
+  .grip-vertical,
+  [data-sortable-handle] {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    padding: 8px !important;
+  }
+  
+  .layout-container {
+    cursor: grab !important;
+  }
+  
+  .layout-container:active {
+    cursor: grabbing !important;
+  }
+}
+
+/* Visual feedback during drag */
+.sortable-ghost {
+  opacity: 0.3 !important;
+  background: rgba(59, 130, 246, 0.1) !important;
+  border: 2px dashed #3b82f6 !important;
+}
+
+/* Hide original during drag */
+[data-sortable-id].dragging {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+
+
+/* FIXED Drag Overlay Styles */
+[data-dnd-kit-drag-overlay] {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 9999 !important;
+  pointer-events: none !important;
+  transform-origin: center center !important;
+}
+
+/* Ensure the dragged element disappears from canvas */
+[data-dnd-kit-dragging] {
+  opacity: 0.3 !important;
+  transition: opacity 0.1s ease !important;
+}
+
+/* Better visual feedback during drag */
+[data-dnd-kit-drag-overlay] > * {
+  animation: liftUp 0.2s ease-out !important;
+}
+
+@keyframes liftUp {
+  0% {
+    transform: scale(0.95) rotate(-1deg);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1) rotate(2deg);
+    opacity: 1;
+  }
+}
+
+/* Mobile-specific drag improvements */
+@media (max-width: 768px) {
+  [data-dnd-kit-drag-overlay] {
+    transform: scale(0.9) !important;
+  }
+  
+  [data-dnd-kit-drag-overlay] > * {
+    border-width: 3px !important;
+  }
+}
+
+
+/* FIXED: Remove all animations that conflict with drag */
+.layout-container {
+  transition: opacity 0.15s ease !important;
+  transform: none !important;
+}
+
+/* Ensure ghost is pixel-perfect */
+[data-dnd-kit-drag-overlay] {
+  position: fixed !important;
+  z-index: 9999 !important;
+  pointer-events: none !important;
+}
+
+/* Kill all framer-motion transforms during drag */
+[data-dnd-kit-dragging] {
+  transform: none !important;
+  transition: opacity 0.1s ease !important;
+}
+
+/* Prevent any layout shifts */
+body.dragging * {
+  transform: none !important;
+  transition: none !important;
+}

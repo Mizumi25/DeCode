@@ -182,11 +182,6 @@ export default function ForgePage({
   
   const [undoRedoInProgress, setUndoRedoInProgress] = useState(false);
   
-  // ADD these state variables for drag reordering
-  const [draggedItem, setDraggedItem] = useState(null);
-  const [dragOverItem, setDragOverItem] = useState(null);
-  const [dragOverContainer, setDragOverContainer] = useState(null);
-
   // Enhanced drag state with variant support
   const [dragState, setDragState] = useState({
     isDragging: false,
@@ -318,179 +313,7 @@ const isLayoutElement = (type) => LAYOUT_TYPES.includes(type);
   
   
   
-    // Handler: Start dragging an existing component to reorder it
-  const handleReorderDragStart = useCallback((e, componentId, parentId = null) => {
-    e.stopPropagation();
-    
-    const component = canvasComponents.find(c => c.id === componentId);
-    if (!component) return;
-    
-    setDraggedItem({ id: componentId, parentId });
-    setSelectedComponent(componentId);
-    
-    // Visual feedback
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/html', e.currentTarget);
-    
-    // Add dragging class for styling
-    e.currentTarget.classList.add('dragging');
-    
-    console.log('Started reordering component:', componentId, 'from parent:', parentId);
-  }, [canvasComponents]);
-  
-  // Handler: Dragging over another component (for reorder positioning)
-  const handleReorderDragOver = useCallback((e, componentId, parentId = null) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!draggedItem || draggedItem.id === componentId) return;
-    
-    setDragOverItem({ id: componentId, parentId });
-    setDragOverContainer(parentId);
-    
-    // Change cursor to indicate drop is allowed
-    e.dataTransfer.dropEffect = 'move';
-  }, [draggedItem]);
-  
-  // Handler: Drop component to reorder
-  const handleReorderDrop = useCallback((e, targetComponentId, targetParentId = null) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!draggedItem || draggedItem.id === targetComponentId) {
-      setDraggedItem(null);
-      setDragOverItem(null);
-      setDragOverContainer(null);
-      return;
-    }
-    
-    console.log('Reordering:', draggedItem.id, 'relative to:', targetComponentId);
-    
-    // Deep clone components
-    let updatedComponents = JSON.parse(JSON.stringify(canvasComponents));
-    
-    // Find and remove the dragged component
-    let draggedComponent = null;
-    
-    const removeComponent = (comps, id, parentId) => {
-      if (parentId === null) {
-        // Root level
-        const index = comps.findIndex(c => c.id === id);
-        if (index !== -1) {
-          draggedComponent = comps.splice(index, 1)[0];
-          return true;
-        }
-      } else {
-        // Nested in parent
-        for (let comp of comps) {
-          if (comp.id === parentId && comp.children) {
-            const index = comp.children.findIndex(c => c.id === id);
-            if (index !== -1) {
-              draggedComponent = comp.children.splice(index, 1)[0];
-              return true;
-            }
-          }
-          if (comp.children && removeComponent(comp.children, id, parentId)) {
-            return true;
-          }
-        }
-      }
-      return false;
-    };
-    
-    removeComponent(updatedComponents, draggedItem.id, draggedItem.parentId);
-    
-    if (!draggedComponent) {
-      console.error('Could not find dragged component');
-      setDraggedItem(null);
-      setDragOverItem(null);
-      return;
-    }
-    
-    // Insert at new position
-    const insertComponent = (comps, targetId, targetParent, draggedComp) => {
-      if (targetParent === null) {
-        // Root level insertion
-        const targetIndex = comps.findIndex(c => c.id === targetId);
-        if (targetIndex !== -1) {
-          comps.splice(targetIndex, 0, draggedComp);
-          return true;
-        }
-      } else {
-        // Nested insertion
-        for (let comp of comps) {
-          if (comp.id === targetParent && comp.children) {
-            const targetIndex = comp.children.findIndex(c => c.id === targetId);
-            if (targetIndex !== -1) {
-              comp.children.splice(targetIndex, 0, draggedComp);
-              return true;
-            }
-          }
-          if (comp.children && insertComponent(comp.children, targetId, targetParent, draggedComp)) {
-            return true;
-          }
-        }
-      }
-      return false;
-    };
-    
-    const inserted = insertComponent(updatedComponents, targetComponentId, targetParentId, draggedComponent);
-    
-    if (!inserted) {
-      console.error('Could not insert component at target position');
-      // Revert - add back to original position
-      if (draggedItem.parentId === null) {
-        updatedComponents.push(draggedComponent);
-      }
-      setDraggedItem(null);
-      setDragOverItem(null);
-      return;
-    }
-    
-    // Update sortOrder for all siblings
-    const updateSortOrders = (comps) => {
-      comps.forEach((comp, index) => {
-        comp.sortOrder = index;
-        if (comp.children) {
-          updateSortOrders(comp.children);
-        }
-      });
-    };
-    updateSortOrders(updatedComponents);
-    
-    // Update state
-    setFrameCanvasComponents(prev => ({
-      ...prev,
-      [currentFrame]: updatedComponents
-    }));
-    
-    pushHistory(currentFrame, updatedComponents, actionTypes.MOVE, {
-      componentName: draggedComponent.name,
-      componentId: draggedComponent.id,
-      fromParent: draggedItem.parentId || 'root',
-      toParent: targetParentId || 'root',
-      targetComponent: targetComponentId
-    });
-    
-    generateCode(updatedComponents);
-    
-    // Cleanup
-    setDraggedItem(null);
-    setDragOverItem(null);
-    setDragOverContainer(null);
-    
-    console.log('Reorder completed successfully');
-    
-  }, [draggedItem, canvasComponents, currentFrame, pushHistory, actionTypes, generateCode]);
-  
-  // Handler: Drag end (cleanup)
-  const handleReorderDragEnd = useCallback((e) => {
-    e.target.classList.remove('dragging');
-    setDraggedItem(null);
-    setDragOverItem(null);
-    setDragOverContainer(null);
-  }, []);
-  
+
   
   
   
@@ -2251,14 +2074,8 @@ useEffect(() => {
                           responsiveMode={responsiveMode}
                           zoomLevel={zoomLevel}
                           gridVisible={gridVisible}
-                          projectId={projectId}  // ADD
-                          setFrameCanvasComponents={setFrameCanvasComponents}  // ADD
-                          onReorderDragStart={handleReorderDragStart}
-                          onReorderDragOver={handleReorderDragOver}
-                          onReorderDrop={handleReorderDrop}
-                          onReorderDragEnd={handleReorderDragEnd}
-                          draggedItem={draggedItem}
-                          dragOverItem={dragOverItem}
+                          projectId={projectId}
+                          setFrameCanvasComponents={setFrameCanvasComponents}
                       />
                     )}
                 </div>
