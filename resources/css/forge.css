@@ -1,16 +1,6 @@
 /* @/css/forge.css - Enhanced CSS for Forge Page Components */
 
-/* Enhanced drag styles with CSS variables */
-.drag-preview {
-  animation: dragBounce 0.3s ease-out;
-  backdrop-filter: blur(20px);
-}
 
-@keyframes dragBounce {
-  0% { transform: scale(1) rotate(0deg); }
-  50% { transform: scale(1.1) rotate(2deg); }
-  100% { transform: scale(1) rotate(2deg); }
-}
 
 .canvas-container {
   position: relative;
@@ -523,14 +513,6 @@ input:hover, textarea:hover, select:hover {
 
 
 
-.dragging {
-  opacity: 0.5;
-  border: 2px dashed var(--color-primary);
-}
-
-.drag-over {
-  border-top: 3px solid var(--color-primary);
-}
 
 
 
@@ -632,7 +614,50 @@ body.dragging [contenteditable="true"] {
 
 
 
-/* FIXED Drag Overlay Styles */
+
+
+
+/* ========== FIXED DRAG & DROP STYLES ========== */
+
+/* Remove these problematic rules entirely:
+   - [data-dnd-kit-dragging] { transform: none !important; }
+   - body.dragging * { transform: none !important; }
+   - Mobile scale override for drag-overlay
+*/
+
+/* Enhanced drag styles with CSS variables */
+.drag-preview {
+  animation: dragBounce 0.3s ease-out;
+  backdrop-filter: blur(20px);
+  opacity: 0.9 !important;
+  transform: rotate(2deg) scale(1.05);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  border: 2px solid var(--color-primary);
+}
+
+@keyframes dragBounce {
+  0% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.1) rotate(2deg); }
+  100% { transform: scale(1.05) rotate(2deg); }
+}
+
+/* Remove grip handle - make entire element draggable */
+[data-component-id] {
+  cursor: grab !important;
+}
+
+[data-component-id]:active {
+  cursor: grabbing !important;
+}
+
+/* Hide the specific grip element */
+.grip-vertical,
+[class*="drag-handle"],
+[data-sortable-handle] {
+  display: none !important;
+}
+
+/* Enhanced ghost styling - FIXED: Remove mobile scale override */
 [data-dnd-kit-drag-overlay] {
   position: fixed !important;
   top: 0 !important;
@@ -640,17 +665,26 @@ body.dragging [contenteditable="true"] {
   z-index: 9999 !important;
   pointer-events: none !important;
   transform-origin: center center !important;
+  opacity: 0.95 !important;
+  filter: brightness(1.1) saturate(1.2);
+  backdrop-filter: blur(10px);
 }
 
-/* Ensure the dragged element disappears from canvas */
+/* Ensure the dragged element disappears from canvas - FIXED: Remove transform override */
 [data-dnd-kit-dragging] {
   opacity: 0.3 !important;
+  visibility: visible !important;
   transition: opacity 0.1s ease !important;
+  /* REMOVED: transform: none !important; */
 }
 
 /* Better visual feedback during drag */
 [data-dnd-kit-drag-overlay] > * {
   animation: liftUp 0.2s ease-out !important;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.4) !important;
+  border: 2px solid var(--color-primary) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
 }
 
 @keyframes liftUp {
@@ -659,44 +693,83 @@ body.dragging [contenteditable="true"] {
     opacity: 0.8;
   }
   100% {
-    transform: scale(1) rotate(2deg);
+    transform: scale(1.05) rotate(2deg);
     opacity: 1;
   }
 }
 
-/* Mobile-specific drag improvements */
-@media (max-width: 768px) {
-  [data-dnd-kit-drag-overlay] {
-    transform: scale(0.9) !important;
+/* Remove green line - rely on snap lines component */
+.drag-over {
+  border: none !important;
+}
+
+/* Enhanced drop zone styling */
+.layout-container[data-is-layout="true"]:hover {
+  outline: 2px dashed rgba(59, 130, 246, 0.1);
+  outline-offset: 2px;
+}
+
+.layout-container[data-is-layout="true"].drop-target {
+  outline: 3px dashed rgba(59, 130, 246, 0.8);
+  outline-offset: 1px;
+  background-color: rgba(59, 130, 246, 0.05);
+  transition: all 0.2s ease;
+}
+
+/* Snap lines styling - subtle and only on hover */
+.snap-line {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.drag-preview:hover ~ .snap-line,
+.layout-container:hover .snap-line {
+  opacity: 0.7;
+}
+
+/* Enhanced drop zone animations */
+.drop-zone-active {
+  animation: dropZonePulse 1.5s ease-in-out infinite;
+  border-color: var(--color-primary) !important;
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+@keyframes dropZonePulse {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
   }
-  
-  [data-dnd-kit-drag-overlay] > * {
-    border-width: 3px !important;
+  50% { 
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
   }
 }
 
 
-/* FIXED: Remove all animations that conflict with drag */
+body.dragging [data-component-id]:not([data-dnd-kit-dragging]) {
+  opacity: 0.6;
+  filter: grayscale(0.3);
+  transition: all 0.3s ease;
+}
+
+/* Mobile-specific drag improvements - FIXED: Remove scale override */
+@media (max-width: 768px) {
+  /* Larger touch targets */
+  [data-component-id] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+ 
+}
+
 .layout-container {
   transition: opacity 0.15s ease !important;
-  transform: none !important;
 }
 
-/* Ensure ghost is pixel-perfect */
-[data-dnd-kit-drag-overlay] {
-  position: fixed !important;
-  z-index: 9999 !important;
-  pointer-events: none !important;
-}
 
-/* Kill all framer-motion transforms during drag */
-[data-dnd-kit-dragging] {
-  transform: none !important;
-  transition: opacity 0.1s ease !important;
-}
 
-/* Prevent any layout shifts */
-body.dragging * {
+/* ========== CRITICAL DRAG POSITIONING FIXES ========== */
+
+
+/* Remove any potential transform interference */
+body.dragging [data-dnd-kit-drag-overlay] {
   transform: none !important;
-  transition: none !important;
 }

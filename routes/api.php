@@ -157,6 +157,12 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Workspace invites
     Route::get('/workspaces/{workspace:uuid}/invites', [InviteController::class, 'getWorkspaceInvites']);
+    
+
+
+    // Workspace user discipline management
+    Route::put('/workspaces/{workspace:uuid}/users/{user}/discipline', [WorkspaceController::class, 'updateUserDiscipline']);
+    Route::post('/workspaces/{workspace:uuid}/discipline-orders', [WorkspaceController::class, 'updateDisciplineOrders']);
 
     // Invite Management (separate from workspace routes for cleaner organization)
     Route::prefix('invites')->group(function () {

@@ -10,6 +10,7 @@ import DragSnapLines from './DragSnapLines';
 
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore';
+import { useCanvasOverlayStore } from '@/stores/useCanvasOverlayStore';
 
 import { 
   DndContext, 
@@ -58,6 +59,8 @@ const CanvasComponent = ({
     getResponsiveCanvasClasses,
     getResponsiveGridBackground
   } = useEditorStore();
+  
+  const { overlays, isOverlayEnabled } = useCanvasOverlayStore();
   
   // Get undo/redo functionality
   const { pushHistory, actionTypes } = useForgeUndoRedoStore();
@@ -354,61 +357,206 @@ const CanvasComponent = ({
     
   }, [canvasComponents, currentFrame, pushHistory, actionTypes, componentLibraryService, projectId, setFrameCanvasComponents]);
 
-  const handleDndDragStart = useCallback((event) => {
-    const { active } = event;
-    setActiveId(active.id);
-    
-    const component = flatComponents.find(c => c.id === active.id);
-    setDraggedComponent(component);
-    
-    document.body.classList.add('dragging');
-    
-    console.log('🚀 DRAG STARTED:', active.id, component);
-    console.log('📱 Touch sensors active:', sensors);
-    
-    if ('vibrate' in navigator) {
-      navigator.vibrate(50);
+    const handleDndDragStart = useCallback((event) => {
+  const { active } = event;
+  setActiveId(active.id);
+  
+  const component = flatComponents.find(c => c.id === active.id);
+  setDraggedComponent(component);
+  
+  // 🔥 CRITICAL: Store activatorEvent for modifier access
+  if (!active.data.current) {
+    active.data.current = {};
+  }
+  active.data.current.activatorEvent = event.activatorEvent;
+  
+  // CRITICAL: Hide original element during drag
+  const element = document.querySelector(`[data-component-id="${active.id}"]`);
+  if (element) {
+    element.style.opacity = '0';
+    element.style.pointerEvents = 'none';
+    element.style.visibility = 'hidden';
+  }
+  
+  // Vibration feedback for mobile
+  if ('vibrate' in navigator) {
+    navigator.vibrate(50);
+  }
+  
+  // Dim other elements slightly
+  canvasComponents.forEach(comp => {
+    if (comp.id !== active.id) {
+      const el = document.querySelector(`[data-component-id="${comp.id}"]`);
+      if (el) {
+        el.style.opacity = '0.6';
+        el.style.transition = 'opacity 0.2s';
+      }
     }
-  }, [flatComponents, sensors]);
+  });
+  
+  console.log('🚀 DRAG STARTED:', {
+    activeId: active.id,
+    component: component?.name,
+    mousePos: {
+      x: event.activatorEvent.clientX || event.activatorEvent.touches?.[0]?.clientX,
+      y: event.activatorEvent.clientY || event.activatorEvent.touches?.[0]?.clientY
+    },
+    elementRect: element?.getBoundingClientRect(),
+    canvasRect: canvasRef.current?.getBoundingClientRect()
+  });
+}, [flatComponents, canvasComponents, canvasRef]);
 
   const handleDndDragOver = useCallback((event) => {
     const { over } = event;
     setOverId(over?.id || null);
   }, []);
 
+
+
+  
   const handleDndDragEnd = useCallback((event) => {
     const { active, over } = event;
+    
+    // CRITICAL: Restore all elements immediately
+    const restoreElements = () => {
+      if (activeId) {
+        const element = document.querySelector(`[data-component-id="${activeId}"]`);
+        if (element) {
+          element.style.opacity = '';
+          element.style.pointerEvents = '';
+          element.style.visibility = '';
+        }
+      }
+      
+      canvasComponents.forEach(comp => {
+        const el = document.querySelector(`[data-component-id="${comp.id}"]`);
+        if (el) {
+          el.style.opacity = '';
+          el.style.transition = '';
+        }
+      });
+    };
+    
+    restoreElements();
     
     setActiveId(null);
     setOverId(null);
     setDraggedComponent(null);
-
-    if (!over || active.id === over.id) return;
-
+  
+    if (!over || active.id === over.id) {
+      document.body.classList.remove('dragging');
+      return;
+    }
+  
+    // ✅ NEW: Check if dropping into a container
+    const draggedComp = flatComponents.find(c => c.id === active.id);
+    const targetComp = flatComponents.find(c => c.id === over.id);
+    
+    console.log('🎯 Drag end:', {
+      dragged: draggedComp?.name,
+      target: targetComp?.name,
+      targetIsLayout: targetComp?.isLayoutContainer
+    });
+  
+    // ✅ If target is a layout container, nest inside it
+    if (targetComp?.isLayoutContainer) {
+      console.log('📦 Nesting into container:', targetComp.name);
+      
+      // Remove from current position
+      const removeFromTree = (components, idToRemove) => {
+        return components.reduce((acc, comp) => {
+          if (comp.id === idToRemove) {
+            return acc; // Skip this component
+          }
+          
+          if (comp.children?.length > 0) {
+            return [...acc, {
+              ...comp,
+              children: removeFromTree(comp.children, idToRemove)
+            }];
+          }
+          
+          return [...acc, comp];
+        }, []);
+      };
+      
+      // Add to target container
+      const addToContainer = (components, containerId, childToAdd) => {
+        return components.map(comp => {
+          if (comp.id === containerId) {
+            return {
+              ...comp,
+              children: [...(comp.children || []), {
+                ...childToAdd,
+                parentId: comp.id,
+                position: { x: 20, y: 20 } // Reset position inside container
+              }]
+            };
+          }
+          
+          if (comp.children?.length > 0) {
+            return {
+              ...comp,
+              children: addToContainer(comp.children, containerId, childToAdd)
+            };
+          }
+          
+          return comp;
+        });
+      };
+      
+      let updatedTree = removeFromTree(canvasComponents, active.id);
+      updatedTree = addToContainer(updatedTree, over.id, draggedComp);
+      
+      setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: updatedTree
+      }));
+      
+      if (pushHistory && actionTypes) {
+        pushHistory(currentFrame, updatedTree, actionTypes.MOVE, {
+          componentId: active.id,
+          action: 'nested_into_container',
+          containerId: over.id
+        });
+      }
+      
+      setTimeout(() => {
+        if (componentLibraryService?.saveProjectComponents) {
+          componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedTree);
+        }
+      }, 500);
+      
+      document.body.classList.remove('dragging');
+      return;
+    }
+  
+    // ✅ Otherwise, do sibling reordering (existing logic)
     const oldIndex = flatComponents.findIndex(c => c.id === active.id);
     const newIndex = flatComponents.findIndex(c => c.id === over.id);
-
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    console.log('Reordering:', active.id, 'from', oldIndex, 'to', newIndex);
-
-    // Array move utility
+  
+    if (oldIndex === -1 || newIndex === -1) {
+      document.body.classList.remove('dragging');
+      return;
+    }
+  
+    console.log('↔️ Reordering siblings:', active.id, 'from', oldIndex, 'to', newIndex);
+  
     const arrayMove = (array, from, to) => {
       const newArray = [...array];
       const [movedItem] = newArray.splice(from, 1);
       newArray.splice(to, 0, movedItem);
       return newArray;
     };
-
-    // Rebuild tree from flat array
+  
     const rebuildTree = (flatArray) => {
       const map = new Map();
       const roots = [];
-
+  
       flatArray.forEach(item => {
         map.set(item.id, { ...item, children: [] });
       });
-
+  
       flatArray.forEach(item => {
         const node = map.get(item.id);
         if (item.parentId && map.has(item.parentId)) {
@@ -417,18 +565,18 @@ const CanvasComponent = ({
           roots.push(node);
         }
       });
-
+  
       return roots;
     };
-
+  
     const reorderedFlat = arrayMove(flatComponents, oldIndex, newIndex);
     const reorderedTree = rebuildTree(reorderedFlat);
-
+  
     setFrameCanvasComponents(prev => ({
       ...prev,
       [currentFrame]: reorderedTree
     }));
-
+  
     if (pushHistory && actionTypes) {
       pushHistory(currentFrame, reorderedTree, actionTypes.MOVE, {
         componentId: active.id,
@@ -436,7 +584,7 @@ const CanvasComponent = ({
         toIndex: newIndex
       });
     }
-
+  
     setTimeout(() => {
       if (componentLibraryService?.saveProjectComponents) {
         componentLibraryService.saveProjectComponents(projectId, currentFrame, reorderedTree);
@@ -444,18 +592,49 @@ const CanvasComponent = ({
     }, 500);
     
     document.body.classList.remove('dragging');
-
+  
     if ('vibrate' in navigator) {
       navigator.vibrate(30);
     }
-  }, [flatComponents, currentFrame, projectId, componentLibraryService, pushHistory, actionTypes, setFrameCanvasComponents]);
+    
+    
+    console.log('🏁 Drag ended:', {
+      finalTransform: event.delta,
+      mousePos: {
+        x: event.clientX || event.touches?.[0]?.clientX,
+        y: event.clientY || event.touches?.[0]?.clientY
+      }
+    });
+  }, [flatComponents, currentFrame, projectId, componentLibraryService, pushHistory, actionTypes, setFrameCanvasComponents, activeId, canvasComponents]);
 
+   
   const handleDndDragCancel = useCallback(() => {
+    // Restore all hidden elements
+    if (activeId) {
+      const element = document.querySelector(`[data-component-id="${activeId}"]`);
+      if (element) {
+        element.style.opacity = '';
+        element.style.pointerEvents = '';
+        element.style.visibility = '';
+      }
+    }
+    
+    // Restore opacity for all elements
+    canvasComponents.forEach(comp => {
+      const el = document.querySelector(`[data-component-id="${comp.id}"]`);
+      if (el) {
+        el.style.opacity = '';
+        el.style.transition = '';
+      }
+    });
+    
     setActiveId(null);
     setOverId(null);
     setDraggedComponent(null);
-    document.body.classList.remove('dragging');  
-  }, []);
+    document.body.classList.remove('dragging');
+    
+    console.log('❌ Drag cancelled');
+  }, [activeId, canvasComponents]);
 
 // FIXED renderComponent function - move useSortable outside
 const SortableComponent = ({ component, depth, parentId, index, parentStyle }) => {
@@ -525,30 +704,22 @@ const SortableComponent = ({ component, depth, parentId, index, parentStyle }) =
             onComponentClick(component.id, e);
           }}
         >
-        {/* Drag Handle - FIXED: Properly attach listeners */}
+        {/* Entire component is draggable - no separate handle */}
         <div 
           className={`
-            absolute -left-6 top-2 z-50 cursor-grab active:cursor-grabbing
-            transition-opacity
+            absolute inset-0 cursor-grab active:cursor-grabbing
             ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+            transition-opacity duration-200
           `}
           style={{
             touchAction: 'none',
             userSelect: 'none',
             WebkitUserSelect: 'none',
-            minWidth: isMobile ? '44px' : 'auto',
-            minHeight: isMobile ? '44px' : 'auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
+            zIndex: 10
           }}
           {...attributes}
-          {...listeners} // THIS IS CRITICAL - attaches drag events
-        >
-          <div className={`bg-white rounded-full shadow-lg border-2 border-gray-300 ${isMobile ? 'p-2' : 'p-1'}`}>
-            <GripVertical className={`text-gray-600 ${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
-          </div>
-        </div>
+          {...listeners}
+        />
                 
         {/* Nested Sortable Context */}
         {component.children && component.children.length > 0 ? (
@@ -623,28 +794,22 @@ const SortableComponent = ({ component, depth, parentId, index, parentStyle }) =
         onComponentClick(component.id, e);
       }}
     >
-      {/* Drag Handle for non-layout components */}
+      {/* Entire component is draggable - no separate handle */}
       <div 
         className={`
-          absolute -left-4 top-0 z-50 cursor-grab active:cursor-grabbing
-          transition-opacity opacity-0 group-hover:opacity-100
+          absolute inset-0 cursor-grab active:cursor-grabbing
+          opacity-0 group-hover:opacity-100
+          transition-opacity duration-200
         `}
         style={{
           touchAction: 'none',
           userSelect: 'none',
-          minWidth: '32px',
-          minHeight: '32px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
+          WebkitUserSelect: 'none',
+          zIndex: 10
         }}
         {...attributes}
-        {...listeners} // THIS IS CRITICAL
-      >
-        <div className="bg-white rounded shadow border border-gray-300 p-1">
-          <GripVertical className="w-3 h-3 text-gray-600" />
-        </div>
-      </div>
+        {...listeners}
+      />
       
       {renderedContent}
       
@@ -1296,41 +1461,45 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
             borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
             boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
             position: 'relative',
-            overflow: 'auto'
+            overflow: 'hidden' // ✅ CHANGE from 'auto' to 'hidden'
           }}
           onDragOver={onCanvasDragOver}
           onDrop={onCanvasDrop}
           onClick={onCanvasClick}
         >
-          {/* Canvas Grid Background */}
-          {gridVisible && (
-            <div 
-              className="absolute inset-0 pointer-events-none opacity-20 z-0"
-              style={{
-                backgroundImage: `
-                  linear-gradient(to right, var(--color-border) 1px, transparent 1px),
-                  linear-gradient(to bottom, var(--color-border) 1px, transparent 1px)
-                `,
-                backgroundSize: '20px 20px'
-              }}
-            />
+         {/* Grid Lines - Only show if enabled */}
+          {isOverlayEnabled('showGridLines') && gridVisible && (
+              <div 
+                  className="absolute inset-0 pointer-events-none z-0"
+                  style={{
+                      backgroundImage: `
+                          linear-gradient(to right, var(--color-border) 1px, transparent 1px),
+                          linear-gradient(to bottom, var(--color-border) 1px, transparent 1px)
+                      `,
+                      backgroundSize: '20px 20px'
+                  }}
+              />
           )}
           
-          {/* Drag Snap Lines */}
-          {DragSnapLines && dragPosition && dragState.isDragging && (
-            <DragSnapLines
-              dragPosition={dragPosition}
-              canvasComponents={canvasComponents}
-              canvasRef={canvasRef}
-            />
+          {/* Drag Snap Lines - Only show if enabled */}
+          {DragSnapLines && dragPosition && isOverlayEnabled('showSnapGuides') && (
+              <DragSnapLines
+                  dragPosition={dragPosition}
+                  canvasComponents={canvasComponents}
+                  canvasRef={canvasRef}
+                  isDragging={isDraggingComponent || dragState.isDragging}
+              />
           )}
           
-          {/* Selection Overlay */}
-          {SelectionOverlay && selectedComponent && selectedComponent !== '__canvas_root__' && (
-            <SelectionOverlay
-              componentId={selectedComponent}
-              canvasRef={canvasRef}
-            />
+          {/* Selection Overlay - Only show if enabled */}
+          {SelectionOverlay && selectedComponent && selectedComponent !== '__canvas_root__' && 
+           isOverlayEnabled('showSelectionBorders') && (
+              <SelectionOverlay
+                  componentId={selectedComponent}
+                  canvasRef={canvasRef}
+                  canvasComponents={canvasComponents}
+                  selectedComponent={canvasComponents.find(c => c.id === selectedComponent)}
+              />
           )}
                     
           {/* Drop Zone Indicator */}
@@ -1349,7 +1518,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                 style={{ 
                   color: 'var(--color-primary)',
                   backgroundColor: 'var(--color-surface)',
-                  border: '2px solid var(--color-primary)',
+                  border: '4px solid var(--color-primary)',
                   boxShadow: 'var(--shadow-lg)'
                 }}
               >
@@ -1396,81 +1565,180 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                   </div>
                 </SortableContext>
               
-                  {/* FIXED Drag Overlay - Uses ACTUAL component rendering */}
-                <DragOverlay
-                  dropAnimation={{
-                    duration: 250,
-                    easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
-                  }}
-                  style={{ 
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    zIndex: 9999,
-                    cursor: 'grabbing',
-                    touchAction: 'none',
-                    userSelect: 'none',
-                    WebkitUserSelect: 'none',
-                    pointerEvents: 'none'
-                  }}
-                  modifiers={[
-                    ({ transform }) => ({
-                      ...transform,
-                      y: transform.y - 10,
-                    }),
-                  ]}
-                >
+                {/* PROFESSIONAL DRAG GHOST - Dynamic positioning based on actual element position */}
+             <DragOverlay
+  dropAnimation={{
+    duration: 200,
+    easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+  }}
+  style={{ 
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    zIndex: 9999,
+    cursor: 'grabbing',
+    touchAction: 'none',
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    pointerEvents: 'none'
+  }}
+modifiers={[
+  ({ transform, active }) => {
+    if (!active?.data?.current) return transform;
+    
+    // Calculate offset ONLY ONCE
+    if (!active.data.current.grabOffset) {
+      const element = document.querySelector(`[data-component-id="${activeId}"]`);
+      const canvas = canvasRef.current;
+      
+      if (!element || !canvas) return transform;
+      
+      const elementRect = element.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
+      
+      // Get mouse position
+      const event = active.data.current.activatorEvent;
+      if (!event) return transform;
+      
+      const mouseX = event.clientX || event.touches?.[0]?.clientX;
+      const mouseY = event.clientY || event.touches?.[0]?.clientY;
+      
+      if (!mouseX || !mouseY) return transform;
+      
+      // Where did we grab on the element? (in pixels from top-left)
+      const grabX = mouseX - elementRect.left;
+      const grabY = mouseY - elementRect.top;
+      
+      // Element center
+      const centerX = elementRect.width / 2;
+      const centerY = elementRect.height / 2;
+      
+      // 🔥 THE FIX: Store the offset needed to center
+      active.data.current.grabOffset = {
+        x: centerX - grabX,
+        y: centerY - grabY
+      };
+      
+      console.log('🎯 SIMPLE FIX:', {
+        elementSize: { w: elementRect.width, h: elementRect.height },
+        elementPos: { 
+          viewport: { left: elementRect.left, top: elementRect.top },
+          inCanvas: { 
+            left: elementRect.left - canvasRect.left, 
+            top: elementRect.top - canvasRect.top 
+          }
+        },
+        mouse: { x: mouseX, y: mouseY },
+        grab: { x: grabX, y: grabY },
+        center: { x: centerX, y: centerY },
+        offset: { x: centerX - grabX, y: centerY - grabY }
+      });
+    }
+    
+    const offset = active.data.current.grabOffset;
+    if (!offset) return transform;
+    
+    return {
+      ...transform,
+      x: transform.x + offset.x,
+      y: transform.y + offset.y
+    };
+  }
+]}
+>
                   {draggedComponent && (
                     <motion.div
-                      initial={{ 
-                        scale: 0.95, 
-                        opacity: 0.8,
-                      }}
+                      initial={{ scale: 0.95, opacity: 0.85 }}
                       animate={{ 
-                        scale: 1,
-                        opacity: 1,
-                        boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-                        filter: 'brightness(1.1) saturate(1.1)',
+                        scale: 1.02,
+                        opacity: 0.95,
                       }}
                       transition={{ 
                         duration: 0.15,
                         ease: "easeOut"
                       }}
-                      className="bg-white/90 backdrop-blur-lg rounded-md border-2 border-blue-500 overflow-hidden"
+                      className="rounded-lg overflow-hidden"
                       style={{
                         pointerEvents: 'none',
                         transformOrigin: 'center center',
+                        filter: 'drop-shadow(0 20px 40px rgba(0, 0, 0, 0.35)) drop-shadow(0 0 20px rgba(59, 130, 246, 0.3))',
+                        // Preserve original opacity if set
+                        opacity: draggedComponent.style?.opacity ? 
+                          Math.min(0.95, parseFloat(draggedComponent.style.opacity)) : 0.95,
+                        // Slight glow effect
+                        boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.5), 0 0 40px rgba(59, 130, 246, 0.2)',
                       }}
                     >
-                      {/* RENDER THE EXACT SAME COMPONENT AS IN CANVAS */}
+                      {/* Render full component with children */}
                       {(() => {
-                        const componentRenderer = componentLibraryService?.getComponent(draggedComponent.type);
-                        if (componentRenderer?.render) {
+                        const renderer = componentLibraryService?.getComponent(draggedComponent.type);
+                        
+                        if (renderer?.render) {
                           try {
-                            // Render the EXACT same way as in canvas
-                            return componentRenderer.render(
-                              { 
-                                ...draggedComponent.props, 
-                                style: draggedComponent.style 
-                              }, 
-                              draggedComponent.id
+                            return (
+                              <div className="relative">
+                                {/* Main component */}
+                                {renderer.render(
+                                  { 
+                                    ...draggedComponent.props, 
+                                    style: {
+                                      ...draggedComponent.style,
+                                      width: 'auto', // ✅ Let it be its natural width
+                                      minWidth: '100px',
+                                      maxWidth: 'none', // ✅ Remove the 200px limit
+                                    }
+                                  }, 
+                                  draggedComponent.id
+                                )}
+                                
+                                {/* Children indicator if present */}
+                                {draggedComponent.children?.length > 0 && (
+                                  <div className="absolute -bottom-6 left-0 right-0 flex items-center justify-center">
+                                    <div className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full font-semibold shadow-lg">
+                                      {draggedComponent.children.length} nested
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             );
                           } catch (error) {
                             console.warn('Ghost render error:', error);
                           }
                         }
                         
-                        // Fallback: render the actual component structure
+                        // Fallback rendering
                         return (
-                          <div 
-                            style={draggedComponent.style}
-                            className="p-3"
-                          >
-                            <div className="font-medium text-gray-800">{draggedComponent.name}</div>
-                            <div className="text-xs text-gray-500">{draggedComponent.type}</div>
+                          <div className="p-4 bg-white rounded-lg border-2 border-blue-500 min-w-[120px]">
+                            <div className="font-semibold text-gray-900 text-sm mb-1">
+                              {draggedComponent.name}
+                            </div>
+                            <div className="text-xs text-gray-500 mb-2">
+                              {draggedComponent.type}
+                            </div>
+                            
+                            {/* Show nested children */}
+                            {draggedComponent.children?.map((child, idx) => (
+                              idx < 3 && (
+                                <div key={child.id} className="ml-3 mt-1 text-xs text-gray-600 flex items-center gap-1">
+                                  <div className="w-1 h-1 rounded-full bg-blue-400" />
+                                  {child.name}
+                                </div>
+                              )
+                            ))}
+                            
+                            {draggedComponent.children?.length > 3 && (
+                              <div className="ml-3 mt-1 text-xs text-blue-600 font-semibold">
+                                +{draggedComponent.children.length - 3} more
+                              </div>
+                            )}
                           </div>
                         );
                       })()}
+                      
+                      {/* Drag indicator icon */}
+                      <div className="absolute -top-3 -right-3 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shadow-lg">
+                        <Move className="w-3 h-3 text-white" />
+                      </div>
                     </motion.div>
                   )}
                 </DragOverlay>

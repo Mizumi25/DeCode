@@ -222,6 +222,13 @@ class ComponentLibraryService {
 
   // Dynamic component renderer with enhanced variant support
    renderComponent(componentDef, props, id) {
+       // CRITICAL: Add data attribute for selection system
+      const baseDataAttrs = {
+        'data-component-id': id,
+        'data-component-type': componentDef?.type || props.type,
+        'data-is-layout': props.isLayoutContainer || false,
+      };
+     
         // Get the component definition if not passed
        if (!componentDef && this.componentDefinitions.has(props.type || props.component_type)) {
             componentDef = this.componentDefinitions.get(props.type || props.component_type);
@@ -378,7 +385,11 @@ class ComponentLibraryService {
             className,
             onClick: () => console.log(`Button ${id} clicked`),
             disabled: props.disabled || false,
-            style: buttonStyle
+            style: buttonStyle,
+            // CRITICAL: Add these
+            'data-component-id': id,
+            'data-component-type': 'button',
+            'data-is-layout': false,
         }, props.text || props.children || 'Button');
     }
 
@@ -401,7 +412,11 @@ class ComponentLibraryService {
     return React.createElement('div', {
       key: id,
       className,
-      style: props.style
+      style: props.style,
+      // CRITICAL: Add these
+        'data-component-id': id,
+        'data-component-type': 'avatar',
+        'data-is-layout': false,
     }, React.createElement('span', {
       className: 'font-medium'
     }, initials));
@@ -427,7 +442,11 @@ class ComponentLibraryService {
           className,
           disabled: props.disabled || false,
           required: props.required || false,
-          style: inputStyle
+          style: inputStyle,
+          // CRITICAL: Add these
+          'data-component-id': id,
+          'data-component-type': 'input',
+          'data-is-layout': false,
       });
   }
 
@@ -473,7 +492,11 @@ class ComponentLibraryService {
       return React.createElement('div', {
           key: id,
           className: cardClassName,
-          style: cardStyle
+          style: cardStyle,
+          // CRITICAL: Add these
+          'data-component-id': id,
+          'data-component-type': 'card',
+          'data-is-layout': false,
       }, [
           props.title && React.createElement('h3', {
               key: `${id}-title`,

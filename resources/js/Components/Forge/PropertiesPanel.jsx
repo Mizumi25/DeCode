@@ -1,6 +1,7 @@
 // @/Components/Forge/PropertiesPanel.jsx
-import React, { useState, useEffect, useMemo } from 'react';
-import { Settings, Code, Trash2, RotateCcw, Search, X } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Settings, Code, Trash2, RotateCw, Move, RotateCcw, Search, X, Eye, EyeOff, Maximize2, Grid, Layers } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion'
 
 // Import sub-components
 import LayoutSection from './PropertySections/LayoutSection';
@@ -10,6 +11,10 @@ import AnimationSection from './PropertySections/AnimationSection';
 import ResponsiveSection from './PropertySections/ResponsiveSection';
 import InteractionsSection from './PropertySections/InteractionsSection';
 import CustomSection from './PropertySections/CustomSection';
+import CanvasSettingsDropdown from './CanvasSettingsDropdown';
+
+
+import { useCanvasOverlayStore } from '@/stores/useCanvasOverlayStore';
 
 const PropertiesPanel = ({ 
   canvasComponents, 
@@ -137,7 +142,7 @@ const PropertiesPanel = ({
       className="space-y-0 max-h-full overflow-y-auto"
       style={{ backgroundColor: 'var(--color-bg)' }}
     >
-      {/* Header */}
+      {/* Enhanced Header with Canvas Settings */}
       <div 
         className="sticky top-0 z-10 border-b"
         style={{ 
@@ -146,18 +151,25 @@ const PropertiesPanel = ({
         }}
       >
         <div className="p-4">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
-              <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+          {/* Top row with title and settings */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+                <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Properties</h3>
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  {componentDefinition?.name || selectedComponentData.type} #{selectedComponent.split('_').pop()}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Properties</h3>
-              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                {componentDefinition?.name || selectedComponentData.type} #{selectedComponent.split('_').pop()}
-              </p>
-            </div>
+            
+            {/* Canvas Settings Dropdown Button */}
+            <CanvasSettingsDropdown />
           </div>
-
+      
+          {/* Component Name Input */}
           <div className="space-y-2 mb-4">
             <label className="block text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
               Component Name
@@ -172,9 +184,11 @@ const PropertiesPanel = ({
                 borderColor: 'var(--color-border)',
                 color: 'var(--color-text)'
               }}
+              placeholder="Enter component name"
             />
           </div>
           
+          {/* Search Properties */}
           <div className="space-y-2">
             <label className="block text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
               Search Properties
@@ -223,7 +237,7 @@ const PropertiesPanel = ({
           </div>
         </div>
       </div>
-
+      
       {/* Scrollable Content */}
       <div className="p-4 space-y-4">
         <LayoutSection {...commonProps} />
@@ -286,5 +300,12 @@ const PropertiesPanel = ({
     </div>
   );
 };
+
+
+
+
+
+
+
 
 export default PropertiesPanel;

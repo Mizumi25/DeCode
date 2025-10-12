@@ -204,15 +204,55 @@ class Workspace extends Model
         return $this->projects()->count();
     }
 
-    // Serialization
-    public function toArray()
-    {
-        $array = parent::toArray();
-        
-        // Add computed attributes
-        $array['member_count'] = $this->getMemberCountAttribute();
-        $array['project_count'] = $this->getProjectCountAttribute();
-        
-        return $array;
-    }
+    
+    
+    
+      // app/Models/Workspace.php - ADD THESE METHODS
+  
+  public function updateUserDiscipline($userId, $discipline)
+  {
+      // Can't change if user is not in workspace
+      if (!$this->hasUser($userId)) {
+          return false;
+      }
+      
+      // Owner can update their own discipline via pivot
+      if ($this->owner_id === $userId) {
+          return $this->users()->updateExistingPivot($userId, ['discipline' => $discipline]);
+      }
+  
+      return $this->users()->updateExistingPivot($userId, ['discipline' => $discipline]);
+  }
+  
+  public function updateDisciplineOrder($userId, $order)
+  {
+      if (!$this->hasUser($userId)) {
+          return false;
+      }
+      
+      return $this->users()->updateExistingPivot($userId, ['discipline_order' => $order]);
+  }
+  
+  public function getUserDiscipline($userId): string
+  {
+      if ($this->owner_id === $userId) {
+          $workspaceUser = $this->users()->where('user_id', $userId)->first();
+          return $workspaceUser?->pivot?->discipline ?? 'Member';
+      }
+      
+      $workspaceUser = $this->users()->where('user_id', $userId)->first();
+      return $workspaceUser?->pivot?->discipline ?? 'Member';
+  }
+  
+  // In toArray() method, update the users mapping:
+  public function toArray()
+  {
+      $array = parent::toArray();
+      
+      // Add computed attributes
+      $array['member_count'] = $this->getMemberCountAttribute();
+      $array['project_count'] = $this->getProjectCountAttribute();
+      
+      return $array;
+  }
 }

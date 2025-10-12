@@ -32,35 +32,42 @@ class VoidController extends Controller
     }
 
      
-    public function show(Project $project): Response
-    {
-        $user = Auth::user();
-        
-        // Enhanced access control
-        $hasAccess = false;
-        
-        if ($project->user_id === $user->id) {
-            $hasAccess = true;
-        } elseif ($project->is_public) {
-            $hasAccess = true;
-        } elseif ($project->workspace) {
-            $hasAccess = $project->workspace->hasUser($user->id);
-        }
-        
-        if (!$hasAccess) {
-            abort(403, 'Access denied to this project.');
-        }
-        
-        $project->updateLastOpened();
-        
-        return Inertia::render('VoidPage', [
-            'project' => $project->load('workspace'),
-            'canvas_data' => $project->canvas_data,
-            'frames' => $project->canvas_data['frames'] ?? [],
-            'userRole' => $project->workspace ? $project->workspace->getUserRole($user->id) : 'owner',
-            'canEdit' => $project->user_id === $user->id || ($project->workspace && $project->workspace->canUserEdit($user->id)),
-        ]);
-    }
+
+  public function show(Project $project): Response
+  {
+      $user = Auth::user();
+      
+      // Enhanced access control
+      $hasAccess = false;
+      
+      if ($project->user_id === $user->id) {
+          $hasAccess = true;
+      } elseif ($project->is_public) {
+          $hasAccess = true;
+      } elseif ($project->workspace) {
+          $hasAccess = $project->workspace->hasUser($user->id);
+      }
+      
+      if (!$hasAccess) {
+          abort(403, 'Access denied to this project.');
+      }
+      
+      $project->updateLastOpened();
+      
+      // Load workspace with users including discipline
+      $project->load(['workspace.owner', 'workspace.users' => function($query) {
+          $query->orderBy('workspace_users.discipline_order', 'asc')
+                ->orderBy('users.name', 'asc');
+      }]);
+      
+      return Inertia::render('VoidPage', [
+          'project' => $project,
+          'canvas_data' => $project->canvas_data,
+          'frames' => $project->canvas_data['frames'] ?? [],
+          'userRole' => $project->workspace ? $project->workspace->getUserRole($user->id) : 'owner',
+          'canEdit' => $project->user_id === $user->id || ($project->workspace && $project->workspace->canUserEdit($user->id)),
+      ]);
+  }
 
     /**
      * Display a listing of frames for a project.

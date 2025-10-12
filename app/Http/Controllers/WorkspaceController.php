@@ -132,6 +132,7 @@ class WorkspaceController extends Controller
         }
     }
 
+    // Update the show() method to include discipline in user data:
     public function show(Workspace $workspace): JsonResponse
     {
         $user = Auth::user();
@@ -143,9 +144,9 @@ class WorkspaceController extends Controller
                 'message' => 'You do not have access to this workspace'
             ], 403);
         }
-
+    
         $workspace->load(['owner', 'users', 'projects']);
-
+    
         // Transform for frontend
         $workspaceData = [
             'id' => $workspace->id,
@@ -167,9 +168,14 @@ class WorkspaceController extends Controller
                     'email' => $workspaceUser->email,
                     'avatar' => $workspaceUser->avatar,
                     'role' => $workspaceUser->pivot->role,
+                    'discipline' => $workspaceUser->pivot->discipline ?? 'Member',
+                    'discipline_order' => $workspaceUser->pivot->discipline_order ?? 999,
                     'joined_at' => $workspaceUser->pivot->joined_at,
                 ];
-            }),
+            })->sortBy([
+                ['discipline_order', 'asc'],
+                ['name', 'asc']
+            ])->values(),
             'projects' => $workspace->projects->map(function ($project) {
                 return [
                     'id' => $project->id,
@@ -556,4 +562,76 @@ class WorkspaceController extends Controller
             ], 500);
         }
     }
+    
+   public function updateUserDiscipline(Request $request, Workspace $workspace, User $user): JsonResponse
+  {
+      $currentUser = Auth::user();
+      
+      // Only owner can change disciplines
+      if ($workspace->owner_id !== $currentUser->id) {
+          return response()->json([
+              'success' => false,
+              'message' => 'Only the workspace owner can assign disciplines'
+          ], 403);
+      }
+  
+      $validated = $request->validate([
+          'discipline' => 'required|in:Developer,Designer,Product Manager,QA Tester,Project Manager,Marketing,Sales,Support,Member'
+      ]);
+  
+      try {
+          $workspace->updateUserDiscipline($user->id, $validated['discipline']);
+  
+          return response()->json([
+              'success' => true,
+              'message' => 'User discipline updated successfully'
+          ]);
+  
+      } catch (\Exception $e) {
+          return response()->json([
+              'success' => false,
+              'message' => 'Failed to update user discipline: ' . $e->getMessage()
+          ], 500);
+      }
+  }
+  
+  
+    public function updateDisciplineOrders(Request $request, Workspace $workspace): JsonResponse
+  {
+      $currentUser = Auth::user();
+      
+      // Only owner can reorder
+      if ($workspace->owner_id !== $currentUser->id) {
+          return response()->json([
+              'success' => false,
+              'message' => 'Only the workspace owner can reorder members'
+          ], 403);
+      }
+  
+      $validated = $request->validate([
+          'orders' => 'required|array',
+          'orders.*.user_id' => 'required|exists:users,id',
+          'orders.*.order' => 'required|integer'
+      ]);
+  
+      try {
+          foreach ($validated['orders'] as $orderData) {
+              $workspace->updateDisciplineOrder($orderData['user_id'], $orderData['order']);
+          }
+  
+          return response()->json([
+              'success' => true,
+              'message' => 'Discipline orders updated successfully'
+          ]);
+  
+      } catch (\Exception $e) {
+          return response()->json([
+              'success' => false,
+              'message' => 'Failed to update orders: ' . $e->getMessage()
+          ], 500);
+      }
+  }
+
+    
+    
 }

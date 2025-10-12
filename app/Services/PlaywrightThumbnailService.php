@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\File;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Process\Exception\ProcessFailedException;
+use Illuminate\Support\Facades\Http;
+
 
 /**
  * Enhanced Playwright Thumbnail Service with real-time updates
@@ -55,29 +57,71 @@ class PlaywrightThumbnailService
             $playwrightScript = $this->createPlaywrightScript($tempHtmlPath, $thumbnailPath, $frame);
             $scriptPath = $this->tempPath . '/playwright_' . $frame->uuid . '_' . $timestamp . '.js';
             file_put_contents($scriptPath, $playwrightScript);
-
-            // Execute Playwright script
-            $process = new Process(['node', $scriptPath], null, [
-                'NODE_PATH' => base_path('node_modules')
-            ]);
-            $process->setTimeout(30); // 30 seconds timeout
-            $process->run();
-
-            // Clean up temporary files
-            @unlink($tempHtmlPath);
-            @unlink($scriptPath);
-
-            if (!$process->isSuccessful()) {
-                Log::error('Playwright process failed:', [
-                    'frame_id' => $frame->id,
-                    'error' => $process->getErrorOutput(),
-                    'output' => $process->getOutput()
+                // === [TERMUX TEMP - REMOTE PLAYWRIGHT] ===
+                // Use Browserless.io to generate the thumbnail remotely.
+                // This avoids needing Chromium locally (since Termux can't run Playwright browsers).
+                
+                $browserlessToken = env('BROWSERLESS_TOKEN');
+                $browserlessUrl = "https://chrome.browserless.io/screenshot?token={$browserlessToken}";
+                
+                // Prepare payload for remote screenshot
+                $payload = [
+                    'url' => 'file://' . $tempHtmlPath,
+                    'options' => [
+                        'fullPage' => true,
+                        'omitBackground' => false
+                    ]
+                ];
+                
+                $response = Http::withHeaders(['Content-Type' => 'application/json'])
+                    ->post($browserlessUrl, $payload);
+                
+                // Clean up temporary files after sending to remote service
+                if ($response->successful()) {
+                    @unlink($tempHtmlPath);
+                    @unlink($scriptPath);
+                }
+                
+                if ($response->successful()) {
+                    // Save the returned PNG/JPG from Browserless
+                    Storage::disk('public')->put('thumbnails/frames/' . $thumbnailFilename, $response->body());
+                } else {
+                    Log::error('Browserless API failed:', [
+                        'frame_id' => $frame->id,
+                        'status' => $response->status(),
+                        'body' => $response->body(),
+                    ]);
+                    return null;
+                }
+                // === [END TERMUX TEMP - REMOTE PLAYWRIGHT] ===
+                
+                
+                
+                // === [PRODUCTION - LOCAL PLAYWRIGHT EXECUTION] ===
+                // Uncomment this section when you move to a PC or server that can run Playwright natively.
+                /*
+                $process = new Process(['node', $scriptPath], null, [
+                    'NODE_PATH' => base_path('node_modules')
                 ]);
-                return null;
-            }
+                $process->setTimeout(30); // 30 seconds timeout
+                $process->run();
+                
+                @unlink($tempHtmlPath);
+                @unlink($scriptPath);
+                
+                if (!$process->isSuccessful()) {
+                    Log::error('Playwright process failed:', [
+                        'frame_id' => $frame->id,
+                        'error' => $process->getErrorOutput(),
+                        'output' => $process->getOutput()
+                    ]);
+                    return null;
+                }
+                */
+                // === [END PRODUCTION - LOCAL PLAYWRIGHT EXECUTION] ===
 
             // Verify thumbnail was created
-            if (file_exists($thumbnailPath)) {
+            if (Storage::disk('public')->exists('thumbnails/frames/' . $thumbnailFilename)) {
                 // Update frame settings with new thumbnail path
                 $settings = $frame->settings ?? [];
                 $settings['thumbnail_generated'] = true;

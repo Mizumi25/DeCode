@@ -12,6 +12,8 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore';
 import { useCodeSyncStore } from '@/stores/useCodeSyncStore';
 import { useThumbnail } from '@/hooks/useThumbnail';
+// Add this import with your other store imports
+import { useFramePresenceStore } from '@/stores/useFramePresenceStore';
 
 // Import separated forge components
 import ComponentsPanel from '@/Components/Forge/ComponentsPanel';
@@ -219,24 +221,26 @@ export default function ForgePage({
   });
   
   
+  /**
+ * Get all nested component IDs for a given component
+ */
+const getNestedComponentIds = useCallback((componentId, components) => {
+  const nested = [];
   
-  
-  // In ForgePage.jsx - REPLACE your existing useEffect for Echo cleanup
-
-useEffect(() => {
-  const currentFrameRef = frameId || frame?.uuid;
-  
-  return () => {
-    console.log('ForgePage: Component unmounting');
-    
-    // The store will handle cleanup via navigation listeners
-    // But we still cleanup on unmount as a safety measure
-    if (currentFrameRef) {
-      useFramePresenceStore.getState().cleanupFrame(currentFrameRef);
-    }
+  const findNested = (compId, comps) => {
+    comps.forEach(comp => {
+      if (comp.parentId === compId || comp.id === compId) {
+        nested.push(comp.id);
+        if (comp.children?.length > 0) {
+          findNested(comp.id, comp.children);
+        }
+      }
+    });
   };
-}, [frameId, frame?.uuid]);
   
+  findNested(componentId, components);
+  return nested;
+}, []);
   
   
   
@@ -817,19 +821,32 @@ const handleAssetDrop = useCallback((e) => {
   const handleComponentDragStart = useCallback((e, componentType, variant = null, dragData = null) => {
     console.log('Drag started:', componentType, variant ? `with variant: ${variant.name}` : 'without variant');
 
+    // CRITICAL: Get element bounds for accurate ghost positioning
+    const element = e.target.closest('[data-component-id]');
+    let ghostBounds = null;
+    
+    if (element) {
+      const rect = element.getBoundingClientRect();
+      ghostBounds = {
+        width: rect.width,
+        height: rect.height,
+      };
+    }
+
     setDragState({
       isDragging: true,
       draggedComponent: {
         type: componentType,
-        name: componentType
+        name: componentType,
+        ghostBounds, // Pass bounds to canvas
       },
       variant: variant,
       dragPreview: null
-    })
+    });
 
-    e.dataTransfer.effectAllowed = 'copy'
-    e.dataTransfer.setData('text/plain', JSON.stringify({ componentType, variant }))
-  }, [])
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('text/plain', JSON.stringify({ componentType, variant, ghostBounds }));
+}, []);
 
   const handleComponentDragEnd = useCallback(() => {
     if (dragState.dragPreview) {
@@ -859,141 +876,93 @@ const handleAssetDrop = useCallback((e) => {
   }, []);
 
 
-    // MODIFY your handleCanvasDrop to use the fixed version with error handling:
-  const handleCanvasDrop = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    setDragPosition(null);
-    
-    if (!canvasRef.current) return;
+const handleCanvasDrop = useCallback((e) => {
+  e.preventDefault();
+  e.stopPropagation();
   
+  setDragPosition(null);
+  
+  if (!canvasRef.current) return;
+
+  try {
+    const componentDataStr = e.dataTransfer.getData('text/plain');
+    let dragData;
+    
     try {
-      const componentDataStr = e.dataTransfer.getData('text/plain');
-      let dragData;
-      
-      try {
-        dragData = JSON.parse(componentDataStr);
-      } catch (err) {
-        console.error('Failed to parse drop data:', err);
-        return;
-      }
-  
-      const { componentType, variant } = dragData;
-      const isLayout = ['section', 'container', 'div', 'flex', 'grid'].includes(componentType);
-      
-      // Find target container by walking up the DOM
-      let targetId = null;
-      let element = e.target;
-      let searchDepth = 0;
-      const MAX_SEARCH_DEPTH = 20;
-      
-      while (element && element !== canvasRef.current && searchDepth < MAX_SEARCH_DEPTH) {
-        const compId = element.getAttribute('data-component-id');
-        const isLayoutAttr = element.getAttribute('data-is-layout');
-        
-        if (compId && isLayoutAttr === 'true') {
-          targetId = compId;
-          console.log(`Found target container: ${targetId} at depth ${searchDepth}`);
-          break;
-        }
-        
-        element = element.parentElement;
-        searchDepth++;
-      }
-  
-      let componentDef = componentLibraryService?.getComponentDefinition(componentType);
-  
-      const newComponent = {
-        id: `${componentType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: componentType,
-        props: {
-          ...(componentDef?.default_props || {}),
-          ...(variant?.props || {})
-        },
-        name: variant ? `${componentType} (${variant.name})` : (componentDef?.name || componentType),
-        variant: variant || null,
-        style: variant?.style || {},
-        animation: {},
-        children: [],
-        isLayoutContainer: isLayout,
-        zIndex: 0,
-        sortOrder: 0
-      };
-  
-      let updatedComponents;
-      
-      if (targetId) {
-        // Deep clone to prevent mutation issues
-        updatedComponents = JSON.parse(JSON.stringify(canvasComponents));
-        
-        // Use fixed addChildToContainer with depth tracking
-        updatedComponents = addChildToContainer(updatedComponents, targetId, newComponent, 0);
-        
-        // Verify the update worked
-        const verifyComponent = (comps, id) => {
-          for (const comp of comps) {
-            if (comp.children?.some(child => child.id === id)) return true;
-            if (comp.children && verifyComponent(comp.children, id)) return true;
-          }
-          return false;
-        };
-        
-        const wasAdded = verifyComponent(updatedComponents, newComponent.id);
-        
-        if (!wasAdded) {
-          console.error('Failed to add component to container, adding to root instead');
-          updatedComponents = [...canvasComponents, newComponent];
-        }
-        
-      } else if (canvasComponents.length === 0 && !isLayout) {
-        // Wrap non-layout in section
-        const baseSection = componentLibraryService?.createLayoutElement('section') || {
-          id: `section_${Date.now()}`,
-          type: 'section',
-          props: {},
-          children: [],
-          isLayoutContainer: true
-        };
-        baseSection.children = [newComponent];
-        updatedComponents = [baseSection];
-      } else {
-        updatedComponents = [...canvasComponents, newComponent];
-      }
-      
-      // CRITICAL: Validate updated components before setting state
-      if (!Array.isArray(updatedComponents)) {
-        console.error('Invalid components array, reverting');
-        return;
-      }
-      
-      // Force new state reference
-      setFrameCanvasComponents(() => ({
-        [currentFrame]: updatedComponents
-      }));
-      
-      pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
-        componentName: newComponent.name,
-        componentType: newComponent.type,
-        targetContainer: targetId || 'root',
-        componentId: newComponent.id
-      });
-      
-      setSelectedComponent(newComponent.id);
-      handleComponentDragEnd();
-      generateCode(updatedComponents);
-      
-    } catch (error) {
-      console.error('❌ CRITICAL Drop error:', error);
-      console.error('Error stack:', error.stack);
-      
-      // Don't let the error crash the page
-      handleComponentDragEnd();
-      
-      // Show user-friendly error
-      alert('Failed to drop component. Please try again or check console for details.');
+      dragData = JSON.parse(componentDataStr);
+    } catch (err) {
+      console.error('Failed to parse drop data:', err);
+      return;
     }
-  }, [canvasComponents, currentFrame, componentLibraryService, pushHistory, actionTypes, generateCode]);
+
+    const { componentType, variant } = dragData;
+    const isLayout = ['section', 'container', 'div', 'flex', 'grid'].includes(componentType);
+    
+    // Calculate drop position relative to canvas
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    const dropX = e.clientX - canvasRect.left;
+    const dropY = e.clientY - canvasRect.top;
+
+    let componentDef = componentLibraryService?.getComponentDefinition(componentType);
+
+    const newComponent = {
+      id: `${componentType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: componentType,
+      props: {
+        ...(componentDef?.default_props || {}),
+        ...(variant?.props || {})
+      },
+      name: variant ? `${componentType} (${variant.name})` : (componentDef?.name || componentType),
+      variant: variant || null,
+      style: {
+        ...(variant?.style || {}),
+        // Preserve transparency if any
+        opacity: variant?.style?.opacity || 1
+      },
+      animation: {},
+      children: [],
+      isLayoutContainer: isLayout,
+      zIndex: 0,
+      sortOrder: 0,
+      position: { x: dropX - 50, y: dropY - 20 } // Center the drop
+    };
+
+    const updatedComponents = [...canvasComponents, newComponent];
+    
+    // CRITICAL: Validate updated components before setting state
+    if (!Array.isArray(updatedComponents)) {
+      console.error('Invalid components array, reverting');
+      return;
+    }
+    
+    // Force new state reference
+    setFrameCanvasComponents(prev => ({
+      ...prev,
+      [currentFrame]: updatedComponents
+    }));
+    
+    pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
+      componentName: newComponent.name,
+      componentType: newComponent.type,
+      position: { x: dropX, y: dropY },
+      componentId: newComponent.id
+    });
+    
+    setSelectedComponent(newComponent.id);
+    handleComponentDragEnd();
+    generateCode(updatedComponents);
+    
+    console.log('✅ Component dropped successfully:', newComponent.name);
+    
+  } catch (error) {
+    console.error('❌ Drop error:', error);
+    handleComponentDragEnd();
+  }
+}, [canvasComponents, currentFrame, componentLibraryService, pushHistory, actionTypes, generateCode]);
+
+
+
+
   
   // ADD this helper function
 const findDropTarget = (components, dropX, dropY, canvasRect) => {
@@ -1574,44 +1543,36 @@ useEffect(() => {
 }, []);
 
 
-// REPLACE WITH THIS (adds Echo cleanup):
+// ✅ KEEP ONLY THIS CLEANUP EFFECT:
 useEffect(() => {
-  const handleInertiaStart = () => {
-    console.log('ForgePage: Navigation starting, preparing to unmount...');
-    setIsFrameSwitching(true);
-    
-    // ✅ ADD THIS: Cleanup Echo channels before navigation
+  // Handle browser beforeunload for page refresh/close
+  const handleBeforeUnload = () => {
+    console.log('ForgePage: Page unloading - cleaning up');
     if (currentFrame) {
       safeLeaveChannel(`presence-frame.${currentFrame}`);
       safeLeaveChannel(`frame-lock.${currentFrame}`);
     }
   };
-  
-  const handleInertiaFinish = () => {
-    console.log('ForgePage: Navigation finished');
-    setIsFrameSwitching(false);
-  };
-  
-  router.on('start', handleInertiaStart);
-  router.on('finish', handleInertiaFinish);
-  
+
+  window.addEventListener('beforeunload', handleBeforeUnload);
+
   return () => {
-    console.log('ForgePage: Removing Inertia listeners');
-    router.off('start', handleInertiaStart);
-    router.off('finish', handleInertiaFinish);
+    console.log('ForgePage: Component unmounting - cleaning up');
     
-    // ✅ ADD THIS: Final cleanup
+    // Cleanup Echo channels
     if (currentFrame) {
       safeLeaveChannel(`presence-frame.${currentFrame}`);
       safeLeaveChannel(`frame-lock.${currentFrame}`);
     }
+    
+    // Remove beforeunload listener
+    window.removeEventListener('beforeunload', handleBeforeUnload);
   };
-}, [currentFrame]);  // ✅ ADD currentFrame to dependencies
+}, [currentFrame]);
 
 
 
 
-
   
   
   
@@ -1619,18 +1580,90 @@ useEffect(() => {
   
   
 
-  const handleCanvasClick = useCallback((e) => {
-  // Check if we clicked directly on the canvas (not a component)
-  const clickedOnCanvas = e.target === canvasRef.current || 
-                         e.target.classList.contains('canvas-root') ||
-                         !e.target.closest('[data-component-id]');
-  
-  if (clickedOnCanvas) {
-    console.log('Canvas root clicked, deselecting component');
-    setSelectedComponent(null);
+const handleCanvasClick = useCallback((e) => {
+    e.stopPropagation();
+    
+    // CRITICAL: Find the most specific (deepest) component that was clicked
+    let targetComponent = null;
+    let currentElement = e.target;
+    
+    // Traverse up the DOM tree to find the most specific component
+    while (currentElement && currentElement !== document.body) {
+        if (currentElement.hasAttribute('data-component-id')) {
+            const componentId = currentElement.getAttribute('data-component-id');
+            const isLayout = currentElement.getAttribute('data-is-layout') === 'true';
+            const depth = parseInt(currentElement.getAttribute('data-depth') || '0');
+            
+            // Store this component candidate
+            targetComponent = {
+                element: currentElement,
+                id: componentId,
+                isLayout: isLayout,
+                depth: depth
+            };
+            
+            // If this is NOT a layout element, stop here - we found our target
+            // Layout elements (containers) should only be selected if explicitly clicked
+            // or if they contain no other interactive elements
+            if (!isLayout) {
+                break;
+            }
+            
+            // For layout elements, continue searching for more specific children
+            // unless this layout element was directly clicked (not its content)
+            const rect = currentElement.getBoundingClientRect();
+            const isDirectClick = (
+                e.clientX >= rect.left && 
+                e.clientX <= rect.right && 
+                e.clientY >= rect.top && 
+                e.clientY <= rect.bottom
+            );
+            
+            // If this layout element was directly clicked (not on its content),
+            // and it doesn't contain other interactive elements at the click point,
+            // then select the layout element itself
+            if (isDirectClick) {
+                // Check if there are any non-layout elements at this click position
+                const elementsAtPoint = document.elementsFromPoint(e.clientX, e.clientY);
+                const hasInteractiveChild = elementsAtPoint.some(el => 
+                    el !== currentElement && 
+                    el.hasAttribute('data-component-id') && 
+                    el.getAttribute('data-is-layout') === 'false'
+                );
+                
+                if (!hasInteractiveChild) {
+                    break; // Select this layout element
+                }
+                // Otherwise continue to find the interactive child
+            }
+        }
+        
+        currentElement = currentElement.parentElement;
+    }
+    
+    // No component clicked - select canvas root
+    if (!targetComponent) {
+        console.log('Canvas root clicked, deselecting component');
+        setSelectedComponent(null);
+        setIsCanvasSelected(true);
+        return;
+    }
+    
+    // Update selection
+    setSelectedComponent(targetComponent.id);
     setIsCanvasSelected(false);
-  }
+    
+    // Visual feedback and logging
+    console.log('🎯 Selected:', {
+        id: targetComponent.id,
+        isLayout: targetComponent.isLayout,
+        depth: targetComponent.depth,
+        element: targetComponent.element.tagName
+    });
+    
 }, []);
+  
+  
 
   // Move code panel to right sidebar
   const moveCodePanelToRightSidebar = useCallback(() => {
@@ -2011,22 +2044,21 @@ useEffect(() => {
       {/* Main content area with transition effects */}
       <div className="h-[calc(100vh-60px)] flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
         <div 
-            className={`
-                flex-1 flex items-center justify-center transition-all duration-300 ease-in-out
-                ${isMobile ? 'p-4' : 'p-8'} ${getCanvasPadding()}
-                ${getTransitionClasses()}
-                relative
-            `}
-            style={{
-                // Add Huion-style dotted background
-                backgroundColor: 'var(--color-bg)',
-                backgroundImage: `
-                    radial-gradient(circle at 1px 1px, #d1d5db 1px, transparent 0)
-                `,
-                backgroundSize: '20px 20px',
-                backgroundPosition: '0 0'
-            }}
-        >
+           className={`
+                      flex-1 flex items-center justify-center transition-all duration-300 ease-in-out
+                      ${isMobile ? 'p-4' : 'p-8'} ${getCanvasPadding()}
+                      ${getTransitionClasses()}
+                      relative overflow-hidden // ✅ ADD overflow-hidden here
+                  `}
+                  style={{
+                      backgroundColor: 'var(--color-bg)',
+                      backgroundImage: `
+                          radial-gradient(circle at 1px 1px, #d1d5db 1px, transparent 0)
+                      `,
+                      backgroundSize: '20px 20px',
+                      backgroundPosition: '0 0'
+                  }}
+              >
             {/* Canvas Component with Enhanced Responsive Sizing */}
             {CanvasComponent ? (
                 <div className="relative w-full flex justify-center">

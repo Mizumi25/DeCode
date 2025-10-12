@@ -10,7 +10,7 @@ import {
   ShoppingCart, CreditCard, DollarSign, TrendingUp, BarChart,
   Calendar, Clock, MapPin, Navigation, Compass, Flag,
   Book, Bookmark, FileText, Folder, Archive, Paperclip,
-  Lock, Unlock, Shield, Eye, EyeOff, Key, UserCheck
+  Lock, Unlock, Shield, Eye, EyeOff, Key, UserCheck, Move
 } from 'lucide-react';
 import * as HeroIcons from '@heroicons/react/24/outline';
 import { useIconStore } from '@/stores/useIconStore';
