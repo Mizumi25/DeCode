@@ -215,6 +215,22 @@ const CanvasComponent = ({
     document.addEventListener('mouseup', handleMouseUp);
   }, [canvasComponents, dragOffset, onPropertyUpdate, onComponentClick, responsiveMode, canvasSize, currentFrame, pushHistory, actionTypes]);
   
+  
+  
+  useEffect(() => {
+  const handleOverlayChange = (e) => {
+    console.log('Canvas received overlay change:', e.detail);
+    // Force component update by touching a state
+    setSelectedComponent(prev => prev);
+  };
+
+  window.addEventListener('canvas-overlay-changed', handleOverlayChange);
+  return () => window.removeEventListener('canvas-overlay-changed', handleOverlayChange);
+}, []);
+  
+  
+  
+  
   // Handle drag-to-reorder
   const handleDragEnd = useCallback((result) => {
     if (!result.destination) return;
@@ -1481,7 +1497,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
               />
           )}
           
-          {/* Drag Snap Lines - Only show if enabled */}
+         {/* Drag Snap Lines - Only show if enabled */}
           {DragSnapLines && dragPosition && isOverlayEnabled('showSnapGuides') && (
               <DragSnapLines
                   dragPosition={dragPosition}
@@ -1491,16 +1507,19 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
               />
           )}
           
-          {/* Selection Overlay - Only show if enabled */}
-          {SelectionOverlay && selectedComponent && selectedComponent !== '__canvas_root__' && 
-           isOverlayEnabled('showSelectionBorders') && (
-              <SelectionOverlay
-                  componentId={selectedComponent}
-                  canvasRef={canvasRef}
-                  canvasComponents={canvasComponents}
-                  selectedComponent={canvasComponents.find(c => c.id === selectedComponent)}
-              />
-          )}
+
+        {SelectionOverlay && selectedComponent && selectedComponent !== '__canvas_root__' && (
+            <SelectionOverlay
+                componentId={selectedComponent}
+                canvasRef={canvasRef}
+                canvasComponents={canvasComponents}
+                selectedComponent={canvasComponents.find(c => c.id === selectedComponent)}
+                // ✅ CRITICAL: Pass overlay settings to SelectionOverlay
+                showSpacing={isOverlayEnabled('showSpacingIndicators')}
+                // Also pass other overlay settings if needed
+                showSelectionBorders={isOverlayEnabled('showSelectionBorders')}
+            />
+        )}
                     
           {/* Drop Zone Indicator */}
           {dragState.isDragging && canvasComponents.length === 0 && (

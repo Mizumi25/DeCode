@@ -30,7 +30,8 @@ const SelectionOverlay = ({
   onLock,
   onToggleVisibility,
   selectedComponent,
-  canvasComponents = []
+  canvasComponents = [],
+  showSpacing = false, 
 }) => {
   const [bounds, setBounds] = useState(null);
   const [computedStyles, setComputedStyles] = useState(null);
@@ -38,7 +39,6 @@ const SelectionOverlay = ({
   const [isResizing, setIsResizing] = useState(false);
   const [resizeHandle, setResizeHandle] = useState(null);
   const [showActions, setShowActions] = useState(false);
-  const [showSpacing, setShowSpacing] = useState(false);
   const [nestedComponents, setNestedComponents] = useState([]);
   const [parentComponent, setParentComponent] = useState(null);
   
@@ -55,6 +55,8 @@ const SelectionOverlay = ({
   const resizeStartPos = useRef(null);
   const initialBounds = useRef(null);
   const rafId = useRef(null);
+  
+
 
   // Configuration
   const CONFIG = useMemo(() => ({
@@ -81,6 +83,9 @@ const SelectionOverlay = ({
       sw: 'nesw-resize',
     },
   }), []);
+  
+  
+
 
   /**
    * Get component hierarchy
@@ -191,6 +196,18 @@ const SelectionOverlay = ({
     setBounds(newBounds);
     setComputedStyles(newStyles);
   }, [componentId, canvasRef, responsiveMode, getResponsiveScaleFactor]);
+  
+  
+    // ✅ FORCE re-calculation when overlay settings change
+useEffect(() => {
+  const handleOverlayChange = () => {
+    console.log('Overlay changed, updating bounds');
+    updateBounds();
+  };
+  
+  window.addEventListener('canvas-overlay-changed', handleOverlayChange);
+  return () => window.removeEventListener('canvas-overlay-changed', handleOverlayChange);
+}, [updateBounds]);
 
   /**
    * Handle resize start
@@ -421,35 +438,32 @@ const SelectionOverlay = ({
   /**
    * Keyboard shortcuts
    */
-  useEffect(() => {
+    useEffect(() => {
     if (!componentId) return;
-
+  
     const handleKeyDown = (e) => {
       // Delete
       if ((e.key === 'Delete' || e.key === 'Backspace') && !e.target.matches('input, textarea')) {
         e.preventDefault();
         onDelete?.(componentId);
       }
-
+  
       // Duplicate (Cmd/Ctrl + D)
       if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
         e.preventDefault();
         onDuplicate?.(componentId);
       }
-
-      // Toggle spacing overlay (Shift + S)
-      if (e.shiftKey && e.key === 'S') {
-        e.preventDefault();
-        setShowSpacing(prev => !prev);
-      }
-
+  
+      // ✅ Spacing toggle now handled globally via CanvasSettingsDropdown
+      // (No local Shift+S handler needed)
+  
       // Toggle actions (Shift + A)
       if (e.shiftKey && e.key === 'A') {
         e.preventDefault();
         setShowActions(prev => !prev);
       }
     };
-
+  
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [componentId, onDelete, onDuplicate]);
@@ -664,22 +678,13 @@ const SelectionOverlay = ({
 
               {/* Divider */}
               <div className="w-px h-4 bg-gray-300" />
-
-              {/* Toggle Spacing */}
-              <button
-                onClick={() => setShowSpacing(!showSpacing)}
-                className={`p-1.5 rounded transition-colors ${
-                  showSpacing ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-600'
-                }`}
-                title="Toggle Spacing (Shift+S)"
-              >
-                <Maximize2 className="w-4 h-4" />
-              </button>
+              
             </motion.div>
           )}
         </AnimatePresence>
       </motion.div>
 
+      
       {/* Margin Visualization - Orange */}
       <AnimatePresence>
         {isOverlayEnabled('showSpacingIndicators') && showSpacing && (computedStyles.marginTop > 0 || computedStyles.marginRight > 0 || 
@@ -701,6 +706,8 @@ const SelectionOverlay = ({
                   backgroundColor: `${CONFIG.SPACING_COLOR.margin}20`,
                   borderTop: `1px dashed ${CONFIG.SPACING_COLOR.margin}`,
                   borderBottom: `1px dashed ${CONFIG.SPACING_COLOR.margin}`,
+                  pointerEvents: 'none', // ✅ CRITICAL: Don't block clicks
+                  zIndex: 100, // ✅ Ensure visibility above canvas
                 }}
               >
                 <span 
@@ -711,7 +718,7 @@ const SelectionOverlay = ({
                 </span>
               </div>
             )}
-
+      
             {/* Right Margin */}
             {computedStyles.marginRight > 0 && (
               <div
@@ -724,6 +731,8 @@ const SelectionOverlay = ({
                   backgroundColor: `${CONFIG.SPACING_COLOR.margin}20`,
                   borderLeft: `1px dashed ${CONFIG.SPACING_COLOR.margin}`,
                   borderRight: `1px dashed ${CONFIG.SPACING_COLOR.margin}`,
+                  pointerEvents: 'none',
+                  zIndex: 100,
                 }}
               >
                 <span 
@@ -734,7 +743,7 @@ const SelectionOverlay = ({
                 </span>
               </div>
             )}
-
+      
             {/* Bottom Margin */}
             {computedStyles.marginBottom > 0 && (
               <div
@@ -747,6 +756,8 @@ const SelectionOverlay = ({
                   backgroundColor: `${CONFIG.SPACING_COLOR.margin}20`,
                   borderTop: `1px dashed ${CONFIG.SPACING_COLOR.margin}`,
                   borderBottom: `1px dashed ${CONFIG.SPACING_COLOR.margin}`,
+                  pointerEvents: 'none',
+                  zIndex: 100,
                 }}
               >
                 <span 
@@ -757,7 +768,7 @@ const SelectionOverlay = ({
                 </span>
               </div>
             )}
-
+      
             {/* Left Margin */}
             {computedStyles.marginLeft > 0 && (
               <div
@@ -770,6 +781,8 @@ const SelectionOverlay = ({
                   backgroundColor: `${CONFIG.SPACING_COLOR.margin}20`,
                   borderLeft: `1px dashed ${CONFIG.SPACING_COLOR.margin}`,
                   borderRight: `1px dashed ${CONFIG.SPACING_COLOR.margin}`,
+                  pointerEvents: 'none',
+                  zIndex: 100,
                 }}
               >
                 <span 
@@ -783,6 +796,8 @@ const SelectionOverlay = ({
           </motion.div>
         )}
       </AnimatePresence>
+      
+      
 
       {/* Padding Visualization - Green */}
       <AnimatePresence>

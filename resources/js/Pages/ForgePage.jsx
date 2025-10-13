@@ -1581,88 +1581,41 @@ useEffect(() => {
   
 
 const handleCanvasClick = useCallback((e) => {
-    e.stopPropagation();
-    
-    // CRITICAL: Find the most specific (deepest) component that was clicked
+    // Don't stop propagation immediately - let the event bubble
     let targetComponent = null;
     let currentElement = e.target;
     
-    // Traverse up the DOM tree to find the most specific component
+    // Traverse up to find the actual component element
     while (currentElement && currentElement !== document.body) {
         if (currentElement.hasAttribute('data-component-id')) {
             const componentId = currentElement.getAttribute('data-component-id');
             const isLayout = currentElement.getAttribute('data-is-layout') === 'true';
-            const depth = parseInt(currentElement.getAttribute('data-depth') || '0');
             
-            // Store this component candidate
-            targetComponent = {
-                element: currentElement,
-                id: componentId,
-                isLayout: isLayout,
-                depth: depth
-            };
-            
-            // If this is NOT a layout element, stop here - we found our target
-            // Layout elements (containers) should only be selected if explicitly clicked
-            // or if they contain no other interactive elements
-            if (!isLayout) {
+            // ✅ FIX: Allow buttons to be selected directly
+            if (!isLayout || currentElement === e.target) {
+                targetComponent = {
+                    element: currentElement,
+                    id: componentId,
+                    isLayout: isLayout
+                };
                 break;
             }
-            
-            // For layout elements, continue searching for more specific children
-            // unless this layout element was directly clicked (not its content)
-            const rect = currentElement.getBoundingClientRect();
-            const isDirectClick = (
-                e.clientX >= rect.left && 
-                e.clientX <= rect.right && 
-                e.clientY >= rect.top && 
-                e.clientY <= rect.bottom
-            );
-            
-            // If this layout element was directly clicked (not on its content),
-            // and it doesn't contain other interactive elements at the click point,
-            // then select the layout element itself
-            if (isDirectClick) {
-                // Check if there are any non-layout elements at this click position
-                const elementsAtPoint = document.elementsFromPoint(e.clientX, e.clientY);
-                const hasInteractiveChild = elementsAtPoint.some(el => 
-                    el !== currentElement && 
-                    el.hasAttribute('data-component-id') && 
-                    el.getAttribute('data-is-layout') === 'false'
-                );
-                
-                if (!hasInteractiveChild) {
-                    break; // Select this layout element
-                }
-                // Otherwise continue to find the interactive child
-            }
         }
-        
         currentElement = currentElement.parentElement;
     }
     
-    // No component clicked - select canvas root
-    if (!targetComponent) {
-        console.log('Canvas root clicked, deselecting component');
+    if (targetComponent) {
+        e.stopPropagation(); // Only stop if we found a component
+        setSelectedComponent(targetComponent.id);
+        setIsCanvasSelected(false);
+        
+        console.log('🎯 Selected:', targetComponent.id);
+    } else {
+        // Canvas click
         setSelectedComponent(null);
         setIsCanvasSelected(true);
-        return;
     }
-    
-    // Update selection
-    setSelectedComponent(targetComponent.id);
-    setIsCanvasSelected(false);
-    
-    // Visual feedback and logging
-    console.log('🎯 Selected:', {
-        id: targetComponent.id,
-        isLayout: targetComponent.isLayout,
-        depth: targetComponent.depth,
-        element: targetComponent.element.tagName
-    });
-    
 }, []);
-  
   
 
   // Move code panel to right sidebar

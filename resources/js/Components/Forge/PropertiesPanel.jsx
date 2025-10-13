@@ -13,7 +13,7 @@ import InteractionsSection from './PropertySections/InteractionsSection';
 import CustomSection from './PropertySections/CustomSection';
 import CanvasSettingsDropdown from './CanvasSettingsDropdown';
 
-
+// ✅ ADD THIS IMPORT
 import { useCanvasOverlayStore } from '@/stores/useCanvasOverlayStore';
 
 const PropertiesPanel = ({ 
@@ -39,6 +39,9 @@ const PropertiesPanel = ({
   
   const [internalSearchTerm, setInternalSearchTerm] = useState('');
   const activeSearchTerm = externalSearchTerm || internalSearchTerm;
+  
+  // ✅ ADD THIS LINE
+  const { toggleOverlay, isOverlayEnabled } = useCanvasOverlayStore();
 
   useEffect(() => {
     if (selectedComponent && canvasComponents) {
@@ -269,6 +272,28 @@ const PropertiesPanel = ({
           Generate Code
         </button>
         
+        {/* ✅ NEW: Quick Spacing Toggle Button */}
+        <button
+          onClick={() => toggleOverlay('showSpacingIndicators')}
+          className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 ${
+            isOverlayEnabled('showSpacingIndicators') 
+              ? 'ring-2 ring-green-500' 
+              : ''
+          }`}
+          style={{ 
+            backgroundColor: isOverlayEnabled('showSpacingIndicators') 
+              ? '#dcfce7' 
+              : 'var(--color-bg-muted)',
+            color: isOverlayEnabled('showSpacingIndicators') 
+              ? '#166534' 
+              : 'var(--color-text)',
+            border: '1px solid var(--color-border)'
+          }}
+        >
+          <Maximize2 className="w-4 h-4" />
+          {isOverlayEnabled('showSpacingIndicators') ? 'Hide' : 'Show'} Spacing
+        </button>
+        
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => handlePropertyChange('reset', true)}
@@ -300,12 +325,5 @@ const PropertiesPanel = ({
     </div>
   );
 };
-
-
-
-
-
-
-
 
 export default PropertiesPanel;

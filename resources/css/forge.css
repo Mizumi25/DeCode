@@ -773,3 +773,112 @@ body.dragging [data-component-id]:not([data-dnd-kit-dragging]) {
 body.dragging [data-dnd-kit-drag-overlay] {
   transform: none !important;
 }
+
+
+
+/* TEMPORARY DEBUG - Add to forge.css */
+[style*="SPACING_COLOR"] {
+  background-color: red !important;
+  border: 2px solid red !important;
+  opacity: 1 !important;
+  z-index: 9999 !important;
+  display: block !important;
+  visibility: visible !important;
+}
+
+/* Make sure the selection overlay container is visible */
+.selection-overlay {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: none !important;
+}
+
+
+/* ========== PANEL CLICK FIXES ========== */
+
+/* Ensure panels don't extend beyond their bounds */
+.panel-container,
+[class*="dock-"] {
+  pointer-events: none !important; /* Container doesn't block clicks */
+  overflow: visible !important;
+}
+
+/* Only the visible panel content should be interactive */
+.panel-container > *,
+.panel-container .rounded-lg,
+.panel-container .border {
+  pointer-events: auto !important; /* Content is interactive */
+  overflow: hidden !important; /* Prevent overflow */
+}
+
+/* Make sure the actual panel boundaries are constrained */
+.dock-left,
+.dock-right {
+  width: var(--panel-width, 320px) !important;
+  max-width: var(--panel-max-width, 400px) !important;
+  min-width: var(--panel-min-width, 280px) !important;
+}
+
+/* Canvas area should always be clickable */
+.canvas-area,
+[class*="canvas"],
+[data-component-id] {
+  pointer-events: auto !important;
+  z-index: 10 !important; /* Below panels but above other elements */
+}
+
+/* When panels are closed, ensure they don't block */
+.panel-container:not(.is-open) {
+  display: none !important;
+}
+
+/* Critical: Ensure the main content area is always accessible */
+.main-content-area {
+  pointer-events: auto !important;
+  z-index: 1 !important;
+  position: relative;
+}
+
+/* Panel z-index hierarchy */
+.dock-left,
+.dock-right {
+  z-index: 20 !important; /* Panels above canvas */
+}
+
+.panel-container {
+  z-index: 21 !important; /* Individual panels */
+}
+
+/* Make sure drag handles don't extend */
+[class*="grip"],
+[class*="drag-handle"] {
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+}
+
+/* Mobile specific fixes */
+@media (max-width: 768px) {
+  .dock-left,
+  .dock-right {
+    width: 280px !important;
+    max-width: 300px !important;
+  }
+  
+  .panel-container {
+    max-height: 80vh !important;
+    overflow-y: auto !important;
+  }
+}
+
+/* Debug borders to see panel boundaries (remove after testing) */
+.dock-left {
+  border: 1px solid rgba(255, 0, 0, 0.3) !important;
+}
+
+.dock-right {
+  border: 1px solid rgba(0, 255, 0, 0.3) !important;
+}
+
+.panel-container {
+  border: 1px solid rgba(0, 0, 255, 0.3) !important;
+}

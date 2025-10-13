@@ -787,6 +787,8 @@ export default function Panel({
             backgroundColor: willBeAffected ? 'rgba(251, 146, 60, 0.1)' : 'var(--color-surface)',
             borderColor: willBeAffected ? 'rgb(251, 146, 60)' : 'var(--color-border)',
             boxShadow: willBeAffected ? 'var(--shadow-lg)' : 'var(--shadow-md)',
+            pointerEvents: 'auto', // CRITICAL: Only the visible panel gets clicks
+            overflow: 'hidden', // Prevent any overflow
           }}
         >
           {/* Panel Header */}
@@ -894,13 +896,17 @@ export default function Panel({
           width: `${panelWidth}px`,
           height: '100%',
           float: position,
+          overflow: 'hidden', // ADD THIS
+          pointerEvents: 'none', // ADD THIS
         }
       : {
           position: 'absolute',
           [position === 'left' ? 'left' : 'right']: '1rem',
           top: '1rem',
           height: 'calc(100% - 2rem)',
-          width: `${panelWidth}px`
+          width: `${panelWidth}px`,
+          overflow: 'hidden', // ADD THIS
+          pointerEvents: 'none', // ADD THIS
         }
 
     const containerClass = snapToEdge 
