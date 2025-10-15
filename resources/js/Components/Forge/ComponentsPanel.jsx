@@ -409,65 +409,7 @@ const ComponentsPanel = ({
 
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
-      {/* FIXED: Enhanced Tabs Section with better visual feedback */}
-      <div className="p-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
-        <div className="relative rounded-xl p-1" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
-          <motion.div
-            className="absolute top-1 bottom-1 rounded-lg shadow-md"
-            style={{ backgroundColor: 'var(--color-surface)' }}
-            initial={false}
-            animate={{
-              left: currentActiveTab === tabConfig.tabs[0].id ? '4px' : 'calc(50% + 2px)',
-              width: 'calc(50% - 6px)'
-            }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          />
-          
-          <div className="relative z-10 grid grid-cols-2 gap-1">
-            {tabConfig.tabs.map((tab) => {
-              const IconComponent = tab.icon;
-              const isActive = currentActiveTab === tab.id;
-              
-              return (
-                <motion.button
-                  key={tab.id}
-                  onClick={() => handleTabChange(tab.id)}
-                  className={`flex items-center justify-center space-x-2 py-3 px-4 rounded-lg font-medium transition-colors ${
-                    isActive
-                      ? 'text-[var(--color-primary)]'
-                      : 'text-[var(--color-text-muted)]'
-                  }`}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <IconComponent className="w-4 h-4" />
-                  <span>{tab.label}</span>
-                </motion.button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Search Bar */}
-      <div className="px-4 py-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
-          <input
-            type="text"
-            placeholder={`Search ${currentActiveTab}...`}
-            value={currentSearchTerm}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-transparent border-0 border-b focus:outline-none transition-colors"
-            style={{ 
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-text)',
-              backgroundColor: 'var(--color-bg)'
-            }}
-            onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
-            onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
-          />
-        </div>
-      </div>
+  
 
       {/* Main Content with improved transitions */}
       <div className="flex-1 overflow-hidden">

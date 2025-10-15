@@ -896,8 +896,8 @@ export default function Panel({
           width: `${panelWidth}px`,
           height: '100%',
           float: position,
-          overflow: 'hidden', // ADD THIS
-          pointerEvents: 'none', // ADD THIS
+          overflow: 'hidden',
+          // REMOVE: pointerEvents: 'none'
         }
       : {
           position: 'absolute',
@@ -905,8 +905,8 @@ export default function Panel({
           top: '1rem',
           height: 'calc(100% - 2rem)',
           width: `${panelWidth}px`,
-          overflow: 'hidden', // ADD THIS
-          pointerEvents: 'none', // ADD THIS
+          overflow: 'hidden',
+          // REMOVE: pointerEvents: 'none'
         }
 
     const containerClass = snapToEdge 

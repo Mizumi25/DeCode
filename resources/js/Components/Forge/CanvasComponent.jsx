@@ -373,25 +373,34 @@ const CanvasComponent = ({
     
   }, [canvasComponents, currentFrame, pushHistory, actionTypes, componentLibraryService, projectId, setFrameCanvasComponents]);
 
-    const handleDndDragStart = useCallback((event) => {
+const handleDndDragStart = useCallback((event) => {
   const { active } = event;
   setActiveId(active.id);
   
   const component = flatComponents.find(c => c.id === active.id);
   setDraggedComponent(component);
   
-  // 🔥 CRITICAL: Store activatorEvent for modifier access
+  // Store activatorEvent for modifier access
   if (!active.data.current) {
     active.data.current = {};
   }
   active.data.current.activatorEvent = event.activatorEvent;
   
-  // CRITICAL: Hide original element during drag
+  // CRITICAL: Better visual feedback for drag start
   const element = document.querySelector(`[data-component-id="${active.id}"]`);
   if (element) {
-    element.style.opacity = '0';
-    element.style.pointerEvents = 'none';
-    element.style.visibility = 'hidden';
+    const isLayout = element.getAttribute('data-is-layout') === 'true';
+    
+    if (isLayout) {
+      // Layout components: hide original during drag
+      element.style.opacity = '0';
+      element.style.pointerEvents = 'none';
+    } else {
+      // Non-layout components: keep visible but with drag state
+      element.style.opacity = '0.7';
+      element.style.transform = 'scale(0.98)';
+      element.style.transition = 'all 0.2s ease';
+    }
   }
   
   // Vibration feedback for mobile
@@ -413,217 +422,260 @@ const CanvasComponent = ({
   console.log('🚀 DRAG STARTED:', {
     activeId: active.id,
     component: component?.name,
-    mousePos: {
-      x: event.activatorEvent.clientX || event.activatorEvent.touches?.[0]?.clientX,
-      y: event.activatorEvent.clientY || event.activatorEvent.touches?.[0]?.clientY
-    },
-    elementRect: element?.getBoundingClientRect(),
-    canvasRect: canvasRef.current?.getBoundingClientRect()
+    isLayout: component?.isLayoutContainer,
+    type: component?.type
   });
-}, [flatComponents, canvasComponents, canvasRef]);
+}, [flatComponents, canvasComponents]);
 
-  const handleDndDragOver = useCallback((event) => {
-    const { over } = event;
-    setOverId(over?.id || null);
-  }, []);
-
-
-
+const handleDndDragOver = useCallback((event) => {
+  const { active, over } = event;
   
-  const handleDndDragEnd = useCallback((event) => {
-    const { active, over } = event;
-    
-    // CRITICAL: Restore all elements immediately
-    const restoreElements = () => {
-      if (activeId) {
-        const element = document.querySelector(`[data-component-id="${activeId}"]`);
-        if (element) {
-          element.style.opacity = '';
-          element.style.pointerEvents = '';
-          element.style.visibility = '';
-        }
-      }
-      
-      canvasComponents.forEach(comp => {
-        const el = document.querySelector(`[data-component-id="${comp.id}"]`);
-        if (el) {
-          el.style.opacity = '';
-          el.style.transition = '';
-        }
-      });
-    };
-    
-    restoreElements();
-    
-    setActiveId(null);
-    setOverId(null);
-    setDraggedComponent(null);
+  // Clear previous visual feedback
+  document.querySelectorAll('.drag-over-layout').forEach(el => {
+    el.classList.remove('drag-over-layout');
+  });
   
-    if (!over || active.id === over.id) {
-      document.body.classList.remove('dragging');
-      return;
-    }
-  
-    // ✅ NEW: Check if dropping into a container
-    const draggedComp = flatComponents.find(c => c.id === active.id);
+  // CRITICAL: If dragging over a layout container, don't set overId
+  if (over) {
     const targetComp = flatComponents.find(c => c.id === over.id);
     
-    console.log('🎯 Drag end:', {
-      dragged: draggedComp?.name,
-      target: targetComp?.name,
-      targetIsLayout: targetComp?.isLayoutContainer
-    });
-  
-    // ✅ If target is a layout container, nest inside it
     if (targetComp?.isLayoutContainer) {
-      console.log('📦 Nesting into container:', targetComp.name);
+      // We're over a layout container - show visual feedback
+      setOverId(null);
       
-      // Remove from current position
-      const removeFromTree = (components, idToRemove) => {
-        return components.reduce((acc, comp) => {
-          if (comp.id === idToRemove) {
-            return acc; // Skip this component
-          }
-          
-          if (comp.children?.length > 0) {
-            return [...acc, {
-              ...comp,
-              children: removeFromTree(comp.children, idToRemove)
-            }];
-          }
-          
-          return [...acc, comp];
-        }, []);
-      };
+      const layoutElement = document.querySelector(`[data-component-id="${over.id}"]`);
+      if (layoutElement) {
+        layoutElement.classList.add('drag-over-layout');
+      }
       
-      // Add to target container
-      const addToContainer = (components, containerId, childToAdd) => {
-        return components.map(comp => {
-          if (comp.id === containerId) {
-            return {
-              ...comp,
-              children: [...(comp.children || []), {
+      console.log('🎯 Dragging over layout container:', targetComp.name);
+    } else {
+      // We're over a regular component - allow reordering
+      setOverId(over.id);
+    }
+  } else {
+    setOverId(null);
+  }
+}, [flatComponents]);
+
+// Helper to check if a component is a descendant of another (prevent circular refs)
+const isDescendant = (parentId, childId, components) => {
+  const checkChildren = (comp, targetId) => {
+    if (comp.id === targetId) return true;
+    if (comp.children) {
+      return comp.children.some(child => checkChildren(child, targetId));
+    }
+    return false;
+  };
+  
+  const parentComp = components.find(c => c.id === parentId);
+  return parentComp ? checkChildren(parentComp, childId) : false;
+};
+
+
+
+  
+ const handleDndDragEnd = useCallback((event) => {
+  const { active, over } = event;
+  
+  // CRITICAL: Restore all elements immediately
+  const restoreElements = () => {
+    if (activeId) {
+      const element = document.querySelector(`[data-component-id="${activeId}"]`);
+      if (element) {
+        element.style.opacity = '';
+        element.style.pointerEvents = '';
+        element.style.visibility = '';
+        element.style.transform = '';
+      }
+    }
+    
+    canvasComponents.forEach(comp => {
+      const el = document.querySelector(`[data-component-id="${comp.id}"]`);
+      if (el) {
+        el.style.opacity = '';
+        el.style.transition = '';
+        el.style.transform = '';
+      }
+    });
+  };
+  
+  restoreElements();
+  
+  setActiveId(null);
+  setOverId(null);
+  setDraggedComponent(null);
+
+  if (!over) {
+    document.body.classList.remove('dragging');
+    return;
+  }
+
+  const draggedComp = flatComponents.find(c => c.id === active.id);
+  const targetComp = flatComponents.find(c => c.id === over.id);
+  
+  console.log('🎯 Drag end:', {
+    dragged: draggedComp?.name,
+    target: targetComp?.name,
+    targetIsLayout: targetComp?.isLayoutContainer
+  });
+
+  // 🔥 CRITICAL FIX: Check if we should nest OR reorder
+  const shouldNest = targetComp?.isLayoutContainer && 
+                    draggedComp?.id !== targetComp?.id && // Don't nest into self
+                    !isDescendant(targetComp.id, draggedComp.id, canvasComponents); // Don't create circular refs
+
+  if (shouldNest) {
+    console.log('📦 Nesting into container:', targetComp.name);
+    
+    // Remove from current position
+    const removeFromTree = (components, idToRemove) => {
+      return components.reduce((acc, comp) => {
+        if (comp.id === idToRemove) {
+          return acc; // Skip this component
+        }
+        
+        if (comp.children?.length > 0) {
+          return [...acc, {
+            ...comp,
+            children: removeFromTree(comp.children, idToRemove)
+          }];
+        }
+        
+        return [...acc, comp];
+      }, []);
+    };
+    
+    // Add to target container as first child
+    const addToContainer = (components, containerId, childToAdd) => {
+      return components.map(comp => {
+        if (comp.id === containerId) {
+          return {
+            ...comp,
+            children: [
+              {
                 ...childToAdd,
                 parentId: comp.id,
                 position: { x: 20, y: 20 } // Reset position inside container
-              }]
-            };
-          }
-          
-          if (comp.children?.length > 0) {
-            return {
-              ...comp,
-              children: addToContainer(comp.children, containerId, childToAdd)
-            };
-          }
-          
-          return comp;
-        });
-      };
-      
-      let updatedTree = removeFromTree(canvasComponents, active.id);
-      updatedTree = addToContainer(updatedTree, over.id, draggedComp);
-      
-      setFrameCanvasComponents(prev => ({
-        ...prev,
-        [currentFrame]: updatedTree
-      }));
-      
-      if (pushHistory && actionTypes) {
-        pushHistory(currentFrame, updatedTree, actionTypes.MOVE, {
-          componentId: active.id,
-          action: 'nested_into_container',
-          containerId: over.id
-        });
-      }
-      
-      setTimeout(() => {
-        if (componentLibraryService?.saveProjectComponents) {
-          componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedTree);
+              },
+              ...(comp.children || [])
+            ]
+          };
         }
-      }, 500);
-      
-      document.body.classList.remove('dragging');
-      return;
-    }
-  
-    // ✅ Otherwise, do sibling reordering (existing logic)
-    const oldIndex = flatComponents.findIndex(c => c.id === active.id);
-    const newIndex = flatComponents.findIndex(c => c.id === over.id);
-  
-    if (oldIndex === -1 || newIndex === -1) {
-      document.body.classList.remove('dragging');
-      return;
-    }
-  
-    console.log('↔️ Reordering siblings:', active.id, 'from', oldIndex, 'to', newIndex);
-  
-    const arrayMove = (array, from, to) => {
-      const newArray = [...array];
-      const [movedItem] = newArray.splice(from, 1);
-      newArray.splice(to, 0, movedItem);
-      return newArray;
-    };
-  
-    const rebuildTree = (flatArray) => {
-      const map = new Map();
-      const roots = [];
-  
-      flatArray.forEach(item => {
-        map.set(item.id, { ...item, children: [] });
-      });
-  
-      flatArray.forEach(item => {
-        const node = map.get(item.id);
-        if (item.parentId && map.has(item.parentId)) {
-          map.get(item.parentId).children.push(node);
-        } else {
-          roots.push(node);
+        
+        if (comp.children?.length > 0) {
+          return {
+            ...comp,
+            children: addToContainer(comp.children, containerId, childToAdd)
+          };
         }
+        
+        return comp;
       });
-  
-      return roots;
     };
-  
-    const reorderedFlat = arrayMove(flatComponents, oldIndex, newIndex);
-    const reorderedTree = rebuildTree(reorderedFlat);
-  
+    
+    let updatedTree = removeFromTree(canvasComponents, active.id);
+    updatedTree = addToContainer(updatedTree, over.id, draggedComp);
+    
     setFrameCanvasComponents(prev => ({
       ...prev,
-      [currentFrame]: reorderedTree
+      [currentFrame]: updatedTree
     }));
-  
+    
     if (pushHistory && actionTypes) {
-      pushHistory(currentFrame, reorderedTree, actionTypes.MOVE, {
+      pushHistory(currentFrame, updatedTree, actionTypes.MOVE, {
         componentId: active.id,
-        fromIndex: oldIndex,
-        toIndex: newIndex
+        action: 'nested_into_container',
+        containerId: over.id
       });
     }
-  
+    
     setTimeout(() => {
       if (componentLibraryService?.saveProjectComponents) {
-        componentLibraryService.saveProjectComponents(projectId, currentFrame, reorderedTree);
+        componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedTree);
       }
     }, 500);
     
     document.body.classList.remove('dragging');
-  
-    if ('vibrate' in navigator) {
-      navigator.vibrate(30);
-    }
-    
-    
-    console.log('🏁 Drag ended:', {
-      finalTransform: event.delta,
-      mousePos: {
-        x: event.clientX || event.touches?.[0]?.clientX,
-        y: event.clientY || event.touches?.[0]?.clientY
+    return;
+  }
+
+  // ✅ Otherwise, do sibling reordering (existing logic)
+  const oldIndex = flatComponents.findIndex(c => c.id === active.id);
+  const newIndex = flatComponents.findIndex(c => c.id === over.id);
+
+  if (oldIndex === -1 || newIndex === -1) {
+    document.body.classList.remove('dragging');
+    return;
+  }
+
+  console.log('↔️ Reordering siblings:', active.id, 'from', oldIndex, 'to', newIndex);
+
+  const arrayMove = (array, from, to) => {
+    const newArray = [...array];
+    const [movedItem] = newArray.splice(from, 1);
+    newArray.splice(to, 0, movedItem);
+    return newArray;
+  };
+
+  const rebuildTree = (flatArray) => {
+    const map = new Map();
+    const roots = [];
+
+    flatArray.forEach(item => {
+      map.set(item.id, { ...item, children: [] });
+    });
+
+    flatArray.forEach(item => {
+      const node = map.get(item.id);
+      if (item.parentId && map.has(item.parentId)) {
+        map.get(item.parentId).children.push(node);
+      } else {
+        roots.push(node);
       }
     });
-  }, [flatComponents, currentFrame, projectId, componentLibraryService, pushHistory, actionTypes, setFrameCanvasComponents, activeId, canvasComponents]);
 
-   
+    return roots;
+  };
+
+  const reorderedFlat = arrayMove(flatComponents, oldIndex, newIndex);
+  const reorderedTree = rebuildTree(reorderedFlat);
+
+  setFrameCanvasComponents(prev => ({
+    ...prev,
+    [currentFrame]: reorderedTree
+  }));
+
+  if (pushHistory && actionTypes) {
+    pushHistory(currentFrame, reorderedTree, actionTypes.MOVE, {
+      componentId: active.id,
+      fromIndex: oldIndex,
+      toIndex: newIndex
+    });
+  }
+
+  setTimeout(() => {
+    if (componentLibraryService?.saveProjectComponents) {
+      componentLibraryService.saveProjectComponents(projectId, currentFrame, reorderedTree);
+    }
+  }, 500);
+  
+  document.body.classList.remove('dragging');
+
+  if ('vibrate' in navigator) {
+    navigator.vibrate(30);
+  }
+  
+  console.log('🏁 Drag ended:', {
+    finalTransform: event.delta,
+    mousePos: {
+      x: event.clientX || event.touches?.[0]?.clientX,
+      y: event.clientY || event.touches?.[0]?.clientY
+    }
+  });
+}, [flatComponents, currentFrame, projectId, componentLibraryService, pushHistory, actionTypes, setFrameCanvasComponents, activeId, canvasComponents]);/* 🔥 NESTING VISUAL FEEDBACK */
+
+
   const handleDndDragCancel = useCallback(() => {
     // Restore all hidden elements
     if (activeId) {
@@ -651,14 +703,46 @@ const CanvasComponent = ({
     
     console.log('❌ Drag cancelled');
   }, [activeId, canvasComponents]);
+  
+  
+ // CRITICAL: Smart click handler that prioritizes deepest child
+const handleSmartClick = useCallback((e) => {
+  e.stopPropagation();
+  
+  // Get all component elements under the click
+  const clickPath = e.nativeEvent.composedPath();
+  const componentElements = clickPath.filter(el => 
+    el.nodeType === 1 && el.hasAttribute && el.hasAttribute('data-component-id')
+  );
+  
+  if (componentElements.length === 0) {
+    // Canvas click
+    setIsCanvasSelected(true);
+    setSelectedComponent(null);
+    return;
+  }
+  
+  // Select the FIRST (deepest/innermost) component in the path
+  const targetElement = componentElements[0];
+  const componentId = targetElement.getAttribute('data-component-id');
+  
+  console.log('🎯 Smart selection:', {
+    clicked: componentId,
+    path: componentElements.map(el => el.getAttribute('data-component-id'))
+  });
+  
+  onComponentClick(componentId, e);
+}, [onComponentClick]); 
+  
+  
+  
 
-// FIXED renderComponent function - move useSortable outside
+// FIXED SortableComponent - Replace the entire function
 const SortableComponent = ({ component, depth, parentId, index, parentStyle }) => {
   const isSelected = selectedComponent === component.id;
   const isLayout = component.isLayoutContainer || 
                    ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
   
-  // useSortable must be at the component level, not inside renderComponent callback
   const {
     attributes,
     listeners,
@@ -695,32 +779,29 @@ const SortableComponent = ({ component, depth, parentId, index, parentStyle }) =
   // LAYOUT CONTAINER RENDERING
   if (isLayout) {
     return (
-        <div // CHANGE FROM motion.div to regular div
-          key={component.id}
-          ref={setNodeRef}
-          style={{
-            ...componentStyles,
-            touchAction: 'none',
-            userSelect: 'none',
-            WebkitUserSelect: 'none',
-          }}
-          data-component-id={component.id}
-          data-depth={depth}
-          data-is-layout="true"
-          data-parent-id={parentId || 'root'}
-          className={`
-            relative group layout-container 
-            ${isSelected ? 'ring-2 ring-blue-500' : ''}
-            ${isDragging ? 'opacity-40' : ''}
-            ${overId === component.id ? 'ring-2 ring-green-400' : ''}
-            transition-opacity duration-150 // Simple opacity transition instead of motion
-          `}
-          onClick={(e) => {
-            e.stopPropagation();
-            onComponentClick(component.id, e);
-          }}
-        >
-        {/* Entire component is draggable - no separate handle */}
+      <div
+        key={component.id}
+        ref={setNodeRef}
+        style={{
+          ...componentStyles,
+          touchAction: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+        }}
+        data-component-id={component.id}
+        data-depth={depth}
+        data-is-layout="true"
+        data-parent-id={parentId || 'root'}
+        className={`
+          relative group layout-container 
+          ${isSelected ? 'ring-2 ring-blue-500' : ''}
+          ${isDragging ? 'opacity-40' : ''}
+          ${overId === component.id ? 'ring-2 ring-green-400' : ''}
+          transition-opacity duration-150
+        `}
+        onClick={handleSmartClick}
+      >
+        {/* LAYOUT DRAG OVERLAY - Full area draggable */}
         <div 
           className={`
             absolute inset-0 cursor-grab active:cursor-grabbing
@@ -731,10 +812,17 @@ const SortableComponent = ({ component, depth, parentId, index, parentStyle }) =
             touchAction: 'none',
             userSelect: 'none',
             WebkitUserSelect: 'none',
-            zIndex: 10
+            zIndex: 1,
+            pointerEvents: 'auto'
           }}
           {...attributes}
           {...listeners}
+          onMouseDown={(e) => {
+            const isDirectClick = e.target === e.currentTarget;
+            if (!isDirectClick) {
+              e.stopPropagation();
+            }
+          }}
         />
                 
         {/* Nested Sortable Context */}
@@ -743,7 +831,7 @@ const SortableComponent = ({ component, depth, parentId, index, parentStyle }) =
             items={component.children.map(c => c.id)}
             strategy={verticalListSortingStrategy}
           >
-            <div className="space-y-2">
+            <div className="space-y-2" style={{ position: 'relative', zIndex: 2 }}>
               {component.children.map((child, childIndex) => (
                 <SortableComponent
                   key={child.id}
@@ -773,10 +861,10 @@ const SortableComponent = ({ component, depth, parentId, index, parentStyle }) =
     );
   }
   
-  // NON-LAYOUT COMPONENT RENDERING - ALSO NEEDS DRAG HANDLE
+  // 🔥🔥🔥 FIXED NON-LAYOUT COMPONENT RENDERING 🔥🔥🔥
   const componentRenderer = componentLibraryService?.getComponent(component.type);
   let renderedContent = null;
-  
+
   if (componentRenderer?.render) {
     try {
       const mergedProps = {
@@ -789,12 +877,18 @@ const SortableComponent = ({ component, depth, parentId, index, parentStyle }) =
       renderedContent = <div className="p-2 border rounded">{component.name}</div>;
     }
   }
-  
+
   return (
-    <div // CHANGE FROM motion.div to regular div
+    <div
       key={component.id}
       ref={setNodeRef}
-      style={componentStyles}
+      style={{
+        ...componentStyles,
+        position: 'relative',
+        touchAction: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+      }}
       data-component-id={component.id}
       data-depth={depth}
       data-is-layout="false"
@@ -803,31 +897,42 @@ const SortableComponent = ({ component, depth, parentId, index, parentStyle }) =
         relative group
         ${isSelected ? 'ring-2 ring-blue-500' : ''}
         ${isDragging ? 'opacity-40' : ''}
-        transition-opacity duration-150 // Simple opacity transition
+        transition-opacity duration-150
       `}
-      onClick={(e) => {
-        e.stopPropagation();
-        onComponentClick(component.id, e);
-      }}
+      onClick={handleSmartClick}
     >
-      {/* Entire component is draggable - no separate handle */}
+      {/* 🔥 CRITICAL FIX: ALWAYS VISIBLE DRAG OVERLAY FOR NON-LAYOUT COMPONENTS */}
       <div 
-        className={`
-          absolute inset-0 cursor-grab active:cursor-grabbing
-          opacity-0 group-hover:opacity-100
-          transition-opacity duration-200
-        `}
+        className="absolute inset-0 cursor-grab active:cursor-grabbing"
         style={{
           touchAction: 'none',
           userSelect: 'none',
           WebkitUserSelect: 'none',
-          zIndex: 10
+          zIndex: 1,
+          pointerEvents: 'auto', // Allow drag interactions
+          opacity: isDragging ? 0.3 : 0.1, // Always visible but subtle
+          backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.1)',
+          borderRadius: '4px',
+          transition: 'all 0.2s ease',
         }}
         {...attributes}
         {...listeners}
+        onMouseDown={(e) => {
+          e.stopPropagation(); // Prevent click from reaching component
+          console.log('Non-layout drag started:', component.id);
+        }}
       />
       
-      {renderedContent}
+      {/* Component content - positioned above drag overlay but allows pointer events through */}
+      <div 
+        style={{ 
+          position: 'relative', 
+          zIndex: 2,
+          pointerEvents: 'none' // 🔥 Allow clicks to pass through to drag overlay
+        }}
+      >
+        {renderedContent}
+      </div>
       
       {isSelected && (
         <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
@@ -1092,7 +1197,11 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
 
   // The rest of your return statement remains the same...
   return (
-    <div className="w-full max-w-none flex justify-center" style={{ backgroundColor: 'transparent' }}>
+    <div className="w-full max-w-none flex justify-center" style={{ 
+      backgroundColor: 'transparent',
+      position: 'relative',
+      zIndex: 1 // ✅ Ensure canvas container has proper stacking
+    }}>
       {/* Responsive Canvas Container */}
       <div
         className={`
@@ -1104,14 +1213,15 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
           width: canvasSize.width,
           maxWidth: canvasSize.maxWidth,
           transform: `scale(${scaleFactor})`,
-          transformOrigin: 'center top'
+          transformOrigin: 'center top',
+          zIndex: 10 // ✅ Ensure canvas is above other elements
         }}
       >
         {/* Device-Specific Browser Frame */}
         {responsiveMode === 'desktop' && (
           /* MacBook-Style Browser Tab Frame */
           <div 
-            className="relative mb-0 rounded-t-xl overflow-hidden pointer-events-none"
+            className="relative mt-44 mb-0 rounded-t-xl overflow-hidden pointer-events-none"
             style={{
               backgroundColor: '#f5f5f7',
               border: '1px solid #d1d5db',
@@ -1388,27 +1498,6 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                   <span className="text-[8px] truncate" style={{ color: 'var(--color-text)' }}>DeCode</span>
                 </div>
                 
-                {/* Tab 2 - Inactive */}
-                <div 
-                  className="w-8 h-5 rounded-t-lg flex items-center justify-center"
-                  style={{ 
-                    backgroundColor: '#e5e7eb',
-                    border: '1px solid #d1d5db',
-                    borderBottom: 'none'
-                  }}
-                >
-                  <div className="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
-                </div>
-                
-                {/* New Tab Button */}
-                <div 
-                  className="w-6 h-5 rounded-t-lg flex items-center justify-center"
-                  style={{ backgroundColor: '#f3f4f6' }}
-                >
-                  <svg className="w-2 h-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4" />
-                  </svg>
-                </div>
               </div>
             )}
         
@@ -1430,27 +1519,6 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                   <span className="text-[6px] truncate" style={{ color: 'var(--color-text)' }}>DeCode</span>
                 </div>
                 
-                {/* Inactive Tab */}
-                <div 
-                  className="w-6 h-3 rounded-t-md flex items-center justify-center"
-                  style={{ 
-                    backgroundColor: '#e5e7eb',
-                    border: '1px solid #d1d5db',
-                    borderBottom: 'none'
-                  }}
-                >
-                  <div className="w-1 h-1 rounded-full bg-gray-400"></div>
-                </div>
-        
-                {/* New Tab Button */}
-                <div 
-                  className="w-5 h-3 rounded-t-md flex items-center justify-center"
-                  style={{ backgroundColor: '#f3f4f6' }}
-                >
-                  <svg className="w-1.5 h-1.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M12 4v16m8-8H4" />
-                  </svg>
-                </div>
               </div>
             )}
           </div>
@@ -1477,7 +1545,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
             borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
             boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
             position: 'relative',
-            overflow: 'hidden' // ✅ CHANGE from 'auto' to 'hidden'
+            overflow: 'visible' // ✅ CHANGE from 'hidden' to 'visible'
           }}
           onDragOver={onCanvasDragOver}
           onDrop={onCanvasDrop}

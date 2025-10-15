@@ -125,80 +125,117 @@ const SelectionOverlay = ({
     setParentComponent(findParent(componentId, canvasComponents));
   }, [componentId, canvasComponents]);
 
-  /**
-   * Update bounds and styles with high precision
-   */
-  const updateBounds = useCallback(() => {
-    if (!componentId || !canvasRef.current) {
-      setBounds(null);
-      setComputedStyles(null);
-      return;
-    }
 
-    const element = document.querySelector(`[data-component-id="${componentId}"]`);
-    if (!element) {
-      setBounds(null);
-      setComputedStyles(null);
-      return;
-    }
 
-    const rect = element.getBoundingClientRect();
-    const canvasRect = canvasRef.current.getBoundingClientRect();
-    const styles = window.getComputedStyle(element);
+/**
+ * Update bounds and styles with high precision - FOR ALL COMPONENTS
+ */
+const updateBounds = useCallback(() => {
+  if (!componentId || !canvasRef.current) {
+    setBounds(null);
+    setComputedStyles(null);
+    return;
+  }
 
-    // Get actual scale from canvas transform
-    let scaleFactor = 1;
-    
-    if (responsiveMode !== 'desktop') {
-      scaleFactor = getResponsiveScaleFactor();
-    }
-    
-    const canvasTransform = window.getComputedStyle(canvasRef.current).transform;
-    if (canvasTransform && canvasTransform !== 'none') {
-      const matrix = new DOMMatrix(canvasTransform);
-      scaleFactor = matrix.a;
-    }
+  // In SelectionOverlay.jsx - ensure this line doesn't filter out children
+  const element = document.querySelector(`[data-component-id="${componentId}"]`);
+  if (!element) {
+    setBounds(null);
+    setComputedStyles(null);
+    return;
+  }
 
-    // Calculate bounds relative to canvas
-    const newBounds = {
-      top: (rect.top - canvasRect.top) / scaleFactor,
-      left: (rect.left - canvasRect.left) / scaleFactor,
-      width: rect.width / scaleFactor,
-      height: rect.height / scaleFactor,
-      right: (rect.right - canvasRect.left) / scaleFactor,
-      bottom: (rect.bottom - canvasRect.top) / scaleFactor,
-    };
+  const rect = element.getBoundingClientRect();
+  const canvasRect = canvasRef.current.getBoundingClientRect();
+  const styles = window.getComputedStyle(element);
 
-    // Extract computed styles for spacing visualization
-    const newStyles = {
-      // Margins
-      marginTop: parseFloat(styles.marginTop) || 0,
-      marginRight: parseFloat(styles.marginRight) || 0,
-      marginBottom: parseFloat(styles.marginBottom) || 0,
-      marginLeft: parseFloat(styles.marginLeft) || 0,
-      // Padding
-      paddingTop: parseFloat(styles.paddingTop) || 0,
-      paddingRight: parseFloat(styles.paddingRight) || 0,
-      paddingBottom: parseFloat(styles.paddingBottom) || 0,
-      paddingLeft: parseFloat(styles.paddingLeft) || 0,
-      // Display properties
-      display: styles.display,
-      position: styles.position,
-      zIndex: styles.zIndex,
-      opacity: parseFloat(styles.opacity) || 1,
-      // Transform
-      transform: styles.transform,
-      // Border
-      borderWidth: parseFloat(styles.borderWidth) || 0,
-      borderRadius: styles.borderRadius,
-    };
+  // Get actual scale from canvas transform
+  let scaleFactor = 1;
+  
+  if (responsiveMode !== 'desktop') {
+    scaleFactor = getResponsiveScaleFactor();
+  }
+  
+  const canvasTransform = window.getComputedStyle(canvasRef.current).transform;
+  if (canvasTransform && canvasTransform !== 'none') {
+    const matrix = new DOMMatrix(canvasTransform);
+    scaleFactor = matrix.a;
+  }
 
-    setBounds(newBounds);
-    setComputedStyles(newStyles);
-  }, [componentId, canvasRef, responsiveMode, getResponsiveScaleFactor]);
+  // Calculate bounds relative to canvas
+  const newBounds = {
+    top: (rect.top - canvasRect.top) / scaleFactor,
+    left: (rect.left - canvasRect.left) / scaleFactor,
+    width: rect.width / scaleFactor,
+    height: rect.height / scaleFactor,
+    right: (rect.right - canvasRect.left) / scaleFactor,
+    bottom: (rect.bottom - canvasRect.top) / scaleFactor,
+  };
+
+  // ✅ CRITICAL FIX: Extract computed styles for ALL components, not just layouts
+  const newStyles = {
+    // Margins - ALWAYS extract these
+    marginTop: parseFloat(styles.marginTop) || 0,
+    marginRight: parseFloat(styles.marginRight) || 0,
+    marginBottom: parseFloat(styles.marginBottom) || 0,
+    marginLeft: parseFloat(styles.marginLeft) || 0,
+    // Padding - ALWAYS extract these  
+    paddingTop: parseFloat(styles.paddingTop) || 0,
+    paddingRight: parseFloat(styles.paddingRight) || 0,
+    paddingBottom: parseFloat(styles.paddingBottom) || 0,
+    paddingLeft: parseFloat(styles.paddingLeft) || 0,
+    // Display properties
+    display: styles.display,
+    position: styles.position,
+    zIndex: styles.zIndex,
+    opacity: parseFloat(styles.opacity) || 1,
+    // Transform
+    transform: styles.transform,
+    // Border
+    borderWidth: parseFloat(styles.borderWidth) || 0,
+    borderRadius: styles.borderRadius,
+    // ✅ ADD: Box sizing to understand content vs border box
+    boxSizing: styles.boxSizing,
+  };
+
+  console.log('🔍 SelectionOverlay - Component Styles:', {
+    componentId,
+    type: selectedComponent?.type,
+    isLayout: selectedComponent?.isLayoutContainer,
+    margins: {
+      top: newStyles.marginTop,
+      right: newStyles.marginRight,
+      bottom: newStyles.marginBottom,
+      left: newStyles.marginLeft
+    },
+    padding: {
+      top: newStyles.paddingTop,
+      right: newStyles.paddingRight,
+      bottom: newStyles.paddingBottom,
+      left: newStyles.paddingLeft
+    },
+    display: newStyles.display,
+    position: newStyles.position
+  });
+
+  setBounds(newBounds);
+  // In SelectionOverlay.jsx - after setBounds(newBounds);
+console.log('🎯 BOUNDS DEBUG for', selectedComponent?.type, {
+  bounds: newBounds,
+  computedStyles: {
+    marginTop: newStyles.marginTop,
+    paddingTop: newStyles.paddingTop,
+    display: newStyles.display,
+    boxSizing: newStyles.boxSizing
+  },
+  element: element,
+  elementStyle: window.getComputedStyle(element)
+});
+  setComputedStyles(newStyles);
+}, [componentId, canvasRef, responsiveMode, getResponsiveScaleFactor, selectedComponent]);
   
   
-    // ✅ FORCE re-calculation when overlay settings change
+// ✅ FORCE re-calculation when overlay settings change
 useEffect(() => {
   const handleOverlayChange = () => {
     console.log('Overlay changed, updating bounds');
@@ -516,7 +553,7 @@ useEffect(() => {
           pointerEvents: 'auto',
         }}
       >
-        {/* Component Info Label - Top Left */}
+        {/* Component Info Label - Top Left - SINGLE LABEL ONLY */}
         <motion.div
           initial={{ y: -5, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -528,6 +565,7 @@ useEffect(() => {
             color: 'white',
             whiteSpace: 'nowrap',
             pointerEvents: 'auto',
+            zIndex: 100,
           }}
         >
           {/* Component type icon */}
@@ -535,21 +573,14 @@ useEffect(() => {
             <div className="w-3 h-3 border border-white rounded-sm opacity-70" />
           )}
           
-          {/* Component name */}
-          <span>{selectedComponent?.name || componentId.split('_')[0]}</span>
-          
           {/* Lock indicator */}
-          {selectedComponent?.locked && (
-            <Lock className="w-3 h-3" />
-          )}
+          {selectedComponent?.locked && <Lock className="w-3 h-3" />}
           
           {/* Visibility indicator */}
-          {selectedComponent?.visible === false && (
-            <EyeOff className="w-3 h-3" />
-          )}
+          {selectedComponent?.visible === false && <EyeOff className="w-3 h-3" />}
         </motion.div>
-
-        {/* Size Label - Bottom Right */}
+        
+        {/* Size Label - Bottom Right - ONLY */}
         <motion.div
           initial={{ y: 5, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -560,26 +591,29 @@ useEffect(() => {
             backgroundColor: '#1f2937',
             color: 'white',
             whiteSpace: 'nowrap',
+            zIndex: 100,
           }}
         >
           {Math.round(bounds.width)} × {Math.round(bounds.height)}
         </motion.div>
 
-        {/* Position Label - Top Right */}
-        {(selectedComponent?.position || computedStyles.position !== 'static') && (
+
+        {/* Position Label - ONLY for absolute/fixed/relative positioned elements */}
+        {computedStyles.position && ['absolute', 'fixed', 'relative'].includes(computedStyles.position) && (
           <motion.div
             initial={{ y: -5, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             className="absolute px-2 py-1 rounded text-xs font-mono shadow-lg"
             style={{
-              top: -CONFIG.LABEL_HEIGHT - 4,
-              right: -CONFIG.SELECTION_BORDER_WIDTH,
+              bottom: -CONFIG.LABEL_HEIGHT - 4,
+              left: -CONFIG.SELECTION_BORDER_WIDTH,
               backgroundColor: '#6b7280',
               color: 'white',
               whiteSpace: 'nowrap',
+              zIndex: 100,
             }}
           >
-            x:{Math.round(bounds.left)} y:{Math.round(bounds.top)}
+            {computedStyles.position} • x:{Math.round(bounds.left)} y:{Math.round(bounds.top)}
           </motion.div>
         )}
 
@@ -685,10 +719,9 @@ useEffect(() => {
       </motion.div>
 
       
-      {/* Margin Visualization - Orange */}
+      {/* Margin Visualization - FOR ALL COMPONENTS (no layout check) */}
       <AnimatePresence>
-        {isOverlayEnabled('showSpacingIndicators') && showSpacing && (computedStyles.marginTop > 0 || computedStyles.marginRight > 0 || 
-          computedStyles.marginBottom > 0 || computedStyles.marginLeft > 0) && (
+        {isOverlayEnabled('showSpacingIndicators') && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -706,8 +739,8 @@ useEffect(() => {
                   backgroundColor: `${CONFIG.SPACING_COLOR.margin}20`,
                   borderTop: `1px dashed ${CONFIG.SPACING_COLOR.margin}`,
                   borderBottom: `1px dashed ${CONFIG.SPACING_COLOR.margin}`,
-                  pointerEvents: 'none', // ✅ CRITICAL: Don't block clicks
-                  zIndex: 100, // ✅ Ensure visibility above canvas
+                  pointerEvents: 'none',
+                  zIndex: 100,
                 }}
               >
                 <span 
@@ -718,7 +751,7 @@ useEffect(() => {
                 </span>
               </div>
             )}
-      
+            
             {/* Right Margin */}
             {computedStyles.marginRight > 0 && (
               <div
@@ -743,7 +776,7 @@ useEffect(() => {
                 </span>
               </div>
             )}
-      
+            
             {/* Bottom Margin */}
             {computedStyles.marginBottom > 0 && (
               <div
@@ -768,7 +801,7 @@ useEffect(() => {
                 </span>
               </div>
             )}
-      
+            
             {/* Left Margin */}
             {computedStyles.marginLeft > 0 && (
               <div
@@ -797,18 +830,15 @@ useEffect(() => {
         )}
       </AnimatePresence>
       
-      
-
-      {/* Padding Visualization - Green */}
+      {/* Padding Visualization - Green - FOR ALL COMPONENTS */}
       <AnimatePresence>
-        {showSpacing && (computedStyles.paddingTop > 0 || computedStyles.paddingRight > 0 || 
-          computedStyles.paddingBottom > 0 || computedStyles.paddingLeft > 0) && (
+        {showSpacing && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            {/* Top Padding */}
+            {/* Top Padding - Show for ANY component with padding */}
             {computedStyles.paddingTop > 0 && (
               <div
                 className="absolute"
@@ -830,7 +860,7 @@ useEffect(() => {
                 </span>
               </div>
             )}
-
+      
             {/* Right Padding */}
             {computedStyles.paddingRight > 0 && (
               <div
@@ -845,7 +875,7 @@ useEffect(() => {
                   borderRight: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
                 }}
               >
-              <span 
+                <span 
                   className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm"
                   style={{ backgroundColor: CONFIG.SPACING_COLOR.padding, color: 'white' }}
                 >
@@ -853,7 +883,7 @@ useEffect(() => {
                 </span>
               </div>
             )}
-
+      
             {/* Bottom Padding */}
             {computedStyles.paddingBottom > 0 && (
               <div
@@ -876,7 +906,7 @@ useEffect(() => {
                 </span>
               </div>
             )}
-
+      
             {/* Left Padding */}
             {computedStyles.paddingLeft > 0 && (
               <div
@@ -899,26 +929,29 @@ useEffect(() => {
                 </span>
               </div>
             )}
-
-            {/* Content Area Border - Blue */}
-            <div
-              className="absolute border border-dashed"
-              style={{
-                top: contentArea.top,
-                left: contentArea.left,
-                width: contentArea.width,
-                height: contentArea.height,
-                borderColor: CONFIG.SPACING_COLOR.content,
-                pointerEvents: 'none',
-              }}
-            >
-              <span 
-                className="absolute -top-5 left-0 text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap"
-                style={{ backgroundColor: CONFIG.SPACING_COLOR.content, color: 'white' }}
+      
+            {/* Content Area Border - Blue - Show for ANY component with padding */}
+            {(computedStyles.paddingTop > 0 || computedStyles.paddingRight > 0 || 
+              computedStyles.paddingBottom > 0 || computedStyles.paddingLeft > 0) && (
+              <div
+                className="absolute border border-dashed"
+                style={{
+                  top: contentArea.top,
+                  left: contentArea.left,
+                  width: contentArea.width,
+                  height: contentArea.height,
+                  borderColor: CONFIG.SPACING_COLOR.content,
+                  pointerEvents: 'none',
+                }}
               >
-                {Math.round(contentArea.width)} × {Math.round(contentArea.height)}
-              </span>
-            </div>
+                <span 
+                  className="absolute -top-5 left-0 text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap"
+                  style={{ backgroundColor: CONFIG.SPACING_COLOR.content, color: 'white' }}
+                >
+                  {Math.round(contentArea.width)} × {Math.round(contentArea.height)}
+                </span>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

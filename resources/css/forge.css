@@ -882,3 +882,120 @@ body.dragging [data-dnd-kit-drag-overlay] {
 .panel-container {
   border: 1px solid rgba(0, 0, 255, 0.3) !important;
 }
+
+
+
+/* 🔥 CRITICAL DRAG FIXES FOR NON-LAYOUT COMPONENTS - ADD THIS BLOCK */
+
+/* Make ALL components draggable by default */
+[data-component-id] {
+  cursor: grab !important;
+  position: relative !important;
+}
+
+[data-component-id]:active {
+  cursor: grabbing !important;
+}
+
+/* Non-layout components should have visible drag area */
+[data-is-layout="false"] {
+  position: relative !important;
+}
+
+/* Ensure drag overlay is always accessible */
+[data-is-layout="false"] .drag-overlay {
+  opacity: 0.1 !important;
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  border-radius: 4px !important;
+  transition: all 0.2s ease !important;
+}
+
+[data-is-layout="false"]:hover .drag-overlay {
+  opacity: 0.3 !important;
+  background-color: rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Prevent content from blocking drag */
+[data-is-layout="false"] .component-content {
+  pointer-events: none !important;
+}
+
+/* But allow interactions with form elements */
+[data-is-layout="false"] input,
+[data-is-layout="false"] button,
+[data-is-layout="false"] textarea,
+[data-is-layout="false"] select {
+  pointer-events: auto !important;
+}
+
+/* Enhanced drag states */
+body.dragging [data-component-id] {
+  cursor: grabbing !important;
+}
+
+/* Mobile touch improvements */
+@media (max-width: 768px) {
+  [data-component-id] {
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+  
+  [data-is-layout="false"] .drag-overlay {
+    opacity: 0.2 !important;
+  }
+}
+
+/* Remove any text selection during drag */
+[data-component-id] {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+
+
+/* 🔥 NESTING VISUAL FEEDBACK */
+
+/* Layout container drop zone styling */
+.layout-container.drop-target {
+  outline: 3px dashed rgba(59, 130, 246, 0.8) !important;
+  outline-offset: 2px !important;
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  transition: all 0.2s ease !important;
+}
+
+/* Visual feedback for drag over layout */
+.layout-container.drag-over-layout {
+  animation: pulse-glow 1.5s ease-in-out infinite !important;
+  border: 2px solid rgba(59, 130, 246, 0.6) !important;
+}
+
+/* Add to your existing styles */
+.layout-container.drop-zone-active {
+  outline: 3px dashed #3b82f6 !important;
+  outline-offset: 2px !important;
+  background-color: rgba(59, 130, 246, 0.05) !important;
+  transition: all 0.2s ease !important;
+}
+
+.layout-container.drop-zone-hover {
+  outline: 3px solid #10b981 !important;
+  background-color: rgba(16, 185, 129, 0.1) !important;
+  animation: pulse-glow 1.5s ease-in-out infinite !important;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+  }
+}
+
+/* Prevent reordering visual feedback when over layout containers */
+[data-is-layout="true"] .sortable-ghost {
+  display: none !important;
+}

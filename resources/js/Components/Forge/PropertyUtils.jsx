@@ -153,7 +153,7 @@ export const InputField = ({
           <option value="" style={{ backgroundColor: 'var(--color-surface)', color: 'var(--color-text)' }}>Default</option>
           {options.values?.map((option) => (
             <option key={option} value={option} style={{ backgroundColor: 'var(--color-surface)', color: 'var(--color-text)' }}>
-              {typeof option === 'object' ? option.label : option.charAt(0).toUpperCase() + option.slice(1)}
+             {typeof option === 'object' ? option.label : String(option).charAt(0).toUpperCase() + String(option).slice(1)}
             </option>
           ))}
         </select>

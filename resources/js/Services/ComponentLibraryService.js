@@ -227,7 +227,7 @@ class ComponentLibraryService {
         'data-component-id': id,
         'data-component-type': componentDef?.type || props.type,
         'data-is-layout': props.isLayoutContainer || false,
-      };
+    };
      
         // Get the component definition if not passed
        if (!componentDef && this.componentDefinitions.has(props.type || props.component_type)) {
@@ -364,34 +364,37 @@ class ComponentLibraryService {
     }
 
       
-    // Button renderer with enhanced variant support
-    renderButton(props, id, layoutStyles = {}) {
-        const className = this.getButtonClasses(props);
-        
-        const buttonStyle = {
-            maxWidth: '100%',
-            wordBreak: 'break-word',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            width: props.width || 'fit-content',
-            minWidth: props.minWidth || '60px',
-            ...layoutStyles, // Apply layout styles
-            ...props.style   // Allow override
-        };
-        
-        return React.createElement('button', {
-            key: id,
-            className,
-            onClick: () => console.log(`Button ${id} clicked`),
-            disabled: props.disabled || false,
-            style: buttonStyle,
-            // CRITICAL: Add these
-            'data-component-id': id,
-            'data-component-type': 'button',
-            'data-is-layout': false,
-        }, props.text || props.children || 'Button');
-    }
+   // Button renderer with proper data attributes
+// In your button rendering (ComponentLibraryService.js)
+renderButton(props, id, layoutStyles = {}) {
+    const className = this.getButtonClasses(props);
+    
+    const buttonStyle = {
+        maxWidth: '100%',
+        wordBreak: 'break-word',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        width: props.width || 'fit-content',
+        minWidth: props.minWidth || '60px',
+        ...layoutStyles,
+        ...props.style
+    };
+    
+    return React.createElement('button', {
+        key: id,
+        className,
+        onClick: (e) => {
+            e.stopPropagation(); // ✅ ADD THIS - prevent click from reaching parent
+            console.log(`Button ${id} clicked`);
+        },
+        disabled: props.disabled || false,
+        style: buttonStyle,
+        'data-component-id': id,
+        'data-component-type': 'button',
+        'data-is-layout': false,
+    }, props.text || props.children || 'Button');
+}
 
   // Avatar renderer
   renderAvatar(props, id) {
@@ -569,10 +572,10 @@ getButtonClasses(props) {
 }
 
 // Enhanced button renderer with overflow prevention
+// Example for button renderer - ensure it works with the new drag system
 renderButton(props, id) {
   const className = this.getButtonClasses(props);
   
-  // Enhanced style with overflow prevention
   const buttonStyle = {
     maxWidth: '100%',
     wordBreak: 'break-word',
@@ -581,15 +584,22 @@ renderButton(props, id) {
     textOverflow: 'ellipsis',
     width: props.width || 'fit-content',
     minWidth: props.minWidth || '60px',
-    ...props.style
+    ...props.style,
+    pointerEvents: 'none', // 🔥 Allow drag overlay to receive events
   };
   
   return React.createElement('button', {
     key: id,
     className,
-    onClick: () => console.log(`Button ${id} clicked`),
+    onClick: (e) => {
+      e.stopPropagation();
+      console.log(`Button ${id} clicked`);
+    },
     disabled: props.disabled || false,
-    style: buttonStyle
+    style: buttonStyle,
+    'data-component-id': id,
+    'data-component-type': 'button',
+    'data-is-layout': 'false',
   }, props.text || 'Button');
 }
 
