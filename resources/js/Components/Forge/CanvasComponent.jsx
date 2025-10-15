@@ -435,20 +435,21 @@ const handleDndDragOver = useCallback((event) => {
     el.classList.remove('drag-over-layout');
   });
   
-  // CRITICAL: If dragging over a layout container, don't set overId
+  // CRITICAL FIX: If dragging over a layout container, don't set overId
   if (over) {
-    const targetComp = flatComponents.find(c => c.id === over.id);
+    // 🔥 FIX: Check using DOM attribute instead of flatComponents
+    const targetElement = document.querySelector(`[data-component-id="${over.id}"]`);
+    const isTargetLayout = targetElement?.getAttribute('data-is-layout') === 'true';
     
-    if (targetComp?.isLayoutContainer) {
+    if (isTargetLayout) {
       // We're over a layout container - show visual feedback
       setOverId(null);
       
-      const layoutElement = document.querySelector(`[data-component-id="${over.id}"]`);
-      if (layoutElement) {
-        layoutElement.classList.add('drag-over-layout');
+      if (targetElement) {
+        targetElement.classList.add('drag-over-layout');
       }
       
-      console.log('🎯 Dragging over layout container:', targetComp.name);
+      console.log('🎯 Dragging over layout container:', over.id);
     } else {
       // We're over a regular component - allow reordering
       setOverId(over.id);
@@ -456,7 +457,7 @@ const handleDndDragOver = useCallback((event) => {
   } else {
     setOverId(null);
   }
-}, [flatComponents]);
+}, []);
 
 // Helper to check if a component is a descendant of another (prevent circular refs)
 const isDescendant = (parentId, childId, components) => {
@@ -520,10 +521,26 @@ const isDescendant = (parentId, childId, components) => {
     targetIsLayout: targetComp?.isLayoutContainer
   });
 
-  // 🔥 CRITICAL FIX: Check if we should nest OR reorder
-  const shouldNest = targetComp?.isLayoutContainer && 
-                    draggedComp?.id !== targetComp?.id && // Don't nest into self
-                    !isDescendant(targetComp.id, draggedComp.id, canvasComponents); // Don't create circular refs
+  // 🔥 CRITICAL FIX: Check if we should nest using DOM attributes
+const shouldNest = (() => {
+  if (!targetComp || draggedComp?.id === targetComp?.id) return false;
+  
+  // Check DOM element for layout status
+  const targetElement = document.querySelector(`[data-component-id="${targetComp.id}"]`);
+  const isTargetLayout = targetElement?.getAttribute('data-is-layout') === 'true';
+  
+  // Prevent circular references
+  const isCircular = isDescendant(targetComp.id, draggedComp.id, canvasComponents);
+  
+  console.log('🔍 Nest check:', {
+    target: targetComp.name,
+    isLayout: isTargetLayout,
+    isCircular,
+    shouldNest: isTargetLayout && !isCircular
+  });
+  
+  return isTargetLayout && !isCircular;
+})();
 
   if (shouldNest) {
     console.log('📦 Nesting into container:', targetComp.name);
@@ -782,15 +799,10 @@ const SortableComponent = ({ component, depth, parentId, index, parentStyle }) =
       <div
         key={component.id}
         ref={setNodeRef}
-        style={{
-          ...componentStyles,
-          touchAction: 'none',
-          userSelect: 'none',
-          WebkitUserSelect: 'none',
-        }}
+        style={{...componentStyles}}
         data-component-id={component.id}
         data-depth={depth}
-        data-is-layout="true"
+        data-is-layout="true" // ✅ CRITICAL: Must be string "true"
         data-parent-id={parentId || 'root'}
         className={`
           relative group layout-container 
@@ -882,16 +894,10 @@ const SortableComponent = ({ component, depth, parentId, index, parentStyle }) =
     <div
       key={component.id}
       ref={setNodeRef}
-      style={{
-        ...componentStyles,
-        position: 'relative',
-        touchAction: 'none',
-        userSelect: 'none',
-        WebkitUserSelect: 'none',
-      }}
+      style={{...componentStyles}}
       data-component-id={component.id}
       data-depth={depth}
-      data-is-layout="false"
+      data-is-layout="false" // ✅ CRITICAL: Must be string "false"
       data-parent-id={parentId || 'root'}
       className={`
         relative group

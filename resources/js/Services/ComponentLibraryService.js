@@ -159,37 +159,44 @@ class ComponentLibraryService {
   
   
     // In ComponentLibraryService.js - ADD this method
-    createLayoutElement(type, props = {}) {
-      const componentDef = this.componentDefinitions.get(type);
-      if (!componentDef) {
-          console.warn('No definition for layout type:', type);
-          return null;
-      }
-  
-      const layoutElement = {
-          id: `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          type: type,
-          props: {
-              ...componentDef.default_props,
-              ...props
-          },
-          name: props.name || componentDef.name,
-          style: {
-              display: type === 'flex' ? 'flex' : type === 'grid' ? 'grid' : 'block',
-              width: '100%',
-              minHeight: type === 'section' ? '200px' : '100px',
-              padding: props.style?.padding || '24px',
-              backgroundColor: 'transparent',
-              ...props.style
-          },
-          children: [],
-          isLayoutContainer: true,
-          acceptsChildren: true,
-          zIndex: props.zIndex || 0
-      };
-  
-      return layoutElement;
+  createLayoutElement(type, props = {}) {
+  const componentDef = this.componentDefinitions.get(type);
+  if (!componentDef) {
+      console.warn('No definition for layout type:', type);
+      return null;
   }
+
+  // 🔥 CRITICAL: Explicitly set isLayoutContainer to true
+  const layoutElement = {
+      id: `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: type,
+      props: {
+          ...componentDef.default_props,
+          ...props
+      },
+      name: props.name || componentDef.name,
+      style: {
+          display: type === 'flex' ? 'flex' : type === 'grid' ? 'grid' : 'block',
+          width: '100%',
+          minHeight: type === 'section' ? '200px' : '100px',
+          padding: props.style?.padding || '24px',
+          backgroundColor: 'transparent',
+          ...props.style
+      },
+      children: [],
+      isLayoutContainer: true, // ✅ EXPLICITLY TRUE
+      acceptsChildren: true,
+      zIndex: props.zIndex || 0
+  };
+
+  console.log('✅ Created layout element:', {
+    id: layoutElement.id,
+    type: layoutElement.type,
+    isLayoutContainer: layoutElement.isLayoutContainer
+  });
+
+  return layoutElement;
+}
 
 
     // ALSO fix the createComponentRenderer method to ensure proper defaults:

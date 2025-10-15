@@ -999,3 +999,38 @@ body.dragging [data-component-id] {
 [data-is-layout="true"] .sortable-ghost {
   display: none !important;
 }
+
+
+
+
+/* 🔥 CRITICAL: Layout container drop zone styling */
+.layout-container[data-is-layout="true"] {
+  position: relative;
+  min-height: 100px;
+  transition: all 0.2s ease;
+}
+
+.layout-container[data-is-layout="true"].drag-over-layout {
+  outline: 3px dashed #10b981 !important;
+  outline-offset: 4px !important;
+  background-color: rgba(16, 185, 129, 0.05) !important;
+  animation: pulse-glow 1.5s ease-in-out infinite !important;
+}
+
+.layout-container[data-is-layout="true"].drag-over-layout::before {
+  content: "Drop here to nest inside";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(16, 185, 129, 0.9);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 1000;
+  white-space: nowrap;
+}
+
