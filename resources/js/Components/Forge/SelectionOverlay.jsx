@@ -550,7 +550,8 @@ useEffect(() => {
           border: `${CONFIG.SELECTION_BORDER_WIDTH}px solid #3b82f6`,
           borderRadius: '2px',
           boxShadow: '0 0 0 1px rgba(59, 130, 246, 0.2), 0 4px 12px rgba(59, 130, 246, 0.15)',
-          pointerEvents: 'auto',
+          // 🔥 CRITICAL FIX: Allow pointer events to pass through
+          pointerEvents: 'none', // Change from 'auto' to 'none'
         }}
       >
         {/* Component Info Label - Top Left - SINGLE LABEL ONLY */}
@@ -638,6 +639,8 @@ useEffect(() => {
                     height: CONFIG.HANDLE_SIZE,
                     cursor: CONFIG.RESIZE_CURSORS[handle.id],
                     boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                    // 🔥 Keep pointer events ONLY for resize handles
+                    pointerEvents: 'auto', // This should remain 'auto'
                   }}
                   onMouseDown={(e) => handleResizeStart(handle.id, e)}
                 />
@@ -654,13 +657,15 @@ useEffect(() => {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -10, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="absolute flex items-center gap-1 px-2 py-1 rounded-lg shadow-xl border pointer-events-auto"
+              className="absolute flex items-center gap-1 px-2 py-1 rounded-lg shadow-xl border pointer-events-auto" // Keep 'auto' for toolbar
               style={{
                 top: -CONFIG.ACTIONS_HEIGHT - CONFIG.LABEL_HEIGHT - 8,
                 left: '50%',
                 transform: 'translateX(-50%)',
                 backgroundColor: 'white',
                 borderColor: '#e5e7eb',
+                // 🔥 Keep pointer events for the toolbar itself
+                pointerEvents: 'auto', // This should remain 'auto'
               }}
             >
               {/* Lock/Unlock */}
@@ -1139,12 +1144,14 @@ useEffect(() => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -10 }}
             transition={{ delay: 0.5 }}
-            className="absolute bg-white rounded-lg shadow-2xl border p-3 pointer-events-none"
+            className="absolute bg-white rounded-lg shadow-2xl border p-3 pointer-events-none" // Change to 'none'
             style={{
               left: bounds.right + 12,
               top: bounds.top,
               minWidth: '200px',
               borderColor: '#e5e7eb',
+              // 🔥 CRITICAL: Don't block pointer events
+              pointerEvents: 'none', // Ensure this is 'none'
             }}
           >
             <div className="text-xs space-y-2">
