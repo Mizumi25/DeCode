@@ -386,21 +386,11 @@ const handleDndDragStart = useCallback((event) => {
   }
   active.data.current.activatorEvent = event.activatorEvent;
   
-  // CRITICAL: Better visual feedback for drag start
+  // 🔥 CRITICAL: Make element INVISIBLE during drag
   const element = document.querySelector(`[data-component-id="${active.id}"]`);
   if (element) {
-    const isLayout = element.getAttribute('data-is-layout') === 'true';
-    
-    if (isLayout) {
-      // Layout components: hide original during drag
-      element.style.opacity = '0';
-      element.style.pointerEvents = 'none';
-    } else {
-      // Non-layout components: keep visible but with drag state
-      element.style.opacity = '0.7';
-      element.style.transform = 'scale(0.98)';
-      element.style.transition = 'all 0.2s ease';
-    }
+    element.style.visibility = 'hidden'; // ✅ CHANGED from opacity to visibility
+    element.style.pointerEvents = 'none';
   }
   
   // Vibration feedback for mobile
@@ -476,7 +466,7 @@ const isDescendant = (parentId, childId, components) => {
 
 
   
- const handleDndDragEnd = useCallback((event) => {
+const handleDndDragEnd = useCallback((event) => {
   const { active, over } = event;
   
   // CRITICAL: Restore all elements immediately
@@ -486,7 +476,7 @@ const isDescendant = (parentId, childId, components) => {
       if (element) {
         element.style.opacity = '';
         element.style.pointerEvents = '';
-        element.style.visibility = '';
+        element.style.visibility = ''; // ✅ RESTORE visibility
         element.style.transform = '';
       }
     }
@@ -521,39 +511,37 @@ const isDescendant = (parentId, childId, components) => {
     targetIsLayout: targetComp?.isLayoutContainer
   });
 
-  // 🔥 CRITICAL FIX: Check if we should nest using DOM attributes
-const shouldNest = (() => {
-  if (!targetComp || draggedComp?.id === targetComp?.id) return false;
-  
-  // ✅ CRITICAL FIX: Only nest if dragged component is CHILD of target
-  const draggedIsChildOfTarget = draggedComp?.parentId === targetComp?.id;
-  if (!draggedIsChildOfTarget) {
-    // Don't nest if dragging from outside
-    console.log('🔍 Nest rejected: dragged component is not child of target');
-    return false;
-  }
-  
-  // Check DOM element for layout status
-  const targetElement = document.querySelector(`[data-component-id="${targetComp.id}"]`);
-  const isTargetLayout = targetElement?.getAttribute('data-is-layout') === 'true';
-  
-  // Prevent circular references
-  const isCircular = isDescendant(targetComp.id, draggedComp.id, canvasComponents);
-  
-  console.log('🔍 Nest check:', {
-    target: targetComp.name,
-    isLayout: isTargetLayout,
-    isCircular,
-    shouldNest: isTargetLayout && !isCircular
-  });
-  
-  return isTargetLayout && !isCircular;
-})();
+  // 🔥 FIXED: Allow nesting INTO containers OR moving OUT of containers
+  const shouldNest = (() => {
+    if (!targetComp || draggedComp?.id === targetComp?.id) return false;
+    
+    // ✅ FIX: Check if target is layout AND we're not already in it
+    const targetElement = document.querySelector(`[data-component-id="${targetComp.id}"]`);
+    const isTargetLayout = targetElement?.getAttribute('data-is-layout') === 'true';
+    
+    // ✅ NEW: Allow nesting if target is layout AND we're NOT moving within same parent
+    const isDifferentParent = draggedComp?.parentId !== targetComp?.id;
+    
+    // Prevent circular references
+    const isCircular = isDescendant(targetComp.id, draggedComp.id, canvasComponents);
+    
+    console.log('🔍 Nest check:', {
+      target: targetComp.name,
+      isLayout: isTargetLayout,
+      isDifferentParent,
+      currentParent: draggedComp?.parentId,
+      targetId: targetComp?.id,
+      isCircular,
+      shouldNest: isTargetLayout && isDifferentParent && !isCircular
+    });
+    
+    return isTargetLayout && isDifferentParent && !isCircular;
+  })();
 
   if (shouldNest) {
     console.log('📦 Nesting into container:', targetComp.name);
     
-    // Remove from current position
+    // Remove from current position (including from parent)
     const removeFromTree = (components, idToRemove) => {
       return components.reduce((acc, comp) => {
         if (comp.id === idToRemove) {
@@ -571,7 +559,7 @@ const shouldNest = (() => {
       }, []);
     };
     
-    // Add to target container as first child
+    // Add to target container
     const addToContainer = (components, containerId, childToAdd) => {
       return components.map(comp => {
         if (comp.id === containerId) {
@@ -581,7 +569,7 @@ const shouldNest = (() => {
               {
                 ...childToAdd,
                 parentId: comp.id,
-                position: { x: 20, y: 20 } // Reset position inside container
+                position: { x: 20, y: 20 }
               },
               ...(comp.children || [])
             ]
@@ -698,7 +686,7 @@ const shouldNest = (() => {
       y: event.clientY || event.touches?.[0]?.clientY
     }
   });
-}, [flatComponents, currentFrame, projectId, componentLibraryService, pushHistory, actionTypes, setFrameCanvasComponents, activeId, canvasComponents]);/* 🔥 NESTING VISUAL FEEDBACK */
+}, [flatComponents, currentFrame, projectId, componentLibraryService, pushHistory, actionTypes, setFrameCanvasComponents, activeId, canvasComponents]);
 
 
   const handleDndDragCancel = useCallback(() => {
@@ -1663,92 +1651,76 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                 </SortableContext>
               
                 {/* PROFESSIONAL DRAG GHOST - Dynamic positioning based on actual element position */}
-             <DragOverlay
-  dropAnimation={{
-    duration: 200,
-    easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
-  }}
-  style={{ 
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    zIndex: 9999,
-    cursor: 'grabbing',
-    touchAction: 'none',
-    userSelect: 'none',
-    WebkitUserSelect: 'none',
-    pointerEvents: 'none'
-  }}
-modifiers={[
-  ({ transform, active }) => {
-    if (!active?.data?.current) return transform;
-    
-    // Calculate offset ONLY ONCE
-    if (!active.data.current.grabOffset) {
-      const element = document.querySelector(`[data-component-id="${activeId}"]`);
-      const canvas = canvasRef.current;
-      
-      if (!element || !canvas) return transform;
-      
-      const elementRect = element.getBoundingClientRect();
-      const canvasRect = canvas.getBoundingClientRect();
-      
-      // Get mouse position
-      const event = active.data.current.activatorEvent;
-      if (!event) return transform;
-      
-      const mouseX = event.clientX || event.touches?.[0]?.clientX;
-      const mouseY = event.clientY || event.touches?.[0]?.clientY;
-      
-      if (!mouseX || !mouseY) return transform;
-      
-      // Where did we grab on the element? (in pixels from top-left)
-      const grabX = mouseX - elementRect.left;
-      const grabY = mouseY - elementRect.top;
-      
-      // Element center
-      const centerX = elementRect.width / 2;
-      const centerY = elementRect.height / 2;
-      
-      // 🔥 THE FIX: Store the offset needed to center
-      active.data.current.grabOffset = {
-        x: centerX - grabX,
-        y: centerY - grabY
-      };
-      
-      console.log('🎯 SIMPLE FIX:', {
-        elementSize: { w: elementRect.width, h: elementRect.height },
-        elementPos: { 
-          viewport: { left: elementRect.left, top: elementRect.top },
-          inCanvas: { 
-            left: elementRect.left - canvasRect.left, 
-            top: elementRect.top - canvasRect.top 
-          }
-        },
-        mouse: { x: mouseX, y: mouseY },
-        grab: { x: grabX, y: grabY },
-        center: { x: centerX, y: centerY },
-        offset: { x: centerX - grabX, y: centerY - grabY }
-      });
-    }
-    
-    const offset = active.data.current.grabOffset;
-    if (!offset) return transform;
-    
-    return {
-      ...transform,
-      x: transform.x + offset.x,
-      y: transform.y + offset.y
-    };
-  }
-]}
->
+                <DragOverlay
+                  dropAnimation={{
+                    duration: 200,
+                    easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+                  }}
+                  style={{ 
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    zIndex: 9999,
+                    cursor: 'grabbing',
+                    touchAction: 'none',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    pointerEvents: 'none'
+                  }}
+                  modifiers={[
+                    ({ transform, active }) => {
+                      if (!active?.data?.current) return transform;
+                      
+                      // Calculate offset ONLY ONCE
+                      if (!active.data.current.grabOffset) {
+                        const element = document.querySelector(`[data-component-id="${activeId}"]`);
+                        const canvas = canvasRef.current;
+                        
+                        if (!element || !canvas) return transform;
+                        
+                        const elementRect = element.getBoundingClientRect();
+                        
+                        // Get mouse position
+                        const event = active.data.current.activatorEvent;
+                        if (!event) return transform;
+                        
+                        const mouseX = event.clientX || event.touches?.[0]?.clientX;
+                        const mouseY = event.clientY || event.touches?.[0]?.clientY;
+                        
+                        if (!mouseX || !mouseY) return transform;
+                        
+                        // Where did we grab on the element?
+                        const grabX = mouseX - elementRect.left;
+                        const grabY = mouseY - elementRect.top;
+                        
+                        // Element center
+                        const centerX = elementRect.width / 2;
+                        const centerY = elementRect.height / 2;
+                        
+                        // Store the offset needed to center
+                        active.data.current.grabOffset = {
+                          x: centerX - grabX,
+                          y: centerY - grabY
+                        };
+                      }
+                      
+                      const offset = active.data.current.grabOffset;
+                      if (!offset) return transform;
+                      
+                      return {
+                        ...transform,
+                        x: transform.x + offset.x,
+                        y: transform.y + offset.y
+                      };
+                    }
+                  ]}
+                >
                   {draggedComponent && (
                     <motion.div
-                      initial={{ scale: 0.95, opacity: 0.85 }}
+                      initial={{ scale: 1, opacity: 0.95 }} // ✅ CHANGE: Start at normal scale
                       animate={{ 
-                        scale: 1.02,
-                        opacity: 0.95,
+                        scale: 1.05, // ✅ CHANGE: Slight scale up for pickup effect
+                        opacity: 0.9,
                       }}
                       transition={{ 
                         duration: 0.15,
@@ -1759,14 +1731,11 @@ modifiers={[
                         pointerEvents: 'none',
                         transformOrigin: 'center center',
                         filter: 'drop-shadow(0 20px 40px rgba(0, 0, 0, 0.35)) drop-shadow(0 0 20px rgba(59, 130, 246, 0.3))',
-                        // Preserve original opacity if set
-                        opacity: draggedComponent.style?.opacity ? 
-                          Math.min(0.95, parseFloat(draggedComponent.style.opacity)) : 0.95,
-                        // Slight glow effect
+                        opacity: 0.9, // ✅ Pickup ghost has reduced opacity
                         boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.5), 0 0 40px rgba(59, 130, 246, 0.2)',
                       }}
                     >
-                      {/* Render full component with children */}
+                      {/* Render component - keep existing render logic */}
                       {(() => {
                         const renderer = componentLibraryService?.getComponent(draggedComponent.type);
                         
@@ -1774,21 +1743,19 @@ modifiers={[
                           try {
                             return (
                               <div className="relative">
-                                {/* Main component */}
                                 {renderer.render(
                                   { 
                                     ...draggedComponent.props, 
                                     style: {
                                       ...draggedComponent.style,
-                                      width: 'auto', // ✅ Let it be its natural width
+                                      width: 'auto',
                                       minWidth: '100px',
-                                      maxWidth: 'none', // ✅ Remove the 200px limit
+                                      maxWidth: 'none',
                                     }
                                   }, 
                                   draggedComponent.id
                                 )}
                                 
-                                {/* Children indicator if present */}
                                 {draggedComponent.children?.length > 0 && (
                                   <div className="absolute -bottom-6 left-0 right-0 flex items-center justify-center">
                                     <div className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full font-semibold shadow-lg">
@@ -1812,22 +1779,6 @@ modifiers={[
                             <div className="text-xs text-gray-500 mb-2">
                               {draggedComponent.type}
                             </div>
-                            
-                            {/* Show nested children */}
-                            {draggedComponent.children?.map((child, idx) => (
-                              idx < 3 && (
-                                <div key={child.id} className="ml-3 mt-1 text-xs text-gray-600 flex items-center gap-1">
-                                  <div className="w-1 h-1 rounded-full bg-blue-400" />
-                                  {child.name}
-                                </div>
-                              )
-                            ))}
-                            
-                            {draggedComponent.children?.length > 3 && (
-                              <div className="ml-3 mt-1 text-xs text-blue-600 font-semibold">
-                                +{draggedComponent.children.length - 3} more
-                              </div>
-                            )}
                           </div>
                         );
                       })()}

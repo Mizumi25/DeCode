@@ -372,7 +372,6 @@ class ComponentLibraryService {
 
       
    // Button renderer with proper data attributes
-// In your button rendering (ComponentLibraryService.js)
 renderButton(props, id, layoutStyles = {}) {
     const className = this.getButtonClasses(props);
     
@@ -386,13 +385,14 @@ renderButton(props, id, layoutStyles = {}) {
         minWidth: props.minWidth || '60px',
         ...layoutStyles,
         ...props.style
+        // ❌ REMOVED: pointerEvents: 'none'
     };
     
     return React.createElement('button', {
         key: id,
         className,
         onClick: (e) => {
-            e.stopPropagation(); // ✅ ADD THIS - prevent click from reaching parent
+            e.stopPropagation();
             console.log(`Button ${id} clicked`);
         },
         disabled: props.disabled || false,

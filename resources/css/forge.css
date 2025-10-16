@@ -599,18 +599,9 @@ body.dragging [contenteditable="true"] {
   }
 }
 
-/* Visual feedback during drag */
-.sortable-ghost {
-  opacity: 0.3 !important;
-  background: rgba(59, 130, 246, 0.1) !important;
-  border: 2px dashed #3b82f6 !important;
-}
 
-/* Hide original during drag */
-[data-sortable-id].dragging {
-  opacity: 0 !important;
-  visibility: hidden !important;
-}
+
+
 
 
 
@@ -629,8 +620,6 @@ body.dragging [contenteditable="true"] {
 .drag-preview {
   animation: dragBounce 0.3s ease-out;
   backdrop-filter: blur(20px);
-  opacity: 0.9 !important;
-  transform: rotate(2deg) scale(1.05);
   box-shadow: 0 20px 40px rgba(0,0,0,0.3);
   border: 2px solid var(--color-primary);
 }
@@ -670,13 +659,7 @@ body.dragging [contenteditable="true"] {
   backdrop-filter: blur(10px);
 }
 
-/* Ensure the dragged element disappears from canvas - FIXED: Remove transform override */
-[data-dnd-kit-dragging] {
-  opacity: 0.3 !important;
-  visibility: visible !important;
-  transition: opacity 0.1s ease !important;
-  /* REMOVED: transform: none !important; */
-}
+
 
 /* Better visual feedback during drag */
 [data-dnd-kit-drag-overlay] > * {
@@ -744,11 +727,7 @@ body.dragging [contenteditable="true"] {
 }
 
 
-body.dragging [data-component-id]:not([data-dnd-kit-dragging]) {
-  opacity: 0.6;
-  filter: grayscale(0.3);
-  transition: all 0.3s ease;
-}
+
 
 /* Mobile-specific drag improvements - FIXED: Remove scale override */
 @media (max-width: 768px) {
@@ -1055,4 +1034,100 @@ body.dragging [data-component-id] {
 /* Ensure drag handles are above selection */
 [class*="drag-handle"] {
   z-index: 10000 !important;
+}
+
+
+
+
+/* ========================================
+   🔥 DUAL GHOST DRAG SYSTEM (PICKUP + DROP)
+   ======================================== */
+
+/* Pickup Ghost - Follows cursor with enhanced styling */
+[data-dnd-kit-drag-overlay] > * {
+  animation: pickupGhost 0.2s ease-out !important;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.35), 
+              0 0 20px rgba(59, 130, 246, 0.3) !important;
+  border: 2px solid rgba(59, 130, 246, 0.5) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  opacity: 0.9 !important;
+  transform: scale(1.05) !important;
+  filter: brightness(1.05) saturate(1.1) !important;
+}
+
+@keyframes pickupGhost {
+  0% {
+    transform: scale(0.95) rotate(-1deg);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.05) rotate(2deg);
+    opacity: 0.9;
+  }
+}
+
+/* Hide original element during drag (becomes invisible) */
+body.dragging [data-component-id="${activeId}"] {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Drop Ghost - Shows final position (no opacity/scale change) */
+[data-dnd-kit-draggable-context-id] > * {
+  transition: transform 0.2s ease-in-out !important;
+}
+
+/* Dim other elements during drag */
+body.dragging [data-component-id]:not([data-component-id="${activeId}"]) {
+  opacity: 0.6 !important;
+  filter: grayscale(0.2) !important;
+  transition: opacity 0.2s, filter 0.2s !important;
+}
+
+/* Visual feedback for valid drop targets */
+.layout-container.drag-over-layout {
+  outline: 2px dashed #3b82f6 !important;
+  outline-offset: 4px !important;
+  background-color: rgba(59, 130, 246, 0.05) !important;
+  transition: all 0.2s ease !important;
+}
+
+/* Enhanced drop zone when directly over center */
+.layout-container.drop-zone-hover {
+  outline: 3px solid #10b981 !important;
+  background-color: rgba(16, 185, 129, 0.1) !important;
+  animation: dropPulse 1.5s ease-in-out infinite !important;
+}
+
+@keyframes dropPulse {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+  }
+}
+
+/* Reorder indicator between siblings */
+.reorder-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+  opacity: 0.8;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+/* Mobile drag optimizations */
+@media (max-width: 768px) {
+  [data-dnd-kit-drag-overlay] > * {
+    transform: scale(1.1) !important;
+  }
+  
+  .layout-container.drag-over-layout {
+    outline-width: 3px !important;
+  }
 }
