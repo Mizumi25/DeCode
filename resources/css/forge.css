@@ -1034,3 +1034,25 @@ body.dragging [data-component-id] {
   white-space: nowrap;
 }
 
+
+
+
+
+/* ADD to forge.css - Ensure selected elements have proper cursor */
+[data-component-id].selected {
+  cursor: grab !important;
+}
+
+[data-component-id].selected:active {
+  cursor: grabbing !important;
+}
+
+/* Make sure selection doesn't interfere with drag */
+.selection-overlay {
+  pointer-events: none !important;
+}
+
+/* Ensure drag handles are above selection */
+[class*="drag-handle"] {
+  z-index: 10000 !important;
+}

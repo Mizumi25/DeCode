@@ -525,6 +525,14 @@ const isDescendant = (parentId, childId, components) => {
 const shouldNest = (() => {
   if (!targetComp || draggedComp?.id === targetComp?.id) return false;
   
+  // ✅ CRITICAL FIX: Only nest if dragged component is CHILD of target
+  const draggedIsChildOfTarget = draggedComp?.parentId === targetComp?.id;
+  if (!draggedIsChildOfTarget) {
+    // Don't nest if dragging from outside
+    console.log('🔍 Nest rejected: dragged component is not child of target');
+    return false;
+  }
+  
   // Check DOM element for layout status
   const targetElement = document.querySelector(`[data-component-id="${targetComp.id}"]`);
   const isTargetLayout = targetElement?.getAttribute('data-is-layout') === 'true';
@@ -794,84 +802,81 @@ const SortableComponent = ({ component, depth, parentId, index, parentStyle }) =
   };
 
   // LAYOUT CONTAINER RENDERING
-  if (isLayout) {
-    return (
-      <div
-        key={component.id}
-        ref={setNodeRef}
-        style={{...componentStyles}}
-        data-component-id={component.id}
-        data-depth={depth}
-        data-is-layout="true" // ✅ CRITICAL: Must be string "true"
-        data-parent-id={parentId || 'root'}
+ if (isLayout) {
+  return (
+    <div
+      key={component.id}
+      ref={setNodeRef}
+      style={{...componentStyles}}
+      data-component-id={component.id}
+      data-depth={depth}
+      data-is-layout="true"
+      data-parent-id={parentId || 'root'}
+      className={`
+        relative group layout-container 
+        ${isSelected ? 'ring-2 ring-blue-500' : ''}
+        ${isDragging ? 'opacity-40' : ''}
+        ${overId === component.id ? 'ring-2 ring-green-400' : ''}
+        transition-opacity duration-150
+      `}
+      onClick={handleSmartClick}
+    >
+      {/* LAYOUT DRAG OVERLAY - Full area draggable */}
+      <div 
         className={`
-          relative group layout-container 
-          ${isSelected ? 'ring-2 ring-blue-500' : ''}
-          ${isDragging ? 'opacity-40' : ''}
-          ${overId === component.id ? 'ring-2 ring-green-400' : ''}
-          transition-opacity duration-150
+          absolute inset-0 cursor-grab active:cursor-grabbing
+          ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+          transition-opacity duration-200
         `}
-        onClick={handleSmartClick}
-      >
-        {/* LAYOUT DRAG OVERLAY - Full area draggable */}
-        <div 
-          className={`
-            absolute inset-0 cursor-grab active:cursor-grabbing
-            ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-            transition-opacity duration-200
-          `}
-          style={{
-            touchAction: 'none',
-            userSelect: 'none',
-            WebkitUserSelect: 'none',
-            zIndex: 1,
-            pointerEvents: 'auto'
-          }}
-          {...attributes}
-          {...listeners}
-          onMouseDown={(e) => {
-            const isDirectClick = e.target === e.currentTarget;
-            if (!isDirectClick) {
-              e.stopPropagation();
-            }
-          }}
-        />
-                
-        {/* Nested Sortable Context */}
-        {component.children && component.children.length > 0 ? (
-          <SortableContext 
-            items={component.children.map(c => c.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-2" style={{ position: 'relative', zIndex: 2 }}>
-              {component.children.map((child, childIndex) => (
-                <SortableComponent
-                  key={child.id}
-                  component={child}
-                  depth={depth + 1}
-                  parentId={component.id}
-                  index={childIndex}
-                  parentStyle={componentStyles}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
-            <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
-              Drop here • {component.type}
-            </div>
+        style={{
+          touchAction: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          zIndex: 1,
+          pointerEvents: 'auto'  // ✅ CHANGE from conditional to always 'auto'
+        }}
+        {...attributes}
+        {...listeners}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+        }}
+      />
+              
+      {/* Nested Sortable Context */}
+      {component.children && component.children.length > 0 ? (
+        <SortableContext 
+          items={component.children.map(c => c.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="space-y-2" style={{ position: 'relative', zIndex: 2, pointerEvents: 'auto' }}>
+            {component.children.map((child, childIndex) => (
+              <SortableComponent
+                key={child.id}
+                component={child}
+                depth={depth + 1}
+                parentId={component.id}
+                index={childIndex}
+                parentStyle={componentStyles}
+              />
+            ))}
           </div>
-        )}
-        
-        {isSelected && (
-          <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
-            {component.name} • {component.children?.length || 0} children • Depth {depth}
+        </SortableContext>
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
+          <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
+            Drop here • {component.type}
           </div>
-        )}
-      </div>
-    );
-  }
+        </div>
+      )}
+      
+      {isSelected && (
+        <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
+          {component.name} • {component.children?.length || 0} children • Depth {depth}
+        </div>
+      )}
+    </div>
+  );
+}
   
   // 🔥🔥🔥 FIXED NON-LAYOUT COMPONENT RENDERING 🔥🔥🔥
   const componentRenderer = componentLibraryService?.getComponent(component.type);
@@ -1210,17 +1215,16 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
     }}>
       {/* Responsive Canvas Container */}
       <div
-        className={`
-          relative transition-all duration-500 ease-in-out overflow-visible
+        className={`relative transition-all duration-500 ease-in-out overflow-visible
           ${isFrameSwitching ? 'opacity-50 scale-95' : 'opacity-100 scale-100'}
           ${responsiveMode !== 'desktop' ? 'shadow-2xl' : ''}
         `}
         style={{ 
           width: canvasSize.width,
           maxWidth: canvasSize.maxWidth,
-          transform: `scale(${scaleFactor})`,
+          transform: responsiveMode === 'desktop' ? 'none' : `scale(${scaleFactor})`,
           transformOrigin: 'center top',
-          zIndex: 10 // ✅ Ensure canvas is above other elements
+          zIndex: 10
         }}
       >
         {/* Device-Specific Browser Frame */}
