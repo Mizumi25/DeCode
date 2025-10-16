@@ -26,7 +26,24 @@ const PropertiesPanel = ({
   searchTerm: externalSearchTerm = '',
   onSearchChange
 }) => {
-  const [selectedComponentData, setSelectedComponentData] = useState(null);
+  // ✅ CRITICAL: Use memoized computation instead of state
+  const selectedComponentData = useMemo(() => {
+    if (!selectedComponent || !canvasComponents) return null;
+    
+    // Recursive search to handle nested components
+    const findComponent = (components, id) => {
+      for (const comp of components) {
+        if (comp.id === id) return comp;
+        if (comp.children?.length > 0) {
+          const found = findComponent(comp.children, id);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    
+    return findComponent(canvasComponents, selectedComponent);
+  }, [selectedComponent, canvasComponents]);
   const [expandedSections, setExpandedSections] = useState({
     layout: true,
     typography: false,
@@ -43,14 +60,6 @@ const PropertiesPanel = ({
   // ✅ ADD THIS LINE
   const { toggleOverlay, isOverlayEnabled } = useCanvasOverlayStore();
 
-  useEffect(() => {
-    if (selectedComponent && canvasComponents) {
-      const component = canvasComponents.find(c => c.id === selectedComponent);
-      setSelectedComponentData(component);
-    } else {
-      setSelectedComponentData(null);
-    }
-  }, [selectedComponent, canvasComponents]);
   
   useEffect(() => {
     if (activeSearchTerm && activeSearchTerm.trim() !== '') {
@@ -80,8 +89,10 @@ const PropertiesPanel = ({
     }
   };
 
-  const handlePropertyChange = (propName, value, category = 'style') => {
-    if (!selectedComponent) return;
+   const handlePropertyChange = useCallback((propName, value, category = 'style') => {
+    if (!selectedComponent || !selectedComponentData) return;
+    
+    console.log('🔧 Property change:', { propName, value, category, selectedComponent });
     
     if (category === 'style') {
       const currentStyles = selectedComponentData?.style || {};
@@ -94,37 +105,61 @@ const PropertiesPanel = ({
     } else {
       onPropertyUpdate(selectedComponent, propName, value);
     }
-  };
+  }, [selectedComponent, selectedComponentData, onPropertyUpdate]);
 
-  if (!selectedComponent || !selectedComponentData) {
-    return (
-      <div className="space-y-6 p-4" style={{ backgroundColor: 'var(--color-bg)' }}>
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
-            <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
-          </div>
-          <div>
-            <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Properties</h3>
-            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Select a component to edit</p>
-          </div>
+
+    // In PropertiesPanel.jsx - add this debug section at the top of the return
+console.log('🔍 PropertiesPanel Debug:', {
+  selectedComponent,
+  selectedComponentData,
+  props: selectedComponentData?.props,
+  style: selectedComponentData?.style,
+  hasProps: !!selectedComponentData?.props,
+  hasStyle: !!selectedComponentData?.style
+});
+
+
+ // ✅ Handle canvas/body root selection
+if (!selectedComponent || selectedComponent === '__canvas_root__') {
+  return (
+    <div className="space-y-6 p-4" style={{ backgroundColor: 'var(--color-bg)' }}>
+      <div className="flex items-center gap-3 mb-6">
+        <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+          <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
         </div>
-        
-        <div 
-          className="text-center py-12 rounded-xl border-2 border-dashed"
-          style={{ 
-            backgroundColor: 'var(--color-surface)',
-            borderColor: 'var(--color-border)'
-          }}
-        >
-          <Settings className="w-12 h-12 mx-auto mb-4 opacity-30" style={{ color: 'var(--color-text-muted)' }} />
-          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-            No component selected.<br />
-            Click on a component to see its properties.
-          </p>
+        <div>
+          <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Canvas Properties</h3>
+          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Edit the canvas/root container</p>
         </div>
       </div>
-    );
-  }
+      
+      <div 
+        className="text-center py-12 rounded-xl border-2 border-dashed"
+        style={{ 
+          backgroundColor: 'var(--color-surface)',
+          borderColor: 'var(--color-border)'
+        }}
+      >
+        <Settings className="w-12 h-12 mx-auto mb-4 opacity-30" style={{ color: 'var(--color-text-muted)' }} />
+        <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Canvas/Body Element</p>
+        <p className="text-xs mt-2" style={{ color: 'var(--color-text-muted)' }}>
+          This is the root container. Add components to start building.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ✅ Only show real component properties if we have one selected (not canvas)
+if (!selectedComponentData) {
+  return (
+    <div className="space-y-6 p-4" style={{ backgroundColor: 'var(--color-bg)' }}>
+      <div className="text-center opacity-50">
+        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No component selected</p>
+      </div>
+    </div>
+  );
+}
 
   const componentDefinition = componentLibraryService?.getComponentDefinition?.(selectedComponentData.type);
   const currentStyles = selectedComponentData.style || {};
@@ -153,6 +188,14 @@ const PropertiesPanel = ({
           borderColor: 'var(--color-border)'
         }}
       >
+  
+
+<div className="p-3 mb-4 bg-yellow-50 border border-yellow-200 rounded text-xs">
+  <div><strong>DEBUG:</strong> Component: {selectedComponent}</div>
+  <div><strong>Props:</strong> {JSON.stringify(selectedComponentData?.props)}</div>
+  <div><strong>Style:</strong> {JSON.stringify(selectedComponentData?.style)}</div>
+  <div><strong>Type:</strong> {selectedComponentData?.type}</div>
+</div>
         <div className="p-4">
           {/* Top row with title and settings */}
           <div className="flex items-center justify-between mb-4">

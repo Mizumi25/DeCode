@@ -449,6 +449,10 @@ const handleDndDragOver = useCallback((event) => {
   }
 }, []);
 
+
+
+
+
 // Helper to check if a component is a descendant of another (prevent circular refs)
 const isDescendant = (parentId, childId, components) => {
   const checkChildren = (comp, targetId) => {
@@ -465,18 +469,19 @@ const isDescendant = (parentId, childId, components) => {
 
 
 
+
   
 const handleDndDragEnd = useCallback((event) => {
   const { active, over } = event;
   
-  // CRITICAL: Restore all elements immediately
+  // CRITICAL: Restore all hidden elements immediately
   const restoreElements = () => {
     if (activeId) {
       const element = document.querySelector(`[data-component-id="${activeId}"]`);
       if (element) {
         element.style.opacity = '';
         element.style.pointerEvents = '';
-        element.style.visibility = ''; // ✅ RESTORE visibility
+        element.style.visibility = '';
         element.style.transform = '';
       }
     }
@@ -498,6 +503,66 @@ const handleDndDragEnd = useCallback((event) => {
   setDraggedComponent(null);
 
   if (!over) {
+    console.log('❌ No drop target - dropping at root level');
+    
+    // 🔥 NEW: Allow dropping at root when no target
+    const draggedComp = flatComponents.find(c => c.id === active.id);
+    if (draggedComp) {
+      // Remove from current position and add to root
+      const removeFromTree = (components, idToRemove) => {
+        return components.reduce((acc, comp) => {
+          if (comp.id === idToRemove) {
+            return acc; // Skip this component (will be added to root)
+          }
+          
+          if (comp.children?.length > 0) {
+            return [...acc, {
+              ...comp,
+              children: removeFromTree(comp.children, idToRemove)
+            }];
+          }
+          
+          return [...acc, comp];
+        }, []);
+      };
+      
+      let updatedTree = removeFromTree(canvasComponents, active.id);
+      
+      // Add to root with default position
+      const rootPosition = {
+        x: dragPosition?.x || 100,
+        y: dragPosition?.y || 100
+      };
+      
+      updatedTree = [
+        ...updatedTree,
+        {
+          ...draggedComp,
+          parentId: null,
+          position: rootPosition
+        }
+      ];
+      
+      setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: updatedTree
+      }));
+      
+      if (pushHistory && actionTypes) {
+        pushHistory(currentFrame, updatedTree, actionTypes.MOVE, {
+          componentId: active.id,
+          action: 'moved_to_root',
+          position: rootPosition
+        });
+      }
+      
+      setTimeout(() => {
+        if (componentLibraryService?.saveProjectComponents) {
+          componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedTree);
+        }
+      }, 500);
+    }
+    
     document.body.classList.remove('dragging');
     return;
   }
@@ -508,10 +573,12 @@ const handleDndDragEnd = useCallback((event) => {
   console.log('🎯 Drag end:', {
     dragged: draggedComp?.name,
     target: targetComp?.name,
-    targetIsLayout: targetComp?.isLayoutContainer
+    targetIsLayout: targetComp?.isLayoutContainer,
+    draggedParent: draggedComp?.parentId,
+    targetParent: targetComp?.parentId
   });
 
-  // 🔥 FIXED: Allow nesting INTO containers OR moving OUT of containers
+  // 🔥 ENHANCED: Check if we're moving OUT of a container (to root or another container)
   const shouldNest = (() => {
     if (!targetComp || draggedComp?.id === targetComp?.id) return false;
     
@@ -519,7 +586,7 @@ const handleDndDragEnd = useCallback((event) => {
     const targetElement = document.querySelector(`[data-component-id="${targetComp.id}"]`);
     const isTargetLayout = targetElement?.getAttribute('data-is-layout') === 'true';
     
-    // ✅ NEW: Allow nesting if target is layout AND we're NOT moving within same parent
+    // ✅ NEW: Allow moving between different parents
     const isDifferentParent = draggedComp?.parentId !== targetComp?.id;
     
     // Prevent circular references
@@ -537,6 +604,10 @@ const handleDndDragEnd = useCallback((event) => {
     
     return isTargetLayout && isDifferentParent && !isCircular;
   })();
+
+  // 🔥 NEW: Check if we're moving to root (dropping on canvas background)
+  const shouldMoveToRoot = !targetComp?.isLayoutContainer && 
+                          draggedComp?.parentId !== null;
 
   if (shouldNest) {
     console.log('📦 Nesting into container:', targetComp.name);
@@ -569,7 +640,7 @@ const handleDndDragEnd = useCallback((event) => {
               {
                 ...childToAdd,
                 parentId: comp.id,
-                position: { x: 20, y: 20 }
+                position: { x: 20, y: 20 } // Default position inside container
               },
               ...(comp.children || [])
             ]
@@ -600,6 +671,87 @@ const handleDndDragEnd = useCallback((event) => {
         componentId: active.id,
         action: 'nested_into_container',
         containerId: over.id
+      });
+    }
+    
+    setTimeout(() => {
+      if (componentLibraryService?.saveProjectComponents) {
+        componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedTree);
+      }
+    }, 500);
+    
+    document.body.classList.remove('dragging');
+    return;
+  }
+
+  // 🔥 NEW: Handle moving OUT of containers to root level
+  if (shouldMoveToRoot || (!shouldNest && draggedComp?.parentId !== null)) {
+    console.log('🚀 Moving component OUT of container to root level');
+    
+    // Remove from current parent
+    const removeFromParent = (components, idToRemove) => {
+      return components.reduce((acc, comp) => {
+        if (comp.id === idToRemove) {
+          return acc; // Skip - will add to root
+        }
+        
+        if (comp.children?.length > 0) {
+          // Check if this component has the child we're removing
+          const hasChild = comp.children.some(child => child.id === idToRemove);
+          if (hasChild) {
+            // Remove from children and add to root
+            const filteredChildren = comp.children.filter(child => child.id !== idToRemove);
+            return [
+              ...acc,
+              {
+                ...comp,
+                children: filteredChildren
+              }
+            ];
+          } else {
+            // Recursively check children
+            return [
+              ...acc,
+              {
+                ...comp,
+                children: removeFromParent(comp.children, idToRemove)
+              }
+            ];
+          }
+        }
+        
+        return [...acc, comp];
+      }, []);
+    };
+    
+    let updatedTree = removeFromParent(canvasComponents, active.id);
+    
+    // Add to root level with position near drop point
+    const rootPosition = {
+      x: dragPosition?.x || (draggedComp.position?.x || 100),
+      y: dragPosition?.y || (draggedComp.position?.y || 100)
+    };
+    
+    updatedTree = [
+      ...updatedTree,
+      {
+        ...draggedComp,
+        parentId: null,
+        position: rootPosition
+      }
+    ];
+    
+    setFrameCanvasComponents(prev => ({
+      ...prev,
+      [currentFrame]: updatedTree
+    }));
+    
+    if (pushHistory && actionTypes) {
+      pushHistory(currentFrame, updatedTree, actionTypes.MOVE, {
+        componentId: active.id,
+        action: 'moved_out_of_container',
+        previousParent: draggedComp.parentId,
+        newPosition: rootPosition
       });
     }
     
@@ -686,7 +838,7 @@ const handleDndDragEnd = useCallback((event) => {
       y: event.clientY || event.touches?.[0]?.clientY
     }
   });
-}, [flatComponents, currentFrame, projectId, componentLibraryService, pushHistory, actionTypes, setFrameCanvasComponents, activeId, canvasComponents]);
+}, [flatComponents, currentFrame, projectId, componentLibraryService, pushHistory, actionTypes, setFrameCanvasComponents, activeId, canvasComponents, dragPosition]);
 
 
   const handleDndDragCancel = useCallback(() => {
@@ -1574,18 +1726,27 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
           )}
           
 
-        {SelectionOverlay && selectedComponent && selectedComponent !== '__canvas_root__' && (
+
+
+          {SelectionOverlay && selectedComponent === '__canvas_root__' && (
             <SelectionOverlay
-                componentId={selectedComponent}
-                canvasRef={canvasRef}
-                canvasComponents={canvasComponents}
-                selectedComponent={canvasComponents.find(c => c.id === selectedComponent)}
-                // ✅ CRITICAL: Pass overlay settings to SelectionOverlay
-                showSpacing={isOverlayEnabled('showSpacingIndicators')}
-                // Also pass other overlay settings if needed
-                showSelectionBorders={isOverlayEnabled('showSelectionBorders')}
+              componentId="__canvas_root__"
+              canvasRef={canvasRef}
+              isCanvasSelection={true} // 🔥 ADD THIS
+              showSpacing={isOverlayEnabled('showSpacingIndicators')}
             />
-        )}
+          )}
+          
+          {SelectionOverlay && selectedComponent && selectedComponent !== '__canvas_root__' && (
+            <SelectionOverlay
+              componentId={selectedComponent}
+              canvasRef={canvasRef}
+              canvasComponents={canvasComponents}
+              selectedComponent={canvasComponents.find(c => c.id === selectedComponent)}
+              showSpacing={isOverlayEnabled('showSpacingIndicators')}
+              showSelectionBorders={isOverlayEnabled('showSelectionBorders')}
+            />
+          )}
                     
           {/* Drop Zone Indicator */}
           {dragState.isDragging && canvasComponents.length === 0 && (

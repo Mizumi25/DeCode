@@ -1131,3 +1131,31 @@ body.dragging [data-component-id]:not([data-component-id="${activeId}"]) {
     outline-width: 3px !important;
   }
 }
+
+
+
+
+
+/* Add to forge.css - Canvas Selection Styles */
+.canvas-selection-overlay {
+  border: 1px dashed #888 !important;
+  background-color: transparent !important;
+  opacity: 0.3 !important;
+  pointer-events: none !important;
+}
+
+.canvas-selection-overlay:hover {
+  opacity: 0.5 !important;
+  border-color: #666 !important;
+}
+
+.canvas-spacing-guide {
+  border-color: #666 !important;
+  opacity: 0.2 !important;
+  background-color: transparent !important;
+}
+
+.canvas-center-guide {
+  background-color: #888 !important;
+  opacity: 0.15 !important;
+}

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react'; // Add useState, useEffect
 import { ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -101,6 +101,26 @@ export const InputField = ({
   options = {},
   searchTerm = ''
 }) => {
+  // ✅ CRITICAL FIX: Use single state for the input value
+  // Don't sync with parent prop during typing
+  const [displayValue, setDisplayValue] = useState(value ?? '');
+
+  // ✅ Only update when PROP changes, not during user input
+  useEffect(() => {
+    setDisplayValue(value ?? '');
+  }, [value]);
+
+  // ✅ Handle changes WITHOUT triggering parent re-render loop
+  const handleChange = (newValue) => {
+    setDisplayValue(newValue); // ✅ Update display immediately
+    
+    // ✅ Debounce parent update to prevent feedback loop
+    clearTimeout(handleChange.debounceTimer);
+    handleChange.debounceTimer = setTimeout(() => {
+      onChange(newValue); // ✅ Update parent AFTER user stops typing
+    }, 300);
+  };
+
   // Check if this specific field matches search
   const isMatch = useMemo(() => {
     if (!searchTerm || searchTerm.trim() === '') return true;
@@ -140,8 +160,8 @@ export const InputField = ({
       
       {type === 'select' ? (
         <select
-          value={value || ''}
-          onChange={(e) => onChange(e.target.value)}
+          value={displayValue || ''}
+          onChange={(e) => handleChange(e.target.value)}
           className={baseInputClasses}
           style={{
             backgroundColor: 'var(--color-surface)',
@@ -161,8 +181,8 @@ export const InputField = ({
         <div className="flex gap-2">
           <input
             type="color"
-            value={value || '#000000'}
-            onChange={(e) => onChange(e.target.value)}
+            value={displayValue || '#000000'}
+            onChange={(e) => handleChange(e.target.value)}
             className="w-12 h-10 border rounded cursor-pointer"
             style={{ 
               borderColor: 'var(--color-border)',
@@ -172,8 +192,8 @@ export const InputField = ({
           />
           <input
             type="text"
-            value={value || ''}
-            onChange={(e) => onChange(e.target.value)}
+            value={displayValue || ''}
+            onChange={(e) => handleChange(e.target.value)}
             className={`${baseInputClasses} flex-1`}
             placeholder="#000000 or rgb() or hsl()"
             style={{
@@ -191,8 +211,8 @@ export const InputField = ({
             min={options.min || 0}
             max={options.max || 100}
             step={options.step || 1}
-            value={value || options.min || 0}
-            onChange={(e) => onChange(parseFloat(e.target.value))}
+            value={displayValue || options.min || 0}
+            onChange={(e) => handleChange(parseFloat(e.target.value))}
             className="w-full h-2 rounded-lg appearance-none cursor-pointer"
             style={{ 
               accentColor: 'var(--color-primary)'
@@ -206,13 +226,13 @@ export const InputField = ({
               border: highlightStyle.borderColor ? `1px solid ${highlightStyle.borderColor}` : 'none'
             }}
           >
-            {value || options.min || 0}{options.unit || ''}
+            {displayValue || options.min || 0}{options.unit || ''}
           </div>
         </div>
       ) : type === 'textarea' ? (
         <textarea
-          value={value || ''}
-          onChange={(e) => onChange(e.target.value)}
+          value={displayValue || ''}
+          onChange={(e) => handleChange(e.target.value)}
           className={`${baseInputClasses} resize-vertical min-h-[80px]`}
           rows={3}
           style={{
@@ -226,8 +246,8 @@ export const InputField = ({
         <div className="flex items-center">
           <input
             type="checkbox"
-            checked={value || false}
-            onChange={(e) => onChange(e.target.checked)}
+            checked={displayValue || false}
+            onChange={(e) => handleChange(e.target.checked)}
             className="w-4 h-4 rounded focus:ring-2"
             style={{ 
               accentColor: 'var(--color-primary)'
@@ -257,9 +277,9 @@ export const InputField = ({
             {Object.entries(options.presets || {}).map(([key, presetValue]) => (
               <button
                 key={key}
-                onClick={() => onChange(presetValue)}
+                onClick={() => handleChange(presetValue)}
                 className={`px-2 py-1 text-xs rounded border transition-colors`}
-                style={value === presetValue ? {
+                style={displayValue === presetValue ? {
                   backgroundColor: 'var(--color-primary)',
                   color: '#ffffff',
                   borderColor: 'var(--color-primary)'
@@ -275,8 +295,8 @@ export const InputField = ({
           </div>
           <input
             type="text"
-            value={value || ''}
-            onChange={(e) => onChange(e.target.value)}
+            value={displayValue || ''}
+            onChange={(e) => handleChange(e.target.value)}
             className={baseInputClasses}
             placeholder="Custom value..."
             style={{
@@ -290,8 +310,8 @@ export const InputField = ({
       ) : (
         <input
           type={type}
-          value={value || ''}
-          onChange={(e) => onChange(type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value)}
+          value={displayValue || ''}
+          onChange={(e) => handleChange(type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value)}
           className={baseInputClasses}
           step={type === 'number' ? (options.step || 1) : undefined}
           min={type === 'number' ? options.min : undefined}

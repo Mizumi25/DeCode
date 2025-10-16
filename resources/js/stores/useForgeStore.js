@@ -5,16 +5,16 @@ import { persist } from 'zustand/middleware'
 export const useForgeStore = create(
   persist(
     (set, get) => ({
-      // Panel states specific to Forge page - UPDATED for better defaults
+      // Panel states specific to Forge page - FIXED: All panels start CLOSED
       forgePanelStates: {
-        'components-panel': false,      // Left dock - toggleable
-        'code-panel': false,            // Right dock or bottom - MADE toggleable
+        'components-panel': false,
+        'code-panel': false,  
         'code-modal-panel': false,
-        'layers-panel': false,          // Left dock - toggleable
-        'properties-panel': true,       // Right dock - open by default (top)
-        'assets-panel': true            // Right dock - open by default (bottom)
+        'layers-panel': false,
+        'properties-panel': false,  // Changed from true to false
+        'assets-panel': false       // Changed from true to false
       },
-      
+            
       codePanelMode: 'bottom', 
       
     // ADD action to change code panel mode
@@ -26,16 +26,11 @@ export const useForgeStore = create(
       // Force re-render trigger (increment this to force components to update)
       _triggerUpdate: 0,
       
-      // UPDATED: Toggle individual panel - now allows code-panel toggling
+      // UPDATED: Toggle individual panel - now allows ALL panels to be toggled
       toggleForgePanel: (panelId) => set((state) => {
         console.log(`ForgeStore: Toggling panel ${panelId} from ${state.forgePanelStates[panelId]} to ${!state.forgePanelStates[panelId]}`);
         
-        // Allow toggling of all panels except properties and assets (which are always open)
-        if (panelId === 'properties-panel' || panelId === 'assets-panel') {
-          console.log(`ForgeStore: Cannot toggle ${panelId} - it's always open`);
-          return state; // Return unchanged state
-        }
-        
+        // REMOVED the restriction - ALL panels can now be toggled
         const newState = {
           forgePanelStates: {
             ...state.forgePanelStates,
@@ -120,22 +115,23 @@ export const useForgeStore = create(
         };
       }),
       
-      // UPDATED: Reset all panel states with better defaults
-      resetForgePanelStates: () => set((state) => {
-        console.log('ForgeStore: Resetting all panel states to defaults');
-        
-        return {
-          forgePanelStates: {
-            'components-panel': false,    // Left dock - closed by default
-            'code-panel': false,          // Bottom/right - closed by default, but toggleable
-            'layers-panel': false,        // Left dock - closed by default  
-            'properties-panel': true,     // Right dock - open by default (top position)
-            'assets-panel': true          // Right dock - open by default (bottom position)
-          },
-          allPanelsHidden: false,
-          _triggerUpdate: state._triggerUpdate + 1
-        };
-      }),
+
+     // UPDATED: Reset all panel states with proper defaults
+    resetForgePanelStates: () => set((state) => {
+      console.log('ForgeStore: Resetting all panel states to defaults');
+      
+      return {
+        forgePanelStates: {
+          'components-panel': false,
+          'code-panel': false,
+          'layers-panel': false,  
+          'properties-panel': false,  // Changed from true to false
+          'assets-panel': false       // Changed from true to false
+        },
+        allPanelsHidden: false,
+        _triggerUpdate: state._triggerUpdate + 1
+      };
+    }),
       
       // NEW: Helper to check if any toggleable panels are open (excludes always-open panels)
       hasToggleablePanelsOpen: () => {

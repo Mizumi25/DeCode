@@ -2,8 +2,11 @@ import React, { useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Eye, EyeOff, Lock, Unlock, ChevronRight,
-  Layers, Trash2, Copy, MoreVertical, Move
+  Layers, Trash2, Copy, MoreVertical, Move, Square
 } from 'lucide-react'
+
+// Import component library service
+import { componentLibraryService } from '@/Services/ComponentLibraryService'
 
 const LayerItem = ({ component, depth = 0, isSelected, onSelect, onDelete, path = [] }) => {
   const [isExpanded, setIsExpanded] = React.useState(true);
@@ -12,6 +15,126 @@ const LayerItem = ({ component, depth = 0, isSelected, onSelect, onDelete, path 
 
   const hasChildren = component.children && component.children.length > 0;
   const isLayout = component.isLayoutContainer;
+
+  // 🔥 GET COMPONENT DEFINITION FOR THUMBNAIL
+  const componentDef = componentLibraryService?.getComponentDefinition(component.type);
+
+  // 🔥 RENDER ACTUAL UI THUMBNAIL LIKE COMPONENT PANEL
+  const renderThumbnail = () => {
+    if (!componentDef) {
+      // Fallback to simple icon
+      return (
+        <div style={{
+          width: "24px",
+          height: "24px",
+          borderRadius: "var(--radius-sm)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: `1.5px solid var(--color-border)`,
+          background: "var(--color-surface)",
+          boxShadow: "var(--shadow-sm)",
+        }}>
+          <Square size={14} color="var(--color-text-muted)" />
+        </div>
+      );
+    }
+    
+    // 🔥 CRITICAL: Check for variants and use preview_code EXACTLY like component panel
+    if (component.variant && componentDef.variants) {
+      const variantData = componentDef.variants.find(v => v.name === component.variant.name);
+      if (variantData?.preview_code) {
+        return (
+          <div 
+            style={{
+              width: "24px",
+              height: "24px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transform: 'scale(0.6)',
+              transformOrigin: 'center',
+            }}
+            dangerouslySetInnerHTML={{ 
+              __html: variantData.preview_code.replace(/className=/g, 'class=') 
+            }}
+          />
+        );
+      }
+    }
+    
+    // 🔥 For layout containers, show simplified layout preview
+    if (component.isLayoutContainer) {
+      return (
+        <div style={{
+          width: "24px",
+          height: "24px",
+          borderRadius: "var(--radius-sm)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: `1.5px solid var(--color-primary)`,
+          background: "var(--color-primary-soft)",
+          boxShadow: "var(--shadow-sm)",
+        }}>
+          <Layers size={14} color="var(--color-primary)" />
+        </div>
+      );
+    }
+    
+    // 🔥 Fallback: Try to render the actual component but scaled down
+    try {
+      const renderer = componentLibraryService?.getComponent(component.type);
+      if (renderer?.render) {
+        return (
+          <div style={{
+            width: "24px",
+            height: "24px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transform: 'scale(0.5)',
+            transformOrigin: 'center',
+            overflow: 'hidden',
+          }}>
+            {renderer.render({
+              ...component.props,
+              style: {
+                ...component.props?.style,
+                width: 'auto',
+                height: 'auto',
+                maxWidth: '100%',
+                maxHeight: '100%',
+              }
+            }, `thumb-${component.id}`)}
+          </div>
+        );
+      }
+    } catch (error) {
+      console.warn('Failed to render thumbnail for:', component.type, error);
+    }
+    
+    // Ultimate fallback - use colored dot with first letter
+    const firstLetter = component.name?.charAt(0)?.toUpperCase() || 'C';
+    return (
+      <div style={{
+        width: "24px",
+        height: "24px",
+        borderRadius: "var(--radius-sm)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        border: `1.5px solid var(--color-border)`,
+        background: "var(--color-surface)",
+        boxShadow: "var(--shadow-sm)",
+        fontSize: '10px',
+        fontWeight: 'bold',
+        color: 'var(--color-text)',
+      }}>
+        {firstLetter}
+      </div>
+    );
+  };
 
   const getDepthColor = () => {
     const colors = [
@@ -109,33 +232,8 @@ const LayerItem = ({ component, depth = 0, isSelected, onSelect, onDelete, path 
           <div style={{ width: "16px" }} />
         )}
 
-        {/* Icon */}
-        <div
-          style={{
-            width: "24px",
-            height: "24px",
-            borderRadius: "var(--radius-sm)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            border: `1.5px solid ${isLayout ? depthColor : "var(--color-border)"}`,
-            background: isLayout ? `${depthColor}10` : "var(--color-surface)",
-            boxShadow: "var(--shadow-sm)",
-          }}
-        >
-          {isLayout ? (
-            <Layers size={14} color={depthColor} />
-          ) : (
-            <div
-              style={{
-                width: "8px",
-                height: "8px",
-                borderRadius: "50%",
-                backgroundColor: depthColor,
-              }}
-            />
-          )}
-        </div>
+        {/* 🔥 REPLACED: Icon with actual UI thumbnail */}
+        {renderThumbnail()}
 
         {/* Name + Meta */}
         <div style={{ flex: 1, minWidth: 0 }}>

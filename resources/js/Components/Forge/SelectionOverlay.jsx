@@ -32,6 +32,7 @@ const SelectionOverlay = ({
   selectedComponent,
   canvasComponents = [],
   showSpacing = false, 
+  isCanvasSelection = false
 }) => {
   const [bounds, setBounds] = useState(null);
   const [computedStyles, setComputedStyles] = useState(null);
@@ -134,6 +135,32 @@ const updateBounds = useCallback(() => {
   if (!componentId || !canvasRef.current) {
     setBounds(null);
     setComputedStyles(null);
+    return;
+  }
+  
+  // 🔥 ADD THIS: For canvas selection, we want the entire canvas bounds
+  if (isCanvasSelection) {
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    const scale = responsiveMode !== 'desktop' ? getResponsiveScaleFactor() : 1;
+    
+    setBounds({
+      top: 0,
+      left: 0,
+      width: canvasRect.width / scale,
+      height: canvasRect.height / scale,
+    });
+    
+    // For canvas, we don't need computed styles from an element
+    setComputedStyles({
+      marginTop: 0,
+      marginRight: 0, 
+      marginBottom: 0,
+      marginLeft: 0,
+      paddingTop: 0,
+      paddingRight: 0,
+      paddingBottom: 0,
+      paddingLeft: 0,
+    });
     return;
   }
 
@@ -505,8 +532,138 @@ useEffect(() => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [componentId, onDelete, onDuplicate]);
 
+
+
   // Don't render if no bounds
   if (!bounds || !computedStyles) return null;
+  
+  
+// 🔥 SPECIAL RENDERING FOR CANVAS SELECTION - VERY SUBTLE
+if (isCanvasSelection) {
+  return (
+    <div 
+      className="absolute inset-0 pointer-events-none z-30"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* CANVAS HOVER OVERLAY - VERY SUBTLE, NO COLOR */}
+      <AnimatePresence>
+        {isHovered && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.3 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="canvas-selection-overlay absolute border border-dashed"
+            style={{
+              top: bounds.top,
+              left: bounds.left, 
+              width: bounds.width,
+              height: bounds.height,
+              // NO BACKGROUND COLOR - just the border
+              backgroundColor: 'transparent',
+            }}
+          >
+            {/* Canvas dimensions label - only show on hover */}
+            <motion.div
+              initial={{ y: -5, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="absolute px-2 py-1 rounded text-xs font-mono bg-gray-800 text-white shadow-lg"
+              style={{
+                top: 8,
+                left: 8,
+              }}
+            >
+              {Math.round(bounds.width)} × {Math.round(bounds.height)}
+            </motion.div>
+
+            {/* Center crosshair - very subtle */}
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="absolute inset-0 pointer-events-none"
+            >
+              {/* Vertical center line */}
+              <div
+                className="canvas-center-guide absolute top-0 bottom-0 w-px"
+                style={{
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                }}
+              />
+              
+              {/* Horizontal center line */}
+              <div
+                className="canvas-center-guide absolute left-0 right-0 h-px"
+                style={{
+                  top: '50%', 
+                  transform: 'translateY(-50%)',
+                }}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* CANVAS SPACING GUIDES - ONLY WHEN SHOW_SPACING IS TRUE - VERY SUBTLE */}
+      <AnimatePresence>
+        {showSpacing && isHovered && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.2 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* Safe area guides (common margins) */}
+            {[20, 40, 60].map(margin => (
+              <React.Fragment key={margin}>
+                {/* Top safe area */}
+                <div
+                  className="canvas-spacing-guide absolute border-t border-dashed pointer-events-none"
+                  style={{
+                    top: margin,
+                    left: 0,
+                    right: 0,
+                  }}
+                />
+                
+                {/* Left safe area */}
+                <div
+                  className="canvas-spacing-guide absolute border-l border-dashed pointer-events-none"
+                  style={{
+                    left: margin,
+                    top: 0,
+                    bottom: 0,
+                  }}
+                />
+                
+                {/* Right safe area */}
+                <div
+                  className="canvas-spacing-guide absolute border-r border-dashed pointer-events-none"
+                  style={{
+                    right: margin,
+                    top: 0,
+                    bottom: 0,
+                  }}
+                />
+                
+                {/* Bottom safe area */}
+                <div
+                  className="canvas-spacing-guide absolute border-b border-dashed pointer-events-none"
+                  style={{
+                    bottom: margin,
+                    left: 0,
+                    right: 0,
+                  }}
+                />
+              </React.Fragment>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 
   // Calculate content area (after padding)
   const contentArea = {

@@ -246,12 +246,20 @@ class ComponentLibraryService {
             return this.renderGeneric(props, id, { name: props.type || 'Unknown', type: props.type || 'unknown' });
         }
         
-        // CRITICAL FIX: Properly merge default props with instance props
+        // ✅ CRITICAL: Proper props merging with defaults
+        const defaultProps = componentDef?.default_props || {};
+        const instanceProps = props?.props || {};
+        const directProps = { ...props };
+        delete directProps.props; // Remove nested props
+        delete directProps.children; // Preserve children separately
+        
         const mergedProps = { 
-            ...componentDef.default_props,
-            ...props.props,
-            ...props
+            ...defaultProps,      // Component defaults
+            ...instanceProps,     // Instance-specific props
+            ...directProps,       // Direct props (style, animation, etc.)
         };
+        
+        console.log('🔧 Merged props for', componentDef.type, ':', mergedProps);
         
         // Check if this is a layout container
       const isLayoutContainer = props.isLayoutContainer || 

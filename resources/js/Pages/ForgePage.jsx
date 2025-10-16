@@ -94,7 +94,8 @@ export default function ForgePage({
     getOpenForgePanelsCount,
     allPanelsHidden,
     forgePanelStates,
-    _triggerUpdate
+    _triggerUpdate,
+    set
   } = useForgeStore()
   
   const {
@@ -162,7 +163,7 @@ export default function ForgePage({
       
       return initialFrameData;
   });
-  const [selectedComponent, setSelectedComponent] = useState(null)
+  const [selectedComponent, setSelectedComponent] = useState('__canvas_root__') // ✅ Default to canvas
   const [generatedCode, setGeneratedCode] = useState({ html: '', css: '', react: '', tailwind: '' })
   
   const showCodePanel = isForgePanelOpen('code-panel');
@@ -548,14 +549,25 @@ useEffect(() => {
         await componentLibraryService.loadComponents();
         setComponentsLoaded(true);
         
-        // FIXED: Load frame components from backend data first, then try service
-        if (frame && frame.canvas_data && frame.canvas_data.components) {
-          console.log('Using frame components from backend props');
-          const backendComponents = frame.canvas_data.components;
+        // ✅ CRITICAL: Load components with proper recursive structure
+        if (frame?.canvas_data?.components) {
+          console.log('✅ Loading frame components from backend:', frame.canvas_data.components.length);
+          
+          // ✅ Ensure components have proper structure
+          const processedComponents = frame.canvas_data.components.map(comp => ({
+            ...comp,
+            id: comp.id || comp.component_instance_id,
+            type: comp.type || comp.component_type,
+            props: comp.props || {},
+            style: comp.style || {},
+            animation: comp.animation || {},
+            children: comp.children || [],
+            isLayoutContainer: comp.isLayoutContainer ?? comp.is_layout_container ?? false,
+          }));
           
           setFrameCanvasComponents(prev => ({
             ...prev,
-            [currentFrame]: backendComponents
+            [currentFrame]: processedComponents
           }));
           
           if (backendComponents.length > 0) {
@@ -1749,15 +1761,24 @@ const debugRenderedComponents = () => {
     });
 };
 
+
+
+
+
+
 const handleCanvasClick = useCallback((e) => {
   // Only handle canvas-level clicks (when clicking on canvas background)
   if (e.target === canvasRef.current) {
-    setSelectedComponent(null);
+    setSelectedComponent('__canvas_root__'); // Special ID for canvas selection
     setIsCanvasSelected(true);
     console.log('🎯 Canvas background clicked');
   }
   // Component clicks are now handled by their own smart click handlers
 }, []);
+
+
+
+
 
   // Move code panel to right sidebar
   const moveCodePanelToRightSidebar = useCallback(() => {

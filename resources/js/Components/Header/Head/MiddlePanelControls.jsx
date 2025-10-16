@@ -213,12 +213,56 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
         }`} />
       </button>
 
-      {/* Info - Fifth Icon (replaced Grid3X3) */}
-      <button className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
-        title="Information">
-        <Info className="w-3 h-3 text-[var(--color-text)]" />
-      </button>
-
+     {/* Info - Fifth Icon - TOGGLES property and asset panels */}
+    <button 
+      onClick={() => {
+        if (onForgePage) {
+          // Check if either property or asset panel is open
+          const isPropertiesOpen = isForgePanelOpen('properties-panel');
+          const isAssetsOpen = isForgePanelOpen('assets-panel');
+          
+          // If either is open, close both. If both closed, open both.
+          const shouldOpen = !isPropertiesOpen && !isAssetsOpen;
+          
+          // Set both panels to the same state
+          if (shouldOpen) {
+            // Ensure panels are visible
+            if (allPanelsHidden) {
+              toggleAllForgePanels();
+            }
+            // Open both panels
+            set((state) => ({
+              forgePanelStates: {
+                ...state.forgePanelStates,
+                'properties-panel': true,
+                'assets-panel': true
+              },
+              _triggerUpdate: state._triggerUpdate + 1
+            }));
+          } else {
+            // Close both panels
+            set((state) => ({
+              forgePanelStates: {
+                ...state.forgePanelStates,
+                'properties-panel': false,
+                'assets-panel': false
+              },
+              _triggerUpdate: state._triggerUpdate + 1
+            }));
+          }
+        }
+      }}
+      className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+      title="Toggle Properties & Assets Panels"
+    >
+      <Info className={`w-3 h-3 ${
+        (onForgePage && (isForgePanelOpen('properties-panel') || isForgePanelOpen('assets-panel'))) 
+          ? 'text-[var(--color-primary)]' 
+          : 'text-[var(--color-text)]'
+      }`} />
+    </button>
+    
+    
       {/* Vertical Divider */}
       <div className="w-px h-3 bg-[var(--color-border)]"></div>
 
