@@ -30,6 +30,15 @@ import CreateWorkspaceModal from '@/Components/Workspaces/CreateWorkspaceModal'
 import InviteModal from '@/Components/Workspaces/InviteModal'
 import ProjectSwitcherModal from '@/Components/Void/ProjectSwitcherModal'
 
+// ADD these imports at the top:
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay
+} from '@dnd-kit/core'
+import { restrictToParentElement } from '@dnd-kit/modifiers'
 
 
 export default function VoidPage() {
@@ -231,52 +240,71 @@ export default function VoidPage() {
     })
   }, [frames, frameWidth, frameHeight])
 
-  // Frame drag handlers
-  const handleFrameDragStart = useCallback((frameId) => {
-    setFrames(prev => prev.map(frame =>
-      frame.id === frameId ? { ...frame, isDragging: true } : frame
-    ))
-    setDraggedFrame(frameId)
-    setIsFrameDragging(true)
-  }, [])
+  // REPLACE handleFrameDragStart, handleFrameDrag, handleFrameDragEnd with:
 
-  const handleFrameDrag = useCallback((frameId, newX, newY) => {
-    if (checkCollision(newX, newY, frameId)) {
-      return
+const sensors = useSensors(
+  useSensor(PointerSensor, {
+    activationConstraint: {
+      distance: 8, // 8px movement to start drag
+    },
+  })
+)
+
+const handleDragStart = useCallback((event) => {
+  const frameId = event.active.id
+  setDraggedFrame(frameId)
+  setIsFrameDragging(true)
+  setFrames(prev => prev.map(frame =>
+    frame.id === frameId ? { ...frame, isDragging: true } : frame
+  ))
+}, [])
+
+const handleDragMove = useCallback((event) => {
+  const { delta } = event
+  const frameId = event.active.id
+  
+  setFrames(prev => prev.map(frame => {
+    if (frame.id !== frameId) return frame
+    
+    const newX = frame.x + (delta.x / zoom)
+    const newY = frame.y + (delta.y / zoom)
+    
+    if (checkCollision(newX, newY, frameId)) return frame
+    
+    return {
+      ...frame,
+      x: Math.max(0, newX),
+      y: Math.max(0, newY)
     }
+  }))
+}, [zoom, checkCollision])
 
-    setFrames(prev => prev.map(frame =>
-      frame.id === frameId ? { ...frame, x: Math.max(0, newX), y: Math.max(0, newY) } : frame
-    ))
-  }, [checkCollision])
+const handleDragEnd = useCallback(async (event) => {
+  const frameId = event.active.id
+  
+  setFrames(prev => prev.map(frame =>
+    frame.id === frameId ? { ...frame, isDragging: false } : frame
+  ))
+  setDraggedFrame(null)
+  setIsFrameDragging(false)
 
-  const handleFrameDragEnd = useCallback(async (frameId) => {
-    setFrames(prev => prev.map(frame =>
-      frame.id === frameId ? { ...frame, isDragging: false } : frame
-    ))
-    setDraggedFrame(null)
-    setIsFrameDragging(false)
-
-    const frame = frames.find(f => f.id === frameId)
-    if (frame) {
-      try {
-        await fetch(`/api/frames/${frame.uuid}/position`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-          },
-          body: JSON.stringify({
-            x: frame.x,
-            y: frame.y
-          })
-        })
-      } catch (error) {
-        console.error('Error updating frame position:', error)
-      }
+  const frame = frames.find(f => f.id === frameId)
+  if (frame) {
+    try {
+      await fetch(`/api/frames/${frame.uuid}/position`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        },
+        body: JSON.stringify({ x: frame.x, y: frame.y })
+      })
+    } catch (error) {
+      console.error('Error updating frame position:', error)
     }
-  }, [frames])
+  }
+}, [frames, zoom])
 
   // Handle frame drop on delete button
   const handleFrameDropDelete = useCallback(() => {
@@ -594,6 +622,13 @@ export default function VoidPage() {
       frame={null}
     >
       <Head title={`Void - ${project?.name || 'Project'}`} />
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragMove={handleDragMove}
+        onDragEnd={handleDragEnd}
+        modifiers={[restrictToParentElement]}
+      >
       <div 
         ref={canvasRef}
         data-canvas="true"
@@ -630,15 +665,12 @@ export default function VoidPage() {
             willChange: 'transform',
           }}
         >
-          <FramesContainer 
+         <FramesContainer 
             frames={frames} 
             scrollPosition={scrollPosition} 
             scrollBounds={scrollBounds}
             setScrollPosition={setScrollPosition}
-            onFrameDragStart={handleFrameDragStart}
-            onFrameDrag={handleFrameDrag}
-            onFrameDragEnd={handleFrameDragEnd}
-            onFrameClick={handleFrameClick}
+            onFrameClick={handleFrameClick}  // KEEP this
             zoom={zoom}
             isDark={isDark}
           />
@@ -729,6 +761,7 @@ export default function VoidPage() {
           position="top-right"
         />
       </div>
+      </DndContext>
     </AuthenticatedLayout>
   )
 }

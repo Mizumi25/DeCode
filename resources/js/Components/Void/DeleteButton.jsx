@@ -54,7 +54,7 @@ export default function DeleteButton({ zoom = 1, onFrameDrop = () => {}, isDragA
   return (
     <div 
       className="fixed right-6 bottom-6 z-40" 
-      style={{ transform: `scale(${1 / zoom})` }}
+      style={{ transform: 'scale(1)', transformOrigin: 'bottom right' }}
     >
       <div
         ref={deleteButtonRef}

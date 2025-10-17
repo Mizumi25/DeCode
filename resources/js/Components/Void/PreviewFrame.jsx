@@ -1,10 +1,13 @@
 // Components/Void/PreviewFrame.jsx - FIXED click navigation issue
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { Plug, MoreHorizontal, Github, FileCode, Layers, RefreshCw, Camera, AlertTriangle } from 'lucide-react'
 import EnhancedLockButton from './EnhancedLockButton'
 import useFrameLockStore from '@/stores/useFrameLockStore'
 import { useThumbnail } from '@/hooks/useThumbnail'
 import { ThumbnailService } from '@/Services/ThumbnailService'
+
+import { useDraggable } from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
 
 const sizes = [
   { w: 80, h: 56 },
@@ -24,9 +27,6 @@ export default function PreviewFrame({
   frame = null,
   isDragging = false,
   isLoading = false,
-  onDragStart,
-  onDrag,
-  onDragEnd,
   onFrameClick,
   zoom = 1,
   isDraggable = true,
@@ -36,6 +36,15 @@ export default function PreviewFrame({
 }) {
   const size = sizes[index % sizes.length]
   const { getLockStatus, subscribeToFrame } = useFrameLockStore()
+  
+  // Get lock status from Zustand store - FIRST
+  const lockStatus = getLockStatus(frame?.uuid)
+  
+  // DnD Kit hook - uses lockStatus
+  const { attributes, listeners, setNodeRef, transform, isDragging: dndIsDragging } = useDraggable({
+    id: frameId,
+    disabled: !isDraggable || (lockStatus?.is_locked && !lockStatus.locked_by_me)
+  })
   
   // ENHANCED: Use thumbnail hook for real-time updates
   const {
@@ -60,10 +69,6 @@ export default function PreviewFrame({
   const [imageLoadAttempts, setImageLoadAttempts] = useState(0)
   const frameRef = useRef(null)
   const headerRef = useRef(null)
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
-  const [isMouseDown, setIsMouseDown] = useState(false)
-  const [hasDragged, setHasDragged] = useState(false)
-  const [isDraggingFromHeader, setIsDraggingFromHeader] = useState(false)
   
   // Auto-scroll related state
   const autoScrollRef = useRef(null)
@@ -71,10 +76,9 @@ export default function PreviewFrame({
   
   // Dummy avatar colors for stacked avatars
   const avatarColors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500']
-
-  // Get lock status from Zustand store
-  const lockStatus = getLockStatus(frame?.uuid)
-
+  
+  
+  
   // Subscribe to frame-specific lock events
   useEffect(() => {
     if (frame?.uuid) {
@@ -229,9 +233,7 @@ export default function PreviewFrame({
     
     // Don't navigate if we're in a dragging state or clicked on interactive elements
     if (isInteractiveElement ||
-        isDragging || 
-        isMouseDown ||
-        hasDragged) {
+        isDragging) {
       return
     }
     
@@ -245,156 +247,61 @@ export default function PreviewFrame({
     }
   }
 
-  // Enhanced drag functionality - now header-specific
-  const handleMouseDown = useCallback((e) => {
-    const isInteractiveElement = e.target.closest('.lock-button') || 
-                                 e.target.closest('.more-button') || 
-                                 e.target.closest('.avatar') ||
-                                 e.target.closest('button') ||
-                                 e.target.closest('input')
-    
-    if (!isDraggable || isInteractiveElement) {
-      return
-    }
-    
-    if (lockStatus?.is_locked && !lockStatus.locked_by_me && !lockStatus.can_unlock) {
-      return
-    }
-    
-    e.stopPropagation()
-    e.preventDefault()
-    
-    const rect = frameRef.current.getBoundingClientRect()
-    const startX = e.clientX
-    const startY = e.clientY
-    
-    setDragOffset({ 
-      x: startX - rect.left, 
-      y: startY - rect.top 
-    })
-    setIsMouseDown(true)
-    setHasDragged(false)
-    
-    document.body.style.cursor = 'grabbing'
-    document.body.style.userSelect = 'none'
-    
-    if (onDragStart) {
-      onDragStart(frameId)
-    }
-  }, [isDraggable, frameId, onDragStart, lockStatus, frameRef])
+  
 
-  const handleMouseMove = useCallback((e) => {
-    if (!isMouseDown || !isDraggable) return
-    
-    e.preventDefault()
-    e.stopPropagation()
-    
-    handleAutoScroll(e.clientX, e.clientY)
-    
-    if (!hasDragged) {
-      const threshold = 5
-      const rect = frameRef.current?.getBoundingClientRect()
-      if (rect) {
-        const deltaX = Math.abs(e.clientX - (rect.left + dragOffset.x))
-        const deltaY = Math.abs(e.clientY - (rect.top + dragOffset.y))
-        
-        if (deltaX > threshold || deltaY > threshold) {
-          setHasDragged(true)
-        }
-      }
-    }
-    
-    const canvas = document.querySelector('[data-canvas="true"]') || document.body
-    const canvasRect = canvas.getBoundingClientRect()
-    
-    const newX = (e.clientX - canvasRect.left - dragOffset.x) / zoom
-    const newY = (e.clientY - canvasRect.top - dragOffset.y) / zoom
-    
-    if (onDrag) {
-      onDrag(frameId, Math.max(0, newX), Math.max(0, newY))
-    }
-  }, [isMouseDown, isDraggable, dragOffset, zoom, frameId, onDrag, hasDragged, handleAutoScroll, frameRef])
 
-  const handleMouseUp = useCallback((e) => {
-    if (isMouseDown) {
-      e?.preventDefault?.()
-      e?.stopPropagation?.()
-      
-      setIsMouseDown(false)
-      
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      
-      if (autoScrollRef.current) {
-        cancelAnimationFrame(autoScrollRef.current)
-        autoScrollRef.current = null
-        setAutoScrollActive(false)
-      }
-      
-      if (onDragEnd) {
-        onDragEnd(frameId)
-      }
-      
-      setTimeout(() => {
-        setHasDragged(false)
-      }, 10)
-    }
-  }, [isMouseDown, frameId, onDragEnd])
+ // ENHANCED: Determine frame appearance with thumbnail status
+const getFrameStyles = () => {
+  let styles = {
+    top: y,
+    left: x,
+    width: `${size.w * 4}px`,
+    height: `${size.h * 4}px`,
+    backgroundColor: 'var(--color-surface)',
+    borderColor: 'transparent',
+    backdropFilter: 'blur(10px)',
+    zIndex: isDragging ? 1000 : 10
+  }
 
-  useEffect(() => {
-    if (isMouseDown) {
-      document.addEventListener('mousemove', handleMouseMove, { passive: false })
-      document.addEventListener('mouseup', handleMouseUp)
-      
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove)
-        document.removeEventListener('mouseup', handleMouseUp)
-      }
-    }
-  }, [isMouseDown, handleMouseMove, handleMouseUp])
-
-  // ENHANCED: Determine frame appearance with thumbnail status
-  const getFrameStyles = () => {
-    let styles = {
-      top: y,
-      left: x,
-      width: `${size.w * 4}px`,
-      height: `${size.h * 4}px`,
-      backgroundColor: 'var(--color-surface)',
-      borderColor: 'transparent',
-      backdropFilter: 'blur(10px)',
-      zIndex: isDragging ? 1000 : 10
-    }
-
-    if (lockStatus?.is_locked) {
-      if (lockStatus.locked_by_me) {
-        styles.boxShadow = isDragging 
-          ? '0 25px 50px -12px rgba(59, 130, 246, 0.4), 0 0 0 2px rgba(59, 130, 246, 0.3)' 
-          : '0 10px 30px -5px rgba(59, 130, 246, 0.2), 0 4px 6px -2px rgba(59, 130, 246, 0.1), 0 0 0 1px rgba(59, 130, 246, 0.2)'
-        styles.background = isDark 
-          ? 'linear-gradient(145deg, rgba(37, 99, 235, 0.1), rgba(30, 41, 59, 0.9))' 
-          : 'linear-gradient(145deg, rgba(239, 246, 255, 0.9), rgba(219, 234, 254, 0.8))'
-      } else {
-        styles.boxShadow = isDragging 
-          ? '0 25px 50px -12px rgba(239, 68, 68, 0.4), 0 0 0 2px rgba(239, 68, 68, 0.3)' 
-          : '0 10px 30px -5px rgba(239, 68, 68, 0.2), 0 4px 6px -2px rgba(239, 68, 68, 0.1), 0 0 0 1px rgba(239, 68, 68, 0.2)'
-        styles.background = isDark 
-          ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.1), rgba(30, 41, 59, 0.9))' 
-          : 'linear-gradient(145deg, rgba(254, 242, 242, 0.9), rgba(254, 226, 226, 0.8))'
-      }
+  if (lockStatus?.is_locked) {
+    if (lockStatus.locked_by_me) {
+      styles.boxShadow = isDragging 
+        ? '0 25px 50px -12px rgba(59, 130, 246, 0.4), 0 0 0 2px rgba(59, 130, 246, 0.3)' 
+        : '0 10px 30px -5px rgba(59, 130, 246, 0.2), 0 4px 6px -2px rgba(59, 130, 246, 0.1), 0 0 0 1px rgba(59, 130, 246, 0.2)'
+      styles.background = isDark 
+        ? 'linear-gradient(145deg, rgba(37, 99, 235, 0.1), rgba(30, 41, 59, 0.9))' 
+        : 'linear-gradient(145deg, rgba(239, 246, 255, 0.9), rgba(219, 234, 254, 0.8))'
     } else {
       styles.boxShadow = isDragging 
-        ? '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1)' 
-        : '0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+        ? '0 25px 50px -12px rgba(239, 68, 68, 0.4), 0 0 0 2px rgba(239, 68, 68, 0.3)' 
+        : '0 10px 30px -5px rgba(239, 68, 68, 0.2), 0 4px 6px -2px rgba(239, 68, 68, 0.1), 0 0 0 1px rgba(239, 68, 68, 0.2)'
       styles.background = isDark 
-        ? 'linear-gradient(145deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9))' 
-        : 'linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.8))'
+        ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.1), rgba(30, 41, 59, 0.9))' 
+        : 'linear-gradient(145deg, rgba(254, 242, 242, 0.9), rgba(254, 226, 226, 0.8))'
     }
-
-    styles.border = '1px solid rgba(255, 255, 255, 0.1)'
-    
-    return styles
+  } else {
+    styles.boxShadow = isDragging 
+      ? '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1)' 
+      : '0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+    styles.background = isDark 
+      ? 'linear-gradient(145deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9))' 
+      : 'linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.8))'
   }
+
+  styles.border = '1px solid rgba(255, 255, 255, 0.1)'
+  
+  return styles
+}
+
+// Calculate final style with DnD transform
+const style = useMemo(() => ({
+  ...getFrameStyles(),
+  transform: CSS.Transform.toString(transform),
+}), [isDragging, lockStatus, isDark, x, y, size.w, size.h, transform])
+
+
+
+
 
     // ENHANCED: Render thumbnail with better error handling and SVG support
     const renderThumbnailContent = () => {
@@ -558,33 +465,20 @@ export default function PreviewFrame({
     }
 
   return (
-    <div
-      ref={frameRef}
-      data-frame-uuid={frame?.uuid}
-      className={`preview-frame absolute rounded-xl p-3 transition-all duration-300 ease-out flex flex-col group ${
-        isDragging ? 'shadow-2xl scale-105 z-50' : 'shadow-lg hover:shadow-xl hover:-translate-y-1'
-      } ${lockStatus?.is_locked && !lockStatus.locked_by_me ? 'cursor-not-allowed' : 'cursor-grab'} ${
-        isMouseDown ? 'cursor-grabbing' : ''
-      }`}
-      style={getFrameStyles()}
-      onMouseDown={handleMouseDown}
-      onClick={handleFrameClick}
-      onMouseEnter={() => setShowThumbnailActions(true)}
-      onMouseLeave={() => setShowThumbnailActions(false)}
-      onTouchStart={(e) => {
-        if (e.touches.length === 1) {
-          const touch = e.touches[0]
-          const mouseEvent = {
-            ...e,
-            clientX: touch.clientX,
-            clientY: touch.clientY,
-            preventDefault: e.preventDefault.bind(e),
-            stopPropagation: e.stopPropagation.bind(e)
-          }
-          handleMouseDown(mouseEvent)
-        }
-      }}
-    >
+  <div
+    ref={setNodeRef}  // CHANGED from frameRef
+    {...listeners}     // ADDED
+    {...attributes}    // ADDED
+    data-frame-uuid={frame?.uuid}
+    className={`preview-frame absolute rounded-xl p-3 transition-all duration-300 ease-out flex flex-col group ${
+      isDragging ? 'shadow-2xl scale-105 z-50' : 'shadow-lg hover:shadow-xl hover:-translate-y-1'
+    } ${lockStatus?.is_locked && !lockStatus.locked_by_me ? 'cursor-not-allowed' : 'cursor-grab'}`}
+    style={style}      // CHANGED from getFrameStyles()
+    onClick={handleFrameClick}
+    onMouseEnter={() => setShowThumbnailActions(true)}
+    onMouseLeave={() => setShowThumbnailActions(false)}
+    // REMOVE onMouseDown={handleMouseDown} - DnD Kit handles this now
+  >
       {/* Lock overlay for locked frames */}
       {lockStatus?.is_locked && !lockStatus.locked_by_me && (
         <div className="absolute inset-0 bg-black/10 dark:bg-black/20 rounded-xl z-10 flex items-center justify-center">
@@ -599,10 +493,7 @@ export default function PreviewFrame({
       {/* Enhanced Header with thumbnail status */}
       <div 
         ref={headerRef}
-        className={`frame-header flex items-center justify-between mb-3 -mt-1 min-w-0 ${
-          isDraggingFromHeader ? 'cursor-grabbing' : 'cursor-grab'
-        } hover:bg-white/5 dark:hover:bg-black/5 rounded-lg p-1 -m-1 transition-colors`}
-        onMouseDown={handleMouseDown}
+        className={`frame-header flex items-center justify-between mb-3 -mt-1 min-w-0 hover:bg-white/5 dark:hover:bg-black/5 rounded-lg p-1 -m-1 transition-colors`}
       >
         <div className="flex items-center gap-2 text-xs min-w-0 flex-1" style={{ color: 'var(--color-text-muted)' }}>
           <span className="font-semibold text-sm truncate max-w-[120px]" title={title}>

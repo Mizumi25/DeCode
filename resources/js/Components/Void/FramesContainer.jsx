@@ -6,9 +6,6 @@ export default function FramesContainer({
   scrollPosition, 
   scrollBounds, 
   setScrollPosition,
-  onFrameDragStart, 
-  onFrameDrag, 
-  onFrameDragEnd,
   onFrameClick,
   zoom = 1,
   isDark = false
@@ -35,30 +32,36 @@ export default function FramesContainer({
     [scrollPosition.x, scrollPosition.y]
   )
 
-  // Only render frames that are potentially visible or being dragged
-  const visibleFrames = useMemo(() => {
-    const viewportWidth = window.innerWidth / zoom
-    const viewportHeight = window.innerHeight / zoom
-    const buffer = 500 // Buffer for smooth scrolling
+ // REPLACE the visibleFrames useMemo with:
+const visibleFrames = useMemo(() => {
+  const viewportWidth = (window.innerWidth / zoom) + 1000 // Larger buffer
+  const viewportHeight = (window.innerHeight / zoom) + 1000
+  const buffer = 1000 / zoom // Scale buffer with zoom
+  
+  return frames.filter(frame => {
+    // Always render frames that are being dragged
+    if (frame.isDragging) return true
     
-    return frames.filter(frame => {
-      // Always render frames that are being dragged
-      if (frame.isDragging) return true
-      
-      // Check if frame is in viewport with buffer
-      const frameRight = frame.x + 320 // frame width
-      const frameBottom = frame.y + 224 // frame height
-      
-      const isVisible = (
-        frameRight >= scrollPosition.x - buffer &&
-        frame.x <= scrollPosition.x + viewportWidth + buffer &&
-        frameBottom >= scrollPosition.y - buffer &&
-        frame.y <= scrollPosition.y + viewportHeight + buffer
-      )
-      
-      return isVisible
-    })
-  }, [frames, scrollPosition, zoom])
+    // Adjust frame dimensions for zoom
+    const frameWidth = 320
+    const frameHeight = 224
+    
+    const frameRight = frame.x + frameWidth
+    const frameBottom = frame.y + frameHeight
+    
+    const isVisible = (
+      frameRight >= scrollPosition.x - buffer &&
+      frame.x <= scrollPosition.x + viewportWidth + buffer &&
+      frameBottom >= scrollPosition.y - buffer &&
+      frame.y <= scrollPosition.y + viewportHeight + buffer
+    )
+    
+    return isVisible
+  })
+}, [frames, scrollPosition, zoom])
+
+
+
 
   return (
     <div className="relative w-full h-full">
@@ -77,7 +80,7 @@ export default function FramesContainer({
             className="relative group"
             title={frame.isGithubImport ? `GitHub Import: ${frame.githubPath || frame.fileName}` : frame.title}
           >
-            <PreviewFrame
+           <PreviewFrame
               title={frame.title}
               fileName={frame.fileName}
               frameId={frame.id}
@@ -87,9 +90,6 @@ export default function FramesContainer({
               y={frame.y}
               isDragging={frame.isDragging}
               isLoading={frame.isLoading}
-              onDragStart={onFrameDragStart}
-              onDrag={onFrameDrag}
-              onDragEnd={onFrameDragEnd}
               onFrameClick={onFrameClick}
               zoom={zoom}
               isDark={isDark}

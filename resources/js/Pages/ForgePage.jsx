@@ -570,8 +570,8 @@ useEffect(() => {
             [currentFrame]: processedComponents
           }));
           
-          if (backendComponents.length > 0) {
-            generateCode(backendComponents);
+          if (processedComponents.length > 0) {
+            generateCode(processedComponents);
           }
         } else if (projectId && currentFrame && componentLibraryService.loadProjectComponents) {
           // Fallback to service-based loading
