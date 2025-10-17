@@ -40,7 +40,7 @@ export default function PreviewFrame({
   // Get lock status from Zustand store - FIRST
   const lockStatus = getLockStatus(frame?.uuid)
   
-  // DnD Kit hook - uses lockStatus
+  // REPLACE the DnD Kit hook section with:
   const { attributes, listeners, setNodeRef, transform, isDragging: dndIsDragging } = useDraggable({
     id: frameId,
     disabled: !isDraggable || (lockStatus?.is_locked && !lockStatus.locked_by_me)
@@ -76,6 +76,24 @@ export default function PreviewFrame({
   
   // Dummy avatar colors for stacked avatars
   const avatarColors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500']
+  
+  
+  
+  
+  // Enhanced transform handling for smooth levitation
+const enhancedTransform = useMemo(() => {
+  if (!transform) return null
+  
+  // Add levitation effect when dragging
+  return {
+    ...transform,
+    scaleX: 1.05,
+    scaleY: 1.05,
+    z: 1000 // Ensure it's above other elements
+  }
+}, [transform])
+  
+  
   
   
   
@@ -293,13 +311,74 @@ const getFrameStyles = () => {
   return styles
 }
 
-// Calculate final style with DnD transform
-const style = useMemo(() => ({
-  ...getFrameStyles(),
-  transform: CSS.Transform.toString(transform),
-}), [isDragging, lockStatus, isDark, x, y, size.w, size.h, transform])
 
 
+
+// Enhanced style calculation with proper positioning
+const style = useMemo(() => {
+  const baseStyles = {
+    position: 'absolute',
+    left: x,
+    top: y,
+    width: `${size.w * 4}px`,
+    height: `${size.h * 4}px`,
+    backgroundColor: 'var(--color-surface)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    backdropFilter: 'blur(10px)',
+    zIndex: dndIsDragging ? 1000 : 10,
+    transform: dndIsDragging ? 'scale(1.05)' : 'scale(1)',
+    willChange: dndIsDragging ? 'transform' : 'auto',
+    pointerEvents: 'auto' // CRITICAL: Ensure frames are always interactive
+  }
+
+  // Apply DnD transform WITHOUT changing left/top
+  if (transform && dndIsDragging) {
+    baseStyles.transform = `translate3d(${transform.x}px, ${transform.y}px, 0) scale(1.05)`
+    baseStyles.boxShadow = '0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 2px rgba(59, 130, 246, 0.6)'
+    baseStyles.cursor = 'grabbing'
+  }
+
+  // Lock status styles (keeping your existing logic)
+  if (lockStatus?.is_locked) {
+    if (lockStatus.locked_by_me) {
+      baseStyles.boxShadow = dndIsDragging 
+        ? '0 25px 50px -12px rgba(59, 130, 246, 0.4), 0 0 0 2px rgba(59, 130, 246, 0.3)' 
+        : '0 10px 30px -5px rgba(59, 130, 246, 0.2), 0 4px 6px -2px rgba(59, 130, 246, 0.1), 0 0 0 1px rgba(59, 130, 246, 0.2)'
+    } else {
+      baseStyles.boxShadow = dndIsDragging 
+        ? '0 25px 50px -12px rgba(239, 68, 68, 0.4), 0 0 0 2px rgba(239, 68, 68, 0.3)' 
+        : '0 10px 30px -5px rgba(239, 68, 68, 0.2), 0 4px 6px -2px rgba(239, 68, 68, 0.1), 0 0 0 1px rgba(239, 68, 68, 0.2)'
+    }
+  } else if (!dndIsDragging) {
+    baseStyles.boxShadow = '0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+  }
+
+  return baseStyles
+}, [x, y, size.w, size.h, dndIsDragging, lockStatus, transform])
+
+
+
+
+// Enhanced drag overlay effect
+useEffect(() => {
+  if (dndIsDragging) {
+    document.body.style.cursor = 'grabbing'
+    // Add smooth transition only when starting to drag
+    if (frameRef.current) {
+      frameRef.current.style.transition = 'box-shadow 0.2s ease-out, transform 0.1s ease-out'
+    }
+  } else {
+    document.body.style.cursor = ''
+    // Remove transition after drag ends for performance
+    if (frameRef.current) {
+      frameRef.current.style.transition = 'all 0.3s ease-out'
+    }
+  }
+
+  return () => {
+    document.body.style.cursor = ''
+  }
+}, [dndIsDragging])
 
 
 

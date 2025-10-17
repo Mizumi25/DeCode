@@ -34,6 +34,7 @@ import ProjectSwitcherModal from '@/Components/Void/ProjectSwitcherModal'
 import {
   DndContext,
   PointerSensor,
+  TouchSensor, // ADD THIS IMPORT
   useSensor,
   useSensors,
   DragOverlay
@@ -87,7 +88,7 @@ export default function VoidPage() {
   const [scrollPosition, setScrollPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [lastPointerPos, setLastPointerPos] = useState({ x: 0, y: 0 })
-  const scrollBounds = { width: 8000, height: 6000 }
+  const scrollBounds = { width: 20000, height: 15000 } // Even bigger universe!
 
   // Frame state
   const [frames, setFrames] = useState([])
@@ -240,71 +241,91 @@ export default function VoidPage() {
     })
   }, [frames, frameWidth, frameHeight])
 
-  // REPLACE handleFrameDragStart, handleFrameDrag, handleFrameDragEnd with:
 
 const sensors = useSensors(
   useSensor(PointerSensor, {
     activationConstraint: {
-      distance: 8, // 8px movement to start drag
+      distance: 5, // Slightly larger to prevent accidental drags
     },
   })
 )
 
+// FIXED drag handlers with proper position updates
 const handleDragStart = useCallback((event) => {
   const frameId = event.active.id
+  console.log('Drag start:', frameId)
+  
   setDraggedFrame(frameId)
   setIsFrameDragging(true)
+  
   setFrames(prev => prev.map(frame =>
     frame.id === frameId ? { ...frame, isDragging: true } : frame
   ))
 }, [])
 
 const handleDragMove = useCallback((event) => {
-  const { delta } = event
-  const frameId = event.active.id
-  
-  setFrames(prev => prev.map(frame => {
-    if (frame.id !== frameId) return frame
-    
-    const newX = frame.x + (delta.x / zoom)
-    const newY = frame.y + (delta.y / zoom)
-    
-    if (checkCollision(newX, newY, frameId)) return frame
-    
-    return {
-      ...frame,
-      x: Math.max(0, newX),
-      y: Math.max(0, newY)
-    }
-  }))
-}, [zoom, checkCollision])
+  // REMOVED: Don't update position during drag, let DnD Kit handle transform
+}, [])
 
 const handleDragEnd = useCallback(async (event) => {
   const frameId = event.active.id
+  const { delta } = event
   
-  setFrames(prev => prev.map(frame =>
-    frame.id === frameId ? { ...frame, isDragging: false } : frame
-  ))
+  console.log('Drag end:', frameId, 'Delta:', delta)
+  
+  // CRITICAL: Update actual position based on delta
+  setFrames(prev => prev.map(frame => {
+    if (frame.id !== frameId) return frame
+    
+    // Calculate new position with wrapping
+    let newX = frame.x + (delta.x / zoom)
+    let newY = frame.y + (delta.y / zoom)
+    
+    // Wrap positions within bounds (INFINITE LOOP EFFECT) - properly handle negatives
+    while (newX < 0) newX += scrollBounds.width
+    while (newX >= scrollBounds.width) newX -= scrollBounds.width
+    while (newY < 0) newY += scrollBounds.height
+    while (newY >= scrollBounds.height) newY -= scrollBounds.height
+    
+    return {
+      ...frame,
+      x: newX,
+      y: newY,
+      isDragging: false
+    }
+  }))
+  
   setDraggedFrame(null)
   setIsFrameDragging(false)
 
+  // Save position to backend
   const frame = frames.find(f => f.id === frameId)
   if (frame) {
+    let newX = frame.x + (delta.x / zoom)
+    let newY = frame.y + (delta.y / zoom)
+    
+    // Wrap positions - properly handle negatives
+    while (newX < 0) newX += scrollBounds.width
+    while (newX >= scrollBounds.width) newX -= scrollBounds.width
+    while (newY < 0) newY += scrollBounds.height
+    while (newY >= scrollBounds.height) newY -= scrollBounds.height
+    
     try {
       await fetch(`/api/frames/${frame.uuid}/position`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
           'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
         },
-        body: JSON.stringify({ x: frame.x, y: frame.y })
+        body: JSON.stringify({ x: newX, y: newY })
       })
     } catch (error) {
       console.error('Error updating frame position:', error)
     }
   }
-}, [frames, zoom])
+}, [frames, zoom, scrollBounds])
+
+
 
   // Handle frame drop on delete button
   const handleFrameDropDelete = useCallback(() => {
@@ -350,55 +371,57 @@ const handleDragEnd = useCallback(async (event) => {
     router.visit(`/void/${project.uuid}/frame=${frame.uuid}/modeForge`)
   }, [project?.uuid])
 
-  // Fixed zoom handlers - 1% increments only, real-time updates
-  const handleZoom = useCallback((delta, centerX = null, centerY = null) => {
-    // For 1% increments from toolbar
-    if (typeof delta === 'number' && Math.abs(delta) === 1) {
-      const newZoomLevel = Math.min(300, Math.max(25, zoomLevel + delta))
-      setZoomLevel(newZoomLevel)
-      return
-    }
-    
-    // For smooth zoom from mouse/wheel (convert to percentage steps)
-    const zoomStep = delta > 0 ? 5 : -5 // 5% steps for smooth zoom
-    const newZoomLevel = Math.min(300, Math.max(25, zoomLevel + zoomStep))
-    
-    if (newZoomLevel === zoomLevel) return
+// Enhanced zoom handler
+const handleZoom = useCallback((delta, centerX = null, centerY = null) => {
+  const zoomStep = typeof delta === 'number' ? delta : (delta > 0 ? 5 : -5)
+  const newZoomLevel = Math.min(300, Math.max(25, zoomLevel + zoomStep))
+  
+  if (newZoomLevel === zoomLevel) return
 
-    if (centerX !== null && centerY !== null) {
-      const canvas = canvasRef.current
-      if (canvas) {
-        const rect = canvas.getBoundingClientRect()
-        const mouseX = centerX - rect.left
-        const mouseY = centerY - rect.top
-        
-        const oldZoom = zoomLevel / 100
-        const newZoom = newZoomLevel / 100
-        const zoomRatio = newZoom / oldZoom
-        
-        const newScrollX = scrollPosition.x + (mouseX / oldZoom) * (zoomRatio - 1)
-        const newScrollY = scrollPosition.y + (mouseY / oldZoom) * (zoomRatio - 1)
-        
-        setScrollPosition({ x: newScrollX, y: newScrollY })
-      }
-    }
+  // Smooth zoom to point with optimized calculations
+  if (centerX !== null && centerY !== null && canvasRef.current) {
+    const rect = canvasRef.current.getBoundingClientRect()
+    const mouseX = centerX - rect.left
+    const mouseY = centerY - rect.top
     
-    setZoomLevel(newZoomLevel)
-  }, [zoomLevel, scrollPosition, setZoomLevel])
+    const oldZoom = zoomLevel / 100
+    const newZoom = newZoomLevel / 100
+    
+    if (oldZoom > 0 && newZoom > 0) {
+      const zoomFactor = newZoom / oldZoom
+      const newScrollX = scrollPosition.x + (mouseX / oldZoom) * (1 - 1/zoomFactor)
+      const newScrollY = scrollPosition.y + (mouseY / oldZoom) * (1 - 1/zoomFactor)
+      
+      setScrollPosition({ 
+        x: newScrollX, 
+        y: newScrollY 
+      })
+    }
+  }
+  
+  setZoomLevel(newZoomLevel)
+}, [zoomLevel, scrollPosition, setZoomLevel, setScrollPosition])
 
   // Scroll handler with fixed zoom support
   useScrollHandler({
-    canvasRef,
-    scrollPosition,
-    setScrollPosition,
-    isDragging,
-    setIsDragging,
-    lastPointerPos,
-    setLastPointerPos,
-    scrollBounds,
-    zoom,
-    onZoom: handleZoom
-  })
+  canvasRef,
+  scrollPosition,
+  setScrollPosition,
+  isDragging,
+  setIsDragging,
+  lastPointerPos,
+  setLastPointerPos,
+  scrollBounds,
+  zoom,
+  onZoom: handleZoom
+})
+
+// FORCE: Ensure scroll bounds are always respected
+useEffect(() => {
+  console.log('🌌 SCROLL BOUNDS:', scrollBounds)
+  console.log('📍 Current scroll:', scrollPosition)
+  console.log('🖼️ Frame positions:', frames.map(f => ({ id: f.id, x: f.x, y: f.y })))
+}, [scrollBounds, scrollPosition, frames])
 
   // Panel handlers
   const handlePanelClose = (panelId) => {
@@ -622,27 +645,28 @@ const handleDragEnd = useCallback(async (event) => {
       frame={null}
     >
       <Head title={`Void - ${project?.name || 'Project'}`} />
-      <DndContext
+     <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
-        onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
-        modifiers={[restrictToParentElement]}
       >
-      <div 
-        ref={canvasRef}
-        data-canvas="true"
-        className={`relative w-full h-screen overflow-hidden ${
-          isDark 
-            ? 'bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900' 
-            : 'bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50'
-        }`}
-        style={{
-          backgroundColor: isDark ? 'var(--color-bg)' : 'var(--color-bg)',
-          userSelect: 'none',
-          touchAction: 'none',
-        }}
-      >
+     <div 
+      ref={canvasRef}
+      data-canvas="true"
+      className={`relative w-full h-screen overflow-hidden ${
+        isDark 
+          ? 'bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900' 
+          : 'bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50'
+      }`}
+      style={{
+        backgroundColor: isDark ? 'var(--color-bg)' : 'var(--color-bg)',
+        userSelect: 'none',
+        touchAction: 'none',
+        // CRITICAL: Force canvas to acknowledge full scroll bounds
+        minWidth: '100vw',
+        minHeight: '100vh'
+      }}
+    >
         {/* Background Layers - z-index: 5 */}
         <BackgroundLayers isDark={isDark} scrollPosition={scrollPosition} />
 

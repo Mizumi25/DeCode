@@ -611,3 +611,68 @@
     transform: scale(1.1);
   }
 }
+
+
+
+
+/* Add to your existing CSS */
+.preview-frame {
+  cursor: grab !important;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+.preview-frame:active,
+.preview-frame.dragging {
+  cursor: grabbing !important;
+  transition: box-shadow 0.2s ease-out, transform 0.1s ease-out !important;
+}
+
+/* Force GPU acceleration */
+.void-canvas-container {
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* Smooth transitions */
+.preview-frame {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Optimize scrolling performance */
+.void-scroll-container {
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+
+
+/* CRITICAL: Ensure frames container spans entire scroll bounds */
+.void-frames-container {
+  pointer-events: none; /* Allow clicks to pass through container */
+}
+
+.void-frames-container > * {
+  pointer-events: auto; /* But frames themselves are clickable */
+}
+
+/* Ensure frames are always visible regardless of scroll */
+.preview-frame {
+  will-change: transform, left, top;
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Prevent frame clipping during drag */
+.preview-frame.dragging,
+[data-dnd-dragging="true"] {
+  z-index: 9999 !important;
+  pointer-events: none;
+}
