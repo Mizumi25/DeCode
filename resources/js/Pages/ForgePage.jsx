@@ -142,27 +142,23 @@ export default function ForgePage({
   const [isCanvasSelected, setIsCanvasSelected] = useState(false);
 
   // Canvas state for dropped components - Now frame-specific
-  const [frameCanvasComponents, setFrameCanvasComponents] = useState(() => {
-      const initialFrameData = {};
-      const currentFrameId = frameId || frame?.uuid;
-      
-      console.log('ForgePage: Initializing frame data for:', currentFrameId);
-      console.log('ForgePage: Frame prop data:', frame?.canvas_data);
-      
-      if (currentFrameId) {
-          // Check if we have backend data in frame.canvas_data.components
-          if (frame?.canvas_data?.components && Array.isArray(frame.canvas_data.components)) {
-              console.log('ForgePage: Loading', frame.canvas_data.components.length, 'components from backend');
-              initialFrameData[currentFrameId] = frame.canvas_data.components;
-          } else {
-              // Initialize empty array for this frame
-              console.log('ForgePage: No backend components, initializing empty array');
-              initialFrameData[currentFrameId] = [];
-          }
-      }
-      
-      return initialFrameData;
-  });
+ const [frameCanvasComponents, setFrameCanvasComponents] = useState(() => {
+    const initialFrameData = {};
+    const currentFrameId = frameId || frame?.uuid;
+    
+    if (currentFrameId) {
+        if (frame?.canvas_data?.components && Array.isArray(frame.canvas_data.components)) {
+            initialFrameData[currentFrameId] = frame.canvas_data.components;
+        } else {
+            initialFrameData[currentFrameId] = [];
+        }
+    }
+    
+    return initialFrameData;
+});
+  
+  
+  
   const [selectedComponent, setSelectedComponent] = useState('__canvas_root__') // ✅ Default to canvas
   const [generatedCode, setGeneratedCode] = useState({ html: '', css: '', react: '', tailwind: '' })
   
@@ -1282,11 +1278,7 @@ const addChildToContainer = (components, containerId, newChild, depth = 0) => {
       }
   }, [componentsLoaded, componentLibraryService, debugComponentDefinitions]);
 
-  // Component selection handler
-  const handleComponentClick = useCallback((componentId, e) => {
-    e.stopPropagation()
-    setSelectedComponent(componentId)
-  }, [])
+ 
 
   // ENHANCED: Modified handleComponentDelete to trigger thumbnail updates
 const handleComponentDelete = useCallback((componentId) => {
@@ -1765,17 +1757,52 @@ const debugRenderedComponents = () => {
 
 
 
-
-const handleCanvasClick = useCallback((e) => {
-  // Only handle canvas-level clicks (when clicking on canvas background)
-  if (e.target === canvasRef.current) {
-    setSelectedComponent('__canvas_root__'); // Special ID for canvas selection
-    setIsCanvasSelected(true);
-    console.log('🎯 Canvas background clicked');
+// 🔥 ADD THIS: Component click handler
+const handleComponentClick = useCallback((componentId, e) => {
+  if (e) {
+    e.stopPropagation();
   }
-  // Component clicks are now handled by their own smart click handlers
+  
+  console.log('🎯 Component clicked:', componentId);
+  
+  if (componentId === null) {
+    // Canvas click - deselect everything
+    setSelectedComponent(null);
+    setIsCanvasSelected(true);
+    return;
+  }
+  
+  // Component click - select the component
+  setSelectedComponent(componentId);
+  setIsCanvasSelected(false);
 }, []);
 
+// 🔥 ENHANCED: Smart canvas click handler that deselects components
+const handleCanvasClick = useCallback((e) => {
+  // Get all component elements under the click
+  const clickPath = e.nativeEvent.composedPath();
+  const componentElements = clickPath.filter(el => 
+    el.nodeType === 1 && el.hasAttribute && el.hasAttribute('data-component-id')
+  );
+  
+  if (componentElements.length === 0) {
+    // Canvas click - deselect everything
+    console.log('🎯 Canvas click - deselecting all');
+    handleComponentClick(null, e);
+    return;
+  }
+  
+  // Select the FIRST (deepest/innermost) component in the path
+  const targetElement = componentElements[0];
+  const componentId = targetElement.getAttribute('data-component-id');
+  
+  console.log('🎯 Smart selection:', {
+    clicked: componentId,
+    path: componentElements.map(el => el.getAttribute('data-component-id'))
+  });
+  
+  handleComponentClick(componentId, e);
+}, [handleComponentClick]);
 
 
 
@@ -1919,20 +1946,21 @@ const handleCanvasClick = useCallback((e) => {
         />
       ) : null
     ),
-    createMockPanel('layers-panel', 'Layers',
+   createMockPanel('layers-panel', 'Layers',
       LayersPanel ? (
         <LayersPanel
           canvasComponents={canvasComponents}
           selectedComponent={selectedComponent}
-          onComponentSelect={setSelectedComponent}
-          onComponentDelete={handleComponentDelete}  // ADD THIS IF MISSING
-          searchTerm={componentSearchTerm}  // ADD: Pass search term from Panel
+          onComponentSelect={handleComponentClick} // 🔥 CHANGE THIS from setSelectedComponent
+          onComponentDelete={handleComponentDelete}
+          searchTerm={componentSearchTerm}
         />
       ) : null
     ),
     createMockPanel('properties-panel', 'Properties',
       PropertiesPanel ? (
         <PropertiesPanel
+          frame={frame}  
           canvasComponents={canvasComponents}
           selectedComponent={selectedComponent}
           onPropertyUpdate={handlePropertyUpdate}
@@ -2203,7 +2231,7 @@ const handleCanvasClick = useCallback((e) => {
                     
                     {/* Regular Canvas - only show if we have components or frame is component type */}
                     {(canvasComponents.length > 0 || frame?.type === 'component') && (
-                        <CanvasComponent
+                       <CanvasComponent
                           canvasRef={canvasRef}
                           canvasComponents={canvasComponents}
                           selectedComponent={selectedComponent}
@@ -2214,7 +2242,7 @@ const handleCanvasClick = useCallback((e) => {
                           onCanvasDragOver={handleCanvasDragOver}
                           onCanvasDrop={handleCanvasDrop}
                           onCanvasClick={handleCanvasClick}
-                          onComponentClick={handleComponentClick}
+                          onComponentClick={handleComponentClick} // 🔥 ADD THIS
                           onPropertyUpdate={handlePropertyUpdate}
                           isMobile={isMobile}
                           currentFrame={currentFrame}
@@ -2225,7 +2253,8 @@ const handleCanvasClick = useCallback((e) => {
                           gridVisible={gridVisible}
                           projectId={projectId}
                           setFrameCanvasComponents={setFrameCanvasComponents}
-                      />
+                          frame={frame}
+                        />
                     )}
                 </div>
             ) : (

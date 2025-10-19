@@ -122,27 +122,36 @@ export default function FrameCreator({ project, onFrameCreated, onClose }) {
     project_id: project.id,
     name: '',
     type: 'page',
+    canvas_root: {
+        width: '100%', // Default, user can override
+        height: '100vh', // Default, user can override
+        backgroundColor: '#ffffff',
+        overflow: 'auto',
+        display: 'block',
+        padding: '0px',
+        margin: '0px'
+    },
     canvas_data: {
-      template: 'blank',
-      device: 'desktop',
-      viewport: {
-        width: 1440,
-        height: 900
-      },
-      position: {
-        x: 0,
-        y: 0
-      },
-      elements: []
+        template: 'blank',
+        device: 'desktop',
+        viewport: {
+            width: 1440,
+            height: 900
+        },
+        position: {
+            x: 0,
+            y: 0
+        },
+        elements: []
     },
     settings: {
-      viewport_width: 1440,
-      viewport_height: 900,
-      background_color: '#ffffff',
-      grid_enabled: true,
-      snap_to_grid: true
+        viewport_width: 1440,
+        viewport_height: 900,
+        background_color: '#ffffff',
+        grid_enabled: true,
+        snap_to_grid: true
     }
-  })
+})
 
   const validateStep = (stepNumber) => {
     const newErrors = {}
@@ -477,6 +486,44 @@ export default function FrameCreator({ project, onFrameCreated, onClose }) {
               <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>Snap to grid</span>
             </label>
           </div>
+        </div>
+        
+        
+        
+        
+                {/* Canvas Root Dimensions */}
+        <div>
+            <label className="block text-sm font-medium mb-3" style={{ color: 'var(--color-text)' }}>
+                Canvas Root Dimensions
+            </label>
+            <div className="space-y-3">
+                <div>
+                    <label className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Width</label>
+                    <input
+                        type="text"
+                        value={data.canvas_root.width}
+                        onChange={(e) => setData(prev => ({
+                            ...prev,
+                            canvas_root: { ...prev.canvas_root, width: e.target.value }
+                        }))}
+                        placeholder="e.g., 100%, 100vw, 1200px"
+                        className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)]"
+                    />
+                </div>
+                <div>
+                    <label className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Height</label>
+                    <input
+                        type="text"
+                        value={data.canvas_root.height}
+                        onChange={(e) => setData(prev => ({
+                            ...prev,
+                            canvas_root: { ...prev.canvas_root, height: e.target.value }
+                        }))}
+                        placeholder="e.g., 100vh, 100%, auto"
+                        className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)]"
+                    />
+                </div>
+            </div>
         </div>
       </div>
     </div>

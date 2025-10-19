@@ -12,38 +12,57 @@ class Frame extends Model
 {
     use HasFactory;
 
-    protected $fillable = [
-        'uuid', 
-        'project_id', 
-        'name', 
-        'type',  // ADD THIS
-        'scrolled_component',  // ADD THIS
-        'scroll_direction',  // ADD THIS
-        'canvas_data', 
-        'settings',
-        'thumbnail_path',
-        // Lock system fields
-        'is_locked',
-        'locked_by_user_id',
-        'locked_at',
-        'locked_mode',
-        'lock_reason',
-    ];
-      
-    protected $casts = [
-        'canvas_data' => 'array',
-        'settings' => 'array',
-        'is_locked' => 'boolean',
-        'locked_at' => 'datetime',
-    ];
 
-    public static function boot()
-    {
-        parent::boot();
-        static::creating(function ($model) {
-            $model->uuid = (string) Str::uuid();
-        });
-    }
+protected $fillable = [
+    'uuid', 
+    'project_id', 
+    'name', 
+    'type',
+    'scrolled_component',
+    'scroll_direction',
+    'canvas_data', 
+    'settings',
+    'canvas_root', // ADD THIS - JSON for body/root styling
+    'thumbnail_path',
+    'is_locked',
+    'locked_by_user_id',
+    'locked_at',
+    'locked_mode',
+    'lock_reason',
+];
+  
+protected $casts = [
+    'canvas_data' => 'array',
+    'canvas_root' => 'array', // ADD THIS
+    'settings' => 'array',
+    'is_locked' => 'boolean',
+    'locked_at' => 'datetime',
+];
+
+protected static function boot()
+{
+    parent::boot();
+    
+    static::creating(function ($model) {
+        $model->uuid = (string) Str::uuid();
+        
+        // Initialize canvas_root with defaults if not provided
+        if (!$model->canvas_root) {
+            $model->canvas_root = [
+                'width' => '100%', // Can be px, vh, %, em, etc.
+                'height' => '100vh',
+                'backgroundColor' => '#ffffff',
+                'padding' => '0px',
+                'margin' => '0px',
+                'display' => 'block',
+                'overflow' => 'auto',
+                'fontFamily' => '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                'minHeight' => '100vh',
+                'style' => []
+            ];
+        }
+    });
+}
 
     public function getRouteKeyName()
     {

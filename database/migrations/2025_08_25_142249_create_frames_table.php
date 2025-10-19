@@ -15,6 +15,7 @@ return new class extends Migration {
             $table->boolean('scrolled_component')->default(false)->after('type');
             $table->enum('scroll_direction', ['vertical', 'horizontal', 'both'])->nullable()->after('scrolled_component');
             $table->json('canvas_data')->nullable();
+            $table->json('canvas_root')->nullable()->after('canvas_data'); // NEW: Store body/root styles
             $table->json('settings')->nullable();
             $table->string('thumbnail_path')->nullable()->after('settings');
             $table->timestamps();

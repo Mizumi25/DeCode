@@ -88,18 +88,23 @@ class ForgeController extends Controller
           abort(403);
       }
   
-      // CRITICAL: Minimal frame data loading
       $frameData = [
-          'uuid' => $frame->uuid,
-          'id' => $frame->uuid,
-          'name' => $frame->name,
-          'type' => $frame->type ?? 'page',
-          'canvas_data' => [
-              'components' => [], // Load separately via API if needed
-              'settings' => $frame->settings ?? []
-          ],
-          'settings' => $frame->settings ?? []
-      ];
+        'uuid' => $frame->uuid,
+        'id' => $frame->uuid,
+        'name' => $frame->name,
+        'type' => $frame->type ?? 'page',
+        'canvas_root' => $frame->canvas_root ?? [ // ADD THIS
+            'width' => '100%',
+            'height' => '100vh',
+            'backgroundColor' => '#ffffff',
+            'overflow' => 'auto'
+        ],
+        'canvas_data' => [
+            'components' => [],
+            'settings' => $frame->settings ?? []
+        ],
+        'settings' => $frame->settings ?? []
+    ]; 
   
       // CRITICAL: Lazy load project frames (only basic info)
       $projectFrames = $project->frames()

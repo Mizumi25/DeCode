@@ -1159,3 +1159,44 @@ body.dragging [data-component-id]:not([data-component-id="${activeId}"]) {
   background-color: #888 !important;
   opacity: 0.15 !important;
 }
+
+
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2), 0 4px 12px rgba(59, 130, 246, 0.15), 0 0 20px rgba(59, 130, 246, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.3), 0 4px 12px rgba(59, 130, 246, 0.25), 0 0 30px rgba(59, 130, 246, 0.2);
+  }
+  100% {
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2), 0 4px 12px rgba(59, 130, 246, 0.15), 0 0 20px rgba(59, 130, 246, 0.1);
+  }
+}
+
+
+
+
+/* 🔥 CRITICAL: Force drag ghost to render all children */
+[data-dnd-kit-drag-overlay] * {
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: none !important;
+}
+
+.drag-ghost-wrapper {
+  position: relative !important;
+  z-index: 9999 !important;
+}
+
+.drag-ghost-wrapper * {
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+/* Ensure original element stays hidden during drag */
+body.dragging [style*="visibility: hidden"] {
+  visibility: hidden !important;
+}

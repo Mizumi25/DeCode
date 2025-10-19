@@ -50,6 +50,7 @@ const CanvasComponent = ({
   gridVisible,
   projectId,
   setFrameCanvasComponents,
+  frame,  // 🔥 ADD THIS
 }) => {
   // Get responsive state from EditorStore
   const {
@@ -109,6 +110,22 @@ const CanvasComponent = ({
   };
 
   const canvasSize = getCanvasSize();
+  
+  const getCanvasRootStyles = () => {
+    // Get canvas root styles from frame settings or default
+    const canvasRootData = frame?.canvas_root || {};
+    
+    return {
+      backgroundColor: canvasRootData.backgroundColor || 'var(--color-surface)',
+      backgroundImage: canvasRootData.backgroundImage || undefined,
+      color: canvasRootData.color || 'var(--color-text)',
+      fontFamily: canvasRootData.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      lineHeight: canvasRootData.lineHeight || '1.6',
+      // Add any other canvas-specific styles from settings
+      ...canvasRootData // Spread all other custom styles
+    };
+  };
+
   
   // Configure dnd-kit sensors with better touch response
   const sensors = useSensors(
@@ -387,6 +404,10 @@ useEffect(() => {
     
   }, [canvasComponents, currentFrame, pushHistory, actionTypes, componentLibraryService, projectId, setFrameCanvasComponents]);
 
+
+
+
+
 const handleDndDragStart = useCallback((event) => {
   const { active } = event;
   setActiveId(active.id);
@@ -403,8 +424,14 @@ const handleDndDragStart = useCallback((event) => {
   // 🔥 CRITICAL: Make element INVISIBLE during drag
   const element = document.querySelector(`[data-component-id="${active.id}"]`);
   if (element) {
-    element.style.visibility = 'hidden'; // ✅ CHANGED from opacity to visibility
+    element.style.visibility = 'hidden';
     element.style.pointerEvents = 'none';
+    
+    // 🔥 NEW: Also hide all children for nested components
+    const childElements = element.querySelectorAll('[data-component-id]');
+    childElements.forEach(child => {
+      child.style.visibility = 'hidden';
+    });
   }
   
   // Vibration feedback for mobile
@@ -427,9 +454,14 @@ const handleDndDragStart = useCallback((event) => {
     activeId: active.id,
     component: component?.name,
     isLayout: component?.isLayoutContainer,
-    type: component?.type
+    type: component?.type,
+    hasChildren: component?.children?.length > 0 // 🔥 ADD THIS LOG
   });
 }, [flatComponents, canvasComponents]);
+
+
+
+
 
 const handleDndDragOver = useCallback((event) => {
   const { active, over } = event;
@@ -488,7 +520,7 @@ const isDescendant = (parentId, childId, components) => {
 const handleDndDragEnd = useCallback((event) => {
   const { active, over } = event;
   
-  // CRITICAL: Restore all hidden elements immediately
+  // 🔥 NEW: Immediately restore visibility of dragged element and children
   const restoreElements = () => {
     if (activeId) {
       const element = document.querySelector(`[data-component-id="${activeId}"]`);
@@ -497,6 +529,12 @@ const handleDndDragEnd = useCallback((event) => {
         element.style.pointerEvents = '';
         element.style.visibility = '';
         element.style.transform = '';
+        
+        // Restore all children
+        const childElements = element.querySelectorAll('[data-component-id]');
+        childElements.forEach(child => {
+          child.style.visibility = '';
+        });
       }
     }
     
@@ -510,7 +548,8 @@ const handleDndDragEnd = useCallback((event) => {
     });
   };
   
-  restoreElements();
+  restoreElements(); // 🔥 Call immediately
+  
   
   setActiveId(null);
   setOverId(null);
@@ -863,6 +902,12 @@ const handleDndDragEnd = useCallback((event) => {
         element.style.opacity = '';
         element.style.pointerEvents = '';
         element.style.visibility = '';
+        
+        // 🔥 NEW: Restore all children visibility
+        const childElements = element.querySelectorAll('[data-component-id]');
+        childElements.forEach(child => {
+          child.style.visibility = '';
+        });
       }
     }
     
@@ -952,7 +997,7 @@ const handleDoubleClickText = useCallback((e, componentId) => {
   
   
   
- // CRITICAL: Smart click handler that prioritizes deepest child
+// 🔥 ENHANCED: Smart click handler that prioritizes deepest child
 const handleSmartClick = useCallback((e) => {
   e.stopPropagation();
   
@@ -963,9 +1008,10 @@ const handleSmartClick = useCallback((e) => {
   );
   
   if (componentElements.length === 0) {
-    // Canvas click
+    // Canvas click - deselect everything
+    console.log('🎯 Canvas click - deselecting all');
+    onComponentClick(null, e);
     setIsCanvasSelected(true);
-    setSelectedComponent(null);
     return;
   }
   
@@ -979,7 +1025,7 @@ const handleSmartClick = useCallback((e) => {
   });
   
   onComponentClick(componentId, e);
-}, [onComponentClick]); 
+}, [onComponentClick]);
   
   
   
@@ -1759,7 +1805,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
         )}
         
         {/* Main Canvas - Acts as Document Body */}
-        <div 
+       <div 
           ref={canvasRef}
           className={`
             relative transition-all duration-500
@@ -1779,11 +1825,11 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
             borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
             boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
             position: 'relative',
-            overflow: 'visible' // ✅ CHANGE from 'hidden' to 'visible'
+            overflow: 'visible'
           }}
           onDragOver={onCanvasDragOver}
           onDrop={onCanvasDrop}
-          onClick={onCanvasClick}
+          onClick={onCanvasClick} // 🔥 FIXED: Use the prop from parent
         >
          {/* Grid Lines - Only show if enabled */}
           {isOverlayEnabled('showGridLines') && gridVisible && (
@@ -1816,12 +1862,14 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
             <SelectionOverlay
               componentId="__canvas_root__"
               canvasRef={canvasRef}
-              isCanvasSelection={true} // 🔥 ADD THIS
+              isCanvasSelection={true}
               showSpacing={isOverlayEnabled('showSpacingIndicators')}
+              // 🔥 ADD THIS:
+              onComponentClick={onComponentClick}
             />
           )}
           
-          {SelectionOverlay && selectedComponent && selectedComponent !== '__canvas_root__' && (
+         {SelectionOverlay && selectedComponent && selectedComponent !== '__canvas_root__' && (
             <SelectionOverlay
               componentId={selectedComponent}
               canvasRef={canvasRef}
@@ -1829,6 +1877,11 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
               selectedComponent={canvasComponents.find(c => c.id === selectedComponent)}
               showSpacing={isOverlayEnabled('showSpacingIndicators')}
               showSelectionBorders={isOverlayEnabled('showSelectionBorders')}
+              onComponentClick={onComponentClick}
+              // 🔥 CRITICAL: Pass active drag state
+              isDragging={!!activeId && selectedComponent === activeId}
+              draggedComponent={activeId === selectedComponent ? draggedComponent : null}
+              dragTransform={activeId === selectedComponent ? { x: 0, y: 0 } : null}
             />
           )}
                     
@@ -1895,7 +1948,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                   </div>
                 </SortableContext>
               
-                {/* PROFESSIONAL DRAG GHOST - Dynamic positioning based on actual element position */}
+                 {/* PROFESSIONAL DRAG GHOST - Dynamic positioning based on actual element position */}
                 <DragOverlay
                   dropAnimation={{
                     duration: 200,
@@ -1916,7 +1969,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                     ({ transform, active }) => {
                       if (!active?.data?.current) return transform;
                       
-                      // Calculate offset ONLY ONCE
+                      // Calculate offset only once
                       if (!active.data.current.grabOffset) {
                         const element = document.querySelector(`[data-component-id="${activeId}"]`);
                         const canvas = canvasRef.current;
@@ -1925,7 +1978,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                         
                         const elementRect = element.getBoundingClientRect();
                         
-                        // Get mouse position
+                        // Get mouse/touch position
                         const event = active.data.current.activatorEvent;
                         if (!event) return transform;
                         
@@ -1934,19 +1987,22 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                         
                         if (!mouseX || !mouseY) return transform;
                         
-                        // Where did we grab on the element?
+                        // Calculate where we grabbed relative to element
                         const grabX = mouseX - elementRect.left;
                         const grabY = mouseY - elementRect.top;
                         
-                        // Element center
-                        const centerX = elementRect.width / 2;
-                        const centerY = elementRect.height / 2;
-                        
-                        // Store the offset needed to center
+                        // Store the offset needed to position ghost at grab point
                         active.data.current.grabOffset = {
-                          x: centerX - grabX,
-                          y: centerY - grabY
+                          x: -grabX,
+                          y: -grabY
                         };
+                        
+                        console.log('🎯 Grab offset calculated:', {
+                          grabX,
+                          grabY,
+                          elementRect,
+                          mousePos: { mouseX, mouseY }
+                        });
                       }
                       
                       const offset = active.data.current.grabOffset;
@@ -1960,80 +2016,78 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                     }
                   ]}
                 >
-                  {draggedComponent && (
-                    <motion.div
-                      initial={{ scale: 1, opacity: 0.95 }} // ✅ CHANGE: Start at normal scale
-                      animate={{ 
-                        scale: 1.05, // ✅ CHANGE: Slight scale up for pickup effect
-                        opacity: 0.9,
-                      }}
-                      transition={{ 
-                        duration: 0.15,
-                        ease: "easeOut"
-                      }}
-                      className="rounded-lg overflow-hidden"
+                  {activeId && draggedComponent ? (
+                    <div
+                      className="drag-ghost-wrapper"
                       style={{
+                        transform: 'scale(1.05)',
+                        filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.4)) drop-shadow(0 0 20px rgba(59, 130, 246, 0.3))',
+                        border: '2px solid rgba(59, 130, 246, 0.5)',
+                        borderRadius: '8px',
+                        overflow: 'visible',
+                        backgroundColor: 'white',
                         pointerEvents: 'none',
-                        transformOrigin: 'center center',
-                        filter: 'drop-shadow(0 20px 40px rgba(0, 0, 0, 0.35)) drop-shadow(0 0 20px rgba(59, 130, 246, 0.3))',
-                        opacity: 0.9, // ✅ Pickup ghost has reduced opacity
-                        boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.5), 0 0 40px rgba(59, 130, 246, 0.2)',
                       }}
                     >
-                      {/* Render component - keep existing render logic */}
+                      {/* 🔥 CLONE THE ACTUAL DOM ELEMENT */}
                       {(() => {
-                        const renderer = componentLibraryService?.getComponent(draggedComponent.type);
-                        
-                        if (renderer?.render) {
-                          try {
-                            return (
-                              <div className="relative">
-                                {renderer.render(
-                                  { 
-                                    ...draggedComponent.props, 
-                                    style: {
-                                      ...draggedComponent.style,
-                                      width: 'auto',
-                                      minWidth: '100px',
-                                      maxWidth: 'none',
-                                    }
-                                  }, 
-                                  draggedComponent.id
-                                )}
-                                
-                                {draggedComponent.children?.length > 0 && (
-                                  <div className="absolute -bottom-6 left-0 right-0 flex items-center justify-center">
-                                    <div className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full font-semibold shadow-lg">
-                                      {draggedComponent.children.length} nested
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          } catch (error) {
-                            console.warn('Ghost render error:', error);
-                          }
+                        const originalElement = document.querySelector(`[data-component-id="${activeId}"]`);
+                        if (!originalElement) {
+                          return <div className="p-4 bg-white rounded border-2 border-blue-500">
+                            <div className="font-semibold">{draggedComponent.name}</div>
+                            <div className="text-xs text-gray-500">{draggedComponent.type}</div>
+                          </div>;
                         }
+                
+                        // Clone the element with all its children
+                        const clonedElement = originalElement.cloneNode(true);
                         
-                        // Fallback rendering
-                        return (
-                          <div className="p-4 bg-white rounded-lg border-2 border-blue-500 min-w-[120px]">
-                            <div className="font-semibold text-gray-900 text-sm mb-1">
-                              {draggedComponent.name}
-                            </div>
-                            <div className="text-xs text-gray-500 mb-2">
-                              {draggedComponent.type}
-                            </div>
-                          </div>
-                        );
+                        // Remove data attributes that might interfere
+                        clonedElement.removeAttribute('data-dnd-kit-draggable-context-id');
+                        clonedElement.removeAttribute('draggable');
+                        
+                        // Style the clone
+                        clonedElement.style.visibility = 'visible';
+                        clonedElement.style.opacity = '1';
+                        clonedElement.style.position = 'relative';
+                        clonedElement.style.pointerEvents = 'none';
+                        clonedElement.style.transform = 'none';
+                        
+                        // Make all children visible too
+                        const clonedChildren = clonedElement.querySelectorAll('*');
+                        clonedChildren.forEach(child => {
+                          child.style.visibility = 'visible';
+                          child.style.opacity = '1';
+                          child.style.pointerEvents = 'none';
+                        });
+                
+                        return <div 
+                          dangerouslySetInnerHTML={{ __html: clonedElement.outerHTML }}
+                          style={{ pointerEvents: 'none' }}
+                        />;
                       })()}
                       
-                      {/* Drag indicator icon */}
-                      <div className="absolute -top-3 -right-3 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shadow-lg">
+                      {/* Drag indicator */}
+                      <div 
+                        className="absolute -top-3 -right-3 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shadow-lg"
+                        style={{ pointerEvents: 'none' }}
+                      >
                         <Move className="w-3 h-3 text-white" />
                       </div>
-                    </motion.div>
-                  )}
+                      
+                      {/* Show child count for layouts */}
+                      {draggedComponent.children?.length > 0 && (
+                        <div 
+                          className="absolute -bottom-6 left-0 right-0 flex items-center justify-center"
+                          style={{ pointerEvents: 'none' }}
+                        >
+                          <div className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full font-semibold shadow-lg">
+                            {draggedComponent.children.length} nested
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
                 </DragOverlay>
               </DndContext>
             )}

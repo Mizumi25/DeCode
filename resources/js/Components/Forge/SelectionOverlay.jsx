@@ -32,7 +32,13 @@ const SelectionOverlay = ({
   selectedComponent,
   canvasComponents = [],
   showSpacing = false, 
-  isCanvasSelection = false
+  isCanvasSelection = false,
+  // 🔥 NEW PROPS FOR DRAGGING
+  isDragging = false,
+  draggedComponent = null,
+  dragTransform = null,
+  // 🔥 ADD THIS PROP:
+  onComponentClick = null
 }) => {
   const [bounds, setBounds] = useState(null);
   const [computedStyles, setComputedStyles] = useState(null);
@@ -128,41 +134,101 @@ const SelectionOverlay = ({
 
 
 
-/**
- * Update bounds and styles with high precision - FOR ALL COMPONENTS
- */
-const updateBounds = useCallback(() => {
-  if (!componentId || !canvasRef.current) {
-    setBounds(null);
-    setComputedStyles(null);
-    return;
-  }
-  
-  // 🔥 ADD THIS: For canvas selection, we want the entire canvas bounds
-  if (isCanvasSelection) {
-    const canvasRect = canvasRef.current.getBoundingClientRect();
-    const scale = responsiveMode !== 'desktop' ? getResponsiveScaleFactor() : 1;
+  /**
+   * Update bounds and styles with high precision - ENHANCED FOR DRAGGING
+   */
+  const updateBounds = useCallback(() => {
+        if (!componentId || !canvasRef.current) {
+        setBounds(null);
+        setComputedStyles(null);
+        return;
+      }
+      
+      // 🔥 ENHANCED: For canvas selection, we want the entire canvas bounds
+      if (isCanvasSelection) {
+        const canvasRect = canvasRef.current.getBoundingClientRect();
+        const scale = responsiveMode !== 'desktop' ? getResponsiveScaleFactor() : 1;
+        
+        setBounds({
+          top: 0,
+          left: 0,
+          width: canvasRect.width / scale,
+          height: canvasRect.height / scale,
+        });
+        
+        // For canvas, we don't need computed styles from an element
+        setComputedStyles({
+          marginTop: 0,
+          marginRight: 0, 
+          marginBottom: 0,
+          marginLeft: 0,
+          paddingTop: 0,
+          paddingRight: 0,
+          paddingBottom: 0,
+          paddingLeft: 0,
+        });
+        return;
+      }
     
-    setBounds({
-      top: 0,
-      left: 0,
-      width: canvasRect.width / scale,
-      height: canvasRect.height / scale,
-    });
-    
-    // For canvas, we don't need computed styles from an element
-    setComputedStyles({
-      marginTop: 0,
-      marginRight: 0, 
-      marginBottom: 0,
-      marginLeft: 0,
-      paddingTop: 0,
-      paddingRight: 0,
-      paddingBottom: 0,
-      paddingLeft: 0,
-    });
-    return;
-  }
+       // 🔥 ENHANCED: Handle dragging state with proper transform calculation
+    if (isDragging && dragTransform) {
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      const scale = responsiveMode !== 'desktop' ? getResponsiveScaleFactor() : 1;
+      
+      // 🔥 FIXED: Use the drag overlay's actual position
+      const dragOverlay = document.querySelector('[data-dnd-kit-drag-overlay]');
+      if (dragOverlay) {
+        const overlayRect = dragOverlay.getBoundingClientRect();
+        
+        setBounds({
+          top: (overlayRect.top - canvasRect.top) / scale,
+          left: (overlayRect.left - canvasRect.left) / scale,
+          width: overlayRect.width / scale,
+          height: overlayRect.height / scale,
+          right: (overlayRect.right - canvasRect.left) / scale,
+          bottom: (overlayRect.bottom - canvasRect.top) / scale,
+        });
+      } else {
+        // Fallback to transform-based calculation
+        const dragX = dragTransform.x || 0;
+        const dragY = dragTransform.y || 0;
+        
+        const originalElement = document.querySelector(`[data-component-id="${componentId}"]`);
+        let originalWidth = 100;
+        let originalHeight = 100;
+        
+        if (originalElement) {
+          const originalRect = originalElement.getBoundingClientRect();
+          originalWidth = originalRect.width / scale;
+          originalHeight = originalRect.height / scale;
+        }
+        
+        setBounds({
+          top: dragY / scale,
+          left: dragX / scale,
+          width: originalWidth,
+          height: originalHeight,
+          right: (dragX / scale) + originalWidth,
+          bottom: (dragY / scale) + originalHeight,
+        });
+      }
+      
+      setComputedStyles({
+        marginTop: 0,
+        marginRight: 0,
+        marginBottom: 0,
+        marginLeft: 0,
+        paddingTop: 0,
+        paddingRight: 0,
+        paddingBottom: 0,
+        paddingLeft: 0,
+        display: 'block',
+        position: 'absolute',
+        zIndex: 9999,
+        opacity: 1,
+      });
+      return;
+    }
 
   // In SelectionOverlay.jsx - ensure this line doesn't filter out children
   const element = document.querySelector(`[data-component-id="${componentId}"]`);
@@ -259,7 +325,7 @@ console.log('🎯 BOUNDS DEBUG for', selectedComponent?.type, {
   elementStyle: window.getComputedStyle(element)
 });
   setComputedStyles(newStyles);
-}, [componentId, canvasRef, responsiveMode, getResponsiveScaleFactor, selectedComponent]);
+}, [componentId, canvasRef, responsiveMode, getResponsiveScaleFactor, isCanvasSelection, isDragging, dragTransform, draggedComponent]);
   
   
 // ✅ FORCE re-calculation when overlay settings change
@@ -534,11 +600,51 @@ useEffect(() => {
 
 
 
+
+// 🔥 NEW: Real-time tracking of drag overlay position
+useEffect(() => {
+  if (!isDragging || !componentId) return;
+  
+  let rafId = null;
+  
+  const trackDragOverlay = () => {
+    const dragOverlay = document.querySelector('[data-dnd-kit-drag-overlay]');
+    const canvas = canvasRef.current;
+    
+    if (dragOverlay && canvas) {
+      const overlayRect = dragOverlay.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
+      const scale = responsiveMode !== 'desktop' ? getResponsiveScaleFactor() : 1;
+      
+      setBounds({
+        top: (overlayRect.top - canvasRect.top) / scale,
+        left: (overlayRect.left - canvasRect.left) / scale,
+        width: overlayRect.width / scale,
+        height: overlayRect.height / scale,
+        right: (overlayRect.right - canvasRect.left) / scale,
+        bottom: (overlayRect.bottom - canvasRect.top) / scale,
+      });
+    }
+    
+    rafId = requestAnimationFrame(trackDragOverlay);
+  };
+  
+  rafId = requestAnimationFrame(trackDragOverlay);
+  
+  return () => {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+    }
+  };
+}, [isDragging, componentId, canvasRef, responsiveMode, getResponsiveScaleFactor]);
+
+
+
   // Don't render if no bounds
   if (!bounds || !computedStyles) return null;
   
   
-// 🔥 SPECIAL RENDERING FOR CANVAS SELECTION - VERY SUBTLE
+// 🔥 ENHANCED: Canvas selection rendering - make it more obvious when selected
 if (isCanvasSelection) {
   return (
     <div 
@@ -546,71 +652,67 @@ if (isCanvasSelection) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* CANVAS HOVER OVERLAY - VERY SUBTLE, NO COLOR */}
+      {/* CANVAS SELECTION OVERLAY - MORE VISIBLE WHEN SELECTED */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 0.4 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="canvas-selection-overlay absolute border-2 border-dashed"
+        style={{
+          top: bounds.top,
+          left: bounds.left, 
+          width: bounds.width,
+          height: bounds.height,
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          borderColor: '#3b82f6',
+        }}
+      >
+        {/* Canvas dimensions label - always show when canvas is selected */}
+        <motion.div
+          initial={{ y: -5, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="absolute px-2 py-1 rounded text-xs font-mono bg-blue-500 text-white shadow-lg"
+          style={{
+            top: 8,
+            left: 8,
+          }}
+        >
+          Canvas • {Math.round(bounds.width)} × {Math.round(bounds.height)}
+        </motion.div>
+
+        {/* Center crosshair - more visible */}
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className="absolute inset-0 pointer-events-none"
+        >
+          {/* Vertical center line */}
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-blue-400 opacity-60"
+            style={{
+              left: '50%',
+              transform: 'translateX(-50%)',
+            }}
+          />
+          
+          {/* Horizontal center line */}
+          <div
+            className="absolute left-0 right-0 h-0.5 bg-blue-400 opacity-60"
+            style={{
+              top: '50%', 
+              transform: 'translateY(-50%)',
+            }}
+          />
+        </motion.div>
+      </motion.div>
+
+      {/* CANVAS SPACING GUIDES - ONLY WHEN SHOW_SPACING IS TRUE */}
       <AnimatePresence>
-        {isHovered && (
+        {showSpacing && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.3 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="canvas-selection-overlay absolute border border-dashed"
-            style={{
-              top: bounds.top,
-              left: bounds.left, 
-              width: bounds.width,
-              height: bounds.height,
-              // NO BACKGROUND COLOR - just the border
-              backgroundColor: 'transparent',
-            }}
-          >
-            {/* Canvas dimensions label - only show on hover */}
-            <motion.div
-              initial={{ y: -5, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              className="absolute px-2 py-1 rounded text-xs font-mono bg-gray-800 text-white shadow-lg"
-              style={{
-                top: 8,
-                left: 8,
-              }}
-            >
-              {Math.round(bounds.width)} × {Math.round(bounds.height)}
-            </motion.div>
-
-            {/* Center crosshair - very subtle */}
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="absolute inset-0 pointer-events-none"
-            >
-              {/* Vertical center line */}
-              <div
-                className="canvas-center-guide absolute top-0 bottom-0 w-px"
-                style={{
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                }}
-              />
-              
-              {/* Horizontal center line */}
-              <div
-                className="canvas-center-guide absolute left-0 right-0 h-px"
-                style={{
-                  top: '50%', 
-                  transform: 'translateY(-50%)',
-                }}
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* CANVAS SPACING GUIDES - ONLY WHEN SHOW_SPACING IS TRUE - VERY SUBTLE */}
-      <AnimatePresence>
-        {showSpacing && isHovered && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.2 }}
             exit={{ opacity: 0 }}
           >
             {/* Safe area guides (common margins) */}
@@ -618,7 +720,7 @@ if (isCanvasSelection) {
               <React.Fragment key={margin}>
                 {/* Top safe area */}
                 <div
-                  className="canvas-spacing-guide absolute border-t border-dashed pointer-events-none"
+                  className="absolute border-t border-dashed border-orange-400 pointer-events-none"
                   style={{
                     top: margin,
                     left: 0,
@@ -628,7 +730,7 @@ if (isCanvasSelection) {
                 
                 {/* Left safe area */}
                 <div
-                  className="canvas-spacing-guide absolute border-l border-dashed pointer-events-none"
+                  className="absolute border-l border-dashed border-orange-400 pointer-events-none"
                   style={{
                     left: margin,
                     top: 0,
@@ -638,7 +740,7 @@ if (isCanvasSelection) {
                 
                 {/* Right safe area */}
                 <div
-                  className="canvas-spacing-guide absolute border-r border-dashed pointer-events-none"
+                  className="absolute border-r border-dashed border-orange-400 pointer-events-none"
                   style={{
                     right: margin,
                     top: 0,
@@ -648,7 +750,7 @@ if (isCanvasSelection) {
                 
                 {/* Bottom safe area */}
                 <div
-                  className="canvas-spacing-guide absolute border-b border-dashed pointer-events-none"
+                  className="absolute border-b border-dashed border-orange-400 pointer-events-none"
                   style={{
                     bottom: margin,
                     left: 0,
@@ -663,6 +765,50 @@ if (isCanvasSelection) {
     </div>
   );
 }
+
+
+  // 🔥 SIMPLIFIED RENDERING FOR DRAGGING STATE
+  if (isDragging) {
+    return (
+      <div 
+        className="absolute pointer-events-none z-50"
+        style={{
+          top: bounds.top,
+          left: bounds.left,
+          width: bounds.width,
+          height: bounds.height,
+          // 🔥 FOLLOW GHOST STYLING
+          border: '2px solid #3b82f6',
+          borderRadius: '2px',
+          boxShadow: '0 0 0 1px rgba(59, 130, 246, 0.2), 0 4px 12px rgba(59, 130, 246, 0.15), 0 0 20px rgba(59, 130, 246, 0.1)',
+          opacity: 0.8,
+          // Add pulsing animation for dragging state
+          animation: 'pulse 1.5s ease-in-out infinite',
+        }}
+      >
+        {/* Dimensions label */}
+        <div 
+          className="absolute px-2 py-1 rounded text-xs font-mono shadow-lg"
+          style={{
+            bottom: '100%',
+            right: 0,
+            marginBottom: 4,
+            backgroundColor: '#3b82f6',
+            color: 'white',
+          }}
+        >
+          {Math.round(bounds.width)} × {Math.round(bounds.height)}
+        </div>
+
+        {/* Drag indicator */}
+        <div className="absolute -top-2 -right-2 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+          <Move className="w-2 h-2 text-white" />
+        </div>
+      </div>
+    );
+  }
+
+
 
 
   // Calculate content area (after padding)
@@ -1178,7 +1324,7 @@ if (isCanvasSelection) {
         )}
       </AnimatePresence>
 
-      {/* Parent Component Indicator */}
+       {/* Parent Component Indicator */}
       <AnimatePresence>
         {parentComponent && (
           <motion.div
@@ -1190,11 +1336,17 @@ if (isCanvasSelection) {
               bottom: bounds.bottom + 4,
               left: bounds.left,
             }}
-            onClick={() => {
-              // Trigger parent selection
-              const parentElement = document.querySelector(`[data-component-id="${parentComponent.id}"]`);
-              if (parentElement) {
-                parentElement.click();
+            onClick={(e) => {
+              e.stopPropagation();
+              // 🔥 FIXED: Use onComponentClick if available, otherwise fallback to DOM click
+              if (onComponentClick) {
+                onComponentClick(parentComponent.id, e);
+              } else {
+                // Fallback to DOM click
+                const parentElement = document.querySelector(`[data-component-id="${parentComponent.id}"]`);
+                if (parentElement) {
+                  parentElement.click();
+                }
               }
             }}
             title="Click to select parent"

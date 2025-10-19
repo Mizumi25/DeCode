@@ -106,6 +106,7 @@ class VoidController extends Controller
                   'project_id' => 'required|exists:projects,id',
                   'name' => 'required|string|max:255',
                   'type' => ['required', Rule::in(['page', 'component'])],
+                  'canvas_root' => 'nullable|array', // ADD THIS
                   'canvas_data' => 'nullable|array',
                   'settings' => 'nullable|array',
               ]);
@@ -155,10 +156,21 @@ class VoidController extends Controller
                   // ... existing access control code
               }
               
-              // Create default canvas_data if not provided
               if (!isset($validated['canvas_data'])) {
-                  $validated['canvas_data'] = $this->getDefaultCanvasData($validated['type']);
-              }
+        $validated['canvas_data'] = $this->getDefaultCanvasData($validated['type']);
+    }
+
+    if (!isset($validated['canvas_root'])) { // ADD THIS
+        $validated['canvas_root'] = [
+            'width' => '100%',
+            'height' => '100vh',
+            'backgroundColor' => '#ffffff',
+            'overflow' => 'auto',
+            'display' => 'block',
+            'padding' => '0px',
+            'margin' => '0px'
+        ];
+    }
       
               // Create default settings if not provided
               if (!isset($validated['settings'])) {
@@ -822,18 +834,18 @@ class VoidController extends Controller
     private function getDefaultCanvasData(string $type): array
     {
         $baseData = [
-            'template' => 'blank',
-            'device' => 'desktop',
-            'viewport' => [
-                'width' => 1440,
-                'height' => 900
-            ],
-            'elements' => [],
-            'position' => [
-                'x' => rand(100, 800),
-                'y' => rand(100, 600)
-            ]
-        ];
+        'template' => 'blank',
+        'device' => 'desktop',
+        'viewport' => [
+            'width' => 1440,
+            'height' => 900
+        ],
+        'elements' => [],
+        'position' => [
+            'x' => rand(100, 800),
+            'y' => rand(100, 600)
+        ]
+    ];
 
         if ($type === 'page') {
             $baseData['elements'] = [
