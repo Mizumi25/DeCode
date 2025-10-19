@@ -51,7 +51,8 @@ const LeftSection = ({
   handleUndo,
   handleRedo
 }) => {
-  const { url } = usePage();
+  const { url, props } = usePage(); 
+  const { project } = props;
   const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects');
   const onForgePage = currentRoute.includes('/modeForge');
   const onSourcePage = currentRoute.includes('/modeSource');
@@ -75,7 +76,6 @@ const LeftSection = ({
   ];
 
   const handleBackToVoid = () => {
-    const { project } = usePage().props;
     if (project) {
       router.visit(`/void/${project.uuid}`);
     } else {
@@ -105,8 +105,9 @@ const LeftSection = ({
       {(onForgePage || onSourcePage) && (
         <button
           onClick={handleBackToVoid}
-          className="p-1 rounded-lg hover:bg-[var(--color-bg-muted)] transition-colors"
+          className="p-1 rounded-lg hover:bg-[var(--color-bg-muted)] transition-colors relative z-50"
           title="Back to Void"
+          style={{ pointerEvents: 'auto' }}
         >
           <ChevronLeft className="w-3.5 h-3.5 text-[var(--color-primary)]" />
         </button>
