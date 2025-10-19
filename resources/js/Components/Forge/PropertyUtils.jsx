@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react'; // Add useState, useEffect
+import React, { useMemo, useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -13,18 +13,15 @@ export const PropertySection = ({
 }) => {
   const isExpanded = expandedSections[sectionKey];
   
-  // Check if section has any visible children after search filtering
   const hasVisibleContent = useMemo(() => {
     if (!searchTerm || searchTerm.trim() === '') return true;
     
-    // Check if any child InputField is visible
     const childrenArray = React.Children.toArray(children);
     return childrenArray.some(child => {
       if (child.type?.name === 'InputField' || child.props?.label) {
         const label = child.props?.label || '';
         return label.toLowerCase().includes(searchTerm.toLowerCase());
       }
-      // Check nested children
       if (child.props?.children) {
         const nestedChildren = React.Children.toArray(child.props.children);
         return nestedChildren.some(nested => {
@@ -36,7 +33,6 @@ export const PropertySection = ({
     });
   }, [searchTerm, children]);
   
-  // Don't render section if no content matches search
   if (searchTerm && !hasVisibleContent) return null;
   
   return (
@@ -97,43 +93,55 @@ export const InputField = ({
   label, 
   value, 
   onChange, 
+  onBlur,
   type = 'text', 
   options = {},
   searchTerm = ''
 }) => {
-  // ✅ CRITICAL FIX: Use single state for the input value
-  // Don't sync with parent prop during typing
-  const [displayValue, setDisplayValue] = useState(value ?? '');
+  // ✅ CRITICAL FIX: Separate controlled state from parent value
+  const [localValue, setLocalValue] = useState(value ?? '');
+  const [isFocused, setIsFocused] = useState(false);
 
-  // ✅ Only update when PROP changes, not during user input
+  // ✅ Only sync from parent when NOT focused (prevents reset during typing)
   useEffect(() => {
-    setDisplayValue(value ?? '');
-  }, [value]);
+    if (!isFocused) {
+      setLocalValue(value ?? '');
+    }
+  }, [value, isFocused]);
 
-  // ✅ Handle changes WITHOUT triggering parent re-render loop
+  // ✅ Handle local changes without triggering parent re-render
   const handleChange = (newValue) => {
-    setDisplayValue(newValue); // ✅ Update display immediately
-    
-    // ✅ Debounce parent update to prevent feedback loop
-    clearTimeout(handleChange.debounceTimer);
-    handleChange.debounceTimer = setTimeout(() => {
-      onChange(newValue); // ✅ Update parent AFTER user stops typing
-    }, 300);
+    setLocalValue(newValue);
+    if (onChange && !onBlur) {
+      // If no onBlur handler, update immediately
+      onChange(newValue);
+    }
   };
 
-  // Check if this specific field matches search
+  // ✅ Handle blur to save final value
+  const handleBlur = (e) => {
+    setIsFocused(false);
+    if (onBlur) {
+      onBlur(e);
+    } else if (onChange) {
+      onChange(localValue);
+    }
+  };
+
+  const handleFocus = () => {
+    setIsFocused(true);
+  };
+
   const isMatch = useMemo(() => {
     if (!searchTerm || searchTerm.trim() === '') return true;
     const searchLower = searchTerm.toLowerCase();
     return label.toLowerCase().includes(searchLower);
   }, [searchTerm, label]);
   
-  // HIDE field completely if no match
   if (searchTerm && !isMatch) return null;
   
   const baseInputClasses = "w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm";
   
-  // Highlight style for matching fields
   const highlightStyle = searchTerm && isMatch ? {
     boxShadow: '0 0 0 2px var(--color-primary-soft)',
     borderColor: 'var(--color-primary)'
@@ -160,8 +168,10 @@ export const InputField = ({
       
       {type === 'select' ? (
         <select
-          value={displayValue || ''}
+          value={localValue}
           onChange={(e) => handleChange(e.target.value)}
+          onBlur={handleBlur}
+          onFocus={handleFocus}
           className={baseInputClasses}
           style={{
             backgroundColor: 'var(--color-surface)',
@@ -181,8 +191,10 @@ export const InputField = ({
         <div className="flex gap-2">
           <input
             type="color"
-            value={displayValue || '#000000'}
+            value={localValue || '#000000'}
             onChange={(e) => handleChange(e.target.value)}
+            onBlur={handleBlur}
+            onFocus={handleFocus}
             className="w-12 h-10 border rounded cursor-pointer"
             style={{ 
               borderColor: 'var(--color-border)',
@@ -192,8 +204,10 @@ export const InputField = ({
           />
           <input
             type="text"
-            value={displayValue || ''}
+            value={localValue}
             onChange={(e) => handleChange(e.target.value)}
+            onBlur={handleBlur}
+            onFocus={handleFocus}
             className={`${baseInputClasses} flex-1`}
             placeholder="#000000 or rgb() or hsl()"
             style={{
@@ -211,8 +225,10 @@ export const InputField = ({
             min={options.min || 0}
             max={options.max || 100}
             step={options.step || 1}
-            value={displayValue || options.min || 0}
+            value={localValue || options.min || 0}
             onChange={(e) => handleChange(parseFloat(e.target.value))}
+            onMouseUp={handleBlur}
+            onTouchEnd={handleBlur}
             className="w-full h-2 rounded-lg appearance-none cursor-pointer"
             style={{ 
               accentColor: 'var(--color-primary)'
@@ -226,15 +242,18 @@ export const InputField = ({
               border: highlightStyle.borderColor ? `1px solid ${highlightStyle.borderColor}` : 'none'
             }}
           >
-            {displayValue || options.min || 0}{options.unit || ''}
+            {localValue || options.min || 0}{options.unit || ''}
           </div>
         </div>
       ) : type === 'textarea' ? (
         <textarea
-          value={displayValue || ''}
+          value={localValue}
           onChange={(e) => handleChange(e.target.value)}
+          onBlur={handleBlur}
+          onFocus={handleFocus}
           className={`${baseInputClasses} resize-vertical min-h-[80px]`}
           rows={3}
+          placeholder={options.placeholder}
           style={{
             backgroundColor: 'var(--color-surface)',
             borderColor: 'var(--color-border)',
@@ -246,8 +265,11 @@ export const InputField = ({
         <div className="flex items-center">
           <input
             type="checkbox"
-            checked={displayValue || false}
-            onChange={(e) => handleChange(e.target.checked)}
+            checked={localValue || false}
+            onChange={(e) => {
+              handleChange(e.target.checked);
+              if (onChange) onChange(e.target.checked);
+            }}
             className="w-4 h-4 rounded focus:ring-2"
             style={{ 
               accentColor: 'var(--color-primary)'
@@ -277,9 +299,12 @@ export const InputField = ({
             {Object.entries(options.presets || {}).map(([key, presetValue]) => (
               <button
                 key={key}
-                onClick={() => handleChange(presetValue)}
+                onClick={() => {
+                  handleChange(presetValue);
+                  if (onChange) onChange(presetValue);
+                }}
                 className={`px-2 py-1 text-xs rounded border transition-colors`}
-                style={displayValue === presetValue ? {
+                style={localValue === presetValue ? {
                   backgroundColor: 'var(--color-primary)',
                   color: '#ffffff',
                   borderColor: 'var(--color-primary)'
@@ -295,8 +320,10 @@ export const InputField = ({
           </div>
           <input
             type="text"
-            value={displayValue || ''}
+            value={localValue}
             onChange={(e) => handleChange(e.target.value)}
+            onBlur={handleBlur}
+            onFocus={handleFocus}
             className={baseInputClasses}
             placeholder="Custom value..."
             style={{
@@ -310,8 +337,10 @@ export const InputField = ({
       ) : (
         <input
           type={type}
-          value={displayValue || ''}
-          onChange={(e) => handleChange(type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value)}
+          value={localValue}
+          onChange={(e) => handleChange(type === 'number' ? parseFloat(e.target.value) || '' : e.target.value)}
+          onBlur={handleBlur}
+          onFocus={handleFocus}
           className={baseInputClasses}
           step={type === 'number' ? (options.step || 1) : undefined}
           min={type === 'number' ? options.min : undefined}
@@ -385,5 +414,18 @@ export const presetValues = {
     lg: '0 8px 16px rgba(0, 0, 0, 0.5)',
     glow: '0 0 10px currentColor',
     neon: '0 0 5px currentColor, 0 0 10px currentColor'
+  },
+  spacing: {
+    '0': '0px',
+    '1': '4px',
+    '2': '8px',
+    '3': '12px',
+    '4': '16px',
+    '6': '24px',
+    '8': '32px',
+    '12': '48px',
+    '16': '64px',
+    '24': '96px',
+    '32': '128px'
   }
 };

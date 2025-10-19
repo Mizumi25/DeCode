@@ -1,8 +1,56 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Type, Wand2 } from 'lucide-react';
 import { PropertySection, InputField, SubsectionHeader, presetValues } from '../PropertyUtils';
 
-const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, setExpandedSections, searchTerm = '' }) => {
+// 🔥 ADD: Google Fonts List (Top 100 most popular)
+const GOOGLE_FONTS = [
+  'Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Raleway', 
+  'Nunito', 'Ubuntu', 'Playfair Display', 'Merriweather', 'PT Sans', 'Source Sans Pro',
+  'Oswald', 'Quicksand', 'Karla', 'Work Sans', 'DM Sans', 'Space Grotesk',
+  'Plus Jakarta Sans', 'Outfit', 'Manrope', 'Sora', 'Archivo', 'Public Sans',
+  'Lexend', 'Be Vietnam Pro', 'IBM Plex Sans', 'Rubik', 'Mukta', 'Barlow',
+  'Noto Sans', 'Kanit', 'Crimson Text', 'Libre Baskerville', 'Arimo',
+  'Titillium Web', 'Hind', 'Inconsolata', 'Cabin', 'Heebo', 'Josefin Sans',
+  'Libre Franklin', 'Oxygen', 'Dosis', 'Bitter', 'Exo 2', 'Varela Round',
+  'Abril Fatface', 'Righteous', 'Pacifico', 'Dancing Script', 'Caveat',
+];
+
+const SYSTEM_FONTS = [
+  'Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 
+  'Courier New', 'monospace', 'sans-serif', 'serif'
+];
+
+const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, setExpandedSections, searchTerm = '', selectedComponentData }) => {
+  // 🔥 ADD: Load Google Fonts dynamically
+  useEffect(() => {
+    if (!document.getElementById('google-fonts-decode')) {
+      const link = document.createElement('link');
+      link.id = 'google-fonts-decode';
+      link.rel = 'stylesheet';
+      
+      // Load all fonts with weights 300-900
+      const fontsQuery = GOOGLE_FONTS.map(font => 
+        `family=${font.replace(/ /g, '+')}:wght@300;400;500;600;700;800;900`
+      ).join('&');
+      
+      link.href = `https://fonts.googleapis.com/css2?${fontsQuery}&display=swap`;
+      document.head.appendChild(link);
+      
+      console.log('✅ Google Fonts loaded:', GOOGLE_FONTS.length, 'fonts');
+    }
+  }, []);
+
+  // 🔥 ADD: Combined font list
+  const allFonts = [
+    ...GOOGLE_FONTS,
+    '---',  // Separator
+    ...SYSTEM_FONTS
+  ];
+  
+  
+  // Check if component needs placeholder (inputs/textarea)
+const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedComponentData?.type);
+
   return (
     <>
       <PropertySection
@@ -13,13 +61,27 @@ const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, 
         setExpandedSections={setExpandedSections}
         searchTerm={searchTerm}
       >
+      
+        {/* 🔥 PLACEHOLDER - Only for inputs/textarea */}
+        {needsPlaceholder && (
+          <InputField
+            label="Placeholder Text"
+            value={selectedComponentData?.props?.placeholder || ''}
+            onChange={(value) => onPropertyChange('placeholder', value, 'props')}
+            type="text"
+            options={{ placeholder: 'Enter placeholder text...' }}
+            searchTerm={searchTerm}
+          />
+        )}
+        
+        {/* 🔥 UPDATED: Font Family with Google Fonts */}
         <InputField
           label="Font Family"
           value={currentStyles.fontFamily}
           onChange={(value) => onPropertyChange('fontFamily', value, 'style')}
           type="select"
           options={{
-            values: ['Arial', 'Helvetica', 'Times New Roman', 'Georgia', 'Verdana', 'Courier New', 'monospace', 'sans-serif', 'serif', 'Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Source Sans Pro', 'Oswald', 'Raleway', 'Ubuntu']
+            values: allFonts
           }}
           searchTerm={searchTerm}
         />

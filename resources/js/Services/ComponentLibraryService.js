@@ -295,21 +295,79 @@ class ComponentLibraryService {
         
         
         
-        switch (componentDef.type) {
-            case 'button':
-                return this.renderButton(mergedProps, id);
-            case 'input':
-                return this.renderInput(mergedProps, id);
-            // case 'card':
-//                 return this.renderCard(mergedProps, id, layoutStyles);
-//             case 'avatar':
-//                 return this.renderAvatar(mergedProps, id, layoutStyles);
-//             case 'badge':
-//                 return this.renderBadge(mergedProps, id, layoutStyles);
-//             case 'searchbar':
-//                 return this.renderSearchbar(mergedProps, id, layoutStyles);
-            default:
-                return this.renderGeneric(mergedProps, id, componentDef, layoutStyles);
+               switch (componentDef.type) {
+          // ✅ EXISTING CASES...
+          case 'button':
+            return this.renderButton(mergedProps, id);
+          case 'input':
+            return this.renderInput(mergedProps, id);
+            
+          // 🔥 NEW TEXT ELEMENT CASES
+          case 'text':
+            return this.renderTextNode(mergedProps, id);
+            
+          case 'h1':
+          case 'h2':
+          case 'h3':
+          case 'h4':
+          case 'h5':
+          case 'h6':
+            return this.renderHeading(componentDef.type, mergedProps, id);
+            
+          case 'p':
+            return this.renderParagraph(mergedProps, id);
+            
+          case 'span':
+            return this.renderSpan(mergedProps, id);
+            
+          case 'strong':
+            return this.renderStrong(mergedProps, id);
+            
+          case 'em':
+            return this.renderEm(mergedProps, id);
+            
+          case 'small':
+            return this.renderSmall(mergedProps, id);
+            
+          case 'label':
+            return this.renderLabel(mergedProps, id);
+            
+          case 'blockquote':
+            return this.renderBlockquote(mergedProps, id);
+            
+          case 'link':
+            return this.renderLink(mergedProps, id);
+            
+          case 'checkbox':
+            return this.renderCheckbox(mergedProps, id);
+            
+          case 'radio':
+            return this.renderRadio(mergedProps, id);
+            
+          case 'select':
+            return this.renderSelect(mergedProps, id);
+            
+          case 'textarea':
+            return this.renderTextarea(mergedProps, id);
+            
+          case 'toggle':
+            return this.renderToggle(mergedProps, id);
+            
+          case 'file':
+            return this.renderFileInput(mergedProps, id);
+            
+          case 'range':
+            return this.renderRange(mergedProps, id);
+          
+          // 🔥 SMART FALLBACK
+          default:
+            // Try smart code rendering first if variant has preview_code
+            if (mergedProps.variant?.preview_code) {
+              return this.smartCodeToUI(mergedProps.variant.preview_code, id);
+            }
+            
+            // Final fallback
+            return this.renderGeneric(mergedProps, id, componentDef);
         }
     }
     
@@ -526,6 +584,420 @@ renderButton(props, id, layoutStyles = {}) {
           }, props.content || props.children || 'Card content')
       ]);
   }
+  
+  
+  
+  
+// 🔥 TEXT NODE RENDERER (handles both pseudo and semantic)
+renderTextNode(props, id) {
+  const content = props.content || props.text || '';
+  
+  // ✅ Check if it's a semantic element (h1-h6, p, span, etc.)
+  const type = props.type || 'text-node';
+  
+  // If it's truly a pseudo element (text-node), return pure text
+  if (type === 'text-node' || props.isPseudoElement) {
+    return content; // Pure text, no wrapper
+  }
+  
+  // Otherwise, it's a semantic element - use appropriate renderer
+  if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(type)) {
+    return this.renderHeading(type, props, id);
+  }
+  if (type === 'p') {
+    return this.renderParagraph(props, id);
+  }
+  if (type === 'span') {
+    return this.renderSpan(props, id);
+  }
+  if (type === 'strong') {
+    return this.renderStrong(props, id);
+  }
+  if (type === 'em') {
+    return this.renderEm(props, id);
+  }
+  if (type === 'small') {
+    return this.renderSmall(props, id);
+  }
+  if (type === 'label') {
+    return this.renderLabel(props, id);
+  }
+  if (type === 'blockquote') {
+    return this.renderBlockquote(props, id);
+  }
+  
+  // Fallback: wrap in span with data attributes
+  return React.createElement('span', {
+    key: id,
+    'data-component-id': id,
+    'data-component-type': type,
+    'data-is-layout': false,
+    style: props.style,
+    className: 'text-node',
+  }, content);
+}
+
+
+
+renderHeading(level, props, id) {
+  const content = props.content || props.text || '';
+  
+  const sizeClasses = {
+    h1: 'text-6xl',
+    h2: 'text-4xl',
+    h3: 'text-3xl',
+    h4: 'text-2xl',
+    h5: 'text-xl',
+    h6: 'text-lg'
+  };
+  
+  const baseClasses = `${sizeClasses[level]} font-bold`;
+  const variantClasses = props.variant === 'gradient' 
+    ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600'
+    : 'text-gray-900';
+  
+  return React.createElement(level, {
+    key: id,
+    className: `${baseClasses} ${variantClasses} ${props.className || ''}`,
+    style: props.style,
+    'data-component-id': id,
+    'data-component-type': level,
+    'data-is-layout': false,
+    onClick: (e) => { // ✅ ADD THIS
+      e.stopPropagation();
+      // Clicking child text selects parent
+      const parentId = props.parentId;
+      if (parentId && window.forgeSelectComponent) {
+        window.forgeSelectComponent(parentId);
+      }
+    }
+  }, content);
+}
+
+
+// 🔥 PARAGRAPH RENDERER
+renderParagraph(props, id) {
+  const content = props.content || props.text || '';
+  
+  return React.createElement('p', {
+    key: id,
+    className: `text-base leading-relaxed text-gray-700 ${props.className || ''}`,
+    style: props.style,
+    'data-component-id': id,
+    'data-component-type': 'p',
+    'data-is-layout': false,
+  }, content);
+}
+
+// 🔥 SPAN RENDERER
+renderSpan(props, id) {
+  const content = props.content || props.text || '';
+  
+  return React.createElement('span', {
+    key: id,
+    className: props.className || '',
+    style: props.style,
+    'data-component-id': id,
+    'data-component-type': 'span',
+    'data-is-layout': false,
+  }, content);
+}
+
+// 🔥 STRONG RENDERER
+renderStrong(props, id) {
+  const content = props.content || props.text || '';
+  
+  return React.createElement('strong', {
+    key: id,
+    className: `font-bold ${props.className || ''}`,
+    style: props.style,
+    'data-component-id': id,
+    'data-component-type': 'strong',
+    'data-is-layout': false,
+  }, content);
+}
+
+// 🔥 EM RENDERER
+renderEm(props, id) {
+  const content = props.content || props.text || '';
+  
+  return React.createElement('em', {
+    key: id,
+    className: `italic ${props.className || ''}`,
+    style: props.style,
+    'data-component-id': id,
+    'data-component-type': 'em',
+    'data-is-layout': false,
+  }, content);
+}
+
+// 🔥 SMALL RENDERER
+renderSmall(props, id) {
+  const content = props.content || props.text || '';
+  
+  return React.createElement('small', {
+    key: id,
+    className: `text-sm text-gray-600 ${props.className || ''}`,
+    style: props.style,
+    'data-component-id': id,
+    'data-component-type': 'small',
+    'data-is-layout': false,
+  }, content);
+}
+
+// 🔥 LABEL RENDERER
+renderLabel(props, id) {
+  const content = props.content || props.text || '';
+  
+  return React.createElement('label', {
+    key: id,
+    htmlFor: props.for || props.htmlFor,
+    className: `block text-sm font-medium text-gray-700 ${props.className || ''}`,
+    style: props.style,
+    'data-component-id': id,
+    'data-component-type': 'label',
+    'data-is-layout': false,
+  }, content);
+}
+
+// 🔥 BLOCKQUOTE RENDERER
+renderBlockquote(props, id) {
+  const content = props.content || props.text || '';
+  const cite = props.cite || '';
+  
+  return React.createElement('blockquote', {
+    key: id,
+    className: `border-l-4 border-purple-600 pl-6 py-4 italic text-gray-700 ${props.className || ''}`,
+    style: props.style,
+    'data-component-id': id,
+    'data-component-type': 'blockquote',
+    'data-is-layout': false,
+  }, [
+    React.createElement('p', { key: `${id}-text`, className: 'text-lg mb-2' }, content),
+    cite && React.createElement('cite', { key: `${id}-cite`, className: 'text-sm text-gray-500 not-italic' }, `— ${cite}`)
+  ]);
+}
+
+// 🔥 LINK RENDERER
+renderLink(props, id) {
+  const content = props.content || props.text || 'Link';
+  
+  return React.createElement('a', {
+    key: id,
+    href: props.href || '#',
+    target: props.target || '_self',
+    className: `text-blue-600 hover:text-blue-800 underline ${props.className || ''}`,
+    style: props.style,
+    'data-component-id': id,
+    'data-component-type': 'link',
+    'data-is-layout': false,
+    onClick: (e) => e.preventDefault() // Prevent navigation in editor
+  }, content);
+}
+
+// 🔥 CHECKBOX RENDERER
+renderCheckbox(props, id) {
+  const label = props.label || props.content || '';
+  
+  return React.createElement('label', {
+    key: id,
+    className: 'flex items-center gap-3 cursor-pointer',
+    'data-component-id': id,
+    'data-component-type': 'checkbox',
+    'data-is-layout': false,
+  }, [
+    React.createElement('input', {
+      key: `${id}-input`,
+      type: 'checkbox',
+      checked: props.checked || false,
+      disabled: props.disabled || false,
+      className: 'w-5 h-5 rounded border-2 border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-600/20',
+      onChange: () => {} // Prevent errors in editor
+    }),
+    React.createElement('span', {
+      key: `${id}-label`,
+      className: 'text-gray-700'
+    }, label)
+  ]);
+}
+
+// 🔥 RADIO RENDERER
+renderRadio(props, id) {
+  const label = props.label || props.content || '';
+  
+  return React.createElement('label', {
+    key: id,
+    className: 'flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-600 transition',
+    'data-component-id': id,
+    'data-component-type': 'radio',
+    'data-is-layout': false,
+  }, [
+    React.createElement('input', {
+      key: `${id}-input`,
+      type: 'radio',
+      name: props.name || 'radio-group',
+      checked: props.checked || false,
+      className: 'w-5 h-5 text-blue-600',
+      onChange: () => {}
+    }),
+    React.createElement('span', {
+      key: `${id}-label`,
+      className: 'font-semibold'
+    }, label)
+  ]);
+}
+
+// 🔥 SELECT RENDERER
+renderSelect(props, id) {
+  const options = props.options || ['Option 1', 'Option 2', 'Option 3'];
+  
+  return React.createElement('select', {
+    key: id,
+    className: 'w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-600 focus:outline-none',
+    style: props.style,
+    'data-component-id': id,
+    'data-component-type': 'select',
+    'data-is-layout': false,
+    disabled: props.disabled || false,
+  }, options.map((opt, idx) => 
+    React.createElement('option', { key: `${id}-opt-${idx}`, value: opt }, opt)
+  ));
+}
+
+// 🔥 TEXTAREA RENDERER
+renderTextarea(props, id) {
+  const content = props.content || props.value || '';
+  
+  return React.createElement('textarea', {
+    key: id,
+    rows: props.rows || 4,
+    placeholder: props.placeholder || '',
+    value: content,
+    className: 'block w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-600 focus:outline-none resize-vertical',
+    style: props.style,
+    'data-component-id': id,
+    'data-component-type': 'textarea',
+    'data-is-layout': false,
+    disabled: props.disabled || false,
+    onChange: () => {}
+  });
+}
+
+// 🔥 TOGGLE RENDERER
+renderToggle(props, id) {
+  const label = props.label || props.content || '';
+  
+  return React.createElement('label', {
+    key: id,
+    className: 'flex items-center justify-between cursor-pointer',
+    'data-component-id': id,
+    'data-component-type': 'toggle',
+    'data-is-layout': false,
+  }, [
+    React.createElement('span', {
+      key: `${id}-label`,
+      className: 'text-gray-700'
+    }, label),
+    React.createElement('div', {
+      key: `${id}-switch`,
+      className: 'relative inline-block w-12 h-6'
+    }, [
+      React.createElement('input', {
+        key: `${id}-input`,
+        type: 'checkbox',
+        checked: props.checked || false,
+        className: 'sr-only peer',
+        onChange: () => {}
+      }),
+      React.createElement('div', {
+        key: `${id}-track`,
+        className: 'w-12 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 peer-checked:after:translate-x-full after:content-[""] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all'
+      })
+    ])
+  ]);
+}
+
+// 🔥 FILE INPUT RENDERER
+renderFileInput(props, id) {
+  return React.createElement('label', {
+    key: id,
+    className: 'flex flex-col items-center justify-center w-full h-48 border-2 border-gray-300 border-dashed rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition',
+    'data-component-id': id,
+    'data-component-type': 'file',
+    'data-is-layout': false,
+  }, [
+    React.createElement('div', {
+      key: `${id}-content`,
+      className: 'flex flex-col items-center'
+    }, [
+      React.createElement('svg', {
+        key: `${id}-icon`,
+        className: 'w-10 h-10 mb-3 text-gray-400',
+        fill: 'none',
+        stroke: 'currentColor',
+        viewBox: '0 0 24 24'
+      }, React.createElement('path', {
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+        strokeWidth: 2,
+        d: 'M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12'
+      })),
+      React.createElement('p', {
+        key: `${id}-text`,
+        className: 'text-sm text-gray-500'
+      }, 'Click to upload or drag and drop')
+    ]),
+    React.createElement('input', {
+      key: `${id}-input`,
+      type: 'file',
+      className: 'hidden',
+      multiple: props.multiple || false,
+      accept: props.accept || ''
+    })
+  ]);
+}
+
+// 🔥 RANGE RENDERER
+renderRange(props, id) {
+  const value = props.value || 50;
+  const min = props.min || 0;
+  const max = props.max || 100;
+  
+  return React.createElement('div', {
+    key: id,
+    className: 'w-full',
+    'data-component-id': id,
+    'data-component-type': 'range',
+    'data-is-layout': false,
+  }, [
+    props.showValue && React.createElement('div', {
+      key: `${id}-header`,
+      className: 'flex justify-between mb-2'
+    }, [
+      React.createElement('span', {
+        key: `${id}-label`,
+        className: 'text-sm font-semibold'
+      }, props.label || 'Value'),
+      React.createElement('span', {
+        key: `${id}-value`,
+        className: 'text-sm font-semibold'
+      }, `${value}%`)
+    ]),
+    React.createElement('input', {
+      key: `${id}-input`,
+      type: 'range',
+      min,
+      max,
+      value,
+      step: props.step || 1,
+      className: 'w-full h-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full appearance-none cursor-pointer',
+      onChange: () => {}
+    })
+  ]);
+}
+  
+  
+  
 
   // Enhanced generic renderer with size constraints
 renderGeneric(props, id, componentDef) {
@@ -551,6 +1023,68 @@ renderGeneric(props, id, componentDef) {
     }, `(${componentDef.type})`)
   ]);
 }
+
+
+
+/**
+ * 🔥 SMART CODE TO UI RENDERER
+ * Intelligently parses HTML/JSX code and renders it as UI
+ */
+smartCodeToUI(codeString, componentId) {
+  try {
+    // Parse HTML/JSX string
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = codeString;
+    
+    const firstChild = tempDiv.firstElementChild;
+    if (!firstChild) {
+      // Pure text node
+      return document.createTextNode(codeString);
+    }
+    
+    // Extract tag, classes, styles, and content
+    const tagName = firstChild.tagName.toLowerCase();
+    const classes = firstChild.className;
+    const inlineStyle = firstChild.getAttribute('style');
+    const textContent = firstChild.textContent;
+    
+    // Create React element with parsed attributes
+    return React.createElement(tagName, {
+      key: componentId,
+      className: classes,
+      style: this.parseInlineStyle(inlineStyle),
+      'data-component-id': componentId,
+      dangerouslySetInnerHTML: { __html: firstChild.innerHTML }
+    });
+  } catch (error) {
+    console.warn('Smart code parsing failed, falling back to raw display:', error);
+    return React.createElement('div', {
+      key: componentId,
+      dangerouslySetInnerHTML: { __html: codeString }
+    });
+  }
+}
+
+/**
+ * Parse inline style string to React style object
+ */
+parseInlineStyle(styleString) {
+  if (!styleString) return {};
+  
+  const styles = {};
+  styleString.split(';').forEach(rule => {
+    const [prop, value] = rule.split(':').map(s => s.trim());
+    if (prop && value) {
+      // Convert kebab-case to camelCase
+      const camelProp = prop.replace(/-([a-z])/g, g => g[1].toUpperCase());
+      styles[camelProp] = value;
+    }
+  });
+  
+  return styles;
+}
+
+
 
 // Enhanced button classes with proper width constraints
 getButtonClasses(props) {
@@ -586,36 +1120,37 @@ getButtonClasses(props) {
   return `${baseClasses} ${variantClasses[variant] || variantClasses.primary} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
 }
 
-// Enhanced button renderer with overflow prevention
-// Example for button renderer - ensure it works with the new drag system
-renderButton(props, id) {
-  const className = this.getButtonClasses(props);
-  
-  const buttonStyle = {
-    maxWidth: '100%',
-    wordBreak: 'break-word',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    width: props.width || 'fit-content',
-    minWidth: props.minWidth || '60px',
-    ...props.style,
-    pointerEvents: 'none', // 🔥 Allow drag overlay to receive events
-  };
-  
-  return React.createElement('button', {
-    key: id,
-    className,
-    onClick: (e) => {
-      e.stopPropagation();
-      console.log(`Button ${id} clicked`);
-    },
-    disabled: props.disabled || false,
-    style: buttonStyle,
-    'data-component-id': id,
-    'data-component-type': 'button',
-    'data-is-layout': 'false',
-  }, props.text || 'Button');
+renderButton(props, id, layoutStyles = {}) {
+    const className = this.getButtonClasses(props);
+    
+    // ✅ CRITICAL: Use 'content' first, fallback to 'text'
+    const buttonText = props.content || props.text || props.children || 'Button';
+    
+    const buttonStyle = {
+        maxWidth: '100%',
+        wordBreak: 'break-word',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        width: props.width || 'fit-content',
+        minWidth: props.minWidth || '60px',
+        ...layoutStyles,
+        ...props.style
+    };
+    
+    return React.createElement('button', {
+        key: id,
+        className,
+        onClick: (e) => {
+            e.stopPropagation();
+            console.log(`Button ${id} clicked`);
+        },
+        disabled: props.disabled || false,
+        style: buttonStyle,
+        'data-component-id': id,
+        'data-component-type': 'button',
+        'data-is-layout': false,
+    }, buttonText); // ✅ Changed
 }
 
 // Enhanced avatar classes with size constraints

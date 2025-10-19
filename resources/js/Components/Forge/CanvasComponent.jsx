@@ -217,6 +217,20 @@ const CanvasComponent = ({
   
   
   
+  // 🔥 Global function for child text to select parent
+useEffect(() => {
+  window.forgeSelectComponent = (componentId) => {
+    setSelectedComponent(componentId);
+  };
+  
+  return () => {
+    delete window.forgeSelectComponent;
+  };
+}, []);
+  
+  
+  
+  
   useEffect(() => {
   const handleOverlayChange = (e) => {
     console.log('Canvas received overlay change:', e.detail);
@@ -870,6 +884,74 @@ const handleDndDragEnd = useCallback((event) => {
   }, [activeId, canvasComponents]);
   
   
+  
+  // 🔥 NEW: Handle double-click to edit text inline
+const handleDoubleClickText = useCallback((e, componentId) => {
+  e.stopPropagation();
+  
+  const component = canvasComponents.find(c => c.id === componentId);
+  if (!component) return;
+  
+  // Check if it's a text element
+  const isTextElement = component.type === 'text-node' || 
+                       component.isPseudoElement ||
+                       ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 'small', 'label', 'blockquote', 'button', 'link'].includes(component.type);
+  
+  if (!isTextElement) return;
+  
+  const element = e.currentTarget;
+  const originalContent = component.props?.content || component.props?.text || '';
+  
+  // Make element editable
+  element.contentEditable = true;
+  element.focus();
+  
+  // Select all text
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  
+  // Style for editing mode
+  element.style.outline = '2px solid #3b82f6';
+  element.style.outlineOffset = '2px';
+  
+  // Handle blur (save changes)
+  const handleBlur = () => {
+    element.contentEditable = false;
+    element.style.outline = '';
+    
+    const newContent = element.textContent || '';
+    
+    if (newContent !== originalContent) {
+      onPropertyUpdate(componentId, 'content', newContent, 'props');
+      onPropertyUpdate(componentId, 'text', newContent, 'props');
+    }
+    
+    element.removeEventListener('blur', handleBlur);
+    element.removeEventListener('keydown', handleKeyDown);
+  };
+  
+  // Handle Enter/Escape keys
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      element.blur();
+    } else if (e.key === 'Escape') {
+      element.textContent = originalContent;
+      element.blur();
+    }
+  };
+  
+  element.addEventListener('blur', handleBlur);
+  element.addEventListener('keydown', handleKeyDown);
+}, [canvasComponents, onPropertyUpdate]);
+  
+  
+  
+  
+  
  // CRITICAL: Smart click handler that prioritizes deepest child
 const handleSmartClick = useCallback((e) => {
   e.stopPropagation();
@@ -960,6 +1042,7 @@ const SortableComponent = ({ component, depth, parentId, index, parentStyle }) =
         transition-opacity duration-150
       `}
       onClick={handleSmartClick}
+      onDoubleClick={(e) => handleDoubleClickText(e, component.id)}
     >
       {/* LAYOUT DRAG OVERLAY - Full area draggable */}
       <div 
@@ -1051,6 +1134,7 @@ const SortableComponent = ({ component, depth, parentId, index, parentStyle }) =
         transition-opacity duration-150
       `}
       onClick={handleSmartClick}
+      onDoubleClick={(e) => handleDoubleClickText(e, component.id)}
     >
       {/* 🔥 CRITICAL FIX: ALWAYS VISIBLE DRAG OVERLAY FOR NON-LAYOUT COMPONENTS */}
       <div 
