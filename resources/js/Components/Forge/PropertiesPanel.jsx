@@ -305,86 +305,138 @@ const componentDefinition = componentLibraryService?.getComponentDefinition?.(se
       
       {/* Scrollable Content */}
       <div className="p-4 space-y-4">
-                {/* 🔥 TEXT CONTENT INPUTS - Show for all text elements and their children */}
+        {/* 🔥 TEXT CONTENT INPUTS - Show for all text elements and their children */}
         {(() => {
-          // Get all text child nodes
-          const textChildren = selectedComponentData?.children?.filter(child => 
-            child.type === 'text-node' || child.isPseudoElement
-          ) || [];
-          
-          // Check if current element can have text
-          const canHaveText = selectedComponentData?.type && [
-            'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 
-            'small', 'label', 'blockquote', 'button', 'link', 'text-node'
-          ].includes(selectedComponentData.type);
-          
-          if (!canHaveText && textChildren.length === 0) return null;
-          
-          return (
-            <div className="p-4 mb-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
-              {/* Parent element's own text content */}
-              {canHaveText && (
-                <div>
-                  <label className="block text-sm font-medium text-blue-900 mb-2">
-                    Text Content {selectedComponentData.type !== 'text-node' && '(Element)'}
-                  </label>
-                  <textarea
-                    value={selectedComponentData?.props?.content || selectedComponentData?.props?.text || ''}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      onPropertyUpdate(selectedComponent, 'content', value, 'props');
-                      onPropertyUpdate(selectedComponent, 'text', value, 'props');
-                    }}
-                    className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    placeholder="Enter text content..."
-                    rows={3}
-                  />
+            // Get all text child nodes
+            const textChildren = selectedComponentData?.children?.filter(child => 
+                child.type === 'text-node' || child.isPseudoElement
+            ) || [];
+            
+            // Check if current element can have text
+            const textElements = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 
+                'small', 'label', 'blockquote', 'button', 'link', 'text-node'];
+            
+            const canHaveText = textElements.includes(selectedComponentData?.type);
+            
+            if (!canHaveText && textChildren.length === 0) return null;
+            
+            return (
+                <div className="p-4 mb-4 bg-blue-50 border-2 border-blue-300 rounded-lg space-y-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-blue-900">Text Content Editor</h4>
+                        <span className="text-xs px-2 py-1 bg-blue-200 text-blue-800 rounded">
+                            {textChildren.length + (canHaveText ? 1 : 0)} text node(s)
+                        </span>
+                    </div>
+                    
+                    {/* Parent element's own text content */}
+                    {canHaveText && (
+                        <div className="bg-white p-3 rounded border border-blue-200">
+                            <label className="block text-sm font-medium text-blue-900 mb-2 flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                                Main Content {selectedComponentData.type !== 'text-node' && `(${selectedComponentData.type})`}
+                            </label>
+                            <textarea
+                                value={selectedComponentData?.props?.content || selectedComponentData?.props?.text || ''}
+                                onChange={(e) => {
+                                    const value = e.target.value;
+                                    handlePropertyChange('content', value, 'props');
+                                    handlePropertyChange('text', value, 'props');
+                                }}
+                                className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                                placeholder="Enter text content..."
+                                rows={3}
+                                style={{
+                                    backgroundColor: 'var(--color-surface)',
+                                    color: 'var(--color-text)'
+                                }}
+                            />
+                        </div>
+                    )}
+                    
+                    {/* Child text nodes */}
+                    {textChildren.map((child, index) => (
+                        <div key={child.id || `text-child-${index}`} className="bg-amber-50 p-3 rounded border border-amber-200">
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="text-sm font-medium text-amber-900 flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                                    Text Child Node {index + 1}
+                                </label>
+                                <span className="text-xs px-2 py-0.5 bg-amber-200 text-amber-800 rounded">
+                                    PSEUDO
+                                </span>
+                            </div>
+                            <textarea
+                                value={child.props?.content || child.props?.text || ''}
+                                onChange={(e) => {
+                                    const value = e.target.value;
+                                    const updatedChildren = [...(selectedComponentData.children || [])];
+                                    const childIndex = updatedChildren.findIndex(c => c.id === child.id);
+                                    if (childIndex !== -1) {
+                                        updatedChildren[childIndex] = {
+                                            ...updatedChildren[childIndex],
+                                            props: {
+                                                ...updatedChildren[childIndex].props,
+                                                content: value,
+                                                text: value
+                                            }
+                                        };
+                                        onPropertyUpdate(selectedComponent, 'children', updatedChildren);
+                                    }
+                                }}
+                                className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-mono"
+                                placeholder="Enter text content..."
+                                rows={2}
+                                style={{
+                                    backgroundColor: 'var(--color-surface)',
+                                    color: 'var(--color-text)'
+                                }}
+                            />
+                            <button
+                                onClick={() => {
+                                    const updatedChildren = selectedComponentData.children.filter(c => c.id !== child.id);
+                                    onPropertyUpdate(selectedComponent, 'children', updatedChildren);
+                                }}
+                                className="mt-2 text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                            >
+                                Remove Text Node
+                            </button>
+                        </div>
+                    ))}
+                    
+                    {/* Add new text node button */}
+                    <button
+                        onClick={() => {
+                            const newTextNode = {
+                                id: `text-node_${Date.now()}`,
+                                type: 'text-node',
+                                isPseudoElement: true,
+                                props: {
+                                    content: 'New text content',
+                                    text: 'New text content'
+                                }
+                            };
+                            const updatedChildren = [...(selectedComponentData.children || []), newTextNode];
+                            onPropertyUpdate(selectedComponent, 'children', updatedChildren);
+                        }}
+                        className="w-full py-2 px-3 bg-green-100 text-green-800 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors flex items-center justify-center gap-2"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        Add Text Node
+                    </button>
+                    
+                    <p className="text-xs text-blue-600 mt-2 flex items-start gap-2">
+                        <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                        {textChildren.length > 0 
+                            ? `Managing ${textChildren.length} child text node(s) and parent content` 
+                            : 'Text content for this element. Add child nodes for complex text.'}
+                    </p>
                 </div>
-              )}
-              
-              {/* Child text nodes */}
-              {textChildren.map((child, index) => (
-                <div key={child.id || `text-child-${index}`}>
-                  <label className="block text-sm font-medium text-blue-900 mb-2">
-                    Text Child {index + 1}
-                    <span className="ml-2 text-xs px-2 py-0.5 bg-orange-100 text-orange-700 rounded">
-                      PSEUDO
-                    </span>
-                  </label>
-                  <textarea
-                    value={child.props?.content || child.props?.text || ''}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      // Update the child node's content
-                      const updatedChildren = [...(selectedComponentData.children || [])];
-                      const childIndex = updatedChildren.findIndex(c => c.id === child.id);
-                      if (childIndex !== -1) {
-                        updatedChildren[childIndex] = {
-                          ...updatedChildren[childIndex],
-                          props: {
-                            ...updatedChildren[childIndex].props,
-                            content: value,
-                            text: value
-                          }
-                        };
-                        // Update parent with new children
-                        onPropertyUpdate(selectedComponent, 'children', updatedChildren);
-                      }
-                    }}
-                    className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    placeholder="Enter text content..."
-                    rows={2}
-                  />
-                </div>
-              ))}
-              
-              <p className="text-xs text-blue-600 mt-2">
-                💡 {textChildren.length > 0 
-                  ? `Editing ${textChildren.length} child text node(s) and parent element` 
-                  : 'This is the text content for this element'}
-              </p>
-            </div>
-          );
+            );
         })()}
         <LayoutSection {...commonProps} />
         <TypographySection {...commonProps} />

@@ -78,6 +78,9 @@ export default function VoidPage() {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
   const [frameToDelete, setFrameToDelete] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  // Add after other state declarations
+  const zoomContainerRef = useRef(null)
+  const [isZooming, setIsZooming] = useState(false)
 
   // Fixed zoom state - use store directly with minimal local state
   const zoom = useMemo(() => zoomLevel / 100, [zoomLevel])
@@ -99,6 +102,13 @@ export default function VoidPage() {
   const [showCreateWorkspace, setShowCreateWorkspace] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showProjectSwitcher, setShowProjectSwitcher] = useState(false)
+  
+  // ADD this after your state declarations
+  const touchStateRef = useRef({
+    initialDistance: 0,
+    initialZoom: zoomLevel,
+    isZooming: false
+  })
 
 
   // Frame dimensions for collision detection
@@ -372,14 +382,16 @@ const handleDragEnd = useCallback(async (event) => {
     router.visit(`/void/${project.uuid}/frame=${frame.uuid}/modeForge`)
   }, [project?.uuid])
 
-// Enhanced zoom handler
+// In your VoidPage.jsx, update the handleZoom function:
 const handleZoom = useCallback((delta, centerX = null, centerY = null) => {
-  const zoomStep = typeof delta === 'number' ? delta : (delta > 0 ? 5 : -5)
+  const zoomStep = typeof delta === 'number' ? delta : (delta > 0 ? 10 : -10)
   const newZoomLevel = Math.min(300, Math.max(25, zoomLevel + zoomStep))
+  
+  console.log('VoidPage: Zoom changing to', newZoomLevel) // Debug log
   
   if (newZoomLevel === zoomLevel) return
 
-  // Smooth zoom to point with optimized calculations
+  // Figma-like zoom to point
   if (centerX !== null && centerY !== null && canvasRef.current) {
     const rect = canvasRef.current.getBoundingClientRect()
     const mouseX = centerX - rect.left
@@ -394,17 +406,93 @@ const handleZoom = useCallback((delta, centerX = null, centerY = null) => {
       const newScrollY = scrollPosition.y + (mouseY / oldZoom) * (1 - 1/zoomFactor)
       
       setScrollPosition({ 
-        x: newScrollX, 
-        y: newScrollY 
+        x: Math.max(0, Math.min(scrollBounds.width - window.innerWidth / newZoom, newScrollX)),
+        y: Math.max(0, Math.min(scrollBounds.height - window.innerHeight / newZoom, newScrollY))
       })
     }
   }
   
+  // CRITICAL: Update store zoom level
   setZoomLevel(newZoomLevel)
-}, [zoomLevel, scrollPosition, setZoomLevel, setScrollPosition])
+}, [zoomLevel, scrollPosition, setZoomLevel, setScrollPosition, scrollBounds])
 
-  // Scroll handler with fixed zoom support
-  useScrollHandler({
+
+
+
+// REPLACE the handlePinchZoom function with this:
+const handlePinchZoom = useCallback((event) => {
+  if (event.touches.length !== 2) return
+  
+  event.preventDefault()
+  event.stopPropagation()
+  
+  const touch1 = event.touches[0]
+  const touch2 = event.touches[1]
+  
+  const distance = Math.hypot(
+    touch1.clientX - touch2.clientX,
+    touch1.clientY - touch2.clientY
+  )
+  
+  if (!touchStateRef.current.initialDistance) {
+    touchStateRef.current = {
+      initialDistance: distance,
+      initialZoom: zoomLevel,
+      isZooming: true
+    }
+    setIsZooming(true)
+    return
+  }
+  
+  const zoomChange = distance / touchStateRef.current.initialDistance
+  const newZoomLevel = Math.min(300, Math.max(25, touchStateRef.current.initialZoom * zoomChange))
+  
+  // Calculate center point between two touches
+  const centerX = (touch1.clientX + touch2.clientX) / 2
+  const centerY = (touch1.clientY + touch2.clientY) / 2
+  
+  // Update zoom level in store
+  setZoomLevel(Math.round(newZoomLevel))
+  
+  // Update scroll position to zoom to center point
+  if (canvasRef.current) {
+    const rect = canvasRef.current.getBoundingClientRect()
+    const mouseX = centerX - rect.left
+    const mouseY = centerY - rect.top
+    
+    const oldZoom = touchStateRef.current.initialZoom / 100
+    const newZoom = newZoomLevel / 100
+    
+    if (oldZoom > 0 && newZoom > 0) {
+      const zoomChangeFactor = newZoom / oldZoom
+      const newScrollX = scrollPosition.x + (mouseX / oldZoom) * (1 - 1/zoomChangeFactor)
+      const newScrollY = scrollPosition.y + (mouseY / oldZoom) * (1 - 1/zoomChangeFactor)
+      
+      setScrollPosition({ 
+        x: Math.max(0, Math.min(scrollBounds.width - window.innerWidth / newZoom, newScrollX)),
+        y: Math.max(0, Math.min(scrollBounds.height - window.innerHeight / newZoom, newScrollY))
+      })
+    }
+  }
+}, [zoomLevel, scrollPosition, setZoomLevel, setScrollPosition, scrollBounds])
+
+
+
+// ADD after handlePinchZoom
+const handleTouchEnd = useCallback(() => {
+  touchStateRef.current = {
+    initialDistance: 0,
+    initialZoom: zoomLevel,
+    isZooming: false
+  }
+  setIsZooming(false)
+}, [zoomLevel])
+
+
+
+
+// UPDATE the scroll handler usage:
+useScrollHandler({
   canvasRef,
   scrollPosition,
   setScrollPosition,
@@ -413,8 +501,10 @@ const handleZoom = useCallback((delta, centerX = null, centerY = null) => {
   lastPointerPos,
   setLastPointerPos,
   scrollBounds,
-  zoom,
-  onZoom: handleZoom
+  zoom: zoomLevel / 100, // Pass the actual zoom level from store
+  onZoom: handleZoom,
+  onPinchZoom: handlePinchZoom,
+  onTouchEnd: handleTouchEnd
 })
 
 // FORCE: Ensure scroll bounds are always respected

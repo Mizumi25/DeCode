@@ -204,63 +204,124 @@ const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, set
         
         {/* Gradient Support */}
         <div>
-          <SubsectionHeader title="Gradients" />
-          <InputField
-            label="Gradient Type"
-            value={currentStyles.backgroundImage?.includes('gradient') ? 'gradient' : 'none'}
-            onChange={(value) => {
-              if (value === 'none') {
-                onPropertyChange('backgroundImage', 'none', 'style');
-              } else {
-                onPropertyChange('backgroundImage', 'linear-gradient(45deg, #667eea 0%, #764ba2 100%)', 'style');
-              }
-            }}
-            type="select"
-            options={{
-              values: ['none', 'linear-gradient', 'radial-gradient', 'conic-gradient']
-            }}
-            searchTerm={searchTerm}
-          />
-          
-          {currentStyles.backgroundImage?.includes('gradient') && (
-            <div className="space-y-2 mt-2">
-              <InputField
-                label="Gradient Direction"
-                value={currentStyles.gradientDirection || '45deg'}
-                onChange={(value) => {
-                  const currentGradient = currentStyles.backgroundImage || '';
-                  const newGradient = currentGradient.replace(/\([^,]*,/, `(${value},`);
-                  onPropertyChange('backgroundImage', newGradient, 'style');
-                }}
-                options={{ placeholder: '45deg or to right' }}
-                searchTerm={searchTerm}
-              />
-              
-              <InputField
-                label="Gradient Color 1"
-                value={currentStyles.gradientColor1 || '#667eea'}
-                onChange={(value) => {
-                  onPropertyChange('gradientColor1', value, 'style');
-                  const gradient = `linear-gradient(${currentStyles.gradientDirection || '45deg'}, ${value} 0%, ${currentStyles.gradientColor2 || '#764ba2'} 100%)`;
-                  onPropertyChange('backgroundImage', gradient, 'style');
-                }}
-                type="color"
-                searchTerm={searchTerm}
-              />
-              
-              <InputField
-                label="Gradient Color 2"
-                value={currentStyles.gradientColor2 || '#764ba2'}
-                onChange={(value) => {
-                  onPropertyChange('gradientColor2', value, 'style');
-                  const gradient = `linear-gradient(${currentStyles.gradientDirection || '45deg'}, ${currentStyles.gradientColor1 || '#667eea'} 0%, ${value} 100%)`;
-                  onPropertyChange('backgroundImage', gradient, 'style');
-                }}
-                type="color"
-                searchTerm={searchTerm}
-              />
-            </div>
-          )}
+            <SubsectionHeader title="Gradients" />
+            
+            {/* Gradient Parser Helper */}
+            {(() => {
+                const bgImage = currentStyles.backgroundImage || '';
+                const hasGradient = bgImage.includes('gradient');
+                const gradientType = hasGradient ? (
+                    bgImage.includes('linear-gradient') ? 'linear-gradient' :
+                    bgImage.includes('radial-gradient') ? 'radial-gradient' :
+                    bgImage.includes('conic-gradient') ? 'conic-gradient' : 'none'
+                ) : 'none';
+                
+                // Parse gradient colors
+                const parseGradientColors = (gradientStr) => {
+                    if (!gradientStr || !gradientStr.includes('gradient')) return ['#667eea', '#764ba2'];
+                    
+                    // Extract colors using regex
+                    const colorMatches = gradientStr.match(/#[0-9a-fA-F]{3,6}|rgb\([^)]+\)|rgba\([^)]+\)/g);
+                    return colorMatches && colorMatches.length >= 2 
+                        ? [colorMatches[0], colorMatches[1]] 
+                        : ['#667eea', '#764ba2'];
+                };
+                
+                // Parse gradient direction
+                const parseGradientDirection = (gradientStr) => {
+                    if (!gradientStr || !gradientStr.includes('gradient')) return '45deg';
+                    
+                    // Try to find direction
+                    const dirMatch = gradientStr.match(/gradient\(([^,]+),/);
+                    return dirMatch ? dirMatch[1].trim() : '45deg';
+                };
+                
+                const [color1, color2] = parseGradientColors(bgImage);
+                const direction = parseGradientDirection(bgImage);
+                
+                return (
+                    <>
+                        <InputField
+                            label="Gradient Type"
+                            value={gradientType}
+                            onChange={(value) => {
+                                if (value === 'none') {
+                                    onPropertyChange('backgroundImage', 'none', 'style');
+                                } else {
+                                    const newGradient = `${value}(45deg, #667eea 0%, #764ba2 100%)`;
+                                    onPropertyChange('backgroundImage', newGradient, 'style');
+                                }
+                            }}
+                            type="select"
+                            options={{
+                                values: ['none', 'linear-gradient', 'radial-gradient', 'conic-gradient']
+                            }}
+                            searchTerm={searchTerm}
+                        />
+                        
+                        {hasGradient && (
+                            <div className="space-y-3 mt-3 p-3 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)', border: '1px solid var(--color-border)' }}>
+                                <InputField
+                                    label="Gradient Direction"
+                                    value={direction}
+                                    onChange={(value) => {
+                                        const [c1, c2] = parseGradientColors(currentStyles.backgroundImage);
+                                        const newGradient = `${gradientType}(${value}, ${c1} 0%, ${c2} 100%)`;
+                                        onPropertyChange('backgroundImage', newGradient, 'style');
+                                    }}
+                                    type="select"
+                                    options={{
+                                        values: ['45deg', '90deg', '135deg', '180deg', '225deg', '270deg', 'to right', 'to left', 'to top', 'to bottom']
+                                    }}
+                                    searchTerm={searchTerm}
+                                />
+                                
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Start Color</label>
+                                        <input
+                                            type="color"
+                                            value={color1}
+                                            onChange={(e) => {
+                                                const newGradient = `${gradientType}(${direction}, ${e.target.value} 0%, ${color2} 100%)`;
+                                                onPropertyChange('backgroundImage', newGradient, 'style');
+                                            }}
+                                            className="w-full h-10 border rounded cursor-pointer"
+                                            style={{ borderColor: 'var(--color-border)' }}
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>End Color</label>
+                                        <input
+                                            type="color"
+                                            value={color2}
+                                            onChange={(e) => {
+                                                const newGradient = `${gradientType}(${direction}, ${color1} 0%, ${e.target.value} 100%)`;
+                                                onPropertyChange('backgroundImage', newGradient, 'style');
+                                            }}
+                                            className="w-full h-10 border rounded cursor-pointer"
+                                            style={{ borderColor: 'var(--color-border)' }}
+                                        />
+                                    </div>
+                                </div>
+                                
+                                {/* Preview */}
+                                <div className="mt-3">
+                                    <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Preview</label>
+                                    <div 
+                                        className="w-full h-16 rounded-lg border"
+                                        style={{ 
+                                            backgroundImage: currentStyles.backgroundImage,
+                                            borderColor: 'var(--color-border)'
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </>
+                );
+            })()}
         </div>
       </PropertySection>
 

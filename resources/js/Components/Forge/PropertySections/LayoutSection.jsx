@@ -517,13 +517,16 @@ const LayoutSection = ({
           searchTerm={searchTerm}
         >
           <VisualButtonGroup
-            label="Flex Direction"
-            value={localValues.flexDirection || currentStyles.flexDirection || 'row'}
-            onChange={(value) => {
-              handleInputChange('flexDirection', value);
-              onPropertyChange('flexDirection', value, 'style');
-            }}
-            options={['row', 'column', 'row-reverse', 'column-reverse']}
+              label="Flex Direction"
+              value={currentStyles.flexDirection || 'row'}
+              onChange={(value) => {
+                  console.log('🔧 Setting flexDirection:', value);
+                  onPropertyChange('flexDirection', value, 'style');
+                  
+                  // Force re-render by also updating a timestamp
+                  onPropertyChange('_lastFlexUpdate', Date.now(), 'style');
+              }}
+              options={['row', 'column', 'row-reverse', 'column-reverse']}
           />
 
           <VisualButtonGroup

@@ -1,18 +1,15 @@
-import React, { useEffect } from 'react';
+// @/Components/Forge/PropertySections/TypographySection.jsx - FULLY WORKING
+
+import React, { useEffect, useState } from 'react';
 import { Type, Wand2 } from 'lucide-react';
 import { PropertySection, InputField, SubsectionHeader, presetValues } from '../PropertyUtils';
 
-// 🔥 ADD: Google Fonts List (Top 100 most popular)
+// Google Fonts List
 const GOOGLE_FONTS = [
   'Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Raleway', 
   'Nunito', 'Ubuntu', 'Playfair Display', 'Merriweather', 'PT Sans', 'Source Sans Pro',
   'Oswald', 'Quicksand', 'Karla', 'Work Sans', 'DM Sans', 'Space Grotesk',
   'Plus Jakarta Sans', 'Outfit', 'Manrope', 'Sora', 'Archivo', 'Public Sans',
-  'Lexend', 'Be Vietnam Pro', 'IBM Plex Sans', 'Rubik', 'Mukta', 'Barlow',
-  'Noto Sans', 'Kanit', 'Crimson Text', 'Libre Baskerville', 'Arimo',
-  'Titillium Web', 'Hind', 'Inconsolata', 'Cabin', 'Heebo', 'Josefin Sans',
-  'Libre Franklin', 'Oxygen', 'Dosis', 'Bitter', 'Exo 2', 'Varela Round',
-  'Abril Fatface', 'Righteous', 'Pacifico', 'Dancing Script', 'Caveat',
 ];
 
 const SYSTEM_FONTS = [
@@ -20,36 +17,33 @@ const SYSTEM_FONTS = [
   'Courier New', 'monospace', 'sans-serif', 'serif'
 ];
 
-const TypographySection = ({ currentStyles, onPropertyChange, expandedSections, setExpandedSections, searchTerm = '', selectedComponentData }) => {
-  // 🔥 ADD: Load Google Fonts dynamically
+const TypographySection = ({ 
+  currentStyles, 
+  onPropertyChange, 
+  expandedSections, 
+  setExpandedSections, 
+  searchTerm = '', 
+  selectedComponentData 
+}) => {
+  // Load Google Fonts
   useEffect(() => {
     if (!document.getElementById('google-fonts-decode')) {
       const link = document.createElement('link');
       link.id = 'google-fonts-decode';
       link.rel = 'stylesheet';
       
-      // Load all fonts with weights 300-900
       const fontsQuery = GOOGLE_FONTS.map(font => 
         `family=${font.replace(/ /g, '+')}:wght@300;400;500;600;700;800;900`
       ).join('&');
       
       link.href = `https://fonts.googleapis.com/css2?${fontsQuery}&display=swap`;
       document.head.appendChild(link);
-      
-      console.log('✅ Google Fonts loaded:', GOOGLE_FONTS.length, 'fonts');
     }
   }, []);
 
-  // 🔥 ADD: Combined font list
-  const allFonts = [
-    ...GOOGLE_FONTS,
-    '---',  // Separator
-    ...SYSTEM_FONTS
-  ];
+  const allFonts = [...GOOGLE_FONTS, '---', ...SYSTEM_FONTS];
   
-  
-  // Check if component needs placeholder (inputs/textarea)
-const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedComponentData?.type);
+  const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedComponentData?.type);
 
   return (
     <>
@@ -61,42 +55,45 @@ const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedCompon
         setExpandedSections={setExpandedSections}
         searchTerm={searchTerm}
       >
-      
-        {/* 🔥 PLACEHOLDER - Only for inputs/textarea */}
+        {/* Placeholder - Only for inputs/textarea */}
         {needsPlaceholder && (
           <InputField
             label="Placeholder Text"
-            value={selectedComponentData?.props?.placeholder || ''}
-            onChange={(value) => onPropertyChange('placeholder', value, 'props')}
+            value={currentStyles.placeholder || selectedComponentData?.props?.placeholder || ''}
+            onChange={(value) => {
+              onPropertyChange('placeholder', value, 'props');
+            }}
             type="text"
             options={{ placeholder: 'Enter placeholder text...' }}
             searchTerm={searchTerm}
           />
         )}
         
-        {/* 🔥 UPDATED: Font Family with Google Fonts */}
+        {/* Font Family */}
         <InputField
           label="Font Family"
-          value={currentStyles.fontFamily}
-          onChange={(value) => onPropertyChange('fontFamily', value, 'style')}
-          type="select"
-          options={{
-            values: allFonts
+          value={currentStyles.fontFamily || ''}
+          onChange={(value) => {
+            if (value === '---') return;
+            onPropertyChange('fontFamily', value, 'style');
           }}
+          type="select"
+          options={{ values: allFonts }}
           searchTerm={searchTerm}
         />
         
+        {/* Font Size & Weight */}
         <div className="grid grid-cols-2 gap-3">
           <InputField
             label="Font Size"
-            value={currentStyles.fontSize}
+            value={currentStyles.fontSize || ''}
             onChange={(value) => onPropertyChange('fontSize', value, 'style')}
-            options={{ placeholder: '16px' }}
+            options={{ placeholder: '16px, 1rem, 1.5em' }}
             searchTerm={searchTerm}
           />
           <InputField
             label="Font Weight"
-            value={currentStyles.fontWeight}
+            value={currentStyles.fontWeight || ''}
             onChange={(value) => onPropertyChange('fontWeight', value, 'style')}
             type="select"
             options={{
@@ -106,34 +103,37 @@ const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedCompon
           />
         </div>
         
+        {/* Line Height & Letter Spacing */}
         <div className="grid grid-cols-2 gap-3">
           <InputField
             label="Line Height"
-            value={currentStyles.lineHeight}
+            value={currentStyles.lineHeight || ''}
             onChange={(value) => onPropertyChange('lineHeight', value, 'style')}
-            options={{ placeholder: 'normal' }}
+            options={{ placeholder: 'normal, 1.5, 2' }}
             searchTerm={searchTerm}
           />
           <InputField
             label="Letter Spacing"
-            value={currentStyles.letterSpacing}
+            value={currentStyles.letterSpacing || ''}
             onChange={(value) => onPropertyChange('letterSpacing', value, 'style')}
-            options={{ placeholder: 'normal' }}
+            options={{ placeholder: 'normal, 0.5px, 1px' }}
             searchTerm={searchTerm}
           />
         </div>
         
+        {/* Word Spacing */}
         <InputField
           label="Word Spacing"
-          value={currentStyles.wordSpacing}
+          value={currentStyles.wordSpacing || ''}
           onChange={(value) => onPropertyChange('wordSpacing', value, 'style')}
-          options={{ placeholder: 'normal' }}
+          options={{ placeholder: 'normal, 2px, 4px' }}
           searchTerm={searchTerm}
         />
         
+        {/* Text Align */}
         <InputField
           label="Text Align"
-          value={currentStyles.textAlign}
+          value={currentStyles.textAlign || ''}
           onChange={(value) => onPropertyChange('textAlign', value, 'style')}
           type="select"
           options={{
@@ -142,9 +142,10 @@ const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedCompon
           searchTerm={searchTerm}
         />
         
+        {/* Vertical Align */}
         <InputField
           label="Vertical Align"
-          value={currentStyles.verticalAlign}
+          value={currentStyles.verticalAlign || ''}
           onChange={(value) => onPropertyChange('verticalAlign', value, 'style')}
           type="select"
           options={{
@@ -153,9 +154,10 @@ const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedCompon
           searchTerm={searchTerm}
         />
         
+        {/* Text Transform */}
         <InputField
           label="Text Transform"
-          value={currentStyles.textTransform}
+          value={currentStyles.textTransform || ''}
           onChange={(value) => onPropertyChange('textTransform', value, 'style')}
           type="select"
           options={{
@@ -164,9 +166,10 @@ const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedCompon
           searchTerm={searchTerm}
         />
         
+        {/* Font Style */}
         <InputField
           label="Font Style"
-          value={currentStyles.fontStyle}
+          value={currentStyles.fontStyle || ''}
           onChange={(value) => onPropertyChange('fontStyle', value, 'style')}
           type="select"
           options={{
@@ -175,28 +178,31 @@ const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedCompon
           searchTerm={searchTerm}
         />
         
+        {/* Font Variant */}
         <InputField
           label="Font Variant"
-          value={currentStyles.fontVariant}
+          value={currentStyles.fontVariant || ''}
           onChange={(value) => onPropertyChange('fontVariant', value, 'style')}
           type="select"
           options={{
-            values: ['normal', 'small-caps', 'all-small-caps', 'petite-caps', 'all-petite-caps', 'unicase', 'titling-caps']
+            values: ['normal', 'small-caps', 'all-small-caps']
           }}
           searchTerm={searchTerm}
         />
         
+        {/* Text Indent */}
         <InputField
           label="Text Indent"
-          value={currentStyles.textIndent}
+          value={currentStyles.textIndent || ''}
           onChange={(value) => onPropertyChange('textIndent', value, 'style')}
-          options={{ placeholder: '0px' }}
+          options={{ placeholder: '0px, 20px, 1em' }}
           searchTerm={searchTerm}
         />
         
+        {/* White Space */}
         <InputField
           label="White Space"
-          value={currentStyles.whiteSpace}
+          value={currentStyles.whiteSpace || ''}
           onChange={(value) => onPropertyChange('whiteSpace', value, 'style')}
           type="select"
           options={{
@@ -205,9 +211,10 @@ const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedCompon
           searchTerm={searchTerm}
         />
         
+        {/* Word Break */}
         <InputField
           label="Word Break"
-          value={currentStyles.wordBreak}
+          value={currentStyles.wordBreak || ''}
           onChange={(value) => onPropertyChange('wordBreak', value, 'style')}
           type="select"
           options={{
@@ -216,9 +223,10 @@ const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedCompon
           searchTerm={searchTerm}
         />
         
+        {/* Hyphens */}
         <InputField
           label="Hyphens"
-          value={currentStyles.hyphens}
+          value={currentStyles.hyphens || ''}
           onChange={(value) => onPropertyChange('hyphens', value, 'style')}
           type="select"
           options={{
@@ -228,6 +236,7 @@ const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedCompon
         />
       </PropertySection>
 
+      {/* Text Effects Section */}
       <PropertySection
         title="Text Effects"
         Icon={Wand2}
@@ -236,9 +245,10 @@ const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedCompon
         setExpandedSections={setExpandedSections}
         searchTerm={searchTerm}
       >
+        {/* Text Decoration */}
         <InputField
           label="Text Decoration"
-          value={currentStyles.textDecoration}
+          value={currentStyles.textDecoration || ''}
           onChange={(value) => onPropertyChange('textDecoration', value, 'style')}
           type="select"
           options={{
@@ -247,9 +257,10 @@ const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedCompon
           searchTerm={searchTerm}
         />
         
+        {/* Text Decoration Style */}
         <InputField
           label="Text Decoration Style"
-          value={currentStyles.textDecorationStyle}
+          value={currentStyles.textDecorationStyle || ''}
           onChange={(value) => onPropertyChange('textDecorationStyle', value, 'style')}
           type="select"
           options={{
@@ -258,17 +269,38 @@ const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedCompon
           searchTerm={searchTerm}
         />
         
-        <InputField
-          label="Text Decoration Color"
-          value={currentStyles.textDecorationColor}
-          onChange={(value) => onPropertyChange('textDecorationColor', value, 'style')}
-          type="color"
-          searchTerm={searchTerm}
-        />
+        {/* Text Decoration Color */}
+        <div>
+          <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>
+            Text Decoration Color
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="color"
+              value={currentStyles.textDecorationColor || '#000000'}
+              onChange={(e) => onPropertyChange('textDecorationColor', e.target.value, 'style')}
+              className="w-12 h-10 border rounded cursor-pointer"
+              style={{ borderColor: 'var(--color-border)' }}
+            />
+            <input
+              type="text"
+              value={currentStyles.textDecorationColor || ''}
+              onChange={(e) => onPropertyChange('textDecorationColor', e.target.value, 'style')}
+              placeholder="#000000"
+              className="flex-1 px-3 py-2 border rounded-lg text-sm"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+            />
+          </div>
+        </div>
         
+        {/* Text Shadow */}
         <InputField
           label="Text Shadow"
-          value={currentStyles.textShadow}
+          value={currentStyles.textShadow || ''}
           onChange={(value) => onPropertyChange('textShadow', value, 'style')}
           type="preset"
           options={{
@@ -277,61 +309,74 @@ const needsPlaceholder = ['input', 'textarea', 'select'].includes(selectedCompon
           searchTerm={searchTerm}
         />
         
-        <InputField
-          label="Text Stroke Width"
-          value={currentStyles.webkitTextStrokeWidth || currentStyles.textStrokeWidth}
-          onChange={(value) => {
-            onPropertyChange('webkitTextStrokeWidth', value, 'style');
-            onPropertyChange('textStrokeWidth', value, 'style');
-          }}
-          options={{ placeholder: '0px' }}
-          searchTerm={searchTerm}
-        />
+        {/* Text Stroke */}
+        <div className="grid grid-cols-2 gap-3">
+          <InputField
+            label="Text Stroke Width"
+            value={currentStyles.webkitTextStrokeWidth || currentStyles.textStrokeWidth || ''}
+            onChange={(value) => {
+              onPropertyChange('webkitTextStrokeWidth', value, 'style');
+              onPropertyChange('textStrokeWidth', value, 'style');
+            }}
+            options={{ placeholder: '0px, 1px, 2px' }}
+            searchTerm={searchTerm}
+          />
+          
+          <div>
+            <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>
+              Stroke Color
+            </label>
+            <input
+              type="color"
+              value={currentStyles.webkitTextStrokeColor || currentStyles.textStrokeColor || '#000000'}
+              onChange={(e) => {
+                onPropertyChange('webkitTextStrokeColor', e.target.value, 'style');
+                onPropertyChange('textStrokeColor', e.target.value, 'style');
+              }}
+              className="w-full h-10 border rounded cursor-pointer"
+              style={{ borderColor: 'var(--color-border)' }}
+            />
+          </div>
+        </div>
         
-        <InputField
-          label="Text Stroke Color"
-          value={currentStyles.webkitTextStrokeColor || currentStyles.textStrokeColor}
-          onChange={(value) => {
-            onPropertyChange('webkitTextStrokeColor', value, 'style');
-            onPropertyChange('textStrokeColor', value, 'style');
-          }}
-          type="color"
-          searchTerm={searchTerm}
-        />
+        {/* Text Fill Color */}
+        <div>
+          <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>
+            Text Fill Color (Webkit)
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="color"
+              value={currentStyles.webkitTextFillColor || currentStyles.textFillColor || '#000000'}
+              onChange={(e) => {
+                onPropertyChange('webkitTextFillColor', e.target.value, 'style');
+                onPropertyChange('textFillColor', e.target.value, 'style');
+              }}
+              className="w-12 h-10 border rounded cursor-pointer"
+              style={{ borderColor: 'var(--color-border)' }}
+            />
+            <input
+              type="text"
+              value={currentStyles.webkitTextFillColor || currentStyles.textFillColor || ''}
+              onChange={(e) => {
+                onPropertyChange('webkitTextFillColor', e.target.value, 'style');
+                onPropertyChange('textFillColor', e.target.value, 'style');
+              }}
+              placeholder="transparent, #000000"
+              className="flex-1 px-3 py-2 border rounded-lg text-sm"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+            />
+          </div>
+        </div>
         
-        <InputField
-          label="Text Fill Color"
-          value={currentStyles.webkitTextFillColor || currentStyles.textFillColor}
-          onChange={(value) => {
-            onPropertyChange('webkitTextFillColor', value, 'style');
-            onPropertyChange('textFillColor', value, 'style');
-          }}
-          type="color"
-          searchTerm={searchTerm}
-        />
-        
-        <InputField
-          label="Text Emphasis Style"
-          value={currentStyles.textEmphasisStyle}
-          onChange={(value) => onPropertyChange('textEmphasisStyle', value, 'style')}
-          type="select"
-          options={{
-            values: ['none', 'filled', 'open', 'dot', 'circle', 'double-circle', 'triangle', 'sesame']
-          }}
-          searchTerm={searchTerm}
-        />
-        
-        <InputField
-          label="Text Emphasis Color"
-          value={currentStyles.textEmphasisColor}
-          onChange={(value) => onPropertyChange('textEmphasisColor', value, 'style')}
-          type="color"
-          searchTerm={searchTerm}
-        />
-        
+        {/* Writing Mode */}
         <InputField
           label="Writing Mode"
-          value={currentStyles.writingMode}
+          value={currentStyles.writingMode || ''}
           onChange={(value) => onPropertyChange('writingMode', value, 'style')}
           type="select"
           options={{

@@ -80,12 +80,12 @@ const CenterSection = ({
         
         {/* Vertical Divider */}
         <div className="w-px h-3 bg-[var(--color-border)]"></div>
-        
-        {/* Enhanced Zoom Controls */}
+
+        {/* FIXED: Pass zoomLevel and setZoomLevel props */}
         <VoidZoomControls 
-          zoomLevel={zoomLevel} 
-          onZoomChange={setZoomLevel}
           className="px-0.5" // Reduced padding
+          zoomLevel={zoomLevel}
+          setZoomLevel={setZoomLevel}
         />
         
         {/* Vertical Divider */}
@@ -98,13 +98,6 @@ const CenterSection = ({
           options={interactionOptions}
           size="small" // Added size prop
         />
-        
-        
-        {/* Visual indicator for enhanced functionality */}
-        <div className="flex items-center gap-1 px-1.5 py-0.5 bg-[var(--color-bg-muted)] rounded-md opacity-60">
-          <div className="w-1 h-1 bg-[var(--color-primary)] rounded-full animate-pulse"></div>
-          <span className="text-[8px] text-[var(--color-text-muted)] font-mono">VOID</span>
-        </div>
       </motion.div>
     );
   }

@@ -308,7 +308,7 @@ const useEditorStore = create(
         // Persist all UI preferences including responsive mode
         panelStates: state.panelStates,
         responsiveMode: state.responsiveMode,
-        zoomLevel: state.zoomLevel,
+        zoomLevel: state.zoomLevel, // Make sure this is included
         gridVisible: state.gridVisible,
         interactionMode: state.interactionMode,
         canvasDimensions: state.canvasDimensions

@@ -1,39 +1,49 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Minus, Plus, RotateCcw } from 'lucide-react'
+import { useEditorStore } from '@/stores/useEditorStore'
 
-const VoidZoomControls = ({ zoomLevel, onZoomChange, className = "" }) => {
+const VoidZoomControls = ({ 
+  className = "",
+  zoomLevel: propZoomLevel, // Accept props
+  setZoomLevel: propSetZoomLevel // Accept props
+}) => {
   const [isAnimating, setIsAnimating] = useState(false)
-  const [displayZoom, setDisplayZoom] = useState(zoomLevel)
+  const [displayZoom, setDisplayZoom] = useState(100)
+  
+  // Use props if provided, otherwise use store
+  const storeZoomLevel = useEditorStore(state => state.zoomLevel)
+  const storeSetZoomLevel = useEditorStore(state => state.setZoomLevel)
+  
+  const zoomLevel = propZoomLevel !== undefined ? propZoomLevel : storeZoomLevel
+  const setZoomLevel = propSetZoomLevel !== undefined ? propSetZoomLevel : storeSetZoomLevel
 
   // Smooth zoom level display updates
   useEffect(() => {
+    setDisplayZoom(zoomLevel)
+    
     if (Math.abs(displayZoom - zoomLevel) > 1) {
       setIsAnimating(true)
       const animationTimer = setTimeout(() => setIsAnimating(false), 200)
       return () => clearTimeout(animationTimer)
     }
-    setDisplayZoom(zoomLevel)
   }, [zoomLevel, displayZoom])
 
   // Zoom increment/decrement with bounds checking
   const handleZoomChange = useCallback((delta) => {
-    if (!onZoomChange) return
-    
     const newZoomLevel = Math.max(25, Math.min(300, zoomLevel + delta))
-    onZoomChange(newZoomLevel)
-  }, [zoomLevel, onZoomChange])
+    console.log('Zoom changing from', zoomLevel, 'to', newZoomLevel) // Debug log
+    setZoomLevel(newZoomLevel)
+  }, [zoomLevel, setZoomLevel])
 
   // Reset to 100% zoom
   const handleResetZoom = useCallback(() => {
-    if (onZoomChange) {
-      onZoomChange(100)
-    }
-  }, [onZoomChange])
+    console.log('Resetting zoom to 100%') // Debug log
+    setZoomLevel(100)
+  }, [setZoomLevel])
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeydown = (e) => {
-      // Don't handle if focused on input elements
       if (document.activeElement && 
           (document.activeElement.tagName === 'INPUT' ||
            document.activeElement.tagName === 'TEXTAREA' ||
@@ -44,12 +54,18 @@ const VoidZoomControls = ({ zoomLevel, onZoomChange, className = "" }) => {
       if ((e.ctrlKey || e.metaKey) && e.key === '0') {
         e.preventDefault()
         handleResetZoom()
+      } else if ((e.ctrlKey || e.metaKey) && e.key === '=') {
+        e.preventDefault()
+        handleZoomChange(10)
+      } else if ((e.ctrlKey || e.metaKey) && e.key === '-') {
+        e.preventDefault()
+        handleZoomChange(-10)
       }
     }
 
     document.addEventListener('keydown', handleKeydown)
     return () => document.removeEventListener('keydown', handleKeydown)
-  }, [handleResetZoom])
+  }, [handleResetZoom, handleZoomChange])
 
   return (
     <div className={`flex items-center gap-1 ${className}`}>

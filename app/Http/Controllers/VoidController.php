@@ -423,8 +423,9 @@ class VoidController extends Controller
     }
 
     
-    /**
-     * Remove the specified frame.
+   
+     /**
+     * Remove the specified frame and its components.
      */
     public function destroy(Frame $frame): JsonResponse
     {
@@ -445,39 +446,56 @@ class VoidController extends Controller
                 'message' => 'You do not have permission to delete this frame'
             ], 403);
         }
-
+    
         // Store frame data for broadcasting before deletion
         $frameUuid = $frame->uuid;
         $frameName = $frame->name;
         $projectUuid = $project->uuid;
         $workspace = $project->workspace;
-
-        // Delete thumbnail if exists
-        $this->deleteThumbnail($frame);
-
-        $frame->delete();
-        
-        // BROADCAST FRAME DELETION
-        if ($workspace) {
-            try {
-                broadcast(new FrameDeleted($frameUuid, $frameName, $projectUuid, $workspace))->toOthers();
-                Log::info('Frame deletion broadcasted successfully', [
-                    'frame_uuid' => $frameUuid,
-                    'project_uuid' => $projectUuid,
-                    'workspace_id' => $workspace->id,
-                    'user_id' => $user->id
-                ]);
-            } catch (\Exception $e) {
-                Log::warning('Failed to broadcast frame deletion', [
-                    'frame_uuid' => $frameUuid,
-                    'error' => $e->getMessage()
-                ]);
+    
+        try {
+            // Delete associated project components FIRST
+            \App\Models\ProjectComponent::where('frame_id', $frame->id)->delete();
+            
+            // Delete thumbnail if exists
+            $this->deleteThumbnail($frame);
+    
+            // Delete the frame
+            $frame->delete();
+            
+            // BROADCAST FRAME DELETION
+            if ($workspace) {
+                try {
+                    broadcast(new FrameDeleted($frameUuid, $frameName, $projectUuid, $workspace))->toOthers();
+                    Log::info('Frame deletion broadcasted successfully', [
+                        'frame_uuid' => $frameUuid,
+                        'project_uuid' => $projectUuid,
+                        'workspace_id' => $workspace->id,
+                        'user_id' => $user->id
+                    ]);
+                } catch (\Exception $e) {
+                    Log::warning('Failed to broadcast frame deletion', [
+                        'frame_uuid' => $frameUuid,
+                        'error' => $e->getMessage()
+                    ]);
+                }
             }
+    
+            return response()->json([
+                'message' => 'Frame and its components deleted successfully'
+            ]);
+    
+        } catch (\Exception $e) {
+            Log::error('Error deleting frame and components:', [
+                'frame_id' => $frame->id,
+                'error' => $e->getMessage()
+            ]);
+    
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete frame and its components'
+            ], 500);
         }
-
-        return response()->json([
-            'message' => 'Frame deleted successfully'
-        ]);
     }
     
     /**
