@@ -88,7 +88,8 @@ export default function VoidPage() {
   const [scrollPosition, setScrollPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [lastPointerPos, setLastPointerPos] = useState({ x: 0, y: 0 })
-  const scrollBounds = { width: 20000, height: 15000 } // Even bigger universe!
+
+  const scrollBounds = { width: 50000, height: 50000 } // TRUE infinite space
 
   // Frame state
   const [frames, setFrames] = useState([])
@@ -650,7 +651,7 @@ useEffect(() => {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-     <div 
+    <div 
       ref={canvasRef}
       data-canvas="true"
       className={`relative w-full h-screen overflow-hidden ${
@@ -662,9 +663,10 @@ useEffect(() => {
         backgroundColor: isDark ? 'var(--color-bg)' : 'var(--color-bg)',
         userSelect: 'none',
         touchAction: 'none',
-        // CRITICAL: Force canvas to acknowledge full scroll bounds
-        minWidth: '100vw',
-        minHeight: '100vh'
+        // CRITICAL: Remove min-width/min-height constraints
+        cursor: isDragging ? 'grabbing' : 'grab',
+        position: 'relative',
+        overflow: 'hidden'
       }}
     >
         {/* Background Layers - z-index: 5 */}

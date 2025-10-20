@@ -19,14 +19,14 @@ export default function FramesContainer({
       let newY = prev.y + scrollDelta.y
       
       // Keep within bounds
-      newX = Math.max(0, Math.min(scrollBounds.width, newX))
-      newY = Math.max(0, Math.min(scrollBounds.height, newY))
+      newX = Math.max(0, Math.min(scrollBounds.width - window.innerWidth / zoom, newX))
+      newY = Math.max(0, Math.min(scrollBounds.height - window.innerHeight / zoom, newY))
       
       return { x: newX, y: newY }
     })
-  }, [setScrollPosition, scrollBounds])
+  }, [setScrollPosition, scrollBounds, zoom])
 
-  // SIMPLE: Just render all frames
+  // Render all frames
   const frameElements = useMemo(() => 
     frames.map((frame, index) => (
       <PreviewFrame
@@ -50,38 +50,21 @@ export default function FramesContainer({
     ))
   , [frames, onFrameClick, zoom, isDark, scrollPosition, handleAutoScroll])
 
-  // DEAD SIMPLE: Just a big container that moves with scroll
   return (
-  <div 
-    style={{
-      position: 'absolute',
-      left: 0,
-      top: 0,
-      // CRITICAL: Container MUST be full scrollBounds size
-      width: `${scrollBounds.width}px`,
-      height: `${scrollBounds.height}px`,
-      transform: `translate(${-scrollPosition.x}px, ${-scrollPosition.y}px)`,
-      willChange: 'transform',
-      pointerEvents: 'none',
-      // DEBUG: Make it visible
-      border: '2px dashed rgba(255, 0, 0, 0.3)'
-    }}
-  >
-    {/* DEBUG: Add corner markers */}
-    <div style={{ position: 'absolute', left: 0, top: 0, width: 100, height: 100, background: 'rgba(255, 0, 0, 0.2)' }}>
-      TOP-LEFT
+    <div 
+      style={{
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        // CRITICAL: Container MUST be full scrollBounds size
+        width: `${scrollBounds.width}px`,
+        height: `${scrollBounds.height}px`,
+        transform: `translate(${-scrollPosition.x}px, ${-scrollPosition.y}px)`,
+        willChange: 'transform',
+        pointerEvents: 'auto', // CHANGED: Allow pointer events for scrolling
+      }}
+    >
+      {frameElements}
     </div>
-    <div style={{ position: 'absolute', right: 0, top: 0, width: 100, height: 100, background: 'rgba(0, 255, 0, 0.2)' }}>
-      TOP-RIGHT
-    </div>
-    <div style={{ position: 'absolute', left: 0, bottom: 0, width: 100, height: 100, background: 'rgba(0, 0, 255, 0.2)' }}>
-      BOTTOM-LEFT
-    </div>
-    <div style={{ position: 'absolute', right: 0, bottom: 0, width: 100, height: 100, background: 'rgba(255, 255, 0, 0.2)' }}>
-      BOTTOM-RIGHT
-    </div>
-    
-    {frameElements}
-  </div>
-)
+  )
 }

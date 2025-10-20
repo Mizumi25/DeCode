@@ -60,9 +60,8 @@ const handlePointerMove = useCallback((e) => {
       let newX = prev.x - deltaX
       let newY = prev.y - deltaY
       
-      // FIXED: Always allow full scrollBounds, regardless of frame positions
-      newX = Math.max(0, Math.min(scrollBounds.width - window.innerWidth / zoom, newX))
-      newY = Math.max(0, Math.min(scrollBounds.height - window.innerHeight / zoom, newY))
+    newX = Math.max(-scrollBounds.width * 0.1, Math.min(scrollBounds.width * 1.1 - window.innerWidth / zoom, newX))
+    newY = Math.max(-scrollBounds.height * 0.1, Math.min(scrollBounds.height * 1.1 - window.innerHeight / zoom, newY))
       
       return { x: newX, y: newY }
     })
