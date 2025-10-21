@@ -40,6 +40,48 @@ export default function PreviewFrame({
   // Get lock status from Zustand store - FIRST
   const lockStatus = getLockStatus(frame?.uuid)
   
+  
+  
+  
+  // Add this state to PreviewFrame
+const [isOverDeleteButton, setIsOverDeleteButton] = useState(false)
+
+// Add this useEffect to listen for delete button hover events
+useEffect(() => {
+  const handleDeleteButtonHover = (e) => {
+    if (isDragging && e.detail) {
+      const { isOver, buttonRect } = e.detail
+      
+      if (isOver && frameRef.current) {
+        const frameRect = frameRef.current.getBoundingClientRect()
+        
+        // Enhanced collision detection
+        const isFrameOverButton = (
+          frameRect.right >= buttonRect.left - 20 &&
+          frameRect.left <= buttonRect.right + 20 &&
+          frameRect.bottom >= buttonRect.top - 20 &&
+          frameRect.top <= buttonRect.bottom + 20
+        )
+        
+        setIsOverDeleteButton(isFrameOverButton)
+      } else {
+        setIsOverDeleteButton(false)
+      }
+    }
+  }
+
+  document.addEventListener('deleteButtonHover', handleDeleteButtonHover)
+  return () => {
+    document.removeEventListener('deleteButtonHover', handleDeleteButtonHover)
+  }
+}, [isDragging])
+
+
+  
+  
+  
+  
+  
   // REPLACE the DnD Kit hook section with:
   const { attributes, listeners, setNodeRef, transform, isDragging: dndIsDragging } = useDraggable({
     id: frameId,
@@ -268,48 +310,57 @@ const enhancedTransform = useMemo(() => {
   
 
 
- // ENHANCED: Determine frame appearance with thumbnail status
+
+// Update the frame style to include hover effects
 const getFrameStyles = () => {
-  let styles = {
-    top: y,
+  const baseStyles = {
+    position: 'absolute',
     left: x,
+    top: y,
     width: `${size.w * 4}px`,
     height: `${size.h * 4}px`,
     backgroundColor: 'var(--color-surface)',
-    borderColor: 'transparent',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
     backdropFilter: 'blur(10px)',
-    zIndex: isDragging ? 1000 : 10
+    zIndex: dndIsDragging ? 1000 : 10,
+    transform: dndIsDragging ? 'scale(1.05)' : 'scale(1)',
+    willChange: dndIsDragging ? 'transform' : 'auto',
+    pointerEvents: 'auto'
   }
 
+  // Apply DnD transform
+  if (transform && dndIsDragging) {
+    baseStyles.transform = `translate3d(${transform.x}px, ${transform.y}px, 0) scale(1.05)`
+    baseStyles.boxShadow = '0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 2px rgba(59, 130, 246, 0.6)'
+    baseStyles.cursor = 'grabbing'
+  }
+
+  // ENHANCED: Add delete button hover effect - frame scales down and gets red tint
+  if (isOverDeleteButton && dndIsDragging) {
+    baseStyles.transform = `translate3d(${transform?.x || 0}px, ${transform?.y || 0}px, 0) scale(0.85)`
+    baseStyles.boxShadow = '0 25px 50px -12px rgba(239, 68, 68, 0.4), 0 0 0 3px rgba(239, 68, 68, 0.3)'
+    baseStyles.filter = 'brightness(0.9) hue-rotate(-10deg)'
+    baseStyles.transition = 'all 0.2s ease-out'
+  }
+
+  // Lock status styles
   if (lockStatus?.is_locked) {
     if (lockStatus.locked_by_me) {
-      styles.boxShadow = isDragging 
+      baseStyles.boxShadow = dndIsDragging 
         ? '0 25px 50px -12px rgba(59, 130, 246, 0.4), 0 0 0 2px rgba(59, 130, 246, 0.3)' 
         : '0 10px 30px -5px rgba(59, 130, 246, 0.2), 0 4px 6px -2px rgba(59, 130, 246, 0.1), 0 0 0 1px rgba(59, 130, 246, 0.2)'
-      styles.background = isDark 
-        ? 'linear-gradient(145deg, rgba(37, 99, 235, 0.1), rgba(30, 41, 59, 0.9))' 
-        : 'linear-gradient(145deg, rgba(239, 246, 255, 0.9), rgba(219, 234, 254, 0.8))'
     } else {
-      styles.boxShadow = isDragging 
+      baseStyles.boxShadow = dndIsDragging 
         ? '0 25px 50px -12px rgba(239, 68, 68, 0.4), 0 0 0 2px rgba(239, 68, 68, 0.3)' 
         : '0 10px 30px -5px rgba(239, 68, 68, 0.2), 0 4px 6px -2px rgba(239, 68, 68, 0.1), 0 0 0 1px rgba(239, 68, 68, 0.2)'
-      styles.background = isDark 
-        ? 'linear-gradient(145deg, rgba(220, 38, 38, 0.1), rgba(30, 41, 59, 0.9))' 
-        : 'linear-gradient(145deg, rgba(254, 242, 242, 0.9), rgba(254, 226, 226, 0.8))'
     }
-  } else {
-    styles.boxShadow = isDragging 
-      ? '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1)' 
-      : '0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
-    styles.background = isDark 
-      ? 'linear-gradient(145deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9))' 
-      : 'linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.8))'
+  } else if (!dndIsDragging) {
+    baseStyles.boxShadow = '0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
   }
 
-  styles.border = '1px solid rgba(255, 255, 255, 0.1)'
-  
-  return styles
+  return baseStyles
 }
+  
 
 
 
@@ -379,6 +430,66 @@ useEffect(() => {
     document.body.style.cursor = ''
   }
 }, [dndIsDragging])
+
+
+
+
+// In the PreviewFrame component, add this useEffect for delete button hover detection
+useEffect(() => {
+  const handleMouseMove = (e) => {
+    if (!isDragging || !deleteButtonRef.current) return
+
+    const deleteButton = deleteButtonRef.current
+    const rect = deleteButton.getBoundingClientRect()
+    
+    // Enhanced collision detection with frame boundaries
+    const frameRect = frameRef.current?.getBoundingClientRect()
+    if (!frameRect) return
+
+    // Check if frame is hovering over delete button area
+    const isOverDelete = (
+      frameRect.right >= rect.left - 30 &&
+      frameRect.left <= rect.right + 30 &&
+      frameRect.bottom >= rect.top - 30 &&
+      frameRect.top <= rect.bottom + 30
+    )
+
+    // Dispatch custom event for delete button to listen to
+    if (isOverDelete) {
+      document.dispatchEvent(new CustomEvent('frameHoverDelete', { 
+        detail: { isHoveringDelete: true, frameId: frameId }
+      }))
+    } else {
+      document.dispatchEvent(new CustomEvent('frameLeaveDelete', { 
+        detail: { isHoveringDelete: false, frameId: frameId }
+      }))
+    }
+  }
+
+  if (isDragging) {
+    document.addEventListener('mousemove', handleMouseMove)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      // Clean up by sending leave event when drag ends
+      document.dispatchEvent(new CustomEvent('frameLeaveDelete', { 
+        detail: { isHoveringDelete: false, frameId: frameId }
+      }))
+    }
+  }
+}, [isDragging, frameId])
+
+// Also add a ref to access the delete button in the global scope
+const deleteButtonRef = useRef(null)
+
+// Initialize delete button ref on mount
+useEffect(() => {
+  deleteButtonRef.current = document.querySelector('.delete-button-container')
+}, [])
+
+
+
+
+
 
 
 

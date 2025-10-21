@@ -303,8 +303,8 @@ class ComponentLibraryService {
             return this.renderInput(mergedProps, id);
             
           // 🔥 NEW TEXT ELEMENT CASES
-          case 'text':
-            return this.renderTextNode(mergedProps, id);
+          case 'text-node':
+             return this.renderTextNode(mergedProps, id);
             
           case 'h1':
           case 'h2':
@@ -587,54 +587,36 @@ renderButton(props, id, layoutStyles = {}) {
   
   
   
-  
-// 🔥 TEXT NODE RENDERER (handles both pseudo and semantic)
+
+// 🔥 NEW: Render pure text nodes (NO wrapper)
 renderTextNode(props, id) {
   const content = props.content || props.text || '';
   
-  // ✅ Check if it's a semantic element (h1-h6, p, span, etc.)
-  const type = props.type || 'text-node';
-  
-  // If it's truly a pseudo element (text-node), return pure text
-  if (type === 'text-node' || props.isPseudoElement) {
-    return content; // Pure text, no wrapper
+  // ✅ For text-node pseudo-element, return PURE text wrapped in span for selection
+  if (props.isPseudoElement || props.hasWrapper === false) {
+    return React.createElement('span', {
+      key: id,
+      'data-component-id': id,
+      'data-component-type': 'text-node',
+      'data-is-layout': false,
+      'data-is-pseudo': true,
+      className: 'text-node-pseudo inline-block min-w-[20px] min-h-[1em]',
+      style: {
+        cursor: 'text',
+        userSelect: 'none',
+        ...props.style
+      },
+      onClick: (e) => {
+        e.stopPropagation();
+        if (window.forgeSelectComponent) {
+          window.forgeSelectComponent(id);
+        }
+      }
+    }, content || '\u00A0'); // Empty space if no content
   }
   
-  // Otherwise, it's a semantic element - use appropriate renderer
-  if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(type)) {
-    return this.renderHeading(type, props, id);
-  }
-  if (type === 'p') {
-    return this.renderParagraph(props, id);
-  }
-  if (type === 'span') {
-    return this.renderSpan(props, id);
-  }
-  if (type === 'strong') {
-    return this.renderStrong(props, id);
-  }
-  if (type === 'em') {
-    return this.renderEm(props, id);
-  }
-  if (type === 'small') {
-    return this.renderSmall(props, id);
-  }
-  if (type === 'label') {
-    return this.renderLabel(props, id);
-  }
-  if (type === 'blockquote') {
-    return this.renderBlockquote(props, id);
-  }
-  
-  // Fallback: wrap in span with data attributes
-  return React.createElement('span', {
-    key: id,
-    'data-component-id': id,
-    'data-component-type': type,
-    'data-is-layout': false,
-    style: props.style,
-    className: 'text-node',
-  }, content);
+  // Otherwise use semantic rendering
+  return this.renderSemanticText(props, id);
 }
 
 
@@ -656,6 +638,9 @@ renderHeading(level, props, id) {
     ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600'
     : 'text-gray-900';
   
+  // 🔥 WRAP TEXT IN TEXT NODE
+  const textNode = this.wrapTextContent(level, props, id, content);
+  
   return React.createElement(level, {
     key: id,
     className: `${baseClasses} ${variantClasses} ${props.className || ''}`,
@@ -663,21 +648,16 @@ renderHeading(level, props, id) {
     'data-component-id': id,
     'data-component-type': level,
     'data-is-layout': false,
-    onClick: (e) => { // ✅ ADD THIS
-      e.stopPropagation();
-      // Clicking child text selects parent
-      const parentId = props.parentId;
-      if (parentId && window.forgeSelectComponent) {
-        window.forgeSelectComponent(parentId);
-      }
-    }
-  }, content);
+  }, textNode); // 🔥 RENDER WRAPPED TEXT
 }
 
 
 // 🔥 PARAGRAPH RENDERER
 renderParagraph(props, id) {
   const content = props.content || props.text || '';
+  
+  // 🔥 WRAP TEXT IN TEXT NODE
+  const textNode = this.wrapTextContent('p', props, id, content);
   
   return React.createElement('p', {
     key: id,
@@ -686,7 +666,7 @@ renderParagraph(props, id) {
     'data-component-id': id,
     'data-component-type': 'p',
     'data-is-layout': false,
-  }, content);
+  }, textNode);
 }
 
 // 🔥 SPAN RENDERER
@@ -782,6 +762,9 @@ renderBlockquote(props, id) {
 renderLink(props, id) {
   const content = props.content || props.text || 'Link';
   
+  // 🔥 WRAP TEXT IN TEXT NODE
+  const textNode = this.wrapTextContent('link', props, id, content);
+  
   return React.createElement('a', {
     key: id,
     href: props.href || '#',
@@ -791,8 +774,8 @@ renderLink(props, id) {
     'data-component-id': id,
     'data-component-type': 'link',
     'data-is-layout': false,
-    onClick: (e) => e.preventDefault() // Prevent navigation in editor
-  }, content);
+    onClick: (e) => e.preventDefault()
+  }, textNode);
 }
 
 // 🔥 CHECKBOX RENDERER
@@ -1120,10 +1103,9 @@ getButtonClasses(props) {
   return `${baseClasses} ${variantClasses[variant] || variantClasses.primary} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
 }
 
+// 🔥 ENHANCED: Button with auto-wrapped text nodes
 renderButton(props, id, layoutStyles = {}) {
     const className = this.getButtonClasses(props);
-    
-    // ✅ CRITICAL: Use 'content' first, fallback to 'text'
     const buttonText = props.content || props.text || props.children || 'Button';
     
     const buttonStyle = {
@@ -1138,6 +1120,30 @@ renderButton(props, id, layoutStyles = {}) {
         ...props.style
     };
     
+    // 🔥 CRITICAL: Render text as SEPARATE child text node
+    const textNodeId = `${id}-text`;
+    const textNode = React.createElement('span', {
+        key: textNodeId,
+        'data-component-id': textNodeId,
+        'data-component-type': 'text-node',
+        'data-parent-id': id,
+        'data-is-layout': false,
+        'data-is-pseudo': true,
+        className: 'text-node-child',
+        style: {
+            cursor: 'text',
+            userSelect: 'none',
+            display: 'inline-block',
+            pointerEvents: 'auto' // 🔥 ALLOW CLICKS
+        },
+        onClick: (e) => {
+            e.stopPropagation();
+            if (window.forgeSelectComponent) {
+                window.forgeSelectComponent(textNodeId);
+            }
+        }
+    }, buttonText);
+    
     return React.createElement('button', {
         key: id,
         className,
@@ -1150,8 +1156,50 @@ renderButton(props, id, layoutStyles = {}) {
         'data-component-id': id,
         'data-component-type': 'button',
         'data-is-layout': false,
-    }, buttonText); // ✅ Changed
+    }, textNode); // 🔥 RENDER TEXT NODE AS CHILD
 }
+
+
+
+
+// 🔥 NEW: Auto-wrap text content for any element
+wrapTextContent(elementType, props, id, textContent) {
+    if (!textContent || typeof textContent !== 'string') return textContent;
+    
+    const textNodeId = `${id}-text`;
+    
+    return React.createElement('span', {
+        key: textNodeId,
+        'data-component-id': textNodeId,
+        'data-component-type': 'text-node',
+        'data-parent-id': id,
+        'data-is-layout': false,
+        'data-is-pseudo': true,
+        'data-auto-wrapped': true, // 🔥 FLAG
+        className: 'text-node-child inline-block',
+        style: {
+            cursor: 'text',
+            userSelect: 'none',
+            pointerEvents: 'auto',
+            minWidth: '1ch',
+            minHeight: '1em'
+        },
+        onClick: (e) => {
+            e.stopPropagation();
+            if (window.forgeSelectComponent) {
+                window.forgeSelectComponent(textNodeId);
+            }
+        },
+        onDoubleClick: (e) => {
+            e.stopPropagation();
+            if (window.forgeHandleDoubleClickText) {
+                window.forgeHandleDoubleClickText(e, textNodeId, id);
+            }
+        }
+    }, textContent);
+}
+
+
 
 // Enhanced avatar classes with size constraints
 getAvatarClasses(props) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Trash } from 'lucide-react'
 
 export default function DeleteButton({ zoom = 1, onFrameDrop = () => {}, isDragActive = false }) {
   const [isHovered, setIsHovered] = useState(false)
@@ -7,17 +7,26 @@ export default function DeleteButton({ zoom = 1, onFrameDrop = () => {}, isDragA
   const [isDragOver, setIsDragOver] = useState(false)
   const deleteButtonRef = useRef(null)
 
-  // Check if a dragged frame is over the delete button
+  // Enhanced frame hover detection with improved collision detection
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (!isDragActive || !deleteButtonRef.current) return
 
       const rect = deleteButtonRef.current.getBoundingClientRect()
+      
+      // Enhanced collision detection with larger hit area
+      const expandedRect = {
+        left: rect.left - 20,
+        right: rect.right + 20,
+        top: rect.top - 20,
+        bottom: rect.bottom + 20
+      }
+
       const isOver = (
-        e.clientX >= rect.left &&
-        e.clientX <= rect.right &&
-        e.clientY >= rect.top &&
-        e.clientY <= rect.bottom
+        e.clientX >= expandedRect.left &&
+        e.clientX <= expandedRect.right &&
+        e.clientY >= expandedRect.top &&
+        e.clientY <= expandedRect.bottom
       )
 
       if (isOver !== isDragOver) {
@@ -26,9 +35,29 @@ export default function DeleteButton({ zoom = 1, onFrameDrop = () => {}, isDragA
       }
     }
 
+    // Listen for frame hover events from frames
+    const handleFrameHover = (e) => {
+      if (e.detail?.isHoveringDelete) {
+        setIsFrameHovering(true)
+      }
+    }
+
+    const handleFrameLeave = (e) => {
+      if (e.detail?.isHoveringDelete === false) {
+        setIsFrameHovering(false)
+      }
+    }
+
     if (isDragActive) {
       document.addEventListener('mousemove', handleMouseMove)
-      return () => document.removeEventListener('mousemove', handleMouseMove)
+      document.addEventListener('frameHoverDelete', handleFrameHover)
+      document.addEventListener('frameLeaveDelete', handleFrameLeave)
+      
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('frameHoverDelete', handleFrameHover)
+        document.removeEventListener('frameLeaveDelete', handleFrameLeave)
+      }
     } else {
       setIsDragOver(false)
       setIsFrameHovering(false)
@@ -50,10 +79,11 @@ export default function DeleteButton({ zoom = 1, onFrameDrop = () => {}, isDragA
   }, [isDragOver, isDragActive, onFrameDrop])
 
   const isActive = isHovered || isFrameHovering || isDragOver
+  const showOpenTrash = isFrameHovering || isDragOver
 
   return (
     <div 
-      className="fixed right-6 bottom-6 z-40" 
+      className="fixed right-6 bottom-6 z-50" // Increased z-index to ensure it's above frames
       style={{ transform: 'scale(1)', transformOrigin: 'bottom right' }}
     >
       <div
@@ -92,22 +122,30 @@ export default function DeleteButton({ zoom = 1, onFrameDrop = () => {}, isDragA
                 : '0 10px 20px rgba(239, 68, 68, 0.2)'
             }}
           >
-            {/* Trash icon with animation */}
+            {/* Dynamic trash icon - changes when frame is hovering */}
             <div className="relative">
-              <Trash2 
-                className={`w-6 h-6 text-white transition-all duration-300 ${
-                  isActive ? 'animate-bounce' : ''
-                }`}
-              />
-              
-              {/* Animated lid opening effect */}
-              {isActive && (
-                <div
-                  className="absolute -top-1 left-1 w-4 h-0.5 bg-white rounded animate-pulse"
-                  style={{
-                    transform: `rotate(${isActive ? -15 : 0}deg)`,
-                    transformOrigin: 'left center'
-                  }}
+              {showOpenTrash ? (
+                // Open trash icon when frame is hovering
+                <div className="relative">
+                  <Trash 
+                    className={`w-6 h-6 text-white transition-all duration-300 ${
+                      isActive ? 'animate-bounce' : ''
+                    }`}
+                  />
+                  {/* Animated lid opening effect */}
+                  <div
+                    className="absolute -top-2 -left-1 w-8 h-1 bg-white rounded transform -rotate-12 transition-all duration-300"
+                    style={{
+                      transform: `rotate(-15deg) translateY(-2px)`
+                    }}
+                  />
+                </div>
+              ) : (
+                // Closed trash icon normally
+                <Trash2 
+                  className={`w-6 h-6 text-white transition-all duration-300 ${
+                    isActive ? 'animate-bounce' : ''
+                  }`}
                 />
               )}
             </div>

@@ -1003,12 +1003,28 @@ const handleSmartClick = useCallback((e) => {
   
   // Get all component elements under the click
   const clickPath = e.nativeEvent.composedPath();
+  
+  // 🔥 PRIORITY 1: Check for text node clicks
+  const textNode = clickPath.find(el => 
+    el.nodeType === 1 && 
+    el.hasAttribute && 
+    el.getAttribute('data-is-pseudo') === 'true' &&
+    el.getAttribute('data-component-type') === 'text-node'
+  );
+  
+  if (textNode) {
+    const textNodeId = textNode.getAttribute('data-component-id');
+    console.log('🎯 Text node clicked:', textNodeId);
+    onComponentClick(textNodeId, e);
+    return;
+  }
+  
+  // 🔥 PRIORITY 2: Regular component selection
   const componentElements = clickPath.filter(el => 
     el.nodeType === 1 && el.hasAttribute && el.hasAttribute('data-component-id')
   );
   
   if (componentElements.length === 0) {
-    // Canvas click - deselect everything
     console.log('🎯 Canvas click - deselecting all');
     onComponentClick(null, e);
     setIsCanvasSelected(true);
@@ -1021,6 +1037,7 @@ const handleSmartClick = useCallback((e) => {
   
   console.log('🎯 Smart selection:', {
     clicked: componentId,
+    isTextNode: targetElement.getAttribute('data-is-pseudo') === 'true',
     path: componentElements.map(el => el.getAttribute('data-component-id'))
   });
   

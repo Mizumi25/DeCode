@@ -2,23 +2,9 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Layers, 
-  Code, 
-  Search, 
-  ChevronDown,
-  ChevronRight,
-  Square,
-  User,
-  Tag,
-  Layout,
-  Menu,
-  Zap,
-  Move,
-  Palette,
-  Sparkles,
-  MousePointer,
-  Image,
-  Play
+  Layers, Code, Search, ChevronDown, ChevronRight, Square, User, Tag, 
+  Layout, Menu, Zap, Move, Palette, Sparkles, MousePointer, Image, Play,
+  Type // 🔥 ADD THIS
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -423,6 +409,57 @@ const ComponentsPanel = ({
               transition={{ duration: 0.2 }}
               className="h-full overflow-y-auto"
             >
+            
+            {/* 🔥 ADD: Special Pseudo-Element Section at TOP */}
+            {!showVariants && (
+              <div className="p-4 border-b" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+                <div className="text-xs font-semibold mb-2" style={{ color: 'var(--color-text-muted)' }}>
+                  SPECIAL ELEMENTS
+                </div>
+                {(() => {
+                  // Find text-node component
+                  const textNode = Object.values(components[currentActiveTab] || {})
+                    .flat()
+                    .find(c => c.type === 'text-node');
+                  
+                  if (!textNode) return null;
+                  
+                  return (
+                    <motion.div
+                      className="group p-3 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+                      style={{ 
+                        borderColor: 'var(--color-primary)',
+                        backgroundColor: 'var(--color-primary-soft)'
+                      }}
+                      onClick={() => handleComponentClick(textNode)}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold"
+                          style={{ backgroundColor: 'var(--color-primary)' }}
+                        >
+                          <Type className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>
+                            {textNode.name}
+                          </div>
+                          <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                            {textNode.description}
+                          </div>
+                          <div className="mt-1 text-xs font-semibold" style={{ color: 'var(--color-primary)' }}>
+                            ⚠️ Pseudo-element (no wrapper)
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })()}
+              </div>
+            )}
+
               {/* Categories with Dropdowns */}
               <div className="space-y-2 p-4">
                 {Object.entries(CATEGORIES).map(([categoryKey, categoryInfo]) => {

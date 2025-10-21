@@ -1,23 +1,38 @@
+// @/Components/Forge/LayersPanel.jsx - FIXED IMPORTS
 import React, { useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Eye, EyeOff, Lock, Unlock, ChevronRight,
-  Layers, Trash2, Copy, MoreVertical, Move, Square
+  Layers, Trash2, Copy, MoreVertical, Move, Square, Type // ✅ ADD Type import
 } from 'lucide-react'
 
 // Import component library service
 import { componentLibraryService } from '@/Services/ComponentLibraryService'
 
-const LayerItem = ({ component, depth = 0, isSelected, onSelect, onDelete, path = [] }) => {
+const LayerItem = ({ component, depth = 0, isSelected, onSelect, onDelete, path = [], canvasComponents }) => {
   const [isExpanded, setIsExpanded] = React.useState(true);
   const [isHovered, setIsHovered] = React.useState(false);
   const [showActions, setShowActions] = React.useState(false);
 
   const hasChildren = component.children && component.children.length > 0;
   const isLayout = component.isLayoutContainer;
-
-  // 🔥 GET COMPONENT DEFINITION FOR THUMBNAIL
+  
+    // 🔥 GET COMPONENT DEFINITION FOR THUMBNAIL
   const componentDef = componentLibraryService?.getComponentDefinition(component.type);
+
+
+  // ✅ NEW: Detect text nodes
+  const isTextNode = component.type === 'text-node' || component.isPseudoElement;
+  
+  // ✅ NEW: Show text preview for text nodes
+  const displayName = isTextNode 
+    ? (component.props?.content || component.text_content || 'Empty text').slice(0, 30) + '...'
+    : component.name;
+  
+  // ✅ NEW: Different icon for text nodes
+  const IconComponent = isTextNode ? Type : Square;
+
+  
 
   // 🔥 RENDER ACTUAL UI THUMBNAIL LIKE COMPONENT PANEL
   const renderThumbnail = () => {
@@ -150,7 +165,7 @@ const LayerItem = ({ component, depth = 0, isSelected, onSelect, onDelete, path 
   const depthColor = getDepthColor();
 
   return (
-    <motion.div
+   <motion.div
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
@@ -165,6 +180,7 @@ const LayerItem = ({ component, depth = 0, isSelected, onSelect, onDelete, path 
         position: "relative",
       }}
     >
+     
       {/* Depth connector */}
       {depth > 0 && (
         <div
@@ -232,50 +248,65 @@ const LayerItem = ({ component, depth = 0, isSelected, onSelect, onDelete, path 
           <div style={{ width: "16px" }} />
         )}
 
-        {/* 🔥 REPLACED: Icon with actual UI thumbnail */}
-        {renderThumbnail()}
+       {/* ✅ MODIFIED: Show text icon for text nodes */}
+        {isTextNode ? (
+          <div style={{
+            padding: '4px',
+            borderRadius: '4px',
+            backgroundColor: 'var(--color-primary-soft)'
+          }}>
+            <Type size={14} color="var(--color-primary)" />
+          </div>
+        ) : (
+          renderThumbnail()
+        )}
 
-        {/* Name + Meta */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-            <span
-              style={{
-                color: isSelected ? "var(--color-primary)" : "var(--color-text)",
-                fontSize: "var(--fs-sm)",
-                fontWeight: 500,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {component.name}
+       {/* Name + Meta */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <span style={{
+            color: isSelected ? "var(--color-primary)" : "var(--color-text)",
+            fontSize: "var(--fs-sm)",
+            fontWeight: isTextNode ? 400 : 500,
+            fontStyle: isTextNode ? 'italic' : 'normal',
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}>
+            {displayName}
+          </span>
+          
+          {/* 🔥 NEW: Badge for auto-wrapped text */}
+          {component.isAutoWrapped && (
+            <span style={{
+              background: 'var(--color-info-soft)',
+              color: 'var(--color-info)',
+              borderRadius: '4px',
+              padding: '2px 6px',
+              fontSize: '10px',
+              fontWeight: 500
+            }}>
+              auto
             </span>
-            {isLayout && (
-              <span
-                style={{
-                  background: `${depthColor}15`,
-                  color: depthColor,
-                  borderRadius: "4px",
-                  padding: "2px 6px",
-                  fontSize: "10px",
-                  fontWeight: 500,
-                }}
-              >
-                {component.type}
-              </span>
-            )}
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "2px" }}>
-            <span style={{ fontSize: "11px", color: "var(--color-text-muted)" }}>{component.type}</span>
-            {hasChildren && (
-              <span style={{ fontSize: "11px", color: "var(--color-text-muted)" }}>
-                • {component.children.length} child{component.children.length !== 1 ? "ren" : ""}
-              </span>
-            )}
-            <span style={{ fontSize: "11px", color: "var(--color-text-muted)" }}>• depth {depth}</span>
-          </div>
+          )}
         </div>
+      
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "2px" }}>
+          <span style={{ fontSize: "11px", color: "var(--color-text-muted)" }}>
+            {component.type}
+            {/* 🔥 SHOW PARENT INFO for auto-wrapped text nodes */}
+            {component.isAutoWrapped && component.parentId && canvasComponents && (
+              <> • child of {canvasComponents.find(c => c.id === component.parentId)?.name}</>
+            )}
+          </span>
+          {hasChildren && (
+            <span style={{ fontSize: "11px", color: "var(--color-text-muted)" }}>
+              • {component.children.length} child{component.children.length !== 1 ? "ren" : ""}
+            </span>
+          )}
+          <span style={{ fontSize: "11px", color: "var(--color-text-muted)" }}>• depth {depth}</span>
+        </div>
+      </div>
 
         {/* Hover Actions */}
         <AnimatePresence>
@@ -503,6 +534,7 @@ const LayersPanel = ({
               isSelected={selectedComponent === c.id}
               onSelect={onComponentSelect}
               onDelete={onComponentDelete}
+              canvasComponents={canvasComponents}
             />
           ))
         ) : (
