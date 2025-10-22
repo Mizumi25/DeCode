@@ -436,40 +436,74 @@ class ComponentLibraryService {
     }
 
       
-   // Button renderer with proper data attributes
-// @/Services/ComponentLibraryService.js - REPLACE renderButton method
-
 renderButton(props, id, layoutStyles = {}) {
     const className = this.getButtonClasses(props);
     
-    const buttonStyle = {
+    // 🔥 APPLY ALL LAYOUT STYLES
+    const buttonStyle = this.applyLayoutStyles({
         maxWidth: '100%',
         wordBreak: 'break-word',
-        whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
-        width: props.width || 'fit-content',
-        minWidth: props.minWidth || '60px',
-        ...layoutStyles,
-        ...props.style
-    };
+        ...layoutStyles
+    }, props);
     
-    // 🔥 CRITICAL: Text nodes are now SEPARATE children, not content
-    // Button itself has NO text - text nodes are independent children
     return React.createElement('button', {
         key: id,
         className,
-        onClick: (e) => {
-            e.stopPropagation();
-            console.log(`Button ${id} clicked`);
-        },
-        disabled: props.disabled || false,
-        style: buttonStyle,
+        style: buttonStyle,  // ✅ Now includes ALL layout properties
         'data-component-id': id,
         'data-component-type': 'button',
         'data-is-layout': false,
-    }); // 🔥 NO CHILDREN - text nodes are rendered separately as siblings
+        onClick: (e) => e.stopPropagation(),
+        disabled: props.disabled || false
+    });
 }
+
+
+
+
+// ADD NEW METHOD (around line 450):
+applyLayoutStyles(baseStyle, props) {
+    // 🔥 NEW: Apply ALL layout properties to ANY component
+    return {
+        ...baseStyle,
+        // Position properties
+        position: props.style?.position || baseStyle.position,
+        top: props.style?.top,
+        right: props.style?.right,
+        bottom: props.style?.bottom,
+        left: props.style?.left,
+        zIndex: props.style?.zIndex || baseStyle.zIndex,
+        
+        // Display properties
+        display: props.style?.display || baseStyle.display,
+        
+        // Flexbox (even for non-layout - needed for internal flex)
+        flexDirection: props.style?.flexDirection,
+        justifyContent: props.style?.justifyContent,
+        alignItems: props.style?.alignItems,
+        gap: props.style?.gap,
+        
+        // Size properties
+        width: props.style?.width || baseStyle.width,
+        height: props.style?.height || baseStyle.height,
+        minWidth: props.style?.minWidth,
+        maxWidth: props.style?.maxWidth,
+        minHeight: props.style?.minHeight,
+        maxHeight: props.style?.maxHeight,
+        
+        // Spacing
+        margin: props.style?.margin,
+        padding: props.style?.padding || baseStyle.padding,
+        
+        // All other style properties
+        ...props.style
+    };
+}
+
+
+
 
   // Avatar renderer
   renderAvatar(props, id) {

@@ -27,14 +27,16 @@ const PropertiesPanel = ({
   searchTerm: externalSearchTerm = '',
   onSearchChange
 }) => {
-  // ✅ CRITICAL: Use memoized computation instead of state
+  
   const selectedComponentData = useMemo(() => {
     if (!selectedComponent || !canvasComponents) return null;
     
-    // Recursive search to handle nested components
+    // 🔥 FIX: Also search in text node children
     const findComponent = (components, id) => {
       for (const comp of components) {
         if (comp.id === id) return comp;
+        
+        // 🔥 NEW: Search in ALL children including text nodes
         if (comp.children?.length > 0) {
           const found = findComponent(comp.children, id);
           if (found) return found;
@@ -43,8 +45,25 @@ const PropertiesPanel = ({
       return null;
     };
     
-    return findComponent(canvasComponents, selectedComponent);
-  }, [selectedComponent, canvasComponents]);
+    const found = findComponent(canvasComponents, selectedComponent);
+    
+    // 🔥 DEBUG: Log what we found
+    console.log('🔍 selectedComponentData search:', {
+      selectedComponent,
+      found: !!found,
+      componentType: found?.type,
+      hasProps: !!found?.props,
+      hasStyle: !!found?.style
+    });
+    
+    return found;
+}, [selectedComponent, canvasComponents]);
+  
+  
+  
+  
+  
+  
   const [expandedSections, setExpandedSections] = useState({
     layout: true,
     typography: false,

@@ -1490,68 +1490,7 @@ const handlePropertyUpdate = useCallback((componentId, propName, value) => {
   
   
   
-  
-  // 🔥 NEW: Auto-detect and track text nodes from components
-const syncTextNodesFromComponents = useCallback((components) => {
-  const syncedComponents = components.map(comp => {
-    // Skip if already has explicit text node children
-    if (comp.children?.some(c => c.type === 'text-node')) {
-      return comp;
-    }
-    
-    // Check if component has text content
-    const hasTextContent = comp.props?.content || comp.props?.text;
-    
-    if (hasTextContent) {
-      // Auto-create text node child
-      const textNodeChild = {
-        id: `${comp.id}-text`,
-        type: 'text-node',
-        props: {
-          content: comp.props.content || comp.props.text,
-          editable: true,
-          isPseudoElement: true,
-          hasWrapper: false
-        },
-        name: `${comp.name} Text`,
-        parentId: comp.id,
-        isAutoWrapped: true, // 🔥 FLAG
-        style: {},
-        animation: {},
-        children: [],
-        zIndex: comp.zIndex || 0,
-        sortOrder: 0
-      };
-      
-      return {
-        ...comp,
-        children: [textNodeChild, ...(comp.children || [])]
-      };
-    }
-    
-    return comp;
-  });
-  
-  return syncedComponents;
-}, []);
 
-// 🔥 AUTO-SYNC: Apply text node wrapping on component changes
-useEffect(() => {
-  if (canvasComponents.length > 0) {
-    const synced = syncTextNodesFromComponents(canvasComponents);
-    
-    // Only update if actually changed
-    if (JSON.stringify(synced) !== JSON.stringify(canvasComponents)) {
-      console.log('🔄 Auto-syncing text nodes...');
-      setFrameCanvasComponents(prev => ({
-        ...prev,
-        [currentFrame]: synced
-      }));
-    }
-  }
-}, [canvasComponents.length]); // Only trigger on count change
-  
-  
   
   
   
