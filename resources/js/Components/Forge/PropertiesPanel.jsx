@@ -77,9 +77,26 @@ const PropertiesPanel = ({
   const [internalSearchTerm, setInternalSearchTerm] = useState('');
   const activeSearchTerm = externalSearchTerm || internalSearchTerm;
   
+  // ✅ ADD THIS - Critical missing state
+  const [localStyles, setLocalStyles] = useState({});
+
+  
   // ✅ ADD THIS LINE
   const { toggleOverlay, isOverlayEnabled } = useCanvasOverlayStore();
 
+  
+  
+  
+  // ✅ Sync local state when component changes
+useEffect(() => {
+  if (selectedComponentData?.id) {
+    console.log('🔄 Syncing local styles:', selectedComponentData.style);
+    setLocalStyles(selectedComponentData?.style || {});
+  }
+}, [selectedComponentData?.id, selectedComponentData?.style]);
+
+
+  
   
   useEffect(() => {
     if (activeSearchTerm && activeSearchTerm.trim() !== '') {
@@ -109,23 +126,31 @@ const PropertiesPanel = ({
     }
   };
 
-   const handlePropertyChange = useCallback((propName, value, category = 'style') => {
-    if (!selectedComponent || !selectedComponentData) return;
+   
+// ✅ MODIFY handlePropertyChange to update local state
+const handlePropertyChange = useCallback((propName, value, category = 'style') => {
+  if (!selectedComponent || !selectedComponentData) return;
+  
+  console.log('🔧 Property change:', { propName, value, category, selectedComponent });
+  
+  if (category === 'style') {
+    // Update local state immediately for responsive UI
+    setLocalStyles(prev => ({
+      ...prev,
+      [propName]: value
+    }));
     
-    console.log('🔧 Property change:', { propName, value, category, selectedComponent });
-    
-    if (category === 'style') {
-      const currentStyles = selectedComponentData?.style || {};
-      const newStyles = { ...currentStyles, [propName]: value };
-      onPropertyUpdate(selectedComponent, 'style', newStyles);
-    } else if (category === 'animation') {
-      const currentAnimation = selectedComponentData?.animation || {};
-      const newAnimation = { ...currentAnimation, [propName]: value };
-      onPropertyUpdate(selectedComponent, 'animation', newAnimation);
-    } else {
-      onPropertyUpdate(selectedComponent, propName, value);
-    }
-  }, [selectedComponent, selectedComponentData, onPropertyUpdate]);
+    const currentStyles = selectedComponentData?.style || {};
+    const newStyles = { ...currentStyles, [propName]: value };
+    onPropertyUpdate(selectedComponent, 'style', newStyles);
+  } else if (category === 'animation') {
+    const currentAnimation = selectedComponentData?.animation || {};
+    const newAnimation = { ...currentAnimation, [propName]: value };
+    onPropertyUpdate(selectedComponent, 'animation', newAnimation);
+  } else {
+    onPropertyUpdate(selectedComponent, propName, value);
+  }
+}, [selectedComponent, selectedComponentData, onPropertyUpdate]);
 
 
     // In PropertiesPanel.jsx - add this debug section at the top of the return
@@ -140,18 +165,19 @@ console.log('🔍 PropertiesPanel Debug:', {
 
 
 
+// REPLACE (around line 80)
 const currentStyles = selectedComponentData?.style || {};
 const currentAnimation = selectedComponentData?.animation || {};
 
-  const commonProps = {
-    currentStyles,
-    currentAnimation,
-    onPropertyChange: handlePropertyChange,
-    expandedSections,
-    setExpandedSections,
-    selectedComponentData,
-    searchTerm: activeSearchTerm
-  };
+const commonProps = {
+  currentStyles: localStyles, // 🔥 USE LOCAL STATE
+  currentAnimation,
+  onPropertyChange: handlePropertyChange,
+  expandedSections,
+  setExpandedSections,
+  selectedComponentData,
+  searchTerm: activeSearchTerm
+};
 
 
 // Handle canvas root selection - show canvas properties

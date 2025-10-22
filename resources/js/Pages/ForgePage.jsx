@@ -1391,15 +1391,121 @@ const handleIconSelect = useCallback((icon) => {
   }, [canvasComponents, currentFrame, projectId, pushHistory, actionTypes, componentLibraryService, generateCode]);
 
   
-  // MODIFY: Enhanced property update handler with undo/redo
-   // ENHANCED: Modified handlePropertyUpdate to trigger thumbnail updates
+//   // MODIFY: Enhanced property update handler with undo/redo
+//   // ENHANCED: Modified handlePropertyUpdate to trigger thumbnail updates
+// const handlePropertyUpdate = useCallback((componentId, propName, value) => {
+//   const updatedComponents = canvasComponents.map(c => {
+//     if (c.id === componentId) {
+//       if (propName === 'position') {
+//         return { ...c, position: value }
+//       } else if (propName === 'style') {
+//         return { ...c, style: { ...c.style, ...value } }
+//       } else if (propName === 'animation') {
+//         return { ...c, animation: { ...c.animation, ...value } }
+//       } else if (propName === 'name') {
+//         return { ...c, name: value }
+//       } else if (propName === 'reset') {
+//         return { 
+//           ...c, 
+//           style: {}, 
+//           animation: {},
+//           props: {}
+//         }
+//       } else {
+//         return { ...c, props: { ...c.props, [propName]: value } }
+//       }
+//     }
+//     return c
+//   })
+  
+//   // Update local state immediately
+//   setFrameCanvasComponents(prev => ({
+//     ...prev,
+//     [currentFrame]: updatedComponents
+//   }));
+  
+//   // Push to history for undo/redo
+//   const component = canvasComponents.find(c => c.id === componentId);
+//   const componentName = component?.name || component?.type || 'component';
+  
+//   let actionType = actionTypes.PROP_UPDATE;
+//   if (propName === 'position') actionType = actionTypes.MOVE;
+//   else if (propName === 'style') actionType = actionTypes.STYLE_UPDATE;
+  
+//   if (propName === 'position') {
+//     const oldPos = component?.position || { x: 0, y: 0 };
+//     const deltaX = Math.abs(value.x - oldPos.x);
+//     const deltaY = Math.abs(value.y - oldPos.y);
+    
+//     if (deltaX > 5 || deltaY > 5) {
+//       pushHistory(currentFrame, updatedComponents, actionType, {
+//         componentName,
+//         componentId,
+//         propName,
+//         value,
+//         previousValue: oldPos
+//       });
+//     }
+//   } else {
+//     pushHistory(currentFrame, updatedComponents, actionType, {
+//       componentName,
+//       componentId,
+//       propName,
+//       value,
+//       previousValue: propName === 'style' ? component?.style : component?.props?.[propName]
+//     });
+//   }
+  
+//   // ENHANCED: Schedule thumbnail update for visual changes
+//   const shouldUpdateThumbnail = propName !== 'name' && // Skip thumbnail update for name changes
+//                               (propName === 'style' || propName === 'position' || 
+//                                 propName === 'props' || propName === 'animation');
+                                
+//   if (shouldUpdateThumbnail && updatedComponents.length > 0) {
+//     const canvasSettings = {
+//       viewport: getCurrentCanvasDimensions(),
+//       background_color: frame?.settings?.background_color || '#ffffff',
+//       responsive_mode: responsiveMode,
+//       zoom_level: zoomLevel,
+//       grid_visible: gridVisible
+//     };
+    
+//     // Schedule debounced thumbnail update
+//     scheduleThumbnailUpdate(updatedComponents, canvasSettings);
+//   }
+  
+//   // Auto-save with longer delay to prevent conflicts
+//   setTimeout(() => {
+//     if (componentLibraryService?.saveProjectComponents) {
+//       componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedComponents);
+//     }
+//   }, propName === 'position' ? 2000 : 1000);
+  
+//   generateCode(updatedComponents);
+// }, [canvasComponents, currentFrame, projectId, pushHistory, actionTypes, componentLibraryService, generateCode, 
+//     scheduleThumbnailUpdate, getCurrentCanvasDimensions, responsiveMode, zoomLevel, gridVisible, frame?.settings]);
+
+  
+
+  
+  
+  // MODIFY handlePropertyUpdate (around line 580)
 const handlePropertyUpdate = useCallback((componentId, propName, value) => {
+  console.log('🎯 ForgePage: Property update:', { componentId, propName, value });
+  
   const updatedComponents = canvasComponents.map(c => {
     if (c.id === componentId) {
       if (propName === 'position') {
         return { ...c, position: value }
       } else if (propName === 'style') {
-        return { ...c, style: { ...c.style, ...value } }
+        // 🔥 CRITICAL: Merge styles properly
+        return { 
+          ...c, 
+          style: { 
+            ...c.style, 
+            ...value  // Merge new styles with existing
+          } 
+        }
       } else if (propName === 'animation') {
         return { ...c, animation: { ...c.animation, ...value } }
       } else if (propName === 'name') {
@@ -1412,83 +1518,27 @@ const handlePropertyUpdate = useCallback((componentId, propName, value) => {
           props: {}
         }
       } else {
-        return { ...c, props: { ...c.props, [propName]: value } }
+        // 🔥 Single property update in style
+        return { 
+          ...c, 
+          style: {
+            ...c.style,
+            [propName]: value
+          }
+        }
       }
     }
     return c
   })
   
-  // Update local state immediately
+  // Force immediate update
   setFrameCanvasComponents(prev => ({
     ...prev,
     [currentFrame]: updatedComponents
   }));
   
-  // Push to history for undo/redo
-  const component = canvasComponents.find(c => c.id === componentId);
-  const componentName = component?.name || component?.type || 'component';
-  
-  let actionType = actionTypes.PROP_UPDATE;
-  if (propName === 'position') actionType = actionTypes.MOVE;
-  else if (propName === 'style') actionType = actionTypes.STYLE_UPDATE;
-  
-  if (propName === 'position') {
-    const oldPos = component?.position || { x: 0, y: 0 };
-    const deltaX = Math.abs(value.x - oldPos.x);
-    const deltaY = Math.abs(value.y - oldPos.y);
-    
-    if (deltaX > 5 || deltaY > 5) {
-      pushHistory(currentFrame, updatedComponents, actionType, {
-        componentName,
-        componentId,
-        propName,
-        value,
-        previousValue: oldPos
-      });
-    }
-  } else {
-    pushHistory(currentFrame, updatedComponents, actionType, {
-      componentName,
-      componentId,
-      propName,
-      value,
-      previousValue: propName === 'style' ? component?.style : component?.props?.[propName]
-    });
-  }
-  
-  // ENHANCED: Schedule thumbnail update for visual changes
-  const shouldUpdateThumbnail = propName !== 'name' && // Skip thumbnail update for name changes
-                               (propName === 'style' || propName === 'position' || 
-                                propName === 'props' || propName === 'animation');
-                                
-  if (shouldUpdateThumbnail && updatedComponents.length > 0) {
-    const canvasSettings = {
-      viewport: getCurrentCanvasDimensions(),
-      background_color: frame?.settings?.background_color || '#ffffff',
-      responsive_mode: responsiveMode,
-      zoom_level: zoomLevel,
-      grid_visible: gridVisible
-    };
-    
-    // Schedule debounced thumbnail update
-    scheduleThumbnailUpdate(updatedComponents, canvasSettings);
-  }
-  
-  // Auto-save with longer delay to prevent conflicts
-  setTimeout(() => {
-    if (componentLibraryService?.saveProjectComponents) {
-      componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedComponents);
-    }
-  }, propName === 'position' ? 2000 : 1000);
-  
-  generateCode(updatedComponents);
-}, [canvasComponents, currentFrame, projectId, pushHistory, actionTypes, componentLibraryService, generateCode, 
-    scheduleThumbnailUpdate, getCurrentCanvasDimensions, responsiveMode, zoomLevel, gridVisible, frame?.settings]);
-
-  
-
-  
-  
+  // ... rest of the function
+}, [canvasComponents, currentFrame, /* ... */]);
   
 
   

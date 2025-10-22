@@ -10,53 +10,9 @@ const LayoutSection = ({
   selectedComponentData,
   searchTerm = ''
 }) => {
-  // Local state to prevent input reset issues during typing
-  const [localValues, setLocalValues] = useState({});
-  const [typingTimeouts, setTypingTimeouts] = useState({});
+ 
 
-  // Sync local values only when component ID changes
-  useEffect(() => {
-    if (selectedComponentData?.id) {
-      setLocalValues(currentStyles || {});
-    }
-  }, [selectedComponentData?.id]);
-
-  // Debounced update to database
-  const debouncedUpdate = useCallback((property, value, category = 'style') => {
-    // Clear existing timeout for this property
-    if (typingTimeouts[property]) {
-      clearTimeout(typingTimeouts[property]);
-    }
-
-    // Set new timeout to save after user stops typing
-    const timeoutId = setTimeout(() => {
-      onPropertyChange(property, value, category);
-    }, 500); // 500ms delay
-
-    setTypingTimeouts(prev => ({
-      ...prev,
-      [property]: timeoutId
-    }));
-  }, [onPropertyChange, typingTimeouts]);
-
-  const handleInputChange = useCallback((property, value, category = 'style') => {
-    // Update local state immediately for responsive UI
-    setLocalValues(prev => ({
-      ...prev,
-      [property]: value
-    }));
-
-    // Debounce database update
-    debouncedUpdate(property, value, category);
-  }, [debouncedUpdate]);
-
-  const handleInputBlur = useCallback((property, value, category = 'style') => {
-    // Force immediate save on blur
-    if (typingTimeouts[property]) {
-      clearTimeout(typingTimeouts[property]);
-    }
-    onPropertyChange(property, value, category);
-  }, [onPropertyChange, typingTimeouts]);
+ 
 
   const VisualButtonGroup = ({ label, value, onChange, options, icons = {} }) => (
     <div className="space-y-2">
@@ -331,7 +287,7 @@ const LayoutSection = ({
               className="px-4 py-3 rounded-lg border-2 transition-all hover:shadow-md"
               style={{
                 backgroundColor: 'var(--color-surface)',
-                borderColor: (localValues.display || currentStyles.display) === 'grid' ? 'var(--color-primary)' : 'var(--color-border)',
+                borderColor: (currentStyles.display) === 'grid' ? 'var(--color-primary)' : 'var(--color-border)',
                 color: 'var(--color-text)'
               }}
             >
@@ -344,21 +300,17 @@ const LayoutSection = ({
 
         <VisualButtonGroup
           label="Position Type"
-          value={localValues.position || currentStyles.position || 'static'}
-          onChange={(value) => {
-            handleInputChange('position', value);
-            onPropertyChange('position', value, 'style');
-          }}
+          value={currentStyles.position || 'static'}
+          onChange={(value) => onPropertyChange('position', value, 'style')}
           options={['static', 'relative', 'absolute', 'fixed', 'sticky']}
         />
 
         <VisualButtonGroup
           label="Display Type"
-          value={localValues.display || currentStyles.display || 'block'}
-          onChange={(value) => {
-            handleInputChange('display', value);
-            onPropertyChange('display', value, 'style');
-          }}
+          value={currentStyles.display || 'block'}
+          onChange={(value) =>
+            onPropertyChange('display', value, 'style')
+          }
           options={['block', 'inline-block', 'flex', 'grid', 'none']}
         />
 
@@ -370,9 +322,8 @@ const LayoutSection = ({
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Top</label>
                 <input
                   type="text"
-                  value={localValues.top || currentStyles.top || ''}
-                  onChange={(e) => handleInputChange('top', e.target.value)}
-                  onBlur={(e) => handleInputBlur('top', e.target.value)}
+                  value={currentStyles.top || ''}
+                  onChange={(e) => onPropertyChange('top', e.target.value)}
                   placeholder="auto, 0px, 10%, 2rem"
                   className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                   style={{
@@ -386,9 +337,8 @@ const LayoutSection = ({
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Right</label>
                 <input
                   type="text"
-                  value={localValues.right || currentStyles.right || ''}
-                  onChange={(e) => handleInputChange('right', e.target.value)}
-                  onBlur={(e) => handleInputBlur('right', e.target.value)}
+                  value={currentStyles.right || ''}
+                  onChange={(e) => onPropertyChange('right', e.target.value)}
                   placeholder="auto, 0px, 10%, 2rem"
                   className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                   style={{
@@ -402,9 +352,8 @@ const LayoutSection = ({
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Bottom</label>
                 <input
                   type="text"
-                  value={localValues.bottom || currentStyles.bottom || ''}
-                  onChange={(e) => handleInputChange('bottom', e.target.value)}
-                  onBlur={(e) => handleInputBlur('bottom', e.target.value)}
+                  value={currentStyles.bottom || ''}
+                  onChange={(e) => onPropertyChange('bottom', e.target.value)}
                   placeholder="auto, 0px, 10%, 2rem"
                   className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                   style={{
@@ -418,9 +367,8 @@ const LayoutSection = ({
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Left</label>
                 <input
                   type="text"
-                  value={localValues.left || currentStyles.left || ''}
-                  onChange={(e) => handleInputChange('left', e.target.value)}
-                  onBlur={(e) => handleInputBlur('left', e.target.value)}
+                  value={currentStyles.left || ''}
+                  onChange={(e) => onPropertyChange('left', e.target.value)}
                   placeholder="auto, 0px, 10%, 2rem"
                   className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                   style={{
@@ -485,9 +433,8 @@ const LayoutSection = ({
           <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Z-Index (Layer Order)</label>
           <input
             type="number"
-            value={localValues.zIndex || currentStyles.zIndex || '0'}
-            onChange={(e) => handleInputChange('zIndex', e.target.value)}
-            onBlur={(e) => handleInputBlur('zIndex', e.target.value)}
+            value={currentStyles.zIndex || '0'}
+            onChange={(e) => onPropertyChange('zIndex', e.target.value)}
             min="-1000"
             max="1000"
             step="1"
@@ -531,11 +478,10 @@ const LayoutSection = ({
 
           <VisualButtonGroup
             label="Justify Content (Main Axis)"
-            value={localValues.justifyContent || currentStyles.justifyContent || 'flex-start'}
-            onChange={(value) => {
-              handleInputChange('justifyContent', value);
-              onPropertyChange('justifyContent', value, 'style');
-            }}
+            value={currentStyles.justifyContent || 'flex-start'}
+            onChange={(value) => 
+              onPropertyChange('justifyContent', value, 'style')
+            }
             options={['flex-start', 'center', 'flex-end', 'space-between', 'space-around', 'space-evenly']}
             icons={{
               'flex-start': AlignLeft,
@@ -547,21 +493,19 @@ const LayoutSection = ({
 
           <VisualButtonGroup
             label="Align Items (Cross Axis)"
-            value={localValues.alignItems || currentStyles.alignItems || 'stretch'}
-            onChange={(value) => {
-              handleInputChange('alignItems', value);
-              onPropertyChange('alignItems', value, 'style');
-            }}
+            value={currentStyles.alignItems || 'stretch'}
+            onChange={(value) => 
+              onPropertyChange('alignItems', value, 'style')
+            }
             options={['stretch', 'flex-start', 'center', 'flex-end', 'baseline']}
           />
 
           <VisualButtonGroup
             label="Flex Wrap"
-            value={localValues.flexWrap || currentStyles.flexWrap || 'nowrap'}
-            onChange={(value) => {
-              handleInputChange('flexWrap', value);
-              onPropertyChange('flexWrap', value, 'style');
-            }}
+            value={currentStyles.flexWrap || 'nowrap'}
+            onChange={(value) => 
+              onPropertyChange('flexWrap', value, 'style')
+            }
             options={['nowrap', 'wrap', 'wrap-reverse']}
           />
 
@@ -569,9 +513,8 @@ const LayoutSection = ({
             <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Gap Between Items</label>
             <input
               type="text"
-              value={localValues.gap || currentStyles.gap || ''}
-              onChange={(e) => handleInputChange('gap', e.target.value)}
-              onBlur={(e) => handleInputBlur('gap', e.target.value)}
+              value={currentStyles.gap || ''}
+              onChange={(e) => onPropertyChange('gap', e.target.value)}
               placeholder="0px, 8px, 16px, 1rem, 2rem"
               className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
               style={{
@@ -592,9 +535,8 @@ const LayoutSection = ({
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Grow</label>
                 <input
                   type="number"
-                  value={localValues.flexGrow || currentStyles.flexGrow || '0'}
-                  onChange={(e) => handleInputChange('flexGrow', e.target.value)}
-                  onBlur={(e) => handleInputBlur('flexGrow', e.target.value)}
+                  value={currentStyles.flexGrow || '0'}
+                  onChange={(e) => onPropertyChange('flexGrow', e.target.value)}
                   min="0"
                   step="1"
                   placeholder="0"
@@ -610,9 +552,8 @@ const LayoutSection = ({
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Shrink</label>
                 <input
                   type="number"
-                  value={localValues.flexShrink || currentStyles.flexShrink || '1'}
-                  onChange={(e) => handleInputChange('flexShrink', e.target.value)}
-                  onBlur={(e) => handleInputBlur('flexShrink', e.target.value)}
+                  value={currentStyles.flexShrink || '1'}
+                  onChange={(e) => onPropertyChange('flexShrink', e.target.value)}
                   min="0"
                   step="1"
                   placeholder="1"
@@ -628,9 +569,8 @@ const LayoutSection = ({
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Basis</label>
                 <input
                   type="text"
-                  value={localValues.flexBasis || currentStyles.flexBasis || 'auto'}
-                  onChange={(e) => handleInputChange('flexBasis', e.target.value)}
-                  onBlur={(e) => handleInputBlur('flexBasis', e.target.value)}
+                  value={currentStyles.flexBasis || 'auto'}
+                  onChange={(e) => onPropertyChange('flexBasis', e.target.value)}
                   placeholder="auto, 100px"
                   className="w-full px-2 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                   style={{
@@ -664,9 +604,8 @@ const LayoutSection = ({
               <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Grid Template Columns</label>
               <input
                 type="text"
-                value={localValues.gridTemplateColumns || currentStyles.gridTemplateColumns || ''}
-                onChange={(e) => handleInputChange('gridTemplateColumns', e.target.value)}
-                onBlur={(e) => handleInputBlur('gridTemplateColumns', e.target.value)}
+                value={currentStyles.gridTemplateColumns || ''}
+                onChange={(e) => onPropertyChange('gridTemplateColumns', e.target.value)}
                 placeholder="repeat(3, 1fr), 200px 1fr 1fr, auto"
                 className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                 style={{
@@ -683,9 +622,8 @@ const LayoutSection = ({
               <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Grid Template Rows</label>
               <input
                 type="text"
-                value={localValues.gridTemplateRows || currentStyles.gridTemplateRows || ''}
-                onChange={(e) => handleInputChange('gridTemplateRows', e.target.value)}
-                onBlur={(e) => handleInputBlur('gridTemplateRows', e.target.value)}
+                value={currentStyles.gridTemplateRows || ''}
+                onChange={(e) => onPropertyChange('gridTemplateRows', e.target.value)}
                 placeholder="repeat(2, 1fr), auto, 100px"
                 className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                 style={{
@@ -705,9 +643,8 @@ const LayoutSection = ({
               <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Column Gap</label>
               <input
                 type="text"
-                value={localValues.columnGap || currentStyles.columnGap || ''}
-                onChange={(e) => handleInputChange('columnGap', e.target.value)}
-                onBlur={(e) => handleInputBlur('columnGap', e.target.value)}
+                value={currentStyles.columnGap || ''}
+                onChange={(e) => onPropertyChange('columnGap', e.target.value)}
                 placeholder="0px, 16px, 1rem, 2rem"
                 className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                 style={{
@@ -721,9 +658,8 @@ const LayoutSection = ({
               <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Row Gap</label>
               <input
                 type="text"
-                value={localValues.rowGap || currentStyles.rowGap || ''}
-                onChange={(e) => handleInputChange('rowGap', e.target.value)}
-                onBlur={(e) => handleInputBlur('rowGap', e.target.value)}
+                value={currentStyles.rowGap || ''}
+                onChange={(e) => onPropertyChange('rowGap', e.target.value)}
                 placeholder="0px, 16px, 1rem, 2rem"
                 className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                 style={{
@@ -742,9 +678,8 @@ const LayoutSection = ({
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Grid Column</label>
                 <input
                   type="text"
-                  value={localValues.gridColumn || currentStyles.gridColumn || ''}
-                  onChange={(e) => handleInputChange('gridColumn', e.target.value)}
-                  onBlur={(e) => handleInputBlur('gridColumn', e.target.value)}
+                  values={currentStyles.gridColumn || ''}
+                  onChange={(e) => onPropertyChange('gridColumn', e.target.value)}
                   placeholder="1 / 3, span 2, 1 / -1"
                   className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                   style={{
@@ -758,9 +693,8 @@ const LayoutSection = ({
                 <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Grid Row</label>
                 <input
                   type="text"
-                  value={localValues.gridRow || currentStyles.gridRow || ''}
-                  onChange={(e) => handleInputChange('gridRow', e.target.value)}
-                  onBlur={(e) => handleInputBlur('gridRow', e.target.value)}
+                  value={currentStyles.gridRow || ''}
+                  onChange={(e) => onPropertyChange('gridRow', e.target.value)}
                   placeholder="1 / 2, span 1, 1 / -1"
                   className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                   style={{
@@ -792,9 +726,8 @@ const LayoutSection = ({
             <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Width</label>
             <input
               type="text"
-              value={localValues.width || currentStyles.width || ''}
-              onChange={(e) => handleInputChange('width', e.target.value)}
-              onBlur={(e) => handleInputBlur('width', e.target.value)}
+              value={currentStyles.width || ''}
+              onChange={(e) => onPropertyChange('width', e.target.value)}
               placeholder="auto, 100%, 300px, 50vw"
               className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
               style={{
@@ -808,9 +741,8 @@ const LayoutSection = ({
             <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Height</label>
             <input
               type="text"
-              value={localValues.height || currentStyles.height || ''}
-              onChange={(e) => handleInputChange('height', e.target.value)}
-              onBlur={(e) => handleInputBlur('height', e.target.value)}
+              value={currentStyles.height || ''}
+              onChange={(e) => onPropertyChange('height', e.target.value)}
               placeholder="auto, 100%, 300px, 50vh"
               className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
               style={{
@@ -829,9 +761,8 @@ const LayoutSection = ({
               <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Min Width</label>
               <input
                 type="text"
-                value={localValues.minWidth || currentStyles.minWidth || ''}
-                onChange={(e) => handleInputChange('minWidth', e.target.value)}
-                onBlur={(e) => handleInputBlur('minWidth', e.target.value)}
+                value={currentStyles.minWidth || ''}
+                onChange={(e) => onPropertyChange('minWidth', e.target.value)}
                 placeholder="0, 100px, 50%, min-content"
                 className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                 style={{
@@ -845,9 +776,8 @@ const LayoutSection = ({
               <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Max Width</label>
               <input
                 type="text"
-                value={localValues.maxWidth || currentStyles.maxWidth || ''}
-                onChange={(e) => handleInputChange('maxWidth', e.target.value)}
-                onBlur={(e) => handleInputBlur('maxWidth', e.target.value)}
+                value={currentStyles.maxWidth || ''}
+                onChange={(e) => onPropertyChange('maxWidth', e.target.value)}
                 placeholder="none, 1200px, 100%, max-content"
                 className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                 style={{
@@ -861,9 +791,8 @@ const LayoutSection = ({
               <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Min Height</label>
               <input
                 type="text"
-                value={localValues.minHeight || currentStyles.minHeight || ''}
-                onChange={(e) => handleInputChange('minHeight', e.target.value)}
-                onBlur={(e) => handleInputBlur('minHeight', e.target.value)}
+                value={currentStyles.minHeight || ''}
+                onChange={(e) => onPropertyChange('minHeight', e.target.value)}
                 placeholder="0, 100px, 50vh, min-content"
                 className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                 style={{
@@ -877,9 +806,8 @@ const LayoutSection = ({
               <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Max Height</label>
               <input
                 type="text"
-                value={localValues.maxHeight || currentStyles.maxHeight || ''}
-                onChange={(e) => handleInputChange('maxHeight', e.target.value)}
-                onBlur={(e) => handleInputBlur('maxHeight', e.target.value)}
+                value={currentStyles.maxHeight || ''}
+                onChange={(e) => onPropertyChange('maxHeight', e.target.value)}
                 placeholder="none, 800px, 100vh, max-content"
                 className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                 style={{
@@ -894,11 +822,10 @@ const LayoutSection = ({
 
         <VisualButtonGroup
           label="Box Sizing Model"
-          value={localValues.boxSizing || currentStyles.boxSizing || 'content-box'}
-          onChange={(value) => {
-            handleInputChange('boxSizing', value);
-            onPropertyChange('boxSizing', value, 'style');
-          }}
+          value={currentStyles.boxSizing || 'content-box'}
+          onChange={(value) => 
+            onPropertyChange('boxSizing', value, 'style')
+          }
           options={['content-box', 'border-box']}
         />
         <div className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
@@ -918,14 +845,14 @@ const LayoutSection = ({
         <SpacingControl
           label="Margin (Outside Spacing)"
           property="margin"
-          value={localValues.margin || currentStyles.margin}
+          value={currentStyles.margin}
           onChange={onPropertyChange}
         />
 
         <SpacingControl
           label="Padding (Inside Spacing)"
           property="padding"
-          value={localValues.padding || currentStyles.padding}
+          value={currentStyles.padding}
           onChange={onPropertyChange}
         />
       </PropertySection>
@@ -941,11 +868,10 @@ const LayoutSection = ({
       >
         <VisualButtonGroup
           label="Overflow (Both Axes)"
-          value={localValues.overflow || currentStyles.overflow || 'visible'}
-          onChange={(value) => {
-            handleInputChange('overflow', value);
-            onPropertyChange('overflow', value, 'style');
-          }}
+          value={currentStyles.overflow || 'visible'}
+          onChange={(value) => 
+            onPropertyChange('overflow', value, 'style')
+          }
           options={['visible', 'hidden', 'scroll', 'auto']}
         />
         
@@ -953,22 +879,20 @@ const LayoutSection = ({
           <div>
             <VisualButtonGroup
               label="Overflow X"
-              value={localValues.overflowX || currentStyles.overflowX || 'visible'}
-              onChange={(value) => {
-                handleInputChange('overflowX', value);
-                onPropertyChange('overflowX', value, 'style');
-              }}
+              value={currentStyles.overflowX || 'visible'}
+              onChange={(value) => 
+                onPropertyChange('overflowX', value, 'style')
+              }
               options={['visible', 'hidden', 'scroll', 'auto']}
             />
           </div>
           <div>
             <VisualButtonGroup
               label="Overflow Y"
-              value={localValues.overflowY || currentStyles.overflowY || 'visible'}
-              onChange={(value) => {
-                handleInputChange('overflowY', value);
-                onPropertyChange('overflowY', value, 'style');
-              }}
+              value={currentStyles.overflowY || 'visible'}
+              onChange={(value) => 
+                onPropertyChange('overflowY', value, 'style')
+              }
               options={['visible', 'hidden', 'scroll', 'auto']}
             />
           </div>

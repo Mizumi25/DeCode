@@ -11,6 +11,11 @@ class ComponentLibraryService {
   // Load all components from the API
     // REPLACE the loadComponents method in ComponentLibraryService.js (around line 50)
   
+  
+  
+  
+  
+  
   async loadComponents() {
       try {
           console.log('=== LOADING COMPONENTS FROM DATABASE ===');
@@ -115,6 +120,41 @@ class ComponentLibraryService {
           throw error;
       }
   }
+  
+  
+  
+  
+  
+  
+  // ADD THIS METHOD (around line 100)
+normalizeComponentStyles(component) {
+  // 🔥 CRITICAL: Move any style properties from props to style
+  const styleProps = ['display', 'position', 'width', 'height', 'minHeight', 
+    'padding', 'margin', 'backgroundColor', 'color', 'fontSize', 'fontWeight',
+    'borderRadius', 'boxShadow', 'zIndex', 'top', 'right', 'bottom', 'left'];
+  
+  const normalized = {
+    ...component,
+    style: { ...component.style },
+    props: { ...component.props }
+  };
+  
+  // Move style props from props to style
+  styleProps.forEach(prop => {
+    if (normalized.props[prop] !== undefined) {
+      console.log(`⚠️ Moving ${prop} from props to style:`, normalized.props[prop]);
+      normalized.style[prop] = normalized.props[prop];
+      delete normalized.props[prop];
+    }
+  });
+  
+  return normalized;
+}
+  
+  
+  
+  
+  
   
   renderIcon(props, id) {
     const iconStyle = {

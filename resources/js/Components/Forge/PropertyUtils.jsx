@@ -102,12 +102,16 @@ export const InputField = ({
   const [localValue, setLocalValue] = useState(value ?? '');
   const [isFocused, setIsFocused] = useState(false);
 
-  // ✅ Only sync from parent when NOT focused (prevents reset during typing)
-  useEffect(() => {
-    if (!isFocused) {
-      setLocalValue(value ?? '');
-    }
-  }, [value, isFocused]);
+
+  // REPLACE useEffect (around line 10)
+useEffect(() => {
+  // 🔥 ALWAYS sync from parent when value changes
+  setLocalValue(value ?? '');
+}, [value]); // REMOVE isFocused dependency
+
+
+
+
 
   // ✅ Handle local changes without triggering parent re-render
   const handleChange = (newValue) => {

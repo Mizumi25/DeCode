@@ -216,24 +216,25 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
         $textContent = $componentData['props']['content'] ?? $componentData['props']['text'] ?? '';
     }
 
-    $component = ProjectComponent::create([
+    // MODIFY (around line 180)
+      $component = ProjectComponent::create([
         'project_id' => $projectId,
         'frame_id' => $frameId,
         'parent_id' => $parentDbId,
         'component_instance_id' => $componentData['id'],
         'component_type' => $componentData['type'],
         'props' => $componentData['props'] ?? [],
-        'text_content' => $textContent,  // 🔥 NEW
+        'text_content' => $textContent,
         'name' => $componentData['name'],
         'z_index' => $componentData['zIndex'] ?? 0,
         'sort_order' => $componentData['sortOrder'] ?? 0,
         'variant' => $componentData['variant'] ?? null,
-        'style' => $componentData['style'] ?? [],
+        'style' => $componentData['style'] ?? [], // 🔥 This must include ALL style props
         'animation' => $componentData['animation'] ?? [],
         'is_layout_container' => $componentData['isLayoutContainer'] ?? false,
         'visible' => $componentData['visible'] ?? true,
         'locked' => $componentData['locked'] ?? false,
-    ]);
+      ]);
     
     $savedComponentIds[] = $componentData['id'];
 
