@@ -10,35 +10,39 @@ class ProjectComponent extends Model
 {
     use HasFactory;
 
+    // app/Models/ProjectComponent.php - MODIFIED fillable and casts
     protected $fillable = [
         'project_id',
-        'frame_id', // Change from frame_uuid to frame_id for consistency
+        'frame_id',
         'parent_id',
         'component_instance_id',
         'component_type',
         'props',
+        'text_content',      // 🔥 NEW
         'name',
         'z_index',
         'sort_order',
         'is_locked',
-        'variant',        // ADD
-        'style',          // ADD
-        'animation',      // ADD
-        'display_type',      // 'block', 'flex', 'grid', 'inline-block', etc.
-        'layout_props',      // flexDirection, gap, gridTemplateColumns, etc.
-        'is_layout_container', // boolean
-        'created_at',
-        'updated_at'
+        'variant',
+        'style',
+        'animation',
+        'display_type',
+        'layout_props',
+        'is_layout_container',
+        'visible',           // 🔥 NEW
+        'locked',            // 🔥 NEW
     ];
     
     protected $casts = [
         'props' => 'array',
         'is_locked' => 'boolean',
-        'variant' => 'array',     // ADD
-        'style' => 'array',       // ADD
-        'animation' => 'array',   // ADD
+        'variant' => 'array',
+        'style' => 'array',
+        'animation' => 'array',
         'layout_props' => 'array',
         'is_layout_container' => 'boolean',
+        'visible' => 'boolean',     // 🔥 NEW
+        'locked' => 'boolean',      // 🔥 NEW
     ];
     
     // ADD this relationship

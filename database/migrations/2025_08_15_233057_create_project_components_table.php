@@ -37,6 +37,11 @@ return new class extends Migration
                   ->references('id')
                   ->on('project_components')
                   ->onDelete('cascade');
+                  
+                  $table->text('text_content')->nullable()->after('props');
+            $table->boolean('visible')->default(true)->after('is_locked');
+            $table->boolean('locked')->default(false)->after('visible');
+      
             
             $table->timestamps();
             

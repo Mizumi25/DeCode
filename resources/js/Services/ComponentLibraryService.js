@@ -372,23 +372,22 @@ class ComponentLibraryService {
     }
     
     
-    // ADD this new method
-     renderLayoutContainer(componentDef, props, id, children) {
-        const containerStyle = {
-            display: props.style?.display || this.getDefaultDisplay(componentDef.type),
-            flexDirection: props.style?.flexDirection,
-            justifyContent: props.style?.justifyContent,
-            alignItems: props.style?.alignItems,
-            gap: props.style?.gap,
-            gridTemplateColumns: props.style?.gridTemplateColumns,
-            width: props.style?.width || '100%',
-            minHeight: props.style?.minHeight || this.getDefaultMinHeight(componentDef.type),
-            padding: props.style?.padding || this.getDefaultPadding(componentDef.type),
-            backgroundColor: 'transparent',
-            border: props.style?.border,
-            borderRadius: props.style?.borderRadius,
-            ...props.style
-        };
+  
+       renderLayoutContainer(componentDef, props, id, children) {
+    // 🔥 FIX: Merge ALL style properties properly
+    const baseStyle = {
+        display: props.style?.display || this.getDefaultDisplay(componentDef.type),
+        width: props.style?.width || '100%',
+        minHeight: props.style?.minHeight || this.getDefaultMinHeight(componentDef.type),
+        padding: props.style?.padding || this.getDefaultPadding(componentDef.type),
+        backgroundColor: 'transparent',
+    };
+    
+    // 🔥 CRITICAL: Merge ALL props.style into containerStyle
+    const containerStyle = {
+        ...baseStyle,
+        ...props.style  // This ensures ALL style properties are applied
+    };
         
         return React.createElement('div', {
             key: id,
@@ -438,6 +437,8 @@ class ComponentLibraryService {
 
       
    // Button renderer with proper data attributes
+// @/Services/ComponentLibraryService.js - REPLACE renderButton method
+
 renderButton(props, id, layoutStyles = {}) {
     const className = this.getButtonClasses(props);
     
@@ -451,9 +452,10 @@ renderButton(props, id, layoutStyles = {}) {
         minWidth: props.minWidth || '60px',
         ...layoutStyles,
         ...props.style
-        // ❌ REMOVED: pointerEvents: 'none'
     };
     
+    // 🔥 CRITICAL: Text nodes are now SEPARATE children, not content
+    // Button itself has NO text - text nodes are independent children
     return React.createElement('button', {
         key: id,
         className,
@@ -466,7 +468,7 @@ renderButton(props, id, layoutStyles = {}) {
         'data-component-id': id,
         'data-component-type': 'button',
         'data-is-layout': false,
-    }, props.text || props.children || 'Button');
+    }); // 🔥 NO CHILDREN - text nodes are rendered separately as siblings
 }
 
   // Avatar renderer
@@ -588,35 +590,57 @@ renderButton(props, id, layoutStyles = {}) {
   
   
 
-// 🔥 NEW: Render pure text nodes (NO wrapper)
+// @/Services/ComponentLibraryService.js - REPLACE renderTextNode method
+
 renderTextNode(props, id) {
-  const content = props.content || props.text || '';
+  const content = props.content || props.text_content || '';
   
-  // ✅ For text-node pseudo-element, return PURE text wrapped in span for selection
-  if (props.isPseudoElement || props.hasWrapper === false) {
-    return React.createElement('span', {
-      key: id,
-      'data-component-id': id,
-      'data-component-type': 'text-node',
-      'data-is-layout': false,
-      'data-is-pseudo': true,
-      className: 'text-node-pseudo inline-block min-w-[20px] min-h-[1em]',
-      style: {
-        cursor: 'text',
-        userSelect: 'none',
-        ...props.style
-      },
-      onClick: (e) => {
-        e.stopPropagation();
-        if (window.forgeSelectComponent) {
-          window.forgeSelectComponent(id);
-        }
+  // 🔥 CRITICAL: Text node is ALWAYS independent with wrapper for selection
+  return React.createElement('span', {
+    key: id,
+    'data-component-id': id,
+    'data-component-type': 'text-node',
+    'data-is-layout': false,
+    'data-is-pseudo': true,
+    className: 'text-node-independent inline-block min-w-[20px] min-h-[1em]',
+    style: {
+      cursor: 'grab',
+      userSelect: 'none',
+      display: 'inline-block',
+      position: 'relative',
+      ...props.style
+    },
+    onClick: (e) => {
+      e.stopPropagation();
+      if (window.forgeSelectComponent) {
+        window.forgeSelectComponent(id);
       }
-    }, content || '\u00A0'); // Empty space if no content
-  }
-  
-  // Otherwise use semantic rendering
-  return this.renderSemanticText(props, id);
+    },
+    onDoubleClick: (e) => {
+      e.stopPropagation();
+      // Enable inline editing
+      const span = e.currentTarget;
+      span.contentEditable = true;
+      span.focus();
+      
+      // Select all text
+      const range = document.createRange();
+      range.selectNodeContents(span);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      
+      const handleBlur = () => {
+        span.contentEditable = false;
+        const newContent = span.textContent;
+        if (props.onContentChange) {
+          props.onContentChange(id, newContent);
+        }
+      };
+      
+      span.addEventListener('blur', handleBlur, { once: true });
+    }
+  }, content || '\u00A0'); // Empty space if no content
 }
 
 
