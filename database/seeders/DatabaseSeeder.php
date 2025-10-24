@@ -27,7 +27,7 @@ class DatabaseSeeder extends Seeder
             TextPseudoElementSeeder::class,
             
             // Semantic text elements
-            SemanticTextElementsSeeder::class,
+            //SemanticTextElementsSeeder::class,
             
             // Layout containers
             LayoutContainerSeeder::class,
@@ -36,16 +36,16 @@ class DatabaseSeeder extends Seeder
             BasicElementsSeeder::class,
             
             // Form elements
-            FormElementsSeeder::class,
+            //FormElementsSeeder::class,
             
             // Advanced components
-            AdvancedComponentsSeeder::class,
+           // AdvancedComponentsSeeder::class,
             
             // 3D and interactive
-            Advanced3DAndInteractiveSeeder::class,
+            //Advanced3DAndInteractiveSeeder::class,
             
             // Media and special
-            MediaAndSpecialSeeder::class,
+           // MediaAndSpecialSeeder::class,
             
             // Non-component panel seeders
             CustomIconSeeder::class,

@@ -125,32 +125,7 @@ class ComponentLibraryService {
   
   
   
-  
-  // ADD THIS METHOD (around line 100)
-normalizeComponentStyles(component) {
-  // 🔥 CRITICAL: Move any style properties from props to style
-  const styleProps = ['display', 'position', 'width', 'height', 'minHeight', 
-    'padding', 'margin', 'backgroundColor', 'color', 'fontSize', 'fontWeight',
-    'borderRadius', 'boxShadow', 'zIndex', 'top', 'right', 'bottom', 'left'];
-  
-  const normalized = {
-    ...component,
-    style: { ...component.style },
-    props: { ...component.props }
-  };
-  
-  // Move style props from props to style
-  styleProps.forEach(prop => {
-    if (normalized.props[prop] !== undefined) {
-      console.log(`⚠️ Moving ${prop} from props to style:`, normalized.props[prop]);
-      normalized.style[prop] = normalized.props[prop];
-      delete normalized.props[prop];
-    }
-  });
-  
-  return normalized;
-}
-  
+ 
   
   
   
@@ -267,17 +242,17 @@ normalizeComponentStyles(component) {
       };
   }
 
-  // Dynamic component renderer with enhanced variant support
-   renderComponent(componentDef, props, id) {
-       // CRITICAL: Add data attribute for selection system
-      const baseDataAttrs = {
-        'data-component-id': id,
-        'data-component-type': componentDef?.type || props.type,
-        'data-is-layout': props.isLayoutContainer || false,
-    };
-     
+     // REPLACE renderComponent method
+    renderComponent(componentDef, props, id) {
+        // CRITICAL: Add data attribute for selection system
+        const baseDataAttrs = {
+            'data-component-id': id,
+            'data-component-type': componentDef?.type || props.type,
+            'data-is-layout': props.isLayoutContainer || false,
+        };
+        
         // Get the component definition if not passed
-       if (!componentDef && this.componentDefinitions.has(props.type || props.component_type)) {
+        if (!componentDef && this.componentDefinitions.has(props.type || props.component_type)) {
             componentDef = this.componentDefinitions.get(props.type || props.component_type);
         }
         
@@ -286,28 +261,45 @@ normalizeComponentStyles(component) {
             return this.renderGeneric(props, id, { name: props.type || 'Unknown', type: props.type || 'unknown' });
         }
         
-        // ✅ CRITICAL: Proper props merging with defaults
+        // ✅ CRITICAL: Proper props merging with VARIANT STYLES
         const defaultProps = componentDef?.default_props || {};
         const instanceProps = props?.props || {};
         const directProps = { ...props };
         delete directProps.props; // Remove nested props
         delete directProps.children; // Preserve children separately
         
+        // 🔥 NEW: Extract variant styles and merge with instance style
+        let finalStyle = { ...(props.style || {}) };
+        
+        if (props.variant && props.variant.style) {
+            console.log('🎨 Applying variant styles:', props.variant.name, Object.keys(props.variant.style));
+            finalStyle = {
+                ...finalStyle,
+                ...props.variant.style  // Variant styles override
+            };
+        }
+        
         const mergedProps = { 
             ...defaultProps,      // Component defaults
             ...instanceProps,     // Instance-specific props
-            ...directProps,       // Direct props (style, animation, etc.)
+            ...directProps,       // Direct props (position, etc.)
+            style: finalStyle,    // 🔥 Merged styles with variant
         };
         
-        console.log('🔧 Merged props for', componentDef.type, ':', mergedProps);
+        console.log('🔧 Merged props for', componentDef.type, ':', {
+            hasVariant: !!props.variant,
+            variantName: props.variant?.name,
+            styleKeys: Object.keys(finalStyle)
+        });
         
         // Check if this is a layout container
-      const isLayoutContainer = props.isLayoutContainer || 
-                               ['section', 'container', 'div', 'flex', 'grid'].includes(componentDef.type);
-      
-      if (isLayoutContainer) {
-          return this.renderLayoutContainer(componentDef, mergedProps, id, props.children || []);
-      }
+        const isLayoutContainer = props.isLayoutContainer || 
+                                 ['section', 'container', 'div', 'flex', 'grid'].includes(componentDef.type);
+        
+        if (isLayoutContainer) {
+            return this.renderLayoutContainer(componentDef, mergedProps, id, props.children || []);
+        }
+   
         
         console.log('Rendering component:', componentDef.type, 'with merged props:', mergedProps);
         
@@ -477,27 +469,59 @@ normalizeComponentStyles(component) {
 
       
 renderButton(props, id, layoutStyles = {}) {
-    const className = this.getButtonClasses(props);
+    const buttonText = props.content || props.text || props.children || 'Button';
     
-    // 🔥 APPLY ALL LAYOUT STYLES
-    const buttonStyle = this.applyLayoutStyles({
-        maxWidth: '100%',
-        wordBreak: 'break-word',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        ...layoutStyles
-    }, props);
+    // 🔥 CRITICAL: Use props.style directly (already merged with variant)
+    const buttonStyle = {
+        ...props.style,        // 🔥 This already contains variant styles
+        ...layoutStyles,       // Layout positioning
+        cursor: 'pointer',
+        border: 'none',
+        outline: 'none',
+    };
+    
+    console.log('🔘 Rendering button with style:', {
+        id,
+        styleKeys: Object.keys(buttonStyle),
+        hasBackground: !!buttonStyle.background,
+        hasPadding: !!buttonStyle.padding
+    });
+    
+    // 🔥 Text node wrapper for independent selection
+    const textNodeId = `${id}-text`;
+    const textNode = React.createElement('span', {
+        key: textNodeId,
+        'data-component-id': textNodeId,
+        'data-component-type': 'text-node',
+        'data-parent-id': id,
+        'data-is-layout': false,
+        'data-is-pseudo': true,
+        className: 'text-node-child',
+        style: {
+            cursor: 'text',
+            userSelect: 'none',
+            display: 'inline-block',
+            pointerEvents: 'auto'
+        },
+        onClick: (e) => {
+            e.stopPropagation();
+            if (window.forgeSelectComponent) {
+                window.forgeSelectComponent(textNodeId);
+            }
+        }
+    }, buttonText);
     
     return React.createElement('button', {
         key: id,
-        className,
-        style: buttonStyle,  // ✅ Now includes ALL layout properties
+        onClick: (e) => {
+            e.stopPropagation();
+        },
+        disabled: props.disabled || false,
+        style: buttonStyle,  // 🔥 All styles applied here
         'data-component-id': id,
         'data-component-type': 'button',
         'data-is-layout': false,
-        onClick: (e) => e.stopPropagation(),
-        disabled: props.disabled || false
-    });
+    }, textNode);
 }
 
 
@@ -1989,16 +2013,90 @@ ${htmlComponents}
   }
 
 
+// @/Services/ComponentLibraryService.js - ADD/REPLACE this method (around line 100)
+
+normalizeComponentStyles(component) {
+  // 🔥 CRITICAL: Move ANY style-related properties from props to style
+  const styleProps = [
+    // Display & Positioning
+    'display', 'position', 'top', 'right', 'bottom', 'left', 'zIndex',
+    
+    // Flexbox & Grid
+    'flexDirection', 'justifyContent', 'alignItems', 'alignContent', 
+    'gap', 'rowGap', 'columnGap', 'flex', 'flexGrow', 'flexShrink', 'flexBasis',
+    'gridTemplateColumns', 'gridTemplateRows', 'gridColumn', 'gridRow',
+    
+    // Size
+    'width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight',
+    
+    // Spacing
+    'padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+    'margin', 'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
+    
+    // Background
+    'backgroundColor', 'backgroundImage', 'backgroundSize', 'backgroundPosition',
+    'backgroundRepeat', 'background',
+    
+    // Border
+    'border', 'borderWidth', 'borderStyle', 'borderColor', 'borderRadius',
+    'borderTop', 'borderRight', 'borderBottom', 'borderLeft',
+    
+    // Typography
+    'color', 'fontSize', 'fontWeight', 'fontFamily', 'lineHeight', 'letterSpacing',
+    'textAlign', 'textDecoration', 'textTransform',
+    
+    // Visual Effects
+    'boxShadow', 'opacity', 'transform', 'transition', 'filter', 'backdropFilter',
+    
+    // Overflow & Visibility
+    'overflow', 'overflowX', 'overflowY', 'visibility',
+    
+    // Cursor & Interaction
+    'cursor', 'pointerEvents', 'userSelect',
+  ];
+  
+  const normalized = {
+    ...component,
+    style: { ...(component.style || {}) },
+    props: { ...(component.props || {}) }
+  };
+  
+  // 🔥 Move ALL style props from props to style
+  styleProps.forEach(prop => {
+    if (normalized.props[prop] !== undefined) {
+      console.log(`⚠️ Moving ${prop} from props to style:`, normalized.props[prop]);
+      normalized.style[prop] = normalized.props[prop];
+      delete normalized.props[prop];
+    }
+  });
+  
+  // 🔥 ALSO check for Tailwind class strings that should be converted
+  if (normalized.props.className) {
+    console.log('⚠️ Converting className to inline styles');
+    // You can add Tailwind-to-CSS conversion here if needed
+    // For now, just move it
+    normalized.style.className = normalized.props.className;
+    delete normalized.props.className;
+  }
+  
+  return normalized;
+}
+
+
+// MODIFY: saveProjectComponents method (around line 750)
 async saveProjectComponents(projectId, frameId, components) {
     try {
         console.log('=== SAVING TO DATABASE ===');
         console.log('Components to save:', components.length);
         
-        // CRITICAL: Create a Set to track component IDs and prevent duplicates
         const seenIds = new Set();
         
-        // CRITICAL: Flatten component tree for backend
-        const flattenedComponents = this.flattenComponentTree(components, seenIds);
+        // 🔥 CRITICAL: Normalize ALL components before flattening
+        const normalizedComponents = components.map(comp => 
+            this.normalizeComponentStyles(comp)
+        );
+        
+        const flattenedComponents = this.flattenComponentTree(normalizedComponents, seenIds);
         
         console.log('Flattened components:', flattenedComponents.length);
         console.log('Duplicate IDs removed:', components.length - flattenedComponents.length);
@@ -2007,7 +2105,6 @@ async saveProjectComponents(projectId, frameId, components) {
             project_id: projectId,
             frame_id: frameId,
             components: flattenedComponents.map((comp, index) => ({
-                // CRITICAL: Map frontend fields to backend fields
                 id: comp.id,                              
                 type: comp.type,                          
                 props: comp.props || {},
@@ -2015,11 +2112,11 @@ async saveProjectComponents(projectId, frameId, components) {
                 zIndex: comp.zIndex || 0,
                 sortOrder: index,                         
                 variant: comp.variant || null,
-                style: comp.style || {},
+                style: comp.style || {}, // 🔥 This should now contain ALL styles
                 animation: comp.animation || {},
                 isLayoutContainer: comp.isLayoutContainer || false,
                 children: comp.children || [],            
-                parentId: comp.parentId || null,          
+                parentId: comp.parentId || null,
             })),
             create_revision: false
         });
@@ -2037,29 +2134,29 @@ async saveProjectComponents(projectId, frameId, components) {
     }
 }
 
-// ENHANCED: Flatten nested component tree with duplicate detection
+
+// MODIFY: flattenComponentTree to ensure styles are preserved (around line 830)
 flattenComponentTree(components, seenIds = new Set(), parentId = null) {
     const flattened = [];
     
     components.forEach(comp => {
-        // CRITICAL: Skip duplicates
         if (seenIds.has(comp.id)) {
             console.warn('⚠️ Duplicate component ID detected, skipping:', comp.id);
             return;
         }
         
-        // Mark as seen
         seenIds.add(comp.id);
         
-        // Add current component with parent reference
+        // 🔥 ENSURE styles are preserved during flattening
         const flatComp = {
             ...comp,
-            parentId: parentId
+            parentId: parentId,
+            style: comp.style || {}, // ✅ Explicitly preserve
+            props: comp.props || {}, // ✅ Explicitly preserve
         };
         
         flattened.push(flatComp);
         
-        // Recursively flatten children
         if (comp.children && comp.children.length > 0) {
             const childrenFlat = this.flattenComponentTree(comp.children, seenIds, comp.id);
             flattened.push(...childrenFlat);

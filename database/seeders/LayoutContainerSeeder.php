@@ -1,5 +1,4 @@
 <?php
-// database/seeders/LayoutContainerSeeder.php
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
@@ -10,7 +9,9 @@ class LayoutContainerSeeder extends Seeder
     public function run(): void
     {
         $layoutContainers = [
-            // SECTION - Main page structure container
+            // ============================================
+            // SECTION
+            // ============================================
             [
                 'name' => 'Section',
                 'type' => 'section',
@@ -19,46 +20,53 @@ class LayoutContainerSeeder extends Seeder
                 'alphabet_group' => 'S',
                 'description' => 'Semantic section element - main page structure container',
                 'icon' => 'Layout',
-                'default_props' => [
-                    'className' => 'w-full'
-                ],
-                'prop_definitions' => [
-                    'padding' => ['type' => 'select', 'label' => 'Padding', 'options' => ['py-8 px-4', 'py-16 px-6', 'py-24 px-8'], 'default' => 'py-16 px-6'],
-                    'background' => ['type' => 'string', 'label' => 'Background', 'default' => 'transparent'],
-                    'maxWidth' => ['type' => 'select', 'label' => 'Max Width', 'options' => ['full', 'container', 'screen'], 'default' => 'full']
-                ],
+                'default_props' => [],
+                'prop_definitions' => [],
                 'render_template' => 'section-template',
                 'code_generators' => ['react-tailwind' => 'templates/layout/section.js'],
                 'variants' => [
                     [
                         'name' => 'Hero Section',
                         'description' => 'Large hero section with gradient background',
-                        'props' => [
-                            'padding' => 'py-32 px-8',
-                            'background' => 'bg-gradient-to-r from-blue-600 to-purple-600',
-                            'className' => 'w-full min-h-screen flex items-center justify-center text-white'
+                        'props' => [], // ✅ NO STYLES
+                        'style' => [ // ✅ ALL STYLES (CSS)
+                            'width' => '100%',
+                            'minHeight' => '100vh',
+                            'display' => 'flex',
+                            'alignItems' => 'center',
+                            'justifyContent' => 'center',
+                            'padding' => '128px 32px',
+                            'background' => 'linear-gradient(135deg, #2563eb 0%, #9333ea 100%)',
+                            'color' => '#ffffff',
                         ],
-                        'preview_code' => '<section class="w-full min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 text-white py-32 px-8"><div class="text-center"><h1 class="text-6xl font-bold mb-6">Hero Title</h1><p class="text-xl mb-8">Amazing subtitle here</p><button class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold hover:bg-gray-100 transition-colors">Get Started</button></div></section>'
+                        'preview_code' => '<section style="width: 100%; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 128px 32px; background: linear-gradient(135deg, #2563eb 0%, #9333ea 100%); color: #ffffff;"><div style="text-align: center;"><h1 style="font-size: 60px; font-weight: 700; margin-bottom: 24px;">Hero Title</h1><p style="font-size: 20px; margin-bottom: 32px;">Amazing subtitle here</p></div></section>'
                     ],
                     [
                         'name' => 'Content Section',
-                        'description' => 'Standard content section with container',
-                        'props' => [
-                            'padding' => 'py-16 px-6',
-                            'background' => 'bg-gray-50',
-                            'className' => 'w-full'
+                        'description' => 'Standard content section',
+                        'props' => [],
+                        'style' => [
+                            'width' => '100%',
+                            'padding' => '64px 24px',
+                            'background' => '#f9fafb',
                         ],
-                        'preview_code' => '<section class="w-full py-16 px-6 bg-gray-50"><div class="max-w-7xl mx-auto"><h2 class="text-3xl font-bold mb-8 text-center">Our Services</h2><div class="grid grid-cols-1 md:grid-cols-3 gap-8"><!-- Content goes here --></div></div></section>'
+                        'preview_code' => '<section style="width: 100%; padding: 64px 24px; background: #f9fafb;"><div style="max-width: 1280px; margin: 0 auto;"><h2 style="font-size: 30px; font-weight: 700; margin-bottom: 32px; text-align: center;">Our Services</h2></div></section>'
                     ],
                     [
                         'name' => 'Full Height Section',
                         'description' => 'Full viewport height section',
-                        'props' => [
-                            'padding' => 'py-0 px-0',
-                            'background' => 'bg-black',
-                            'className' => 'w-full h-screen flex items-center justify-center'
+                        'props' => [],
+                        'style' => [
+                            'width' => '100%',
+                            'height' => '100vh',
+                            'display' => 'flex',
+                            'alignItems' => 'center',
+                            'justifyContent' => 'center',
+                            'padding' => '0',
+                            'background' => '#000000',
+                            'color' => '#ffffff',
                         ],
-                        'preview_code' => '<section class="w-full h-screen flex items-center justify-center bg-black text-white"><div class="text-center"><h1 class="text-5xl font-bold mb-4">Full Height Section</h1><p class="text-xl">Perfect for landing pages</p></div></section>'
+                        'preview_code' => '<section style="width: 100%; height: 100vh; display: flex; align-items: center; justify-content: center; padding: 0; background: #000000; color: #ffffff;"><div style="text-align: center;"><h1 style="font-size: 48px; font-weight: 700; margin-bottom: 16px;">Full Height Section</h1><p style="font-size: 20px;">Perfect for landing pages</p></div></section>'
                     ]
                 ],
                 'has_animation' => false,
@@ -66,7 +74,9 @@ class LayoutContainerSeeder extends Seeder
                 'sort_order' => 1
             ],
 
-            // CONTAINER - Content width container
+            // ============================================
+            // CONTAINER
+            // ============================================
             [
                 'name' => 'Container',
                 'type' => 'container',
@@ -75,52 +85,46 @@ class LayoutContainerSeeder extends Seeder
                 'alphabet_group' => 'C',
                 'description' => 'Content width container with max-width constraints',
                 'icon' => 'Square',
-                'default_props' => [
-                    'maxWidth' => 'max-w-7xl',
-                    'centered' => 'mx-auto',
-                    'padding' => 'px-6',
-                    'className' => 'w-full'
-                ],
-                'prop_definitions' => [
-                    'maxWidth' => ['type' => 'select', 'label' => 'Max Width', 'options' => ['max-w-sm', 'max-w-md', 'max-w-lg', 'max-w-xl', 'max-w-2xl', 'max-w-4xl', 'max-w-6xl', 'max-w-7xl', 'max-w-full'], 'default' => 'max-w-7xl'],
-                    'centered' => ['type' => 'boolean', 'label' => 'Center Container', 'default' => true],
-                    'padding' => ['type' => 'select', 'label' => 'Padding', 'options' => ['px-4', 'px-6', 'px-8'], 'default' => 'px-6']
-                ],
+                'default_props' => [],
+                'prop_definitions' => [],
                 'render_template' => 'container-template',
                 'code_generators' => ['react-tailwind' => 'templates/layout/container.js'],
                 'variants' => [
                     [
                         'name' => 'Centered Container',
                         'description' => 'Standard centered content container',
-                        'props' => [
-                            'maxWidth' => 'max-w-6xl',
-                            'centered' => 'mx-auto',
-                            'padding' => 'px-6',
-                            'className' => 'w-full'
+                        'props' => [],
+                        'style' => [
+                            'width' => '100%',
+                            'maxWidth' => '1152px',
+                            'margin' => '0 auto',
+                            'padding' => '0 24px',
                         ],
-                        'preview_code' => '<div class="w-full max-w-6xl mx-auto px-6"><div class="bg-white rounded-lg shadow-sm border p-8"><h3 class="text-2xl font-bold mb-4">Centered Content</h3><p class="text-gray-600">This content is perfectly centered and constrained to a readable width.</p></div></div>'
+                        'preview_code' => '<div style="width: 100%; max-width: 1152px; margin: 0 auto; padding: 0 24px;"><div style="background: #ffffff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e5e7eb; padding: 32px;"><h3 style="font-size: 24px; font-weight: 700; margin-bottom: 16px;">Centered Content</h3><p style="color: #6b7280;">This content is perfectly centered and constrained to a readable width.</p></div></div>'
                     ],
                     [
                         'name' => 'Narrow Container',
-                        'description' => 'Narrow container for forms and focused content',
-                        'props' => [
-                            'maxWidth' => 'max-w-2xl',
-                            'centered' => 'mx-auto',
-                            'padding' => 'px-8',
-                            'className' => 'w-full'
+                        'description' => 'Narrow container for forms',
+                        'props' => [],
+                        'style' => [
+                            'width' => '100%',
+                            'maxWidth' => '672px',
+                            'margin' => '0 auto',
+                            'padding' => '0 32px',
                         ],
-                        'preview_code' => '<div class="w-full max-w-2xl mx-auto px-8"><div class="bg-white rounded-lg shadow-lg p-8"><h2 class="text-3xl font-bold mb-6 text-center">Sign Up</h2><form class="space-y-4"><input class="w-full px-4 py-3 border rounded-lg" placeholder="Email" /><button class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Continue</button></form></div></div>'
+                        'preview_code' => '<div style="width: 100%; max-width: 672px; margin: 0 auto; padding: 0 32px;"><div style="background: #ffffff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 32px;"><h2 style="font-size: 30px; font-weight: 700; margin-bottom: 24px; text-align: center;">Sign Up</h2></div></div>'
                     ],
                     [
                         'name' => 'Wide Container',
-                        'description' => 'Wide container for dashboards and data',
-                        'props' => [
-                            'maxWidth' => 'max-w-full',
-                            'centered' => 'mx-auto',
-                            'padding' => 'px-4',
-                            'className' => 'w-full'
+                        'description' => 'Wide container for dashboards',
+                        'props' => [],
+                        'style' => [
+                            'width' => '100%',
+                            'maxWidth' => '100%',
+                            'margin' => '0 auto',
+                            'padding' => '0 16px',
                         ],
-                        'preview_code' => '<div class="w-full max-w-full mx-auto px-4"><div class="bg-white rounded-lg shadow-sm border overflow-hidden"><div class="p-6 border-b"><h2 class="text-2xl font-bold">Dashboard</h2></div><div class="p-6 grid grid-cols-1 md:grid-cols-4 gap-6"><!-- Dashboard content --></div></div></div>'
+                        'preview_code' => '<div style="width: 100%; max-width: 100%; margin: 0 auto; padding: 0 16px;"><div style="background: #ffffff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e5e7eb; overflow: hidden;"><div style="padding: 24px; border-bottom: 1px solid #e5e7eb;"><h2 style="font-size: 24px; font-weight: 700;">Dashboard</h2></div></div></div>'
                     ]
                 ],
                 'has_animation' => false,
@@ -128,69 +132,69 @@ class LayoutContainerSeeder extends Seeder
                 'sort_order' => 2
             ],
 
-            // FLEX CONTAINER - Flexible layout system
+            // ============================================
+            // FLEX CONTAINER
+            // ============================================
             [
                 'name' => 'Flex Container',
                 'type' => 'flex',
                 'component_type' => 'element',
                 'category' => 'layout',
                 'alphabet_group' => 'F',
-                'description' => 'Flexible layout container with advanced flexbox controls',
+                'description' => 'Flexible layout container with flexbox',
                 'icon' => 'Columns',
-                'default_props' => [
-                    'direction' => 'flex-row',
-                    'justify' => 'justify-start',
-                    'align' => 'items-stretch',
-                    'gap' => 'gap-4',
-                    'wrap' => 'flex-nowrap',
-                    'className' => 'w-full h-full flex'
-                ],
-                'prop_definitions' => [
-                    'direction' => ['type' => 'select', 'label' => 'Direction', 'options' => ['flex-row', 'flex-col', 'flex-row-reverse', 'flex-col-reverse'], 'default' => 'flex-row'],
-                    'justify' => ['type' => 'select', 'label' => 'Justify', 'options' => ['justify-start', 'justify-center', 'justify-end', 'justify-between', 'justify-around', 'justify-evenly'], 'default' => 'justify-start'],
-                    'align' => ['type' => 'select', 'label' => 'Align', 'options' => ['items-start', 'items-center', 'items-end', 'items-baseline', 'items-stretch'], 'default' => 'items-stretch'],
-                    'gap' => ['type' => 'select', 'label' => 'Gap', 'options' => ['gap-0', 'gap-1', 'gap-2', 'gap-4', 'gap-6', 'gap-8', 'gap-12'], 'default' => 'gap-4'],
-                    'wrap' => ['type' => 'select', 'label' => 'Wrap', 'options' => ['flex-nowrap', 'flex-wrap', 'flex-wrap-reverse'], 'default' => 'flex-nowrap']
-                ],
+                'default_props' => [],
+                'prop_definitions' => [],
                 'render_template' => 'flex-template',
                 'code_generators' => ['react-tailwind' => 'templates/layout/flex.js'],
                 'variants' => [
                     [
                         'name' => 'Navbar Layout',
-                        'description' => 'Horizontal navbar with space between items',
-                        'props' => [
-                            'direction' => 'flex-row',
-                            'justify' => 'justify-between',
-                            'align' => 'items-center',
-                            'gap' => 'gap-8',
-                            'className' => 'w-full p-6 bg-white border-b'
-                        ],
-                        'preview_code' => '<div class="w-full p-6 bg-white border-b flex flex-row justify-between items-center gap-8"><div class="font-bold text-2xl text-gray-900">Logo</div><nav class="flex gap-6"><a class="text-gray-600 hover:text-gray-900">Home</a><a class="text-gray-600 hover:text-gray-900">About</a><a class="text-gray-600 hover:text-gray-900">Contact</a></nav><button class="bg-blue-600 text-white px-6 py-2 rounded-lg">Sign In</button></div>'
+                        'description' => 'Horizontal navbar',
+                        'props' => [],
+                        'style' => [
+                            'width' => '100%',
+                            'display' => 'flex',
+                            'flexDirection' => 'row',
+                            'justifyContent' => 'space-between',
+                            'alignItems' => 'center',
+                            'gap' => '32px',
+                            'padding' => '24px',
+                            'background' => '#ffffff',
+                            'borderBottom' => '1px solid #e5e7eb',
+                            ],
+                        'preview_code' => '<div style="width: 100%; display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 32px; padding: 24px; background: #ffffff; border-bottom: 1px solid #e5e7eb;"><div style="font-weight: 700; font-size: 24px; color: #111827;">Logo</div><nav style="display: flex; gap: 24px;"><a style="color: #6b7280;">Home</a><a style="color: #6b7280;">About</a><a style="color: #6b7280;">Contact</a></nav><button style="background: #2563eb; color: #ffffff; padding: 8px 24px; border-radius: 8px; border: none;">Sign In</button></div>'
                     ],
                     [
                         'name' => 'Card Grid',
-                        'description' => 'Responsive card layout with flexbox',
-                        'props' => [
-                            'direction' => 'flex-row',
-                            'justify' => 'justify-center',
-                            'align' => 'items-stretch',
-                            'gap' => 'gap-6',
-                            'wrap' => 'flex-wrap',
-                            'className' => 'w-full p-8'
+                        'description' => 'Responsive card layout',
+                        'props' => [],
+                        'style' => [
+                            'width' => '100%',
+                            'display' => 'flex',
+                            'flexDirection' => 'row',
+                            'justifyContent' => 'center',
+                            'alignItems' => 'stretch',
+                            'gap' => '24px',
+                            'flexWrap' => 'wrap',
+                            'padding' => '32px',
                         ],
-                        'preview_code' => '<div class="w-full p-8 flex flex-row justify-center items-stretch gap-6 flex-wrap"><div class="bg-white rounded-xl shadow-lg p-6 flex-1 min-w-72"><h3 class="text-xl font-bold mb-4">Feature 1</h3><p class="text-gray-600">Description here</p></div><div class="bg-white rounded-xl shadow-lg p-6 flex-1 min-w-72"><h3 class="text-xl font-bold mb-4">Feature 2</h3><p class="text-gray-600">Description here</p></div></div>'
+                        'preview_code' => '<div style="width: 100%; display: flex; flex-direction: row; justify-content: center; align-items: stretch; gap: 24px; flex-wrap: wrap; padding: 32px;"><div style="background: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 24px; flex: 1; min-width: 288px;"><h3 style="font-size: 20px; font-weight: 700; margin-bottom: 16px;">Feature 1</h3><p style="color: #6b7280;">Description here</p></div><div style="background: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 24px; flex: 1; min-width: 288px;"><h3 style="font-size: 20px; font-weight: 700; margin-bottom: 16px;">Feature 2</h3><p style="color: #6b7280;">Description here</p></div></div>'
                     ],
                     [
                         'name' => 'Sidebar Layout',
-                        'description' => 'Sidebar with main content area',
-                        'props' => [
-                            'direction' => 'flex-row',
-                            'justify' => 'justify-start',
-                            'align' => 'items-stretch',
-                            'gap' => 'gap-0',
-                            'className' => 'w-full h-screen'
+                        'description' => 'Sidebar with main content',
+                        'props' => [],
+                        'style' => [
+                            'width' => '100%',
+                            'height' => '100vh',
+                            'display' => 'flex',
+                            'flexDirection' => 'row',
+                            'justifyContent' => 'flex-start',
+                            'alignItems' => 'stretch',
+                            'gap' => '0',
                         ],
-                        'preview_code' => '<div class="w-full h-screen flex flex-row"><aside class="w-64 bg-gray-900 text-white p-6"><h2 class="text-xl font-bold mb-6">Navigation</h2><nav class="space-y-2"><a class="block py-2 px-4 rounded hover:bg-gray-700">Dashboard</a><a class="block py-2 px-4 rounded hover:bg-gray-700">Projects</a></nav></aside><main class="flex-1 bg-gray-50 p-8"><h1 class="text-3xl font-bold mb-6">Main Content</h1><p>Content goes here...</p></main></div>'
+                        'preview_code' => '<div style="width: 100%; height: 100vh; display: flex; flex-direction: row;"><aside style="width: 256px; background: #111827; color: #ffffff; padding: 24px;"><h2 style="font-size: 20px; font-weight: 700; margin-bottom: 24px;">Navigation</h2><nav style="display: flex; flex-direction: column; gap: 8px;"><a style="display: block; padding: 8px 16px; border-radius: 8px;">Dashboard</a><a style="display: block; padding: 8px 16px; border-radius: 8px;">Projects</a></nav></aside><main style="flex: 1; background: #f9fafb; padding: 32px;"><h1 style="font-size: 30px; font-weight: 700; margin-bottom: 24px;">Main Content</h1><p>Content goes here...</p></main></div>'
                     ]
                 ],
                 'has_animation' => false,
@@ -198,62 +202,64 @@ class LayoutContainerSeeder extends Seeder
                 'sort_order' => 3
             ],
 
-            // GRID CONTAINER - CSS Grid system
+            // ============================================
+            // GRID CONTAINER
+            // ============================================
             [
                 'name' => 'Grid Container',
                 'type' => 'grid',
                 'component_type' => 'element',
                 'category' => 'layout',
                 'alphabet_group' => 'G',
-                'description' => 'Advanced CSS Grid container with responsive capabilities',
+                'description' => 'Advanced CSS Grid container',
                 'icon' => 'Grid3X3',
-                'default_props' => [
-                    'columns' => 'grid-cols-3',
-                    'rows' => 'grid-rows-auto',
-                    'gap' => 'gap-6',
-                    'autoFlow' => 'grid-flow-row',
-                    'placeItems' => 'place-items-stretch',
-                    'className' => 'w-full h-full grid'
-                ],
-                'prop_definitions' => [
-                    'columns' => ['type' => 'select', 'label' => 'Columns', 'options' => ['grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4', 'grid-cols-5', 'grid-cols-6', 'grid-cols-12'], 'default' => 'grid-cols-3'],
-                    'rows' => ['type' => 'select', 'label' => 'Rows', 'options' => ['grid-rows-auto', 'grid-rows-1', 'grid-rows-2', 'grid-rows-3', 'grid-rows-4'], 'default' => 'grid-rows-auto'],
-                    'gap' => ['type' => 'select', 'label' => 'Gap', 'options' => ['gap-0', 'gap-2', 'gap-4', 'gap-6', 'gap-8', 'gap-12'], 'default' => 'gap-6']
-                ],
+                'default_props' => [],
+                'prop_definitions' => [],
                 'render_template' => 'grid-template',
                 'code_generators' => ['react-tailwind' => 'templates/layout/grid.js'],
                 'variants' => [
                     [
                         'name' => 'Dashboard Grid',
-                        'description' => 'Dashboard layout with different sized panels',
-                        'props' => [
-                            'columns' => 'grid-cols-12',
-                            'rows' => 'grid-rows-4',
-                            'gap' => 'gap-6',
-                            'className' => 'w-full h-screen p-6 grid'
+                        'description' => 'Dashboard layout',
+                        'props' => [],
+                        'style' => [
+                            'width' => '100%',
+                            'height' => '100vh',
+                            'display' => 'grid',
+                            'gridTemplateColumns' => 'repeat(12, 1fr)',
+                            'gridTemplateRows' => 'repeat(4, 1fr)',
+                            'gap' => '24px',
+                            'padding' => '24px',
                         ],
-                        'preview_code' => '<div class="w-full h-screen p-6 grid grid-cols-12 grid-rows-4 gap-6"><div class="col-span-8 row-span-2 bg-white rounded-xl shadow-lg p-6 border"><h2 class="text-2xl font-bold mb-4">Main Chart</h2><div class="bg-gray-100 h-full rounded-lg flex items-center justify-center">Chart Area</div></div><div class="col-span-4 row-span-1 bg-white rounded-xl shadow-lg p-6 border"><h3 class="font-bold mb-2">Stats</h3><p class="text-3xl font-bold text-blue-600">$12,345</p></div><div class="col-span-4 row-span-1 bg-white rounded-xl shadow-lg p-6 border"><h3 class="font-bold mb-2">Users</h3><p class="text-3xl font-bold text-green-600">1,234</p></div></div>'
+                        'preview_code' => '<div style="width: 100%; height: 100vh; display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: repeat(4, 1fr); gap: 24px; padding: 24px;"><div style="grid-column: span 8; grid-row: span 2; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e5e7eb; padding: 24px;"><h2 style="font-size: 24px; font-weight: 700; margin-bottom: 16px;">Main Chart</h2><div style="background: #f3f4f6; height: 100%; border-radius: 8px; display: flex; align-items: center; justify-content: center;">Chart Area</div></div><div style="grid-column: span 4; grid-row: span 1; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e5e7eb; padding: 24px;"><h3 style="font-weight: 700; margin-bottom: 8px;">Stats</h3><p style="font-size: 30px; font-weight: 700; color: #2563eb;">$12,345</p></div></div>'
                     ],
                     [
                         'name' => 'Photo Gallery',
-                        'description' => 'Responsive photo gallery grid',
-                        'props' => [
-                            'columns' => 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
-                            'gap' => 'gap-4',
-                            'className' => 'w-full p-6 grid'
+                        'description' => 'Responsive photo gallery',
+                        'props' => [],
+                        'style' => [
+                            'width' => '100%',
+                            'display' => 'grid',
+                            'gridTemplateColumns' => 'repeat(auto-fill, minmax(250px, 1fr))',
+                            'gap' => '16px',
+                            'padding' => '24px',
                         ],
-                        'preview_code' => '<div class="w-full p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"><div class="aspect-square bg-gradient-to-br from-pink-400 to-purple-600 rounded-lg"></div><div class="aspect-square bg-gradient-to-br from-blue-400 to-cyan-600 rounded-lg"></div><div class="aspect-square bg-gradient-to-br from-green-400 to-blue-600 rounded-lg"></div><div class="aspect-square bg-gradient-to-br from-yellow-400 to-orange-600 rounded-lg"></div></div>'
+                        'preview_code' => '<div style="width: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; padding: 24px;"><div style="aspect-ratio: 1; background: linear-gradient(135deg, #ec4899 0%, #a855f7 100%); border-radius: 8px;"></div><div style="aspect-ratio: 1; background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%); border-radius: 8px;"></div><div style="aspect-ratio: 1; background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%); border-radius: 8px;"></div><div style="aspect-ratio: 1; background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%); border-radius: 8px;"></div></div>'
                     ],
                     [
                         'name' => 'Magazine Layout',
-                        'description' => 'Magazine-style complex grid layout',
-                        'props' => [
-                            'columns' => 'grid-cols-6',
-                            'rows' => 'grid-rows-6',
-                            'gap' => 'gap-4',
-                            'className' => 'w-full h-screen p-6 grid'
+                        'description' => 'Complex grid layout',
+                        'props' => [],
+                        'style' => [
+                            'width' => '100%',
+                            'height' => '100vh',
+                            'display' => 'grid',
+                            'gridTemplateColumns' => 'repeat(6, 1fr)',
+                            'gridTemplateRows' => 'repeat(6, 1fr)',
+                            'gap' => '16px',
+                            'padding' => '24px',
                         ],
-                        'preview_code' => '<div class="w-full h-screen p-6 grid grid-cols-6 grid-rows-6 gap-4"><div class="col-span-4 row-span-3 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl text-white p-8 flex items-end"><h1 class="text-4xl font-bold">Featured Article</h1></div><div class="col-span-2 row-span-2 bg-white rounded-xl shadow-lg p-6 border"><h3 class="font-bold mb-2">Side Story 1</h3></div><div class="col-span-2 row-span-1 bg-white rounded-xl shadow-lg p-4 border"><h4 class="font-semibold">Quick News</h4></div></div>'
+                        'preview_code' => '<div style="width: 100%; height: 100vh; display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(6, 1fr); gap: 16px; padding: 24px;"><div style="grid-column: span 4; grid-row: span 3; background: linear-gradient(135deg, #9333ea 0%, #2563eb 100%); border-radius: 12px; color: #ffffff; padding: 32px; display: flex; align-items: flex-end;"><h1 style="font-size: 36px; font-weight: 700;">Featured Article</h1></div><div style="grid-column: span 2; grid-row: span 2; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e5e7eb; padding: 24px;"><h3 style="font-weight: 700; margin-bottom: 8px;">Side Story 1</h3></div></div>'
                     ]
                 ],
                 'has_animation' => false,
@@ -261,48 +267,63 @@ class LayoutContainerSeeder extends Seeder
                 'sort_order' => 4
             ],
 
-            // DIV - Generic container
+            // ============================================
+            // DIV CONTAINER
+            // ============================================
             [
                 'name' => 'Div Container',
                 'type' => 'div',
                 'component_type' => 'element',
                 'category' => 'layout',
                 'alphabet_group' => 'D',
-                'description' => 'Generic div container - fully customizable building block',
+                'description' => 'Generic div container - fully customizable',
                 'icon' => 'Square',
-                'default_props' => [
-                    'display' => 'block',
-                    'className' => 'w-full h-auto'
-                ],
-                'prop_definitions' => [
-                    'display' => ['type' => 'select', 'label' => 'Display', 'options' => ['block', 'flex', 'grid', 'inline-block', 'inline-flex'], 'default' => 'block']
-                ],
+                'default_props' => [],
+                'prop_definitions' => [],
                 'render_template' => 'div-template',
                 'code_generators' => ['react-tailwind' => 'templates/layout/div.js'],
                 'variants' => [
                     [
                         'name' => 'Content Block',
                         'description' => 'Basic content container',
-                        'props' => [
-                            'className' => 'w-full p-6 bg-white rounded-lg border'
+                        'props' => [],
+                        'style' => [
+                            'width' => '100%',
+                            'padding' => '24px',
+                            'background' => '#ffffff',
+                            'borderRadius' => '8px',
+                            'border' => '1px solid #e5e7eb',
                         ],
-                        'preview_code' => '<div class="w-full p-6 bg-white rounded-lg border"><div class="h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 text-sm font-medium">Content Block</div></div>'
+                        'preview_code' => '<div style="width: 100%; padding: 24px; background: #ffffff; border-radius: 8px; border: 1px solid #e5e7eb;"><div style="height: 128px; background: #f3f4f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #6b7280; font-size: 14px; font-weight: 500;">Content Block</div></div>'
                     ],
                     [
                         'name' => 'Card Wrapper',
-                        'description' => 'Card-style wrapper with shadow',
-                        'props' => [
-                            'className' => 'w-full max-w-md mx-auto bg-white rounded-xl shadow-lg overflow-hidden'
+                        'description' => 'Card-style wrapper',
+                        'props' => [],
+                        'style' => [
+                            'width' => '100%',
+                            'maxWidth' => '448px',
+                            'margin' => '0 auto',
+                            'background' => '#ffffff',
+                            'borderRadius' => '12px',
+                            'boxShadow' => '0 4px 12px rgba(0, 0, 0, 0.1)',
+                            'overflow' => 'hidden',
                         ],
-                        'preview_code' => '<div class="w-full max-w-md mx-auto bg-white rounded-xl shadow-lg overflow-hidden"><div class="p-8"><div class="h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg mb-4"></div><h3 class="text-xl font-bold text-gray-900">Card Title</h3><p class="text-gray-600 mt-2">Card description goes here</p></div></div>'
+                        'preview_code' => '<div style="width: 100%; max-width: 448px; margin: 0 auto; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); overflow: hidden;"><div style="padding: 32px;"><div style="height: 96px; background: linear-gradient(135deg, #3b82f6 0%, #9333ea 100%); border-radius: 8px; margin-bottom: 16px;"></div><h3 style="font-size: 20px; font-weight: 700; color: #111827;">Card Title</h3><p style="color: #6b7280; margin-top: 8px;">Card description goes here</p></div></div>'
                     ],
                     [
                         'name' => 'Overlay Container',
-                        'description' => 'Container with overlay capabilities',
-                        'props' => [
-                            'className' => 'relative w-full h-64 bg-gray-900 rounded-lg overflow-hidden'
+                        'description' => 'Container with overlay',
+                        'props' => [],
+                        'style' => [
+                            'position' => 'relative',
+                            'width' => '100%',
+                            'height' => '256px',
+                            'background' => '#111827',
+                            'borderRadius' => '8px',
+                            'overflow' => 'hidden',
                         ],
-                        'preview_code' => '<div class="relative w-full h-64 bg-gray-900 rounded-lg overflow-hidden"><div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div><div class="absolute bottom-6 left-6 text-white"><h3 class="text-2xl font-bold">Overlay Content</h3><p class="text-gray-200">Perfect for hero sections</p></div></div>'
+                        'preview_code' => '<div style="position: relative; width: 100%; height: 256px; background: #111827; border-radius: 8px; overflow: hidden;"><div style="position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%);"></div><div style="position: absolute; bottom: 24px; left: 24px; color: #ffffff;"><h3 style="font-size: 24px; font-weight: 700;">Overlay Content</h3><p style="color: #d1d5db;">Perfect for hero sections</p></div></div>'
                     ]
                 ],
                 'has_animation' => false,

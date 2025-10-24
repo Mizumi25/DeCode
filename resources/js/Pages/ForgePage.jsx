@@ -1017,30 +1017,26 @@ const handleCanvasDrop = useCallback((e) => {
     const { componentType, variant } = dragData;
     const isLayout = ['section', 'container', 'div', 'flex', 'grid'].includes(componentType);
     
-    // Calculate drop position relative to canvas
     const canvasRect = canvasRef.current.getBoundingClientRect();
     const dropX = e.clientX - canvasRect.left;
     const dropY = e.clientY - canvasRect.top;
 
-    console.log('🎯 Drop position:', { dropX, dropY, componentType });
-
-    // 🔥 CRITICAL: Check if dropping INTO a layout container
     const dropTarget = findDropTarget(canvasComponents, dropX, dropY, canvasRect);
 
     let componentDef = componentLibraryService?.getComponentDefinition(componentType);
 
+    // 🔥 CRITICAL: Build component with variant styles
     const newComponent = {
       id: `${componentType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       type: componentType,
       props: {
         ...(componentDef?.default_props || {}),
-        ...(variant?.props || {})
+        ...(variant?.props || {})  // Props from variant (NOT STYLES)
       },
       name: variant ? `${componentType} (${variant.name})` : (componentDef?.name || componentType),
-      variant: variant || null,
+      variant: variant || null,  // 🔥 Store full variant object
       style: {
-        ...(variant?.style || {}),
-        opacity: variant?.style?.opacity || 1
+        ...(variant?.style || {}),  // 🔥 CRITICAL: Variant styles here
       },
       animation: {},
       children: [],
@@ -1049,6 +1045,14 @@ const handleCanvasDrop = useCallback((e) => {
       sortOrder: 0,
       position: { x: dropX - 50, y: dropY - 20 }
     };
+
+    console.log('🎨 Created component with variant styles:', {
+      name: newComponent.name,
+      hasVariant: !!variant,
+      variantName: variant?.name,
+      styleKeys: Object.keys(newComponent.style),
+      style: newComponent.style
+    });
 
     let updatedComponents;
 

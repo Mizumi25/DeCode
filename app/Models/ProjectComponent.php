@@ -23,7 +23,6 @@ class ProjectComponent extends Model
         'z_index',
         'sort_order',
         'is_locked',
-        'variant',
         'style',
         'animation',
         'display_type',
@@ -36,7 +35,6 @@ class ProjectComponent extends Model
     protected $casts = [
         'props' => 'array',
         'is_locked' => 'boolean',
-        'variant' => 'array',
         'style' => 'array',
         'animation' => 'array',
         'layout_props' => 'array',

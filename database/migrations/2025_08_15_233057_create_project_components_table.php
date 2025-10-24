@@ -21,8 +21,7 @@ return new class extends Migration
             $table->integer('z_index')->default(0);
             $table->boolean('is_locked')->default(false);
             
-            // New fields should be nullable
-            $table->json('variant')->nullable();
+   
             $table->json('style')->nullable();
             $table->json('animation')->nullable();
             
