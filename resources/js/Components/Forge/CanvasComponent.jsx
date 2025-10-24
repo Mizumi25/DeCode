@@ -1165,80 +1165,90 @@ const SortableComponent = ({ component, depth, parentId, index, parentStyle }) =
 }
   
   // 🔥🔥🔥 FIXED NON-LAYOUT COMPONENT RENDERING 🔥🔥🔥
-  const componentRenderer = componentLibraryService?.getComponent(component.type);
-  let renderedContent = null;
+  // 🔥🔥🔥 FIXED NON-LAYOUT COMPONENT RENDERING 🔥🔥🔥
+const componentRenderer = componentLibraryService?.getComponent(component.type);
+let renderedContent = null;
 
-  if (componentRenderer?.render) {
-    try {
-      const mergedProps = {
-        ...component.props,
-        style: component.style
-      };
-      renderedContent = componentRenderer.render(mergedProps, component.id);
-    } catch (error) {
-      console.warn('Render error:', error);
-      renderedContent = <div className="p-2 border rounded">{component.name}</div>;
-    }
+if (componentRenderer?.render) {
+  try {
+    const mergedProps = {
+      ...component.props,
+      style: component.style // ✅ Component gets its own styles
+    };
+    renderedContent = componentRenderer.render(mergedProps, component.id);
+  } catch (error) {
+    console.warn('Render error:', error);
+    renderedContent = <div className="p-2 border rounded">{component.name}</div>;
   }
+}
 
-  return (
-    <div
-      key={component.id}
-      ref={setNodeRef}
-      style={{...componentStyles}}
-      data-component-id={component.id}
-      data-depth={depth}
-      data-is-layout="false" // ✅ CRITICAL: Must be string "false"
-      data-parent-id={parentId || 'root'}
-      className={`
-        relative group
-        ${isSelected ? 'ring-2 ring-blue-500' : ''}
-        ${isDragging ? 'opacity-40' : ''}
-        transition-opacity duration-150
-      `}
-      onClick={handleSmartClick}
-      onDoubleClick={(e) => handleDoubleClickText(e, component.id)}
+// ✅ WRAPPER STYLES - ONLY positioning and layout, NO component styles
+const wrapperStyles = {
+  position: 'relative',
+  display: 'inline-block', // ✅ Wrapper is just a container
+  zIndex: component.zIndex || depth,
+};
+
+return (
+  <div
+    key={component.id}
+    ref={setNodeRef}
+    style={wrapperStyles} // ✅ Only wrapper positioning
+    data-component-id={component.id}
+    data-depth={depth}
+    data-is-layout="false"
+    data-parent-id={parentId || 'root'}
+    className={`
+      group
+      ${isSelected ? 'ring-2 ring-blue-500' : ''}
+      ${isDragging ? 'opacity-40' : ''}
+      transition-opacity duration-150
+    `}
+    onClick={handleSmartClick}
+    onDoubleClick={(e) => handleDoubleClickText(e, component.id)}
+  >
+    {/* Drag overlay */}
+    <div 
+      className="absolute inset-0 cursor-grab active:cursor-grabbing"
+      style={{
+        touchAction: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        zIndex: 1,
+        pointerEvents: 'auto',
+        opacity: isDragging ? 0.3 : 0.1,
+        backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.1)',
+        borderRadius: '4px',
+        transition: 'all 0.2s ease',
+      }}
+      {...attributes}
+      {...listeners}
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        console.log('Non-layout drag started:', component.id);
+      }}
+    />
+    
+    {/* Component content wrapper */}
+    <div 
+      style={{ 
+        position: 'relative', 
+        zIndex: 2,
+        pointerEvents: 'none',
+        display: 'inline-block', // ✅ Fits content
+      }}
     >
-      {/* 🔥 CRITICAL FIX: ALWAYS VISIBLE DRAG OVERLAY FOR NON-LAYOUT COMPONENTS */}
-      <div 
-        className="absolute inset-0 cursor-grab active:cursor-grabbing"
-        style={{
-          touchAction: 'none',
-          userSelect: 'none',
-          WebkitUserSelect: 'none',
-          zIndex: 1,
-          pointerEvents: 'auto', // Allow drag interactions
-          opacity: isDragging ? 0.3 : 0.1, // Always visible but subtle
-          backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.1)',
-          borderRadius: '4px',
-          transition: 'all 0.2s ease',
-        }}
-        {...attributes}
-        {...listeners}
-        onMouseDown={(e) => {
-          e.stopPropagation(); // Prevent click from reaching component
-          console.log('Non-layout drag started:', component.id);
-        }}
-      />
-      
-      {/* Component content - positioned above drag overlay but allows pointer events through */}
-      <div 
-        style={{ 
-          position: 'relative', 
-          zIndex: 2,
-          pointerEvents: 'none' // 🔥 Allow clicks to pass through to drag overlay
-        }}
-      >
-        {renderedContent}
-      </div>
-      
-      {isSelected && (
-        <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
-          {component.name} • Depth {depth}
-        </div>
-      )}
+      {renderedContent}
     </div>
-  );
+    
+    {/* Selection label */}
+    {isSelected && (
+      <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50 pointer-events-none">
+        {component.name} • Depth {depth}
+      </div>
+    )}
+  </div>
+);
 };
 
 // Simplified renderComponent that uses the SortableComponent

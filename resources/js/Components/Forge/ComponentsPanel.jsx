@@ -67,7 +67,7 @@ const ComponentsPanel = ({
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [showVariants, setShowVariants] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState({
-    layout: true, // Layout expanded by default
+    layout: false, // Layout expanded by default
     interactive: false,
     media: false,
     display: false,

@@ -1225,61 +1225,6 @@ getButtonClasses(props) {
   return `${baseClasses} ${variantClasses[variant] || variantClasses.primary} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
 }
 
-// 🔥 ENHANCED: Button with auto-wrapped text nodes
-renderButton(props, id, layoutStyles = {}) {
-    const className = this.getButtonClasses(props);
-    const buttonText = props.content || props.text || props.children || 'Button';
-    
-    const buttonStyle = {
-        maxWidth: '100%',
-        wordBreak: 'break-word',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        width: props.width || 'fit-content',
-        minWidth: props.minWidth || '60px',
-        ...layoutStyles,
-        ...props.style
-    };
-    
-    // 🔥 CRITICAL: Render text as SEPARATE child text node
-    const textNodeId = `${id}-text`;
-    const textNode = React.createElement('span', {
-        key: textNodeId,
-        'data-component-id': textNodeId,
-        'data-component-type': 'text-node',
-        'data-parent-id': id,
-        'data-is-layout': false,
-        'data-is-pseudo': true,
-        className: 'text-node-child',
-        style: {
-            cursor: 'text',
-            userSelect: 'none',
-            display: 'inline-block',
-            pointerEvents: 'auto' // 🔥 ALLOW CLICKS
-        },
-        onClick: (e) => {
-            e.stopPropagation();
-            if (window.forgeSelectComponent) {
-                window.forgeSelectComponent(textNodeId);
-            }
-        }
-    }, buttonText);
-    
-    return React.createElement('button', {
-        key: id,
-        className,
-        onClick: (e) => {
-            e.stopPropagation();
-            console.log(`Button ${id} clicked`);
-        },
-        disabled: props.disabled || false,
-        style: buttonStyle,
-        'data-component-id': id,
-        'data-component-type': 'button',
-        'data-is-layout': false,
-    }, textNode); // 🔥 RENDER TEXT NODE AS CHILD
-}
 
 
 
