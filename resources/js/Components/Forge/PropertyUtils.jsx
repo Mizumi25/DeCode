@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect,useRef } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -12,7 +12,7 @@ export const PropertySection = ({
   searchTerm = ''
 }) => {
   const isExpanded = expandedSections[sectionKey];
-  
+ 
   const hasVisibleContent = useMemo(() => {
     if (!searchTerm || searchTerm.trim() === '') return true;
     
@@ -101,6 +101,9 @@ export const InputField = ({
   // ✅ CRITICAL FIX: Separate controlled state from parent value
   const [localValue, setLocalValue] = useState(value ?? '');
   const [isFocused, setIsFocused] = useState(false);
+   // ADD at the TOP of InputField component
+  const changeTimeout = useRef(null);
+  
 
 
   // REPLACE useEffect (around line 10)
@@ -113,14 +116,31 @@ useEffect(() => {
 
 
 
-  // ✅ Handle local changes without triggering parent re-render
+   // REPLACE the handleChange function (around line 60)
   const handleChange = (newValue) => {
     setLocalValue(newValue);
+    
+    // ✅ CRITICAL: Only call onChange if NOT using onBlur
     if (onChange && !onBlur) {
-      // If no onBlur handler, update immediately
-      onChange(newValue);
+      // Debounce for better performance
+      if (changeTimeout.current) {
+        clearTimeout(changeTimeout.current);
+      }
+      
+      changeTimeout.current = setTimeout(() => {
+        onChange(newValue);
+      }, 300); // 300ms debounce
     }
   };
+  
+  // ✅ Add cleanup
+  useEffect(() => {
+    return () => {
+      if (changeTimeout.current) {
+        clearTimeout(changeTimeout.current);
+      }
+    };
+  }, []);
 
   // ✅ Handle blur to save final value
   const handleBlur = (e) => {

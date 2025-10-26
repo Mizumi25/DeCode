@@ -62,40 +62,31 @@ const LayoutSection = ({
   });
   const [isTyping, setIsTyping] = useState(false);
 
-  // Parse current value when value prop changes OR when user stops typing
-  useEffect(() => {
-    if (value && typeof value === 'string') {
-      const parts = value.split(' ').map(v => v.replace(/px|rem|em|%/g, ''));
-      
-      if (parts.length === 1) {
-        const val = parts[0];
-        setAllValue(val);
-        setIndividualValues({
-          top: val,
-          right: val,
-          bottom: val,
-          left: val
-        });
-      } else if (parts.length === 4) {
-        setIndividualValues({
-          top: parts[0],
-          right: parts[1],
-          bottom: parts[2],
-          left: parts[3]
-        });
-        setAllValue(''); // Clear all value when using individual values
-      }
-    } else {
-      // Reset if value is empty
-      setAllValue('');
+ // REPLACE the SpacingControl useEffect (around line 350)
+useEffect(() => {
+  if (!isTyping && value && typeof value === 'string') { // ✅ Only update when NOT typing
+    const parts = value.split(' ').map(v => v.replace(/px|rem|em|%/g, ''));
+    
+    if (parts.length === 1) {
+      const val = parts[0];
+      setAllValue(val);
       setIndividualValues({
-        top: '',
-        right: '',
-        bottom: '',
-        left: ''
+        top: val,
+        right: val,
+        bottom: val,
+        left: val
       });
+    } else if (parts.length === 4) {
+      setIndividualValues({
+        top: parts[0],
+        right: parts[1],
+        bottom: parts[2],
+        left: parts[3]
+      });
+      setAllValue('');
     }
-  }, [value]); // Remove isTyping from dependencies
+  }
+}, [value]); // ✅ Only depend on value prop
 
   const handleAllChange = (val) => {
     setIsTyping(true);

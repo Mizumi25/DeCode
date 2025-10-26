@@ -1510,6 +1510,22 @@ const handlePropertyUpdate = useCallback((componentId, propName, value) => {
   
   
   
+  // ADD after handlePropertyUpdate definition (around line 600)
+useEffect(() => {
+  if (selectedComponent && canvasComponents.length > 0) {
+    const comp = canvasComponents.find(c => c.id === selectedComponent);
+    console.log('🎯 ForgePage - Selected component state:', {
+      selectedId: selectedComponent,
+      found: !!comp,
+      styleKeys: Object.keys(comp?.style || {}),
+      propsKeys: Object.keys(comp?.props || {}),
+      style: comp?.style,
+      props: comp?.props,
+    });
+  }
+}, [selectedComponent, canvasComponents]);
+  
+  
 
   
   

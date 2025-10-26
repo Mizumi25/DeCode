@@ -1182,10 +1182,10 @@ if (componentRenderer?.render) {
   }
 }
 
-// ✅ WRAPPER STYLES - ONLY positioning and layout, NO component styles
+// 🔥 REPLACE WITH THIS:
 const wrapperStyles = {
   position: 'relative',
-  display: 'inline-block', // ✅ Wrapper is just a container
+  display: 'block', // ✅ ALWAYS use block - let component handle its own display
   zIndex: component.zIndex || depth,
 };
 

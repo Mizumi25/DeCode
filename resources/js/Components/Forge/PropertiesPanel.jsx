@@ -87,14 +87,18 @@ const PropertiesPanel = ({
   
   
   
-  // ✅ Sync local state when component changes
+ // REPLACE useEffect for syncing local styles (around line 60)
 useEffect(() => {
   if (selectedComponentData?.id) {
-    console.log('🔄 Syncing local styles:', selectedComponentData.style);
+    console.log('🔄 PropertiesPanel syncing local styles:', {
+      componentId: selectedComponentData.id,
+      styleKeys: Object.keys(selectedComponentData?.style || {}),
+      propsKeys: Object.keys(selectedComponentData?.props || {}),
+    });
+    
     setLocalStyles(selectedComponentData?.style || {});
   }
-}, [selectedComponentData?.id, selectedComponentData?.style]);
-
+}, [selectedComponentData?.id]); // ✅ Only re-sync when component ID changes
 
   
   
@@ -127,27 +131,46 @@ useEffect(() => {
   };
 
    
-// ✅ MODIFY handlePropertyChange to update local state
+// REPLACE handlePropertyChange (around line 90)
 const handlePropertyChange = useCallback((propName, value, category = 'style') => {
-  if (!selectedComponent || !selectedComponentData) return;
+  if (!selectedComponent || !selectedComponentData) {
+    console.warn('⚠️ Cannot update: no component selected');
+    return;
+  }
   
-  console.log('🔧 Property change:', { propName, value, category, selectedComponent });
+  console.log('🔧 PropertiesPanel property change:', { 
+    propName, 
+    value, 
+    category, 
+    selectedComponent,
+    currentStyleKeys: Object.keys(selectedComponentData?.style || {})
+  });
   
   if (category === 'style') {
-    // Update local state immediately for responsive UI
+    // ✅ Update local state FIRST for immediate UI feedback
     setLocalStyles(prev => ({
       ...prev,
       [propName]: value
     }));
     
+    // ✅ Then propagate to parent
     const currentStyles = selectedComponentData?.style || {};
     const newStyles = { ...currentStyles, [propName]: value };
     onPropertyUpdate(selectedComponent, 'style', newStyles);
+    
+  } else if (category === 'props') {
+    // ✅ Update props directly (no local state needed)
+    const currentProps = selectedComponentData?.props || {};
+    const newProps = { ...currentProps, [propName]: value };
+    onPropertyUpdate(selectedComponent, propName, value, 'props');
+    
   } else if (category === 'animation') {
     const currentAnimation = selectedComponentData?.animation || {};
     const newAnimation = { ...currentAnimation, [propName]: value };
     onPropertyUpdate(selectedComponent, 'animation', newAnimation);
+    
   } else {
+    // Direct property update (name, zIndex, etc.)
     onPropertyUpdate(selectedComponent, propName, value);
   }
 }, [selectedComponent, selectedComponentData, onPropertyUpdate]);
@@ -170,7 +193,7 @@ const currentStyles = selectedComponentData?.style || {};
 const currentAnimation = selectedComponentData?.animation || {};
 
 const commonProps = {
-  currentStyles: localStyles, // 🔥 USE LOCAL STATE
+  currentStyles: localStyles, // 🔥 USE LOCAL STATE instead of direct selectedComponentData.style
   currentAnimation,
   onPropertyChange: handlePropertyChange,
   expandedSections,

@@ -405,32 +405,36 @@ class ComponentLibraryService {
     
     
   
-       renderLayoutContainer(componentDef, props, id, children) {
-    // 🔥 FIX: Merge ALL style properties properly
-    const baseStyle = {
+  renderLayoutContainer(componentDef, props, id, children) {
+    // 🔥 CRITICAL FIX: Apply ALL style properties from props.style
+    const containerStyle = {
+        // Start with defaults
         display: props.style?.display || this.getDefaultDisplay(componentDef.type),
         width: props.style?.width || '100%',
         minHeight: props.style?.minHeight || this.getDefaultMinHeight(componentDef.type),
         padding: props.style?.padding || this.getDefaultPadding(componentDef.type),
-        backgroundColor: 'transparent',
+        backgroundColor: props.style?.backgroundColor || 'transparent',
+        
+        // 🔥🔥🔥 THEN APPLY ALL CUSTOM STYLES (this is the fix!)
+        ...props.style  // This MUST come AFTER defaults to override them
     };
     
-    // 🔥 CRITICAL: Merge ALL props.style into containerStyle
-    const containerStyle = {
-        ...baseStyle,
-        ...props.style  // This ensures ALL style properties are applied
-    };
-        
-        return React.createElement('div', {
-            key: id,
-            'data-layout-type': componentDef.type,
-            'data-component-id': id,
-            className: `layout-container ${componentDef.type}-container`,
-            style: containerStyle
-        }, children && children.length > 0 ? children.map(child => 
-            this.renderComponent(this.componentDefinitions.get(child.type), child, child.id)
-        ) : null);
-    }
+    console.log('🎨 renderLayoutContainer:', {
+        type: componentDef.type,
+        flexDirection: containerStyle.flexDirection, // Should log 'column'
+        allStyles: containerStyle
+    });
+    
+    return React.createElement('div', {
+        key: id,
+        'data-layout-type': componentDef.type,
+        'data-component-id': id,
+        className: `layout-container ${componentDef.type}-container`,
+        style: containerStyle  // 🔥 This now includes ALL styles
+    }, children && children.length > 0 ? children.map(child => 
+        this.renderComponent(this.componentDefinitions.get(child.type), child, child.id)
+    ) : null);
+}
     
     
     // Helper methods
