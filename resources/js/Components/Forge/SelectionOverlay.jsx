@@ -255,14 +255,18 @@ const SelectionOverlay = ({
     scaleFactor = matrix.a;
   }
 
-  // Calculate bounds relative to canvas
+  // 🔥 CRITICAL FIX: Account for canvas scroll position
+  const scrollTop = canvasRef.current.scrollTop || 0;
+  const scrollLeft = canvasRef.current.scrollLeft || 0;
+
+  // Calculate bounds relative to canvas INCLUDING scroll offset
   const newBounds = {
-    top: (rect.top - canvasRect.top) / scaleFactor,
-    left: (rect.left - canvasRect.left) / scaleFactor,
+    top: ((rect.top - canvasRect.top) / scaleFactor) + scrollTop,
+    left: ((rect.left - canvasRect.left) / scaleFactor) + scrollLeft,
     width: rect.width / scaleFactor,
     height: rect.height / scaleFactor,
-    right: (rect.right - canvasRect.left) / scaleFactor,
-    bottom: (rect.bottom - canvasRect.top) / scaleFactor,
+    right: ((rect.right - canvasRect.left) / scaleFactor) + scrollLeft,
+    bottom: ((rect.bottom - canvasRect.top) / scaleFactor) + scrollTop,
   };
 
   // ✅ CRITICAL FIX: Extract computed styles for ALL components, not just layouts

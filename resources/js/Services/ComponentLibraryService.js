@@ -125,8 +125,156 @@ class ComponentLibraryService {
   
   
   
- 
+
+/**
+ * Calculate responsive styles based on device type and component properties
+ */
+calculateResponsiveStyles(component, responsiveMode, canvasDimensions, parentStyles = {}) {
+  const baseStyles = { ...component.style };
   
+  // Get device-specific scaling factors
+  const deviceScales = {
+    desktop: 1.0,
+    tablet: 0.8,  // Increased from 0.7
+    mobile: 0.6   // Increased from 0.5
+  };
+  
+  const scale = deviceScales[responsiveMode] || 1.0;
+  
+  // 🔥 CRITICAL FIX: Only apply scaling at root level or when explicitly needed
+  // Don't apply nested scaling for interactive elements inside containers
+  const shouldApplyScaling = !parentStyles._responsiveScale || 
+                            component.isLayoutContainer ||
+                            ['button', 'input', 'select', 'textarea'].includes(component.type);
+  
+  let nestedScale = scale;
+  if (parentStyles._responsiveScale && shouldApplyScaling) {
+    // For interactive elements inside containers, use parent scale directly
+    // Don't multiply scales to prevent double-shrinking
+    nestedScale = parentStyles._responsiveScale;
+  } else if (parentStyles._responsiveScale) {
+    nestedScale = parentStyles._responsiveScale * scale;
+  }
+
+  const scaledStyles = {};
+  
+  Object.keys(baseStyles).forEach(key => {
+    const value = baseStyles[key];
+    
+    if (typeof value === 'string') {
+      // Handle pixel values - ONLY scale if it's not already responsive
+      if (value.endsWith('px')) {
+        const numericValue = parseFloat(value);
+        if (!isNaN(numericValue)) {
+          // Scale based on property type
+          let scaledValue = numericValue;
+          
+          // 🔥 FIX: Don't scale interactive element dimensions as aggressively
+          if (['width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight'].includes(key)) {
+            if (['button', 'input', 'select', 'textarea'].includes(component.type)) {
+              // Interactive elements get less scaling when inside containers
+              scaledValue = numericValue * (component.isLayoutContainer ? nestedScale : Math.max(nestedScale, 0.7));
+            } else {
+              scaledValue = numericValue * nestedScale;
+            }
+          } else if (['fontSize', 'lineHeight', 'letterSpacing'].includes(key)) {
+            scaledValue = numericValue * nestedScale;
+          } else if (['padding', 'margin', 'gap', 'borderRadius'].includes(key)) {
+            // Handle shorthand values like "10px 20px"
+            if (value.includes(' ')) {
+              const parts = value.split(' ').map(part => {
+                if (part.endsWith('px')) {
+                  const num = parseFloat(part);
+                  return !isNaN(num) ? `${num * nestedScale}px` : part;
+                }
+                return part;
+              });
+              scaledStyles[key] = parts.join(' ');
+              return;
+            } else {
+              scaledValue = numericValue * nestedScale;
+            }
+          }
+          
+          scaledStyles[key] = `${scaledValue}px`;
+          return;
+        }
+      }
+      
+      // Handle viewport units for true responsiveness
+      if (value.endsWith('vw') || value.endsWith('vh')) {
+        const unit = value.slice(-2);
+        const numericValue = parseFloat(value);
+        
+        if (!isNaN(numericValue)) {
+          // Adjust viewport units based on device
+          let adjustedValue = numericValue;
+          
+          if (unit === 'vw') {
+            // Scale vw units for different devices
+            adjustedValue = numericValue * (responsiveMode === 'mobile' ? 1.5 : 1.0);
+          }
+          
+          scaledStyles[key] = `${adjustedValue}${unit}`;
+          return;
+        }
+      }
+      
+      // Handle percentage values - they should remain percentages
+      if (value.endsWith('%')) {
+        scaledStyles[key] = value;
+        return;
+      }
+    }
+    
+    // Keep original value for non-numeric or non-pixel values
+    scaledStyles[key] = value;
+  });
+  
+  // 🔥 CRITICAL: Store the cumulative scale for nested children
+  scaledStyles._responsiveScale = nestedScale;
+  
+  // Ensure minimum touch targets for mobile - BUT don't override explicit styles
+  if (responsiveMode === 'mobile') {
+    if (['button', 'input', 'select', 'textarea'].includes(component.type)) {
+      if (!scaledStyles.minHeight) scaledStyles.minHeight = '44px';
+      if (!scaledStyles.minWidth) scaledStyles.minWidth = '44px';
+      
+      // Ensure buttons remain reasonably sized in mobile
+      if (component.type === 'button' && !scaledStyles.fontSize) {
+        scaledStyles.fontSize = '16px'; // Prevent too-small text
+      }
+    }
+  }
+  
+  // Add responsive display properties
+  if (responsiveMode === 'mobile') {
+    // Stack elements vertically on mobile
+    if (component.style?.flexDirection === 'row' && component.isLayoutContainer) {
+      scaledStyles.flexDirection = 'column';
+    }
+    
+    // Full width for most elements on mobile
+    if (!scaledStyles.width || scaledStyles.width === 'auto') {
+      scaledStyles.width = '100%';
+    }
+  }
+  
+  return scaledStyles;
+}
+
+/**
+ * Get device-specific canvas dimensions
+ */
+getDeviceCanvasDimensions(responsiveMode) {
+  const dimensions = {
+    desktop: { width: '100%', height: 'auto', maxWidth: 'none' },
+    tablet: { width: 768, height: 1024, maxWidth: '768px' },
+    mobile: { width: 375, height: 667, maxWidth: '375px' }
+  };
+  
+  return dimensions[responsiveMode] || dimensions.desktop;
+}
   
   
   
@@ -242,7 +390,7 @@ class ComponentLibraryService {
       };
   }
 
-     // REPLACE renderComponent method
+    // REPLACE renderComponent method
     renderComponent(componentDef, props, id) {
         // CRITICAL: Add data attribute for selection system
         const baseDataAttrs = {
@@ -261,35 +409,56 @@ class ComponentLibraryService {
             return this.renderGeneric(props, id, { name: props.type || 'Unknown', type: props.type || 'unknown' });
         }
         
-        // ✅ CRITICAL: Proper props merging with VARIANT STYLES
+        // ✅ CRITICAL FIX: Props merging priority
+        // 1. Start with component defaults (lowest priority)
+        // 2. Add variant styles (medium priority)
+        // 3. Add instance styles (HIGHEST priority - should never be overwritten)
+        
         const defaultProps = componentDef?.default_props || {};
         const instanceProps = props?.props || {};
         const directProps = { ...props };
-        delete directProps.props; // Remove nested props
-        delete directProps.children; // Preserve children separately
+        delete directProps.props;
+        delete directProps.children;
         
-        // 🔥 NEW: Extract variant styles and merge with instance style
-        let finalStyle = { ...(props.style || {}) };
+        // 🔥 CRITICAL: Build styles with correct priority
+        let finalStyle = {};
         
+        // Step 1: Default styles from component definition
+        if (defaultProps.style) {
+            finalStyle = { ...defaultProps.style };
+        }
+        
+        // Step 2: Variant styles (if variant exists)
         if (props.variant && props.variant.style) {
-            console.log('🎨 Applying variant styles:', props.variant.name, Object.keys(props.variant.style));
+            console.log('🎨 Applying variant styles:', props.variant.name);
             finalStyle = {
                 ...finalStyle,
-                ...props.variant.style  // Variant styles override
+                ...props.variant.style
+            };
+        }
+        
+        // Step 3: Instance styles (HIGHEST PRIORITY - overwrites everything)
+        if (props.style) {
+            console.log('⚡ Applying instance styles (highest priority):', Object.keys(props.style));
+            finalStyle = {
+                ...finalStyle,
+                ...props.style  // ✅ Instance styles ALWAYS win
             };
         }
         
         const mergedProps = { 
-            ...defaultProps,      // Component defaults
-            ...instanceProps,     // Instance-specific props
-            ...directProps,       // Direct props (position, etc.)
-            style: finalStyle,    // 🔥 Merged styles with variant
+            ...defaultProps,
+            ...instanceProps,
+            ...directProps,
+            style: finalStyle,  // ✅ Final merged styles
         };
         
         console.log('🔧 Merged props for', componentDef.type, ':', {
             hasVariant: !!props.variant,
             variantName: props.variant?.name,
-            styleKeys: Object.keys(finalStyle)
+            instanceStyleKeys: Object.keys(props.style || {}),
+            finalStyleKeys: Object.keys(finalStyle),
+            display: finalStyle.display
         });
         
         // Check if this is a layout container
@@ -405,24 +574,25 @@ class ComponentLibraryService {
     
     
   
-  renderLayoutContainer(componentDef, props, id, children) {
-    // 🔥 CRITICAL FIX: Apply ALL style properties from props.style
+// @/Services/ComponentLibraryService.js - REPLACE the renderLayoutContainer method
+renderLayoutContainer(componentDef, props, id, children) {
+    // 🔥 CRITICAL FIX: Apply ALL style properties including flexDirection
     const containerStyle = {
-        // Start with defaults
-        display: props.style?.display || this.getDefaultDisplay(componentDef.type),
-        width: props.style?.width || '100%',
-        minHeight: props.style?.minHeight || this.getDefaultMinHeight(componentDef.type),
-        padding: props.style?.padding || this.getDefaultPadding(componentDef.type),
-        backgroundColor: props.style?.backgroundColor || 'transparent',
+        // Start with essential defaults
+        display: this.getDefaultDisplay(componentDef.type),
+        width: '100%',
+        minHeight: this.getDefaultMinHeight(componentDef.type),
+        padding: this.getDefaultPadding(componentDef.type),
         
-        // 🔥🔥🔥 THEN APPLY ALL CUSTOM STYLES (this is the fix!)
-        ...props.style  // This MUST come AFTER defaults to override them
+        // 🔥 CRITICAL: Apply ALL style props including flex properties
+        ...(props.style || {}),
     };
-    
-    console.log('🎨 renderLayoutContainer:', {
+
+    console.log('🎨 renderLayoutContainer FINAL style:', {
         type: componentDef.type,
-        flexDirection: containerStyle.flexDirection, // Should log 'column'
-        allStyles: containerStyle
+        flexDirection: containerStyle.flexDirection,
+        display: containerStyle.display,
+        allKeys: Object.keys(containerStyle)
     });
     
     return React.createElement('div', {
@@ -430,12 +600,11 @@ class ComponentLibraryService {
         'data-layout-type': componentDef.type,
         'data-component-id': id,
         className: `layout-container ${componentDef.type}-container`,
-        style: containerStyle  // 🔥 This now includes ALL styles
+        style: containerStyle  // 🔥 This now includes ALL styles including flexDirection
     }, children && children.length > 0 ? children.map(child => 
         this.renderComponent(this.componentDefinitions.get(child.type), child, child.id)
     ) : null);
 }
-    
     
     // Helper methods
     getDefaultDisplay(type) {

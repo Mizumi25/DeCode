@@ -31,14 +31,25 @@ const PropertiesPanel = ({
   const selectedComponentData = useMemo(() => {
     if (!selectedComponent || !canvasComponents) return null;
     
-    // 🔥 FIX: Also search in text node children
-    const findComponent = (components, id) => {
+    // 🔥 ENHANCED: Recursive search with depth tracking for debugging
+    const findComponent = (components, id, depth = 0) => {
+      console.log(`🔍 Searching at depth ${depth}:`, components.map(c => c.id));
+      
       for (const comp of components) {
-        if (comp.id === id) return comp;
+        if (comp.id === id) {
+          console.log(`✅ FOUND at depth ${depth}:`, {
+            id: comp.id,
+            type: comp.type,
+            hasProps: !!comp.props,
+            hasStyle: !!comp.style,
+            hasChildren: comp.children?.length > 0
+          });
+          return comp;
+        }
         
-        // 🔥 NEW: Search in ALL children including text nodes
+        // 🔥 CRITICAL: Search in ALL children recursively
         if (comp.children?.length > 0) {
-          const found = findComponent(comp.children, id);
+          const found = findComponent(comp.children, id, depth + 1);
           if (found) return found;
         }
       }
@@ -47,14 +58,9 @@ const PropertiesPanel = ({
     
     const found = findComponent(canvasComponents, selectedComponent);
     
-    // 🔥 DEBUG: Log what we found
-    console.log('🔍 selectedComponentData search:', {
-      selectedComponent,
-      found: !!found,
-      componentType: found?.type,
-      hasProps: !!found?.props,
-      hasStyle: !!found?.style
-    });
+    if (!found) {
+      console.warn('⚠️ Component not found:', selectedComponent);
+    }
     
     return found;
 }, [selectedComponent, canvasComponents]);
@@ -131,7 +137,7 @@ useEffect(() => {
   };
 
    
-// REPLACE handlePropertyChange (around line 90)
+// 🔥 FIXED: Proper property change handler with IMMEDIATE propagation
 const handlePropertyChange = useCallback((propName, value, category = 'style') => {
   if (!selectedComponent || !selectedComponentData) {
     console.warn('⚠️ Cannot update: no component selected');
@@ -143,26 +149,33 @@ const handlePropertyChange = useCallback((propName, value, category = 'style') =
     value, 
     category, 
     selectedComponent,
-    currentStyleKeys: Object.keys(selectedComponentData?.style || {})
+    currentValue: selectedComponentData?.style?.[propName]
   });
   
   if (category === 'style') {
-    // ✅ Update local state FIRST for immediate UI feedback
-    setLocalStyles(prev => ({
-      ...prev,
-      [propName]: value
-    }));
+    // ✅ CRITICAL: Update local state for immediate UI feedback
+    setLocalStyles(prev => {
+      const updated = { ...prev, [propName]: value };
+      console.log('📝 Updated local styles:', updated);
+      return updated;
+    });
     
-    // ✅ Then propagate to parent
+    // ✅ IMMEDIATELY propagate to parent (don't wait)
     const currentStyles = selectedComponentData?.style || {};
     const newStyles = { ...currentStyles, [propName]: value };
+    
+    console.log('⬆️ Propagating to parent:', {
+      property: propName,
+      newValue: value,
+      allStyles: newStyles
+    });
+    
     onPropertyUpdate(selectedComponent, 'style', newStyles);
     
   } else if (category === 'props') {
-    // ✅ Update props directly (no local state needed)
     const currentProps = selectedComponentData?.props || {};
     const newProps = { ...currentProps, [propName]: value };
-    onPropertyUpdate(selectedComponent, propName, value, 'props');
+    onPropertyUpdate(selectedComponent, 'props', newProps);
     
   } else if (category === 'animation') {
     const currentAnimation = selectedComponentData?.animation || {};
@@ -277,7 +290,7 @@ const componentDefinition = componentLibraryService?.getComponentDefinition?.(se
       >
   
 
-<div className="p-3 mb-4 bg-yellow-50 border border-yellow-200 rounded text-xs">
+<div className="p-3 mb-4 bg-[var(--color-primary-soft)] border border-[var(--color-primary-soft)] rounded text-xs overflow-auto">
   <div><strong>DEBUG:</strong> Component: {selectedComponent}</div>
   <div><strong>Props:</strong> {JSON.stringify(selectedComponentData?.props)}</div>
   <div><strong>Style:</strong> {JSON.stringify(selectedComponentData?.style)}</div>

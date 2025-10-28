@@ -415,31 +415,34 @@ const handleDndDragStart = useCallback((event) => {
   const component = flatComponents.find(c => c.id === active.id);
   setDraggedComponent(component);
   
-  // Store activatorEvent for modifier access
   if (!active.data.current) {
     active.data.current = {};
   }
   active.data.current.activatorEvent = event.activatorEvent;
   
-  // 🔥 CRITICAL: Make element INVISIBLE during drag
+  // 🔥 ENHANCED: Completely hide element and overlays during drag
   const element = document.querySelector(`[data-component-id="${active.id}"]`);
   if (element) {
     element.style.visibility = 'hidden';
     element.style.pointerEvents = 'none';
+    element.style.opacity = '0';
     
-    // 🔥 NEW: Also hide all children for nested components
     const childElements = element.querySelectorAll('[data-component-id]');
     childElements.forEach(child => {
       child.style.visibility = 'hidden';
+      child.style.opacity = '0';
     });
   }
   
-  // Vibration feedback for mobile
+  // 🔥 NEW: Hide selection overlay
+  window.dispatchEvent(new CustomEvent('element-drag-start', { 
+    detail: { componentId: active.id } 
+  }));
+  
   if ('vibrate' in navigator) {
     navigator.vibrate(50);
   }
   
-  // Dim other elements slightly
   canvasComponents.forEach(comp => {
     if (comp.id !== active.id) {
       const el = document.querySelector(`[data-component-id="${comp.id}"]`);
@@ -448,14 +451,6 @@ const handleDndDragStart = useCallback((event) => {
         el.style.transition = 'opacity 0.2s';
       }
     }
-  });
-  
-  console.log('🚀 DRAG STARTED:', {
-    activeId: active.id,
-    component: component?.name,
-    isLayout: component?.isLayoutContainer,
-    type: component?.type,
-    hasChildren: component?.children?.length > 0 // 🔥 ADD THIS LOG
   });
 }, [flatComponents, canvasComponents]);
 
@@ -518,37 +513,44 @@ const isDescendant = (parentId, childId, components) => {
 
   
 const handleDndDragEnd = useCallback((event) => {
+
+  
   const { active, over } = event;
   
-  // 🔥 NEW: Immediately restore visibility of dragged element and children
-  const restoreElements = () => {
-    if (activeId) {
-      const element = document.querySelector(`[data-component-id="${activeId}"]`);
-      if (element) {
-        element.style.opacity = '';
-        element.style.pointerEvents = '';
-        element.style.visibility = '';
-        element.style.transform = '';
-        
-        // Restore all children
-        const childElements = element.querySelectorAll('[data-component-id]');
-        childElements.forEach(child => {
-          child.style.visibility = '';
-        });
-      }
+  // 🔥 ENHANCED: Immediately restore visibility
+const restoreElements = () => {
+  if (activeId) {
+    const element = document.querySelector(`[data-component-id="${activeId}"]`);
+    if (element) {
+      element.style.opacity = '1';
+      element.style.pointerEvents = '';
+      element.style.visibility = 'visible';
+      element.style.transform = '';
+      
+      const childElements = element.querySelectorAll('[data-component-id]');
+      childElements.forEach(child => {
+        child.style.visibility = 'visible';
+        child.style.opacity = '1';
+      });
     }
-    
-    canvasComponents.forEach(comp => {
-      const el = document.querySelector(`[data-component-id="${comp.id}"]`);
-      if (el) {
-        el.style.opacity = '';
-        el.style.transition = '';
-        el.style.transform = '';
-      }
-    });
-  };
+  }
   
-  restoreElements(); // 🔥 Call immediately
+  canvasComponents.forEach(comp => {
+    const el = document.querySelector(`[data-component-id="${comp.id}"]`);
+    if (el) {
+      el.style.opacity = '';
+      el.style.transition = '';
+      el.style.transform = '';
+    }
+  });
+  
+  // 🔥 NEW: Notify overlays to show again
+  window.dispatchEvent(new CustomEvent('element-drag-end', { 
+    detail: { componentId: activeId } 
+  }));
+};
+
+restoreElements(); // Call immediately at start of function
   
   
   setActiveId(null);
@@ -894,39 +896,40 @@ const handleDndDragEnd = useCallback((event) => {
 }, [flatComponents, currentFrame, projectId, componentLibraryService, pushHistory, actionTypes, setFrameCanvasComponents, activeId, canvasComponents, dragPosition]);
 
 
-  const handleDndDragCancel = useCallback(() => {
-    // Restore all hidden elements
-    if (activeId) {
-      const element = document.querySelector(`[data-component-id="${activeId}"]`);
-      if (element) {
-        element.style.opacity = '';
-        element.style.pointerEvents = '';
-        element.style.visibility = '';
-        
-        // 🔥 NEW: Restore all children visibility
-        const childElements = element.querySelectorAll('[data-component-id]');
-        childElements.forEach(child => {
-          child.style.visibility = '';
-        });
-      }
+ const handleDndDragCancel = useCallback(() => {
+  if (activeId) {
+    const element = document.querySelector(`[data-component-id="${activeId}"]`);
+    if (element) {
+      element.style.opacity = '1';
+      element.style.pointerEvents = '';
+      element.style.visibility = 'visible';
+      
+      const childElements = element.querySelectorAll('[data-component-id]');
+      childElements.forEach(child => {
+        child.style.visibility = 'visible';
+        child.style.opacity = '1';
+      });
     }
-    
-    // Restore opacity for all elements
-    canvasComponents.forEach(comp => {
-      const el = document.querySelector(`[data-component-id="${comp.id}"]`);
-      if (el) {
-        el.style.opacity = '';
-        el.style.transition = '';
-      }
-    });
-    
-    setActiveId(null);
-    setOverId(null);
-    setDraggedComponent(null);
-    document.body.classList.remove('dragging');
-    
-    console.log('❌ Drag cancelled');
-  }, [activeId, canvasComponents]);
+  }
+  
+  canvasComponents.forEach(comp => {
+    const el = document.querySelector(`[data-component-id="${comp.id}"]`);
+    if (el) {
+      el.style.opacity = '';
+      el.style.transition = '';
+    }
+  });
+  
+  // 🔥 NEW: Notify overlays
+  window.dispatchEvent(new CustomEvent('element-drag-end', { 
+    detail: { componentId: activeId } 
+  }));
+  
+  setActiveId(null);
+  setOverId(null);
+  setDraggedComponent(null);
+  document.body.classList.remove('dragging');
+}, [activeId, canvasComponents]);
   
   
   
@@ -1048,11 +1051,21 @@ const handleSmartClick = useCallback((e) => {
   
 
 // FIXED SortableComponent - Replace the entire function
-const SortableComponent = ({ component, depth, parentId, index, parentStyle }) => {
+// @/Components/Forge/CanvasComponent.jsx - ENHANCE SortableComponent
+
+const SortableComponent = ({ 
+  component, 
+  depth, 
+  parentId, 
+  index, 
+  parentStyle, 
+  responsiveMode // 🔥 ADD responsive mode prop
+}) => {
+  const [isHovered, setIsHovered] = useState(false);
   const isSelected = selectedComponent === component.id;
   const isLayout = component.isLayoutContainer || 
                    ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
-  
+
   const {
     attributes,
     listeners,
@@ -1071,199 +1084,267 @@ const SortableComponent = ({ component, depth, parentId, index, parentStyle }) =
     opacity: isDragging ? 0.6 : 1,
     zIndex: isDragging ? 9999 : component.zIndex || depth,
   };
-  
-  const componentStyles = {
-    display: component.style?.display || (isLayout ? 'block' : 'inline-block'),
-    flexDirection: component.style?.flexDirection,
-    justifyContent: component.style?.justifyContent,
-    alignItems: component.style?.alignItems,
-    gap: component.style?.gap,
-    width: component.style?.width || (isLayout ? '100%' : 'auto'),
-    minHeight: component.style?.minHeight || (isLayout ? '100px' : 'auto'),
-    padding: component.style?.padding || (isLayout ? '24px' : '0'),
-    backgroundColor: component.style?.backgroundColor || 'transparent',
-    ...component.style,
-    ...style,
+
+   const getDeviceAwareStyles = () => {
+    const baseStyles = {
+      display: component.style?.display || (isLayout ? 'block' : 'inline-block'),
+      flexDirection: component.style?.flexDirection,
+      justifyContent: component.style?.justifyContent,
+      alignItems: component.style?.alignItems,
+      gap: component.style?.gap,
+      width: component.style?.width || (isLayout ? '100%' : 'auto'),
+      minHeight: component.style?.minHeight || (isLayout ? '100px' : 'auto'),
+      padding: component.style?.padding || (isLayout ? '24px' : '0'),
+      backgroundColor: component.style?.backgroundColor || 'transparent',
+      ...component.style,
+      ...style, // from useSortable
+    };
+
+    // ✅ Mobile optimizations (already scaled by service)
+    if (responsiveMode === 'mobile') {
+      if (['button', 'input', 'select', 'textarea'].includes(component.type)) {
+        baseStyles.minHeight = baseStyles.minHeight || '44px';
+        baseStyles.minWidth = baseStyles.minWidth || '44px';
+        baseStyles.fontSize = baseStyles.fontSize || '16px';
+      }
+
+      if (baseStyles.flexDirection === 'row' && isLayout) {
+        baseStyles.flexDirection = 'column';
+      }
+
+      if (!baseStyles.width || baseStyles.width === 'auto') {
+        baseStyles.width = component.type === 'button' ? 'fit-content' : '100%';
+      }
+    }
+
+    return baseStyles;
   };
 
-  // LAYOUT CONTAINER RENDERING
- if (isLayout) {
+  const componentStyles = getDeviceAwareStyles();
+
+  // Rest of the SortableComponent implementation remains the same...
+  if (isLayout) {
+    return (
+      <div
+        key={component.id}
+        ref={setNodeRef}
+        style={componentStyles}
+        data-component-id={component.id}
+        data-depth={depth}
+        data-is-layout="true"
+        data-parent-id={parentId || 'root'}
+        data-responsive-mode={responsiveMode} // 🔥 ADD responsive mode data attribute
+        className={`
+          relative group layout-container 
+          ${isSelected ? 'ring-2 ring-blue-500' : ''}
+          ${isDragging ? 'opacity-40' : ''}
+          ${overId === component.id ? 'ring-2 ring-green-400' : ''}
+          transition-opacity duration-150
+          responsive-${responsiveMode} // 🔥 ADD responsive class
+        `}
+        onClick={handleSmartClick}
+        onDoubleClick={(e) => handleDoubleClickText(e, component.id)}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {/* Drag overlay and content remains the same */}
+        <div 
+          className={`
+            absolute inset-0 cursor-grab active:cursor-grabbing
+            ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+            transition-opacity duration-200
+          `}
+          style={{
+            touchAction: 'none',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            zIndex: 1,
+            pointerEvents: (isHovered || isDragging) ? 'auto' : 'none'
+          }}
+          {...attributes}
+          {...listeners}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+          }}
+        />
+        
+    
+        
+        
+        {/* Nested components */}
+        {component.children && component.children.length > 0 ? (
+          <SortableContext 
+            items={component.children.map(c => c.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div 
+              className="space-y-2" 
+              style={{ 
+                position: 'relative', 
+                zIndex: 2, 
+                pointerEvents: 'auto',
+              }}
+            >
+              {component.children.map((child, childIndex) => (
+                <SortableComponent
+                  key={child.id}
+                  component={child}
+                  depth={depth + 1}
+                  parentId={component.id}
+                  index={childIndex}
+                  parentStyle={componentStyles} // 🔥 PASS CURRENT STYLES as parent
+                  responsiveMode={responsiveMode}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
+            <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
+              Drop here • {component.type} • {responsiveMode}
+              {componentStyles._responsiveScale && ` • Scale: ${componentStyles._responsiveScale.toFixed(2)}`}
+            </div>
+          </div>
+        )}
+        
+        {isSelected && (
+          <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
+            {component.name} • {component.children?.length || 0} children • {responsiveMode}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Non-layout component rendering with responsive styles
+  const componentRenderer = componentLibraryService?.getComponent(component.type);
+  let renderedContent = null;
+
+  if (componentRenderer?.render) {
+    try {
+      const mergedProps = {
+        ...component.props,
+        style: componentStyles // 🔥 Use responsive styles
+      };
+      renderedContent = componentRenderer.render(mergedProps, component.id);
+    } catch (error) {
+      console.warn('Render error:', error);
+      renderedContent = <div className="p-2 border rounded">{component.name}</div>;
+    }
+  }
+
+  const wrapperStyles = {
+    position: 'relative',
+    display: componentStyles.display === 'inline-flex' || 
+             componentStyles.display === 'inline-block' || 
+             componentStyles.display === 'inline' 
+             ? 'inline-block'
+             : 'block',
+    zIndex: component.zIndex || depth,
+  };
+
   return (
     <div
       key={component.id}
       ref={setNodeRef}
-      style={{...componentStyles}}
+      style={wrapperStyles}
       data-component-id={component.id}
       data-depth={depth}
-      data-is-layout="true"
+      data-is-layout="false"
       data-parent-id={parentId || 'root'}
+      data-responsive-mode={responsiveMode} // 🔥 ADD responsive mode
       className={`
-        relative group layout-container 
+        group
         ${isSelected ? 'ring-2 ring-blue-500' : ''}
         ${isDragging ? 'opacity-40' : ''}
-        ${overId === component.id ? 'ring-2 ring-green-400' : ''}
         transition-opacity duration-150
+        responsive-${responsiveMode} // 🔥 ADD responsive class
       `}
       onClick={handleSmartClick}
       onDoubleClick={(e) => handleDoubleClickText(e, component.id)}
     >
-      {/* LAYOUT DRAG OVERLAY - Full area draggable */}
+   
+   
+      {/* Drag overlay */}
       <div 
-        className={`
-          absolute inset-0 cursor-grab active:cursor-grabbing
-          ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-          transition-opacity duration-200
-        `}
+        className="absolute inset-0 cursor-grab active:cursor-grabbing"
         style={{
           touchAction: 'none',
           userSelect: 'none',
           WebkitUserSelect: 'none',
           zIndex: 1,
-          pointerEvents: 'auto'  // ✅ CHANGE from conditional to always 'auto'
+          pointerEvents: 'auto',
+          opacity: isDragging ? 0.3 : 0.1,
+          backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.1)',
+          borderRadius: '4px',
+          transition: 'all 0.2s ease',
         }}
         {...attributes}
         {...listeners}
         onMouseDown={(e) => {
           e.stopPropagation();
+          console.log('Non-layout drag started:', component.id);
         }}
       />
-              
-      {/* Nested Sortable Context */}
-      {component.children && component.children.length > 0 ? (
-        <SortableContext 
-          items={component.children.map(c => c.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="space-y-2" style={{ position: 'relative', zIndex: 2, pointerEvents: 'auto' }}>
-            {component.children.map((child, childIndex) => (
-              <SortableComponent
-                key={child.id}
-                component={child}
-                depth={depth + 1}
-                parentId={component.id}
-                index={childIndex}
-                parentStyle={componentStyles}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
-          <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
-            Drop here • {component.type}
-          </div>
-        </div>
-      )}
       
+      {/* Component content wrapper */}
+      <div 
+        style={{ 
+          position: 'relative', 
+          zIndex: 2,
+          pointerEvents: 'none',
+          display: 'inline-block',
+        }}
+      >
+        {renderedContent}
+      </div>
+      
+      {/* Selection label */}
       {isSelected && (
-        <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
-          {component.name} • {component.children?.length || 0} children • Depth {depth}
+        <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50 pointer-events-none">
+          {component.name} • {responsiveMode}
         </div>
       )}
     </div>
   );
-}
-  
-  // 🔥🔥🔥 FIXED NON-LAYOUT COMPONENT RENDERING 🔥🔥🔥
-  // 🔥🔥🔥 FIXED NON-LAYOUT COMPONENT RENDERING 🔥🔥🔥
-const componentRenderer = componentLibraryService?.getComponent(component.type);
-let renderedContent = null;
-
-if (componentRenderer?.render) {
-  try {
-    const mergedProps = {
-      ...component.props,
-      style: component.style // ✅ Component gets its own styles
-    };
-    renderedContent = componentRenderer.render(mergedProps, component.id);
-  } catch (error) {
-    console.warn('Render error:', error);
-    renderedContent = <div className="p-2 border rounded">{component.name}</div>;
-  }
-}
-
-// 🔥 REPLACE WITH THIS:
-const wrapperStyles = {
-  position: 'relative',
-  display: 'block', // ✅ ALWAYS use block - let component handle its own display
-  zIndex: component.zIndex || depth,
 };
 
-return (
-  <div
-    key={component.id}
-    ref={setNodeRef}
-    style={wrapperStyles} // ✅ Only wrapper positioning
-    data-component-id={component.id}
-    data-depth={depth}
-    data-is-layout="false"
-    data-parent-id={parentId || 'root'}
-    className={`
-      group
-      ${isSelected ? 'ring-2 ring-blue-500' : ''}
-      ${isDragging ? 'opacity-40' : ''}
-      transition-opacity duration-150
-    `}
-    onClick={handleSmartClick}
-    onDoubleClick={(e) => handleDoubleClickText(e, component.id)}
-  >
-    {/* Drag overlay */}
-    <div 
-      className="absolute inset-0 cursor-grab active:cursor-grabbing"
-      style={{
-        touchAction: 'none',
-        userSelect: 'none',
-        WebkitUserSelect: 'none',
-        zIndex: 1,
-        pointerEvents: 'auto',
-        opacity: isDragging ? 0.3 : 0.1,
-        backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.1)',
-        borderRadius: '4px',
-        transition: 'all 0.2s ease',
-      }}
-      {...attributes}
-      {...listeners}
-      onMouseDown={(e) => {
-        e.stopPropagation();
-        console.log('Non-layout drag started:', component.id);
-      }}
-    />
-    
-    {/* Component content wrapper */}
-    <div 
-      style={{ 
-        position: 'relative', 
-        zIndex: 2,
-        pointerEvents: 'none',
-        display: 'inline-block', // ✅ Fits content
-      }}
-    >
-      {renderedContent}
-    </div>
-    
-    {/* Selection label */}
-    {isSelected && (
-      <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50 pointer-events-none">
-        {component.name} • Depth {depth}
-      </div>
-    )}
-  </div>
-);
-};
 
-// Simplified renderComponent that uses the SortableComponent
+
+
 const renderComponent = useCallback((component, index, parentStyle = {}, depth = 0, parentId = null) => {
+  // 🔥 ENHANCED: Calculate responsive styles WITH parent styles
+  const responsiveStyles = componentLibraryService?.calculateResponsiveStyles 
+    ? componentLibraryService.calculateResponsiveStyles(
+        component, 
+        responsiveMode, 
+        canvasDimensions,
+        parentStyle // 🔥 PASS PARENT STYLES for nested scaling
+      )
+    : component.style;
+
+  const isSelected = selectedComponent === component.id;
+  const isLayout = component.isLayoutContainer || 
+                   ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
+
+  // Enhanced component data with responsive styles
+  const responsiveComponent = {
+    ...component,
+    style: responsiveStyles
+  };
+
   return (
     <SortableComponent
       key={component.id}
-      component={component}
+      component={responsiveComponent}
       depth={depth}
       parentId={parentId}
       index={index}
-      parentStyle={parentStyle}
+      parentStyle={responsiveStyles} // 🔥 PASS RESPONSIVE STYLES to children
+      responsiveMode={responsiveMode}
     />
   );
-}, [componentLibraryService, selectedComponent, onComponentClick, overId, isMobile]);
+}, [componentLibraryService, selectedComponent, responsiveMode, canvasDimensions]);
 
   // FIXED reorderWithinContainer helper
   const reorderWithinContainer = (components, containerId, sourceIndex, destIndex) => {
@@ -1770,22 +1851,25 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
               />
             )}
             
-            {/* Device info label */}
-            <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2">
-              <div 
-                className="px-3 py-1 rounded-full text-xs flex items-center gap-2 font-medium"
-                style={{ 
-                  backgroundColor: 'var(--color-surface)',
-                  color: 'var(--color-text)',
-                  border: '1px solid var(--color-border)'
-                }}
-              >
-                {responsiveMode === 'mobile' ? <Smartphone className="w-3 h-3" /> : <Tablet className="w-3 h-3" />}
-                {canvasSize.deviceName} ({canvasSize.width}px)
-                {zoomLevel !== 100 && <span>• {zoomLevel}%</span>}
-              </div>
+          {/* Device info label */}
+          <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2">
+            <div 
+              className="px-3 py-1 rounded-full text-xs flex items-center gap-2 font-medium"
+              style={{ 
+                backgroundColor: 'var(--color-surface)',
+                color: 'var(--color-text)',
+                border: '1px solid var(--color-border)'
+              }}
+            >
+              {responsiveMode === 'mobile' ? <Smartphone className="w-3 h-3" /> : 
+               responsiveMode === 'tablet' ? <Tablet className="w-3 h-3" /> : 
+               <Monitor className="w-3 h-3" />}
+              {canvasSize.deviceName} ({canvasSize.width}px)
+              {zoomLevel !== 100 && <span>• {zoomLevel}%</span>}
+              <span className="text-green-500">• Responsive</span>
             </div>
-        
+          </div>
+                  
             {/* Mobile/Tablet Browser Tabs at top of device frame */}
             {responsiveMode === 'tablet' && (
               <div 
@@ -1832,32 +1916,32 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
         )}
         
         {/* Main Canvas - Acts as Document Body */}
-       <div 
-          ref={canvasRef}
-          className={`
-            relative transition-all duration-500
-            ${canvasClasses}
-            ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
-          `}
-          style={{
-            width: '100%',
-            minHeight: responsiveMode === 'desktop' ? '100vh' : '667px',
-            height: responsiveMode === 'desktop' ? 'auto' : `${canvasSize.height}px`,
-            maxWidth: canvasSize.maxWidth,
-            backgroundColor: 'var(--color-surface)',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            lineHeight: '1.6',
-            color: 'var(--color-text)',
-            cursor: dragState.isDragging ? 'copy' : 'default',
-            borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
-            boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
-            position: 'relative',
-            overflow: 'visible'
-          }}
-          onDragOver={onCanvasDragOver}
-          onDrop={onCanvasDrop}
-          onClick={onCanvasClick} // 🔥 FIXED: Use the prop from parent
-        >
+<div 
+  ref={canvasRef}
+  className={`
+    relative transition-all duration-500
+    ${canvasClasses}
+    ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
+  `}
+  style={{
+    width: '100%',
+    minHeight: responsiveMode === 'desktop' ? '100vh' : '667px',
+    height: responsiveMode === 'desktop' ? 'auto' : `${canvasSize.height}px`,
+    maxWidth: canvasSize.maxWidth,
+    backgroundColor: 'var(--color-surface)',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    lineHeight: '1.6',
+    color: 'var(--color-text)',
+    cursor: dragState.isDragging ? 'copy' : 'default',
+    borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
+    boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
+    position: 'relative',
+    overflow: 'auto' // 🔥 CHANGE THIS FROM 'visible' TO 'auto'
+  }}
+  onDragOver={onCanvasDragOver}
+  onDrop={onCanvasDrop}
+  onClick={onCanvasClick}
+>
          {/* Grid Lines - Only show if enabled */}
           {isOverlayEnabled('showGridLines') && gridVisible && (
               <div 
@@ -1885,7 +1969,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
 
 
 
-          {SelectionOverlay && selectedComponent === '__canvas_root__' && (
+          {SelectionOverlay && selectedComponent === '__canvas_root__' && !activeId && (
             <SelectionOverlay
               componentId="__canvas_root__"
               canvasRef={canvasRef}
@@ -1896,7 +1980,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
             />
           )}
           
-         {SelectionOverlay && selectedComponent && selectedComponent !== '__canvas_root__' && (
+         {SelectionOverlay && selectedComponent && selectedComponent !== '__canvas_root__' && !activeId && (
             <SelectionOverlay
               componentId={selectedComponent}
               canvasRef={canvasRef}
@@ -1905,7 +1989,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
               showSpacing={isOverlayEnabled('showSpacingIndicators')}
               showSelectionBorders={isOverlayEnabled('showSelectionBorders')}
               onComponentClick={onComponentClick}
-              // 🔥 CRITICAL: Pass active drag state
+                            // 🔥 CRITICAL: Pass active drag state
               isDragging={!!activeId && selectedComponent === activeId}
               draggedComponent={activeId === selectedComponent ? draggedComponent : null}
               dragTransform={activeId === selectedComponent ? { x: 0, y: 0 } : null}
@@ -2043,20 +2127,24 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                     }
                   ]}
                 >
-                  {activeId && draggedComponent ? (
-                    <div
-                      className="drag-ghost-wrapper"
-                      style={{
-                        transform: 'scale(1.05)',
-                        filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.4)) drop-shadow(0 0 20px rgba(59, 130, 246, 0.3))',
-                        border: '2px solid rgba(59, 130, 246, 0.5)',
-                        borderRadius: '8px',
-                        overflow: 'visible',
-                        backgroundColor: 'white',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      {/* 🔥 CLONE THE ACTUAL DOM ELEMENT */}
+                 {activeId && draggedComponent ? (
+                  <div
+                    className="drag-ghost-wrapper"
+                    style={{
+                      transform: `scale(${responsiveMode === 'mobile' ? 0.6 : responsiveMode === 'tablet' ? 0.8 : 1}) scale(1.05)`,
+                      filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.4)) drop-shadow(0 0 20px rgba(59, 130, 246, 0.3))',
+                      border: '2px solid rgba(59, 130, 246, 0.5)',
+                      borderRadius: '8px',
+                      overflow: 'visible',
+                      backgroundColor: 'white',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {/* 🔥 ENHANCED: Apply responsive scaling to ghost content */}
+                    <div style={{
+                      transform: `scale(${1/(responsiveMode === 'mobile' ? 0.6 : responsiveMode === 'tablet' ? 0.8 : 1)})`,
+                      transformOrigin: 'top left'
+                    }}>
                       {(() => {
                         const originalElement = document.querySelector(`[data-component-id="${activeId}"]`);
                         if (!originalElement) {
@@ -2065,7 +2153,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                             <div className="text-xs text-gray-500">{draggedComponent.type}</div>
                           </div>;
                         }
-                
+                        
                         // Clone the element with all its children
                         const clonedElement = originalElement.cloneNode(true);
                         
@@ -2087,34 +2175,35 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                           child.style.opacity = '1';
                           child.style.pointerEvents = 'none';
                         });
-                
+                        
                         return <div 
                           dangerouslySetInnerHTML={{ __html: clonedElement.outerHTML }}
                           style={{ pointerEvents: 'none' }}
                         />;
                       })()}
-                      
-                      {/* Drag indicator */}
+                    </div>
+                    
+                    {/* Drag indicator */}
+                    <div 
+                      className="absolute -top-3 -right-3 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shadow-lg"
+                      style={{ pointerEvents: 'none' }}
+                    >
+                      <Move className="w-3 h-3 text-white" />
+                    </div>
+                    
+                    {/* Show child count for layouts */}
+                    {draggedComponent.children?.length > 0 && (
                       <div 
-                        className="absolute -top-3 -right-3 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shadow-lg"
+                        className="absolute -bottom-6 left-0 right-0 flex items-center justify-center"
                         style={{ pointerEvents: 'none' }}
                       >
-                        <Move className="w-3 h-3 text-white" />
-                      </div>
-                      
-                      {/* Show child count for layouts */}
-                      {draggedComponent.children?.length > 0 && (
-                        <div 
-                          className="absolute -bottom-6 left-0 right-0 flex items-center justify-center"
-                          style={{ pointerEvents: 'none' }}
-                        >
-                          <div className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full font-semibold shadow-lg">
-                            {draggedComponent.children.length} nested
-                          </div>
+                        <div className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full font-semibold shadow-lg">
+                          {draggedComponent.children.length} nested
                         </div>
-                      )}
-                    </div>
-                  ) : null}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
                 </DragOverlay>
               </DndContext>
             )}

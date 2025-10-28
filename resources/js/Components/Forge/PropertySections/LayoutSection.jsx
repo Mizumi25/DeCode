@@ -1,5 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Move, Layout, Columns, Grid3X3, Maximize, Square, MousePointer, Layers, AlignLeft, AlignCenter, AlignRight, AlignJustify } from 'lucide-react';
+import { 
+  Move, Layout, Columns, Grid3X3, Maximize, Square, MousePointer, Layers, 
+  AlignLeft, AlignCenter, AlignRight, AlignJustify, Box, Container,
+  Rows, Columns3, WrapText, Eye, EyeOff
+} from 'lucide-react';
 import { PropertySection, InputField, SubsectionHeader } from '../PropertyUtils';
 
 const LayoutSection = ({ 
@@ -296,13 +300,30 @@ useEffect(() => {
           options={['static', 'relative', 'absolute', 'fixed', 'sticky']}
         />
 
-        <VisualButtonGroup
+       <VisualButtonGroup
           label="Display Type"
           value={currentStyles.display || 'block'}
-          onChange={(value) =>
-            onPropertyChange('display', value, 'style')
-          }
-          options={['block', 'inline-block', 'flex', 'grid', 'none']}
+          onChange={(value) => {
+            console.log('🔄 Display type changed to:', value);
+            onPropertyChange('display', value, 'style');
+            
+            // Force re-render after 100ms to ensure update
+            setTimeout(() => {
+              console.log('✅ Display type should now be:', value);
+            }, 100);
+          }}
+          options={['block', 'inline', 'inline-block', 'flex', 'inline-flex', 'grid', 'inline-grid', 'none', 'contents']}
+          icons={{
+            'block': Box,
+            'inline': WrapText,
+            'inline-block': Container,
+            'flex': Columns,
+            'inline-flex': Columns,
+            'grid': Grid3X3,
+            'inline-grid': Grid3X3,
+            'none': EyeOff,
+            'contents': Layers
+          }}
         />
 
         {(currentStyles.position && currentStyles.position !== 'static') && (

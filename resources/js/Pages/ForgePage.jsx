@@ -1396,58 +1396,88 @@ const handleIconSelect = useCallback((icon) => {
   }, [canvasComponents, currentFrame, projectId, pushHistory, actionTypes, componentLibraryService, generateCode]);
 
   
-  // MODIFY handlePropertyUpdate (around line 580)
+// 🔥 FIXED: handlePropertyUpdate with RECURSIVE nested component support
 const handlePropertyUpdate = useCallback((componentId, propName, value) => {
   console.log('🎯 ForgePage: Property update:', { componentId, propName, value });
   
-  const updatedComponents = canvasComponents.map(c => {
-    if (c.id === componentId) {
-      if (propName === 'position') {
-        return { ...c, position: value }
-      } else if (propName === 'style') {
-        // 🔥 CRITICAL: Merge styles properly
-        return { 
-          ...c, 
-          style: { 
-            ...c.style, 
-            ...value  // Merge new styles with existing
-          } 
-        }
-      } else if (propName === 'animation') {
-        return { ...c, animation: { ...c.animation, ...value } }
-      } else if (propName === 'name') {
-        return { ...c, name: value }
-      } else if (propName === 'reset') {
-        return { 
-          ...c, 
-          style: {}, 
-          animation: {},
-          props: {}
-        }
-      } else {
-        // 🔥 Single property update in style
-        return { 
-          ...c, 
-          style: {
-            ...c.style,
-            [propName]: value
+  // 🔥 NEW: RECURSIVE UPDATE FUNCTION - Updates nested components anywhere in tree
+  const updateComponentRecursive = (components) => {
+    return components.map(c => {
+      // Found the target component
+      if (c.id === componentId) {
+        console.log('✅ Found target component:', componentId);
+        
+        if (propName === 'position') {
+          return { ...c, position: value }
+        } else if (propName === 'style') {
+          // 🔥 CRITICAL: REPLACE entire style object
+          console.log('🔄 Replacing entire style object:', value);
+          return { 
+            ...c, 
+            style: value // ✅ Direct replacement
+          }
+        } else if (propName === 'animation') {
+          return { ...c, animation: { ...c.animation, ...value } }
+        } else if (propName === 'name') {
+          return { ...c, name: value }
+        } else if (propName === 'reset') {
+          return { 
+            ...c, 
+            style: {}, 
+            animation: {},
+            props: {}
+          }
+        } else {
+          // 🔥 Single property update in style
+          console.log('📝 Updating single style property:', propName, '=', value);
+          return { 
+            ...c, 
+            style: {
+              ...c.style,
+              [propName]: value
+            }
           }
         }
       }
-    }
-    return c
-  })
+      
+      // 🔥 NEW: CRITICAL - Recursively update children if they exist
+      if (c.children && c.children.length > 0) {
+        return {
+          ...c,
+          children: updateComponentRecursive(c.children)
+        };
+      }
+      
+      return c;
+    });
+  };
   
-  // Force immediate update
+  // 🔥 CHANGED: Use recursive function instead of simple map
+  const updatedComponents = updateComponentRecursive(canvasComponents);
+  
+  // 🔥 CRITICAL: Force immediate state update
+  console.log('⚡ Forcing immediate canvas update with recursive changes');
   setFrameCanvasComponents(prev => ({
     ...prev,
     [currentFrame]: updatedComponents
   }));
   
-  // Push to history for undo/redo
-  const component = canvasComponents.find(c => c.id === componentId);
+  // 🔥 CHANGED: Find component recursively for history tracking
+  const findComponent = (components, id) => {
+    for (const comp of components) {
+      if (comp.id === id) return comp;
+      if (comp.children?.length > 0) {
+        const found = findComponent(comp.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  
+  const component = findComponent(canvasComponents, componentId);
   const componentName = component?.name || component?.type || 'component';
   
+  // KEEP EVERYTHING BELOW THIS THE SAME - all your existing history logic
   let actionType = actionTypes.PROP_UPDATE;
   if (propName === 'position') actionType = actionTypes.MOVE;
   else if (propName === 'style') actionType = actionTypes.STYLE_UPDATE;
@@ -1477,7 +1507,7 @@ const handlePropertyUpdate = useCallback((componentId, propName, value) => {
   }
   
   // ENHANCED: Schedule thumbnail update for visual changes
-  const shouldUpdateThumbnail = propName !== 'name' && // Skip thumbnail update for name changes
+  const shouldUpdateThumbnail = propName !== 'name' && 
                                (propName === 'style' || propName === 'position' || 
                                 propName === 'props' || propName === 'animation');
                                 
@@ -1490,7 +1520,6 @@ const handlePropertyUpdate = useCallback((componentId, propName, value) => {
       grid_visible: gridVisible
     };
     
-    // Schedule debounced thumbnail update
     scheduleThumbnailUpdate(updatedComponents, canvasSettings);
   }
   
@@ -2665,3 +2694,4 @@ if (!componentsLoaded && loadingMessage) {
     </ErrorBoundary>
   );
 }
+

@@ -1196,7 +1196,49 @@ body.dragging [data-component-id]:not([data-component-id="${activeId}"]) {
   user-select: none !important;
 }
 
-/* Ensure original element stays hidden during drag */
+
 body.dragging [style*="visibility: hidden"] {
   visibility: hidden !important;
 }
+
+
+
+
+/* Responsive device-specific styles */
+.responsive-mobile {
+  /* Mobile-specific optimizations */
+  font-size: 16px; /* Prevent zoom on iOS */
+}
+
+.responsive-tablet {
+  /* Tablet-specific optimizations */
+}
+
+.responsive-desktop {
+  /* Desktop-specific optimizations */
+}
+
+/* Ensure proper scaling for different devices */
+@media (max-width: 768px) {
+  .responsive-mobile [data-component-type="button"],
+  .responsive-mobile [data-component-type="input"],
+  .responsive-mobile [data-component-type="select"] {
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+  
+  .responsive-mobile .layout-container[data-is-layout="true"] {
+    flex-direction: column !important;
+  }
+}
+
+/* Touch-friendly interactions for mobile */
+.responsive-mobile * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.responsive-mobile [data-component-type="button"]:active {
+  transform: scale(0.98);
+  transition: transform 0.1s ease;
+}
+

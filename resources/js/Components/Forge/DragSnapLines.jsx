@@ -528,66 +528,134 @@ const DragSnapLines = ({
 
   return (
     <div className="absolute inset-0 pointer-events-none z-50">
-      {/* Drop Zone Highlight - Only when hovering over layout container */}
-      <AnimatePresence>
-        {hoveredTarget && (
+     {/* Smart Drop Zone - Visual Box Based on Container Style */}
+<AnimatePresence>
+  {hoveredTarget && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+      className="absolute pointer-events-none"
+      style={{
+        top: hoveredTarget.bounds.top,
+        left: hoveredTarget.bounds.left,
+        width: hoveredTarget.bounds.width,
+        height: hoveredTarget.bounds.height,
+        border: `2px dashed ${COLORS.DROP_ZONE}`,
+        borderRadius: '8px',
+        backgroundColor: `${COLORS.DROP_ZONE}08`,
+      }}
+    >
+      {/* Smart Drop Position Indicator */}
+      {(() => {
+        const containerStyle = hoveredTarget.computedStyle || {};
+        const isFlexRow = containerStyle.flexDirection === 'row';
+        const isFlexColumn = containerStyle.flexDirection === 'column';
+        const isGrid = containerStyle.display === 'grid';
+        
+        // Calculate available drop positions based on style
+        const dropPositions = [];
+        
+        if (isFlexRow) {
+          // Show horizontal slots
+          const childCount = hoveredTarget.childCount || 0;
+          const slotWidth = hoveredTarget.bounds.width / (childCount + 1);
+          for (let i = 0; i <= childCount; i++) {
+            dropPositions.push({
+              x: hoveredTarget.bounds.left + (slotWidth * i),
+              y: hoveredTarget.bounds.centerY,
+              type: 'flex-row',
+              index: i
+            });
+          }
+        } else if (isFlexColumn) {
+          // Show vertical slots
+          const childCount = hoveredTarget.childCount || 0;
+          const slotHeight = hoveredTarget.bounds.height / (childCount + 1);
+          for (let i = 0; i <= childCount; i++) {
+            dropPositions.push({
+              x: hoveredTarget.bounds.centerX,
+              y: hoveredTarget.bounds.top + (slotHeight * i),
+              type: 'flex-column',
+              index: i
+            });
+          }
+        } else if (isGrid) {
+          // Show grid cells
+          const cols = parseInt(containerStyle.gridTemplateColumns?.split(' ').length || 2);
+          const cellWidth = hoveredTarget.bounds.width / cols;
+          const cellHeight = 100; // Estimate
+          
+          for (let i = 0; i < cols; i++) {
+            dropPositions.push({
+              x: hoveredTarget.bounds.left + (cellWidth * i) + (cellWidth / 2),
+              y: hoveredTarget.bounds.top + 50,
+              type: 'grid',
+              index: i
+            });
+          }
+        }
+        
+        // Find closest drop position to drag position
+        const closest = dropPositions.reduce((prev, curr) => {
+          const prevDist = Math.hypot(
+            prev.x - dragPosition.x,
+            prev.y - dragPosition.y
+          );
+          const currDist = Math.hypot(
+            curr.x - dragPosition.x,
+            curr.y - dragPosition.y
+          );
+          return currDist < prevDist ? curr : prev;
+        }, dropPositions[0] || null);
+        
+        if (!closest) return null;
+        
+        return (
           <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.15 }}
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
             className="absolute"
             style={{
-              top: hoveredTarget.bounds.top - 2,
-              left: hoveredTarget.bounds.left - 2,
-              width: hoveredTarget.bounds.width + 4,
-              height: hoveredTarget.bounds.height + 4,
-              border: `2px solid ${COLORS.DROP_ZONE}`,
-              borderRadius: '6px',
-              backgroundColor: `${COLORS.DROP_ZONE}10`,
-              boxShadow: `0 0 0 4px ${COLORS.DROP_ZONE}20, inset 0 0 20px ${COLORS.DROP_ZONE}15`,
+              left: closest.x - hoveredTarget.bounds.left - 2,
+              top: closest.y - hoveredTarget.bounds.top - 2,
+              width: closest.type === 'flex-row' ? '4px' : '40px',
+              height: closest.type === 'flex-column' ? '4px' : '40px',
+              backgroundColor: COLORS.DROP_ZONE,
+              borderRadius: '2px',
+              boxShadow: `0 0 12px ${COLORS.DROP_ZONE}`,
             }}
-          >
-            {/* Drop Zone Label */}
-            <motion.div
-              initial={{ y: -5, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              className="absolute -top-8 left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full text-xs font-semibold shadow-lg whitespace-nowrap"
-              style={{
-                backgroundColor: COLORS.DROP_ZONE,
-                color: 'white',
-              }}
-            >
-              Drop into {hoveredTarget.name} • {hoveredTarget.type}
-            </motion.div>
-
-            {/* Corner indicators */}
-            {['top-left', 'top-right', 'bottom-right', 'bottom-left'].map(corner => {
-              const positions = {
-                'top-left': { top: -6, left: -6 },
-                'top-right': { top: -6, right: -6 },
-                'bottom-right': { bottom: -6, right: -6 },
-                'bottom-left': { bottom: -6, left: -6 },
-              };
-
-              return (
-                <motion.div
-                  key={corner}
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.05 }}
-                  className="absolute w-3 h-3 rounded-full"
-                  style={{
-                    ...positions[corner],
-                    backgroundColor: COLORS.DROP_ZONE,
-                    boxShadow: `0 0 8px ${COLORS.DROP_ZONE}`,
-                  }}
-                />
-              );
-            })}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          />
+        );
+      })()}
+      
+      {/* Corner indicators only */}
+      {['top-left', 'top-right', 'bottom-right', 'bottom-left'].map(corner => {
+        const positions = {
+          'top-left': { top: -4, left: -4 },
+          'top-right': { top: -4, right: -4 },
+          'bottom-right': { bottom: -4, right: -4 },
+          'bottom-left': { bottom: -4, left: -4 },
+        };
+        
+        return (
+          <motion.div
+            key={corner}
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute w-2 h-2 rounded-full"
+            style={{
+              ...positions[corner],
+              backgroundColor: COLORS.DROP_ZONE,
+              boxShadow: `0 0 8px ${COLORS.DROP_ZONE}`,
+            }}
+          />
+        );
+      })}
+    </motion.div>
+  )}
+</AnimatePresence>
 
       {/* Snap Lines - Minimal and clean */}
       <AnimatePresence>

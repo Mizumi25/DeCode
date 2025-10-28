@@ -184,49 +184,52 @@ private function normalizeStyleData($componentData)
 }
 
 
-// ALSO UPDATE buildComponentTree to ensure styles are loaded correctly
-private function buildComponentTree($components, $parentId = null)
-{
-    $tree = [];
-    
-    foreach ($components as $component) {
-        if ($component->parent_id == $parentId) {
-            $node = [
-                'id' => $component->component_instance_id,
-                'type' => $component->component_type,
-                'props' => $component->props ?? [],
-                'text_content' => $component->text_content,
-                'name' => $component->name,
-                'zIndex' => $component->z_index,
-                'sortOrder' => $component->sort_order,
-                'variant' => $component->variant,
-                'style' => $component->style ?? [], // ✅ Ensure style is loaded
-                'animation' => $component->animation ?? [],
-                'display_type' => $component->display_type,
-                'layout_props' => $component->layout_props,
-                'isLayoutContainer' => $component->is_layout_container,
-                'visible' => $component->visible ?? true,
-                'locked' => $component->locked ?? false,
-                'children' => $this->buildComponentTree($components, $component->id)
-            ];
-            
-            // 🔥 Log what we're loading
-            \Log::info('Loading component from DB:', [
-                'id' => $node['id'],
-                'type' => $node['type'],
-                'style_keys' => array_keys($node['style']),
-            ]);
-            
-            $tree[] = $node;
-        }
-    }
-    
-    usort($tree, function($a, $b) {
-        return ($a['sortOrder'] ?? 0) - ($b['sortOrder'] ?? 0);
-    });
-    
-    return $tree;
-}
+  // ALSO UPDATE buildComponentTree to ensure styles are loaded correctly AND parent relationships
+  private function buildComponentTree($components, $parentId = null)
+  {
+      $tree = [];
+      
+      foreach ($components as $component) {
+          if ($component->parent_id == $parentId) {
+              $node = [
+                  'id' => $component->component_instance_id,
+                  'type' => $component->component_type,
+                  'props' => $component->props ?? [],
+                  'text_content' => $component->text_content,
+                  'name' => $component->name,
+                  'zIndex' => $component->z_index,
+                  'sortOrder' => $component->sort_order,
+                  'variant' => $component->variant,
+                  'style' => $component->style ?? [], // ✅ Ensure style is loaded
+                  'animation' => $component->animation ?? [],
+                  'display_type' => $component->display_type,
+                  'layout_props' => $component->layout_props,
+                  'isLayoutContainer' => $component->is_layout_container,
+                  'visible' => $component->visible ?? true,
+                  'locked' => $component->locked ?? false,
+                  'parentId' => $parentId ? $components->firstWhere('id', $parentId)?->component_instance_id : null, // 🔥 ADD parent reference
+                  'children' => $this->buildComponentTree($components, $component->id)
+              ];
+              
+              // 🔥 Log what we're loading
+              \Log::info('Loading component from DB:', [
+                  'id' => $node['id'],
+                  'type' => $node['type'],
+                  'parentId' => $node['parentId'],
+                  'isNested' => !!$node['parentId'],
+                  'style_keys' => array_keys($node['style']),
+              ]);
+              
+              $tree[] = $node;
+          }
+      }
+      
+      usort($tree, function($a, $b) {
+          return ($a['sortOrder'] ?? 0) - ($b['sortOrder'] ?? 0);
+      });
+      
+      return $tree;
+  }
 
     /**
      * Get components with full hierarchy
