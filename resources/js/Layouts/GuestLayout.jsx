@@ -7,6 +7,7 @@ import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Link } from '@inertiajs/react';
+import CustomCursor from '@/Components/CustomCursor';
 
 export default function GuestLayout({ children }) {
     const logoRef = useRef(null);
@@ -27,6 +28,7 @@ export default function GuestLayout({ children }) {
 
     return (
         <div className="flex min-h-screen flex-col items-center bg-[var(--color-bg)] pt-6 sm:justify-center sm:pt-0 transition-all">
+        <CustomCursor />
             <div ref={logoRef}>
                 
             </div>

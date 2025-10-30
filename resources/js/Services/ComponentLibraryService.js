@@ -1967,11 +1967,74 @@ getComponentTag(type) {
 }
 
 
-  generateReactCSSCode(allComponents) {
-  // REMOVE position absolute wrapper
-  const reactComponents = allComponents.map(comp => {
-    return this.generateComponentJSX(comp, `btn btn-${comp.props.variant || 'primary'} btn-${comp.props.size || 'md'}`);
-  }).join('\n');
+  // Around line 750 - REPLACE generateReactCSSCode
+generateReactCSSCode(allComponents) {
+  if (!allComponents || allComponents.length === 0) {
+    return {
+      react: `import React from 'react';
+import './GeneratedComponent.css';
+
+const GeneratedComponent = () => {
+  return (
+    <div className="canvas-container">
+      {/* No components yet */}
+    </div>
+  );
+};
+
+export default GeneratedComponent;`,
+      css: this.generateModernCSS([])
+    };
+  }
+
+  // 🔥 FIXED: Recursive React component rendering with CSS classes
+  const renderReactTree = (components, depth = 0) => {
+    return components.map(comp => {
+      const indent = '  '.repeat(depth + 2);
+      
+      // Handle text-node (no wrapper)
+      if (comp.type === 'text-node') {
+        const textContent = comp.props?.content || comp.props?.text || comp.text_content || '';
+        return `${indent}${textContent}`;
+      }
+      
+      // Generate unique CSS class for this component
+      const cssClass = this.generateCSSClassName(comp);
+      const content = this.extractComponentContent(comp);
+      const hasChildren = comp.children && comp.children.length > 0;
+      
+      // Get React tag (section, div, button, etc.)
+      const reactTag = this.getReactTag(comp.type);
+      
+      let jsx = `${indent}<${reactTag}`;
+      
+      // Add className
+      if (cssClass) {
+        jsx += `\n${indent}  className="${cssClass}"`;
+      }
+      
+      // Add other props
+      const otherProps = this.buildReactProps(comp);
+      if (otherProps) {
+        jsx += `\n${indent}  ${otherProps}`;
+      }
+      
+      jsx += `\n${indent}>`;
+      
+      if (hasChildren) {
+        jsx += '\n' + renderReactTree(comp.children, depth + 1);
+        jsx += `\n${indent}</${reactTag}>`;
+      } else if (content) {
+        jsx += `\n${indent}  ${content}\n${indent}</${reactTag}>`;
+      } else {
+        jsx += `</${reactTag}>`;
+      }
+      
+      return jsx;
+    }).join('\n');
+  };
+
+  const reactComponents = renderReactTree(allComponents);
 
   return {
     react: `import React from 'react';
@@ -1986,15 +2049,84 @@ ${reactComponents}
 };
 
 export default GeneratedComponent;`,
-    css: this.generateCSSStyles(allComponents)
+    css: this.generateModernCSS(allComponents)
   };
 }
 
-  generateHTMLCSSCode(allComponents) {
-  // REMOVE position absolute wrapper
-  const htmlComponents = allComponents.map(comp => {
-    return this.generateComponentHTML(comp, `btn btn-${comp.props.variant || 'primary'} btn-${comp.props.size || 'md'}`);
-  }).join('\n');
+// Around line 800 - REPLACE generateHTMLCSSCode
+generateHTMLCSSCode(allComponents) {
+  if (!allComponents || allComponents.length === 0) {
+    return {
+      html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generated Component</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="canvas-container">
+      <!-- No components yet -->
+    </div>
+</body>
+</html>`,
+      css: this.generateModernCSS([])
+    };
+  }
+
+  // 🔥 FIXED: Recursive HTML rendering with CSS classes
+  const renderHTMLTree = (components, depth = 0) => {
+    return components.map(comp => {
+      const indent = '  '.repeat(depth + 2);
+      
+      // Handle text-node (no wrapper)
+      if (comp.type === 'text-node') {
+        const textContent = comp.props?.content || comp.props?.text || comp.text_content || '';
+        return `${indent}${textContent}`;
+      }
+      
+      // Generate unique CSS class for this component
+      const cssClass = this.generateCSSClassName(comp);
+      const content = this.extractComponentContent(comp);
+      const hasChildren = comp.children && comp.children.length > 0;
+      
+      // Get HTML tag
+      const htmlTag = this.getHTMLTag(comp.type);
+      
+      let html = `${indent}<${htmlTag}`;
+      
+      // Add class
+      if (cssClass) {
+        html += ` class="${cssClass}"`;
+      }
+      
+      // Add HTML attributes
+      const attrs = this.buildHTMLAttributes(comp);
+      if (attrs) {
+        html += ` ${attrs}`;
+      }
+      
+      html += `>`;
+      
+      if (hasChildren) {
+        html += '\n' + renderHTMLTree(comp.children, depth + 1);
+        html += `\n${indent}</${htmlTag}>`;
+      } else if (content) {
+        html += content + `</${htmlTag}>`;
+      } else {
+        // Self-closing tags
+        if (['input', 'img', 'br', 'hr'].includes(comp.type)) {
+          return `${indent}<${htmlTag}${cssClass ? ` class="${cssClass}"` : ''}${attrs ? ` ${attrs}` : ''} />`;
+        }
+        html += `</${htmlTag}>`;
+      }
+      
+      return html;
+    }).join('\n');
+  };
+
+  const htmlComponents = renderHTMLTree(allComponents);
 
   return {
     html: `<!DOCTYPE html>
@@ -2011,11 +2143,126 @@ ${htmlComponents}
     </div>
 </body>
 </html>`,
-    css: this.generateCSSStyles(allComponents)
+    css: this.generateModernCSS(allComponents)
   };
 }
 
+// Around line 850 - ADD NEW HELPER METHODS
+generateCSSClassName(component) {
+  // Create unique, readable CSS class name
+  const baseName = component.name?.toLowerCase().replace(/\s+/g, '-') || component.type;
+  const uniqueId = component.id.split('_').pop().substring(0, 6);
+  return `${baseName}-${uniqueId}`;
+}
+
+getReactTag(type) {
+  const reactMap = {
+    'button': 'button',
+    'input': 'input',
+    'textarea': 'textarea',
+    'select': 'select',
+    'link': 'a',
+    'section': 'section',
+    'container': 'div',
+    'div': 'div',
+    'flex': 'div',
+    'grid': 'div',
+    'p': 'p',
+    'span': 'span',
+    'h1': 'h1',
+    'h2': 'h2',
+    'h3': 'h3',
+    'h4': 'h4',
+    'h5': 'h5',
+    'h6': 'h6',
+    'label': 'label',
+    'strong': 'strong',
+    'em': 'em',
+    'small': 'small',
+    'blockquote': 'blockquote'
+  };
+  
+  return reactMap[type] || 'div';
+}
+
+buildReactProps(component) {
+  const props = [];
+  
+  // Type-specific props
+  if (component.type === 'input') {
+    if (component.props?.type) props.push(`type="${component.props.type}"`);
+    if (component.props?.placeholder) props.push(`placeholder="${component.props.placeholder}"`);
+    if (component.props?.disabled) props.push('disabled');
+  }
+  
+  if (component.type === 'button' && component.props?.disabled) {
+    props.push('disabled');
+  }
+  
+  if (component.type === 'link' || component.type === 'a') {
+    props.push(`href="${component.props?.href || '#'}"`);
+    if (component.props?.target) props.push(`target="${component.props.target}"`);
+  }
+  
+  return props.join('\n      ');
+}
+
+generateModernCSS(allComponents) {
+  if (!allComponents || allComponents.length === 0) {
+    return `.canvas-container {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}`;
+  }
+
+  const cssRules = [];
+  
+  // Add base canvas styles
+  cssRules.push(`.canvas-container {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}`);
+
+  // Generate CSS for each component recursively
+  const generateComponentCSS = (component) => {
+    const className = this.generateCSSClassName(component);
+    const styles = component.style || {};
+    
+    // Convert style object to CSS
+    const cssProperties = Object.entries(styles)
+      .filter(([key]) => !key.startsWith('_')) // Skip internal properties
+      .map(([key, value]) => {
+        // Convert camelCase to kebab-case
+        const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
+        return `  ${cssKey}: ${value};`;
+      })
+      .join('\n');
+    
+    if (cssProperties) {
+      cssRules.push(`.${className} {
+${cssProperties}
+}`);
+    }
+    
+    // Recursively process children
+    if (component.children && component.children.length > 0) {
+      component.children.forEach(child => generateComponentCSS(child));
+    }
+  };
+  
+  allComponents.forEach(comp => generateComponentCSS(comp));
+  
+  return cssRules.join('\n\n');
+}
+
   // REPLACE generateHTMLTailwindCode method
+// Around line 850 - REPLACE generateHTMLTailwindCode
 generateHTMLTailwindCode(allComponents) {
   if (!allComponents || allComponents.length === 0) {
     return {
@@ -2036,40 +2283,57 @@ generateHTMLTailwindCode(allComponents) {
       tailwind: ''
     };
   }
-// 🔥 Recursive HTML rendering
-  const renderHTMLTree = (components, depth = 0) => {
-    return components.map(comp => {
-      const indent = '  '.repeat(depth + 2);
-      const classes = this.buildDynamicTailwindClasses(comp);
-      const content = this.extractComponentContent(comp);
-      const hasChildren = comp.children && comp.children.length > 0;
-      
-      let html = `${indent}<${this.getComponentTag(comp.type)}`;
-      
-      if (classes) {
-        html += ` class="${classes}"`;
+
+ // Around line 850 - REPLACE the renderHTMLTree function
+const renderHTMLTree = (components, depth = 0) => {
+  return components.map(comp => {
+    const indent = '  '.repeat(depth + 2);
+    
+    // 🔥 CRITICAL: Handle text-node specially (NO wrapper element)
+    if (comp.type === 'text-node') {
+      const textContent = comp.props?.content || comp.props?.text || comp.text_content || '';
+      return `${indent}${textContent}`; // ✅ Just raw text, no tags
+    }
+    
+    const classes = this.buildDynamicTailwindClasses(comp);
+    const content = this.extractComponentContent(comp);
+    const hasChildren = comp.children && comp.children.length > 0;
+    
+    // Get actual HTML tag (button, div, p, etc.)
+    const htmlTag = this.getHTMLTag(comp.type);
+    
+    let html = `${indent}<${htmlTag}`;
+    
+    if (classes) {
+      html += ` class="${classes}"`;
+    }
+    
+    // Add HTML-specific attributes
+    const attrs = this.buildHTMLAttributes(comp);
+    if (attrs) {
+      html += ` ${attrs}`;
+    }
+    
+    html += `>`;
+    
+    if (hasChildren) {
+      html += '\n' + renderHTMLTree(comp.children, depth + 1);
+      html += `\n${indent}</${htmlTag}>`;
+    } else if (content) {
+      html += content + `</${htmlTag}>`;
+    } else {
+      // Self-closing tags for empty elements
+      if (['input', 'img', 'br', 'hr'].includes(comp.type)) {
+        return `${indent}<${htmlTag}${classes ? ` class="${classes}"` : ''}${attrs ? ` ${attrs}` : ''} />`;
       }
-      
-      // Add other attributes
-      const attrs = this.buildHTMLAttributes(comp);
-      if (attrs) {
-        html += ` ${attrs}`;
-      }
-      
-      html += `>`;
-      
-      if (hasChildren) {
-        html += '\n' + renderHTMLTree(comp.children, depth + 1);
-        html += `\n${indent}</${this.getComponentTag(comp.type)}>`;
-      } else if (content) {
-        html += content + `</${this.getComponentTag(comp.type)}>`;
-      } else {
-        html += `</${this.getComponentTag(comp.type)}>`;
-      }
-      
-      return html;
-    }).join('\n');
-  };
+      html += `</${htmlTag}>`;
+    }
+    
+    return html;
+  }).join('\n');
+};
+
+
 
   const htmlComponents = renderHTMLTree(allComponents);
 
@@ -2092,6 +2356,37 @@ ${htmlComponents}
       `/* ${comp.name} (${comp.type}) */\n${this.buildDynamicTailwindClasses(comp)}`
     ).join('\n\n')
   };
+}
+
+// 🔥 ADD NEW METHOD (around line 920)
+getHTMLTag(type) {
+  const htmlMap = {
+    'button': 'button',
+    'input': 'input',
+    'textarea': 'textarea',
+    'select': 'select',
+    'link': 'a',
+    'section': 'section',
+    'container': 'div',
+    'div': 'div',
+    'flex': 'div',
+    'grid': 'div',
+    'p': 'p',
+    'span': 'span',
+    'h1': 'h1',
+    'h2': 'h2',
+    'h3': 'h3',
+    'h4': 'h4',
+    'h5': 'h5',
+    'h6': 'h6',
+    'label': 'label',
+    'strong': 'strong',
+    'em': 'em',
+    'small': 'small',
+    'blockquote': 'blockquote'
+  };
+  
+  return htmlMap[type] || 'div';
 }
 
 

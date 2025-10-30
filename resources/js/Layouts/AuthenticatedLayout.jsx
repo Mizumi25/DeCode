@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import Header from '@/Components/Header/Header';
 import { useThemeStore } from '@/stores/useThemeStore';
 import { useHeaderStore } from '@/stores/useHeaderStore';
+import CustomCursor from '@/Components/CustomCursor';
 
 export default function AuthenticatedLayout({ 
   header, 
@@ -31,6 +32,7 @@ export default function AuthenticatedLayout({
 
   return (
     <div className="min-h-screen relative bg-[var(--color-bg)]">
+    <CustomCursor />
       <Header 
         isAuthenticated={!!user} 
         currentRoute={currentRoute} 
