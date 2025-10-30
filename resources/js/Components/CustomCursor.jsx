@@ -649,34 +649,36 @@ const CustomCursor = () => {
       )}
 
       {/* Ripples for both device types */}
-      <AnimatePresence>
-        {ripples.map(ripple => (
-          <motion.div
-            key={ripple.id}
-            initial={{ 
-              scale: 0, 
-              opacity: 0.8,
-              left: ripple.x,
-              top: ripple.y,
-              x: '-50%',
-              y: '-50%'
-            }}
-            animate={{ 
-              scale: ripple.type === 'touch' ? 2.5 : 3, 
-              opacity: 0 
-            }}
-            transition={{ 
-              duration: ripple.type === 'touch' ? 0.4 : 0.6,
-              ease: 'easeOut'
-            }}
-            className="fixed pointer-events-none z-[99998] rounded-full border-2 border-white"
-            style={{
-              width: ripple.type === 'touch' ? 50 : 40,
-              height: ripple.type === 'touch' ? 50 : 40,
-            }}
-          />
-        ))}
-      </AnimatePresence>
+<AnimatePresence>
+  {ripples.map(ripple => (
+    <motion.div
+      key={ripple.id}
+      initial={{ 
+        scale: 0, 
+        opacity: 0.8,
+        left: ripple.x,
+        top: ripple.y,
+        x: '-50%',
+        y: '-50%'
+      }}
+      animate={{ 
+        scale: ripple.type === 'touch' ? 2.5 : 3, 
+        opacity: 0 
+      }}
+      transition={{ 
+        duration: ripple.type === 'touch' ? 0.4 : 0.6,
+        ease: 'easeOut'
+      }}
+      className="fixed pointer-events-none z-[99998] rounded-full border-2"
+      style={{
+        width: ripple.type === 'touch' ? 50 : 40,
+        height: ripple.type === 'touch' ? 50 : 40,
+        borderColor: cssVariables.primary || '#a052f3', // Primary color border
+        background: `radial-gradient(circle, ${getComputedStyle(document.documentElement).getPropertyValue('--color-text').trim() || '#ffffff'}30 0%, transparent 70%)` // Text color with opacity
+      }}
+    />
+  ))}
+</AnimatePresence>
     </>
   );
 };
