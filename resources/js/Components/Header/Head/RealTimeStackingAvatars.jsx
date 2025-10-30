@@ -20,7 +20,10 @@ const RealTimeStackingAvatars = ({ frameId, currentMode = 'forge' }) => {
   } = useFramePresenceStore()
 
   const frameState = getFrameState(frameId)
-  const { isJoined, isConnected, error } = frameState
+  
+  // ✅ SAFE ACCESS: Ensure activeUsers exists and is an array
+  const activeUsers = frameState?.activeUsers || []
+  const { isJoined, isConnected, error } = frameState || {}
 
   // Initialize presence when component mounts
   useEffect(() => {
@@ -45,13 +48,17 @@ const RealTimeStackingAvatars = ({ frameId, currentMode = 'forge' }) => {
     }
   }, [currentMode, isJoined, updateMode, frameId])
 
-  // Get users in current mode (excluding current user)
-  const otherUsers = getUsersByMode(frameId, currentMode, user?.id)
-  const displayUsers = otherUsers.slice(0, 4) // Show max 4 avatars
-  const remainingCount = Math.max(0, otherUsers.length - 4)
+  // ✅ FIXED: Safe user filtering with fallbacks
+  const otherUsers = getUsersByMode 
+    ? getUsersByMode(frameId, currentMode, user?.id) 
+    : []
 
-  if (!isJoined || displayUsers.length === 0) {
-    return null // Don't render if not joined or no other users
+  const displayUsers = (otherUsers || []).slice(0, 4) // Show max 4 avatars
+  const remainingCount = Math.max(0, (otherUsers || []).length - 4)
+
+  // ✅ Don't render if not joined, no frame state, or no other users
+  if (!frameState || !isJoined || displayUsers.length === 0) {
+    return null
   }
 
   const containerVariants = {
@@ -215,7 +222,7 @@ const RealTimeStackingAvatars = ({ frameId, currentMode = 'forge' }) => {
             isConnected ? 'bg-green-400' : 'bg-red-400'
           }`}
         />
-        {otherUsers.length}
+        {(otherUsers || []).length}
       </motion.div>
     </div>
   )

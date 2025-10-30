@@ -335,6 +335,14 @@ const BottomCodePanel = ({
   }, [editorMounted]);
 
   if (!showCodePanel) return null;
+  
+  
+  
+  
+  
+  
+  
+  
 
   // Responsive height
   const getResponsiveHeight = () => {
@@ -362,7 +370,7 @@ const BottomCodePanel = ({
         borderColor: 'var(--color-border)',
       }}
     >
-      {/* Resize handle */}
+      {/* Modern Apple-style resize handle */}
       {!codePanelMinimized && (
         <div
           className="h-2 cursor-ns-resize flex items-center justify-center border-b group transition-colors"
@@ -374,9 +382,9 @@ const BottomCodePanel = ({
             borderColor: 'var(--color-border)',
           }}
         >
-          <GripHorizontal
-            className="w-4 h-4 transition-colors"
-            style={{ color: 'var(--color-text-muted)' }}
+          <div 
+            className="w-10 h-1 rounded-full transition-all group-hover:w-16 group-hover:h-1.5"
+            style={{ backgroundColor: 'var(--color-text-muted)', opacity: 0.3 }}
           />
         </div>
       )}

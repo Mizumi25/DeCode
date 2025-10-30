@@ -409,7 +409,7 @@ getDeviceCanvasDimensions(responsiveMode) {
             return this.renderGeneric(props, id, { name: props.type || 'Unknown', type: props.type || 'unknown' });
         }
         
-        // ✅ CRITICAL FIX: Props merging priority
+                // ✅ CRITICAL FIX: Props merging priority
         // 1. Start with component defaults (lowest priority)
         // 2. Add variant styles (medium priority)
         // 3. Add instance styles (HIGHEST priority - should never be overwritten)
@@ -573,8 +573,6 @@ getDeviceCanvasDimensions(responsiveMode) {
     }
     
     
-  
-// @/Services/ComponentLibraryService.js - REPLACE the renderLayoutContainer method
 renderLayoutContainer(componentDef, props, id, children) {
     // 🔥 CRITICAL FIX: Apply ALL style properties including flexDirection
     const containerStyle = {
@@ -585,7 +583,8 @@ renderLayoutContainer(componentDef, props, id, children) {
         padding: this.getDefaultPadding(componentDef.type),
         
         // 🔥 CRITICAL: Apply ALL style props including flex properties
-        ...(props.style || {}),
+        // This MUST come last to override defaults
+        ...props.style,
     };
 
     console.log('🎨 renderLayoutContainer FINAL style:', {
@@ -1642,7 +1641,7 @@ getCardClasses(props) {
 
 const GeneratedComponent = () => {
   return (
-    <div className="w-full min-h-screen p-8">
+    <div className="w-full min-h-screen">
       {/* No components yet */}
     </div>
   );
@@ -1653,11 +1652,45 @@ export default GeneratedComponent;`,
     };
   }
 
-  // REMOVE the position absolute wrapper - just render components directly
-  const reactComponents = allComponents.map(comp => {
-    const classes = this.getComponentClasses(comp);
-    return this.generateComponentJSX(comp, classes); // NO WRAPPER
-  }).join('\n');
+  // 🔥 NEW: Recursive component rendering with proper nesting
+  const renderComponentTree = (components, depth = 0) => {
+    return components.map(comp => {
+      const indent = '  '.repeat(depth + 2);
+      const classes = this.buildDynamicTailwindClasses(comp);
+      const content = this.extractComponentContent(comp);
+      const hasChildren = comp.children && comp.children.length > 0;
+      
+      // Render opening tag with all attributes
+      let jsx = `${indent}<${this.getComponentTag(comp.type)}`;
+      // Add className if exists
+      if (classes) {
+        jsx += `\n${indent}  className="${classes}"`;
+      }
+      
+      // Add other props dynamically
+      const otherProps = this.buildDynamicProps(comp);
+      if (otherProps) {
+        jsx += `\n${indent}  ${otherProps}`;
+      }
+      
+      jsx += `\n${indent}>`;
+      
+      // Add content or children
+      if (hasChildren) {
+        jsx += '\n' + renderComponentTree(comp.children, depth + 1);
+        jsx += `\n${indent}</${this.getComponentTag(comp.type)}>`;
+      } else if (content) {
+        jsx += `\n${indent}  ${content}\n${indent}</${this.getComponentTag(comp.type)}>`;
+      } else {
+        jsx += `</${this.getComponentTag(comp.type)}>`;
+      }
+      
+      return jsx;
+    }).join('\n');
+  };
+
+  const reactComponents = renderComponentTree(allComponents);
+
 
   return {
     react: `import React from 'react';
@@ -1671,9 +1704,268 @@ ${reactComponents}
 };
 
 export default GeneratedComponent;`,
-    tailwind: allComponents.map(comp => `// ${comp.name} (${comp.type})\n${this.getComponentClasses(comp)}`).join('\n\n')
+    tailwind: allComponents.map(comp => 
+      `// ${comp.name} (${comp.type})\n${this.buildDynamicTailwindClasses(comp)}`
+    ).join('\n\n')
   };
 }
+
+
+
+// 🔥 NEW: Build Tailwind classes from style object
+buildDynamicTailwindClasses(comp) {
+  const style = comp.style || {};
+  const classes = [];
+  
+  // Layout & Display
+  if (style.display) {
+    const displayMap = {
+      'flex': 'flex',
+      'inline-flex': 'inline-flex',
+      'grid': 'grid',
+      'inline-grid': 'inline-grid',
+      'block': 'block',
+      'inline-block': 'inline-block',
+      'inline': 'inline',
+      'none': 'hidden'
+    };
+    classes.push(displayMap[style.display] || 'block');
+  }
+  // Flexbox properties
+  if (style.flexDirection === 'column') classes.push('flex-col');
+  if (style.flexDirection === 'row-reverse') classes.push('flex-row-reverse');
+  if (style.flexDirection === 'column-reverse') classes.push('flex-col-reverse');
+  
+  if (style.justifyContent) {
+    const justifyMap = {
+      'flex-start': 'justify-start',
+      'center': 'justify-center',
+      'flex-end': 'justify-end',
+      'space-between': 'justify-between',
+      'space-around': 'justify-around',
+      'space-evenly': 'justify-evenly'
+    };
+    classes.push(justifyMap[style.justifyContent]);
+  }
+  
+  if (style.alignItems) {
+    const alignMap = {
+      'flex-start': 'items-start',
+      'center': 'items-center',
+      'flex-end': 'items-end',
+      'stretch': 'items-stretch',
+      'baseline': 'items-baseline'
+    };
+    classes.push(alignMap[style.alignItems]);
+  }
+  // Spacing (convert px to Tailwind)
+  if (style.gap) classes.push(this.convertSpacingToTailwind('gap', style.gap));
+  if (style.padding) classes.push(this.convertSpacingToTailwind('p', style.padding));
+  if (style.margin) classes.push(this.convertSpacingToTailwind('m', style.margin));
+  
+  // Sizing
+  if (style.width === '100%') classes.push('w-full');
+  else if (style.width === 'auto') classes.push('w-auto');
+  else if (style.width) classes.push(`w-[${style.width}]`);
+  
+  if (style.height === '100%') classes.push('h-full');
+  else if (style.height === 'auto') classes.push('h-auto');
+  else if (style.height) classes.push(`h-[${style.height}]`);
+  
+  // Colors
+  if (style.backgroundColor) {
+    classes.push(this.convertColorToTailwind('bg', style.backgroundColor));
+  }
+  if (style.color) {
+    classes.push(this.convertColorToTailwind('text', style.color));
+  }
+  
+  // Border & Radius
+  if (style.borderRadius) {
+    classes.push(this.convertBorderRadiusToTailwind(style.borderRadius));
+  }
+  if (style.border || style.borderWidth) {
+    classes.push('border');
+    if (style.borderColor) {
+      classes.push(this.convertColorToTailwind('border', style.borderColor));
+    }
+  }
+  // Typography
+  if (style.fontSize) classes.push(this.convertFontSizeToTailwind(style.fontSize));
+  if (style.fontWeight) classes.push(this.convertFontWeightToTailwind(style.fontWeight));
+  if (style.textAlign) classes.push(`text-${style.textAlign}`);
+  
+  // Shadow
+  if (style.boxShadow) classes.push(this.convertShadowToTailwind(style.boxShadow));
+  
+  return classes.filter(Boolean).join(' ');
+}
+
+
+
+convertSpacingToTailwind(prefix, value) {
+  if (!value) return '';
+  const px = parseInt(value);
+  if (isNaN(px)) return '';
+  
+  const spacingMap = {
+    0: '0', 4: '1', 8: '2', 12: '3', 16: '4', 20: '5', 24: '6',
+    28: '7', 32: '8', 36: '9', 40: '10', 44: '11', 48: '12',
+    56: '14', 64: '16', 80: '20', 96: '24', 112: '28', 128: '32'
+  };
+  
+  return spacingMap[px] ? `${prefix}-${spacingMap[px]}` : `${prefix}-[${value}]`;
+}
+
+convertColorToTailwind(prefix, color) {
+  if (!color) return '';
+  
+  // Check for common colors
+  const colorMap = {
+    '#ffffff': 'white', '#000000': 'black',
+    'rgb(255, 255, 255)': 'white', 'rgb(0, 0, 0)': 'black'
+  };
+  
+  if (colorMap[color.toLowerCase()]) {
+    return `${prefix}-${colorMap[color.toLowerCase()]}`;
+  }
+  
+  // Use arbitrary value for custom colors
+  return `${prefix}-[${color}]`;
+}
+
+convertBorderRadiusToTailwind(radius) {
+  const radiusMap = {
+    '0px': 'rounded-none', '2px': 'rounded-sm', '4px': 'rounded',
+    '6px': 'rounded-md', '8px': 'rounded-lg', '12px': 'rounded-xl',
+    '16px': 'rounded-2xl', '24px': 'rounded-3xl', '9999px': 'rounded-full'
+  };
+  
+  return radiusMap[radius] || `rounded-[${radius}]`;
+}
+
+
+
+convertFontSizeToTailwind(size) {
+  const sizeMap = {
+    '12px': 'text-xs', '14px': 'text-sm', '16px': 'text-base',
+    '18px': 'text-lg', '20px': 'text-xl', '24px': 'text-2xl',
+    '30px': 'text-3xl', '36px': 'text-4xl', '48px': 'text-5xl'
+  };
+  
+  return sizeMap[size] || `text-[${size}]`;
+}
+
+convertFontWeightToTailwind(weight) {
+  const weightMap = {
+    '300': 'font-light', '400': 'font-normal', '500': 'font-medium',
+    '600': 'font-semibold', '700': 'font-bold', '800': 'font-extrabold'
+  };
+  
+  return weightMap[weight] || `font-[${weight}]`;
+}
+
+
+
+convertShadowToTailwind(shadow) {
+  const shadowMap = {
+    'none': 'shadow-none',
+    '0 1px 2px 0 rgba(0, 0, 0, 0.05)': 'shadow-sm',
+    '0 1px 3px 0 rgba(0, 0, 0, 0.1)': 'shadow',
+    '0 4px 6px -1px rgba(0, 0, 0, 0.1)': 'shadow-md',
+    '0 10px 15px -3px rgba(0, 0, 0, 0.1)': 'shadow-lg',
+    '0 20px 25px -5px rgba(0, 0, 0, 0.1)': 'shadow-xl',
+    '0 25px 50px -12px rgba(0, 0, 0, 0.25)': 'shadow-2xl'
+  };
+  
+  return shadowMap[shadow] || 'shadow';
+}
+
+// 🔥 NEW: Extract component content (text, props.content, etc.)
+extractComponentContent(comp) {
+  // Priority: text_content > props.content > props.text > props.children
+  if (comp.text_content) return comp.text_content;
+  if (comp.props?.content) return comp.props.content;
+  if (comp.props?.text) return comp.props.text;
+  if (comp.props?.children && typeof comp.props.children === 'string') {
+    return comp.props.children;
+  }
+  const defaultContent = {
+    'button': 'Button',
+    'h1': 'Heading 1',
+    'h2': 'Heading 2',
+    'h3': 'Heading 3',
+    'h4': 'Heading 4',
+    'h5': 'Heading 5',
+    'h6': 'Heading 6',
+    'p': 'Paragraph text',
+    'span': 'Text',
+    'a': 'Link',
+    'label': 'Label'
+  };
+  
+  return defaultContent[comp.type] || '';
+}
+
+buildDynamicProps(comp) {
+  const props = [];
+  
+  // Add type-specific props
+  if (comp.type === 'input') {
+    if (comp.props?.type) props.push(`type="${comp.props.type}"`);
+    if (comp.props?.placeholder) props.push(`placeholder="${comp.props.placeholder}"`);
+    if (comp.props?.disabled) props.push('disabled');
+  }
+  
+  if (comp.type === 'button' && comp.props?.disabled) {
+    props.push('disabled');
+  }
+  
+  if (comp.type === 'a' && comp.props?.href) {
+    props.push(`href="${comp.props.href}"`);
+    if (comp.props?.target) props.push(`target="${comp.props.target}"`);
+  }
+  
+  if (comp.type === 'img') {
+    if (comp.props?.src) props.push(`src="${comp.props.src}"`);
+    if (comp.props?.alt) props.push(`alt="${comp.props.alt}"`);
+  }
+  
+  return props.join('\n      ');
+}
+
+
+getComponentTag(type) {
+  const tagMap = {
+    'text-node': 'span',
+    'section': 'section',
+    'container': 'div',
+    'div': 'div',
+    'flex': 'div',
+    'grid': 'div',
+    'button': 'button',
+    'input': 'input',
+    'textarea': 'textarea',
+    'select': 'select',
+    'link': 'a',
+    'p': 'p',
+    'span': 'span',
+    'h1': 'h1',
+    'h2': 'h2',
+    'h3': 'h3',
+    'h4': 'h4',
+    'h5': 'h5',
+    'h6': 'h6',
+    'label': 'label',
+    'strong': 'strong',
+    'em': 'em',
+    'small': 'small',
+    'blockquote': 'blockquote'
+  };
+  
+  return tagMap[type] || 'div';
+}
+
 
   generateReactCSSCode(allComponents) {
   // REMOVE position absolute wrapper
@@ -1723,12 +2015,63 @@ ${htmlComponents}
   };
 }
 
-  generateHTMLTailwindCode(allComponents) {
-  // REMOVE position absolute wrapper
-  const htmlComponents = allComponents.map(comp => {
-    const classes = this.getComponentClasses(comp);
-    return this.generateComponentHTML(comp, classes);
-  }).join('\n');
+  // REPLACE generateHTMLTailwindCode method
+generateHTMLTailwindCode(allComponents) {
+  if (!allComponents || allComponents.length === 0) {
+    return {
+      html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generated Component</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div class="w-full min-h-screen">
+      <!-- No components yet -->
+    </div>
+</body>
+</html>`,
+      tailwind: ''
+    };
+  }
+// 🔥 Recursive HTML rendering
+  const renderHTMLTree = (components, depth = 0) => {
+    return components.map(comp => {
+      const indent = '  '.repeat(depth + 2);
+      const classes = this.buildDynamicTailwindClasses(comp);
+      const content = this.extractComponentContent(comp);
+      const hasChildren = comp.children && comp.children.length > 0;
+      
+      let html = `${indent}<${this.getComponentTag(comp.type)}`;
+      
+      if (classes) {
+        html += ` class="${classes}"`;
+      }
+      
+      // Add other attributes
+      const attrs = this.buildHTMLAttributes(comp);
+      if (attrs) {
+        html += ` ${attrs}`;
+      }
+      
+      html += `>`;
+      
+      if (hasChildren) {
+        html += '\n' + renderHTMLTree(comp.children, depth + 1);
+        html += `\n${indent}</${this.getComponentTag(comp.type)}>`;
+      } else if (content) {
+        html += content + `</${this.getComponentTag(comp.type)}>`;
+      } else {
+        html += `</${this.getComponentTag(comp.type)}>`;
+      }
+      
+      return html;
+    }).join('\n');
+  };
+
+  const htmlComponents = renderHTMLTree(allComponents);
 
   return {
     html: `<!DOCTYPE html>
@@ -1745,9 +2088,44 @@ ${htmlComponents}
     </div>
 </body>
 </html>`,
-    tailwind: allComponents.map(comp => `/* ${comp.name} (${comp.type}) */\n${this.getComponentClasses(comp)}`).join('\n\n')
+    tailwind: allComponents.map(comp => 
+      `/* ${comp.name} (${comp.type}) */\n${this.buildDynamicTailwindClasses(comp)}`
+    ).join('\n\n')
   };
 }
+
+
+
+// 🔥 NEW: Build HTML attributes
+buildHTMLAttributes(comp) {
+  const attrs = [];
+  
+  if (comp.type === 'input') {
+    if (comp.props?.type) attrs.push(`type="${comp.props.type}"`);
+    if (comp.props?.placeholder) attrs.push(`placeholder="${comp.props.placeholder}"`);
+    if (comp.props?.disabled) attrs.push('disabled');
+  }
+  
+  if (comp.type === 'button' && comp.props?.disabled) {
+    attrs.push('disabled');
+  }
+  
+  if (comp.type === 'a') {
+    attrs.push(`href="${comp.props?.href || '#'}"`);
+    if (comp.props?.target) attrs.push(`target="${comp.props.target}"`);
+  }
+  
+  if (comp.type === 'img') {
+    attrs.push(`src="${comp.props?.src || ''}"`);
+    attrs.push(`alt="${comp.props?.alt || ''}"`);
+  }
+  
+  return attrs.join(' ');
+}
+
+
+
+
 
   // Enhanced JSX generation with variant support
   generateComponentJSX(comp, classes) {

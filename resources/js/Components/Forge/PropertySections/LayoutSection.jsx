@@ -394,52 +394,6 @@ useEffect(() => {
           </div>
         )}
 
-        <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--color-bg-muted)', border: '1px solid var(--color-border)' }}>
-          <SubsectionHeader title="Canvas Absolute Position" />
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>X Position (px)</label>
-              <input
-                type="number"
-                value={selectedComponentData?.position?.x || 0}
-                onChange={(e) => onPropertyChange('position', { 
-                  ...selectedComponentData.position, 
-                  x: parseFloat(e.target.value) || 0 
-                })}
-                step="1"
-                min="0"
-                className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
-                style={{
-                  backgroundColor: 'var(--color-surface)',
-                  borderColor: 'var(--color-border)',
-                  color: 'var(--color-text)'
-                }}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Y Position (px)</label>
-              <input
-                type="number"
-                value={selectedComponentData?.position?.y || 0}
-                onChange={(e) => onPropertyChange('position', { 
-                  ...selectedComponentData.position, 
-                  y: parseFloat(e.target.value) || 0 
-                })}
-                step="1"
-                min="0"
-                className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
-                style={{
-                  backgroundColor: 'var(--color-surface)',
-                  borderColor: 'var(--color-border)',
-                  color: 'var(--color-text)'
-                }}
-              />
-            </div>
-          </div>
-          <div className="mt-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            Absolute positioning on canvas (top-left origin)
-          </div>
-        </div>
 
         <div>
           <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Z-Index (Layer Order)</label>
@@ -475,18 +429,20 @@ useEffect(() => {
           defaultExpanded={true}
           searchTerm={searchTerm}
         >
-          <VisualButtonGroup
-              label="Flex Direction"
-              value={currentStyles.flexDirection || 'row'}
-              onChange={(value) => {
-                  console.log('🔧 Setting flexDirection:', value);
-                  onPropertyChange('flexDirection', value, 'style');
-                  
-                  // Force re-render by also updating a timestamp
-                  onPropertyChange('_lastFlexUpdate', Date.now(), 'style');
-              }}
-              options={['row', 'column', 'row-reverse', 'column-reverse']}
-          />
+         <VisualButtonGroup
+           label="Flex Direction"
+            value={currentStyles.flexDirection || 'row'}
+            onChange={(value) => {
+                console.log('🔧 Setting flexDirection:', value);
+                onPropertyChange('flexDirection', value, 'style');
+                
+                // 🔥 Force immediate re-render by triggering a state update
+                setTimeout(() => {
+                    console.log('✅ flexDirection should now be:', value);
+                }, 50);
+            }}
+            options={['row', 'column', 'row-reverse', 'column-reverse']}
+        />
 
           <VisualButtonGroup
             label="Justify Content (Main Axis)"

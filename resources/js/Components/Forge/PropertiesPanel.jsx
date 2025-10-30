@@ -137,7 +137,7 @@ useEffect(() => {
   };
 
    
-// 🔥 FIXED: Proper property change handler with IMMEDIATE propagation
+// MODIFY handlePropertyChange to trigger code generation
 const handlePropertyChange = useCallback((propName, value, category = 'style') => {
   if (!selectedComponent || !selectedComponentData) {
     console.warn('⚠️ Cannot update: no component selected');
@@ -148,27 +148,17 @@ const handlePropertyChange = useCallback((propName, value, category = 'style') =
     propName, 
     value, 
     category, 
-    selectedComponent,
-    currentValue: selectedComponentData?.style?.[propName]
+    selectedComponent
   });
   
   if (category === 'style') {
-    // ✅ CRITICAL: Update local state for immediate UI feedback
     setLocalStyles(prev => {
       const updated = { ...prev, [propName]: value };
-      console.log('📝 Updated local styles:', updated);
       return updated;
     });
     
-    // ✅ IMMEDIATELY propagate to parent (don't wait)
     const currentStyles = selectedComponentData?.style || {};
     const newStyles = { ...currentStyles, [propName]: value };
-    
-    console.log('⬆️ Propagating to parent:', {
-      property: propName,
-      newValue: value,
-      allStyles: newStyles
-    });
     
     onPropertyUpdate(selectedComponent, 'style', newStyles);
     
@@ -183,10 +173,15 @@ const handlePropertyChange = useCallback((propName, value, category = 'style') =
     onPropertyUpdate(selectedComponent, 'animation', newAnimation);
     
   } else {
-    // Direct property update (name, zIndex, etc.)
     onPropertyUpdate(selectedComponent, propName, value);
   }
-}, [selectedComponent, selectedComponentData, onPropertyUpdate]);
+  
+  // 🔥 NEW: Trigger code regeneration immediately
+  if (typeof onGenerateCode === 'function') {
+    onGenerateCode(canvasComponents);
+  }
+}, [selectedComponent, selectedComponentData, onPropertyUpdate, canvasComponents, onGenerateCode]);
+    
 
 
     // In PropertiesPanel.jsx - add this debug section at the top of the return

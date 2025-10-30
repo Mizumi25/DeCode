@@ -548,16 +548,20 @@ const useFramePresenceStore = create(
         };
       },
 
-      getUsersByMode: (frameId, mode, currentUserId = null) => {
-        const { frames } = get();
-        const frameState = frames[frameId];
-        
-        if (!frameState) return [];
-        
-        return frameState.activeUsers.filter(u => 
-          u.mode === mode && u.id !== currentUserId
-        );
-      }
+     // In your useFramePresenceStore.js - update the getUsersByMode function
+getUsersByMode: (frameId, mode, currentUserId = null) => {
+  const { frames } = get();
+  const frameState = frames[frameId];
+  
+  // ✅ DEFENSIVE: Ensure frameState and activeUsers exist
+  if (!frameState || !frameState.activeUsers || !Array.isArray(frameState.activeUsers)) {
+    return [];
+  }
+  
+  return frameState.activeUsers.filter(u => 
+    u.mode === mode && u.id !== currentUserId
+  );
+}
     }),
     {
       name: 'frame-presence-store',

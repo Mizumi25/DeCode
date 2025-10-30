@@ -1086,18 +1086,19 @@ const SortableComponent = ({
   };
 
    const getDeviceAwareStyles = () => {
+    // 🔥 CRITICAL: Ensure component.style is applied LAST to override defaults
     const baseStyles = {
-      display: component.style?.display || (isLayout ? 'block' : 'inline-block'),
-      flexDirection: component.style?.flexDirection,
-      justifyContent: component.style?.justifyContent,
-      alignItems: component.style?.alignItems,
-      gap: component.style?.gap,
-      width: component.style?.width || (isLayout ? '100%' : 'auto'),
-      minHeight: component.style?.minHeight || (isLayout ? '100px' : 'auto'),
-      padding: component.style?.padding || (isLayout ? '24px' : '0'),
-      backgroundColor: component.style?.backgroundColor || 'transparent',
+      // Default display
+      display: isLayout ? 'block' : 'inline-block',
+      // Default sizing
+      width: isLayout ? '100%' : 'auto',
+      minHeight: isLayout ? '100px' : 'auto',
+      padding: isLayout ? '24px' : '0',
+      backgroundColor: 'transparent',
+      // 🔥 CRITICAL: Apply component.style AFTER defaults so it overrides
       ...component.style,
-      ...style, // from useSortable
+      // 🔥 Apply sortable transform last
+      ...style,
     };
 
     // ✅ Mobile optimizations (already scaled by service)
@@ -1173,31 +1174,22 @@ const SortableComponent = ({
         
         {/* Nested components */}
         {component.children && component.children.length > 0 ? (
-          <SortableContext 
-            items={component.children.map(c => c.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div 
-              className="space-y-2" 
-              style={{ 
-                position: 'relative', 
-                zIndex: 2, 
-                pointerEvents: 'auto',
-              }}
-            >
-              {component.children.map((child, childIndex) => (
-                <SortableComponent
-                  key={child.id}
-                  component={child}
-                  depth={depth + 1}
-                  parentId={component.id}
-                  index={childIndex}
-                  parentStyle={componentStyles} // 🔥 PASS CURRENT STYLES as parent
-                  responsiveMode={responsiveMode}
-                />
-              ))}
-            </div>
-          </SortableContext>
+         <SortableContext 
+          items={component.children.map(c => c.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {component.children.map((child, childIndex) => (
+            <SortableComponent
+              key={child.id}
+              component={child}
+              depth={depth + 1}
+              parentId={component.id}
+              index={childIndex}
+              parentStyle={componentStyles}
+              responsiveMode={responsiveMode}
+            />
+          ))}
+        </SortableContext>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
             <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
@@ -1311,27 +1303,31 @@ const SortableComponent = ({
 
 
 
-
 const renderComponent = useCallback((component, index, parentStyle = {}, depth = 0, parentId = null) => {
-  // 🔥 ENHANCED: Calculate responsive styles WITH parent styles
+  // 🔥 CRITICAL: Use component.style directly WITHOUT modification
   const responsiveStyles = componentLibraryService?.calculateResponsiveStyles 
     ? componentLibraryService.calculateResponsiveStyles(
         component, 
         responsiveMode, 
         canvasDimensions,
-        parentStyle // 🔥 PASS PARENT STYLES for nested scaling
+        parentStyle
       )
     : component.style;
 
   const isSelected = selectedComponent === component.id;
-  const isLayout = component.isLayoutContainer || 
-                   ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
 
-  // Enhanced component data with responsive styles
+  // 🔥 CRITICAL: Pass component with its EXACT styles
   const responsiveComponent = {
     ...component,
-    style: responsiveStyles
+    style: responsiveStyles // This already contains flexDirection from parent
   };
+
+  console.log('🎨 renderComponent:', {
+    id: component.id,
+    type: component.type,
+    flexDirection: responsiveComponent.style?.flexDirection,
+    allStyleKeys: Object.keys(responsiveComponent.style || {})
+  });
 
   return (
     <SortableComponent
@@ -1340,11 +1336,13 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
       depth={depth}
       parentId={parentId}
       index={index}
-      parentStyle={responsiveStyles} // 🔥 PASS RESPONSIVE STYLES to children
+      parentStyle={responsiveStyles}
       responsiveMode={responsiveMode}
     />
   );
 }, [componentLibraryService, selectedComponent, responsiveMode, canvasDimensions]);
+
+
 
   // FIXED reorderWithinContainer helper
   const reorderWithinContainer = (components, containerId, sourceIndex, destIndex) => {

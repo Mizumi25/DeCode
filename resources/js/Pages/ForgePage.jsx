@@ -1786,6 +1786,29 @@ useEffect(() => {
 
 
 
+// ADD this useEffect after your existing useEffects (around line 300)
+useEffect(() => {
+  // Auto-generate code whenever canvas components change
+  if (canvasComponents.length >= 0 && componentsLoaded && !isFrameSwitching) {
+    console.log('🔄 Auto-generating code for', canvasComponents.length, 'components');
+    generateCode(canvasComponents);
+  }
+}, [canvasComponents, componentsLoaded, isFrameSwitching, generateCode]);
+
+// ALSO update when selected component properties change
+useEffect(() => {
+  if (selectedComponent && canvasComponents.length > 0) {
+    console.log('🎨 Component properties changed, regenerating code');
+    // Debounce to avoid too many updates
+    const timer = setTimeout(() => {
+      generateCode(canvasComponents);
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }
+}, [selectedComponent, canvasComponents, generateCode]);
+
+
   
   
 const debugClickTarget = (e) => {
