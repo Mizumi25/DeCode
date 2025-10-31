@@ -118,30 +118,29 @@ export default function FrameCreator({ project, onFrameCreated, onClose }) {
   const [step, setStep] = useState(1)
   const [localErrors, setLocalErrors] = useState({})
 
-  const { data, setData, post, processing, errors } = useForm({
+ const { data, setData, post, processing, errors } = useForm({
     project_id: project.id,
     name: '',
     type: 'page',
-    canvas_root: {
-        width: '100%', // Default, user can override
-        height: '100vh', // Default, user can override
+    canvas_style: {  // CHANGED from canvas_root
+        width: '100vw',
+        height: '100vh',
+        minHeight: '100vh',
         backgroundColor: '#ffffff',
         overflow: 'auto',
         display: 'block',
         padding: '0px',
-        margin: '0px'
+        margin: '0px',
+        position: 'relative',
+        boxSizing: 'border-box',
     },
+    canvas_props: {},      // NEW
+    canvas_animation: {},  // NEW
     canvas_data: {
         template: 'blank',
         device: 'desktop',
-        viewport: {
-            width: 1440,
-            height: 900
-        },
-        position: {
-            x: 0,
-            y: 0
-        },
+        viewport: { width: 1440, height: 900 },
+        position: { x: 0, y: 0 },
         elements: []
     },
     settings: {
@@ -491,40 +490,43 @@ export default function FrameCreator({ project, onFrameCreated, onClose }) {
         
         
         
-                {/* Canvas Root Dimensions */}
-        <div>
-            <label className="block text-sm font-medium mb-3" style={{ color: 'var(--color-text)' }}>
-                Canvas Root Dimensions
-            </label>
-            <div className="space-y-3">
-                <div>
-                    <label className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Width</label>
-                    <input
-                        type="text"
-                        value={data.canvas_root.width}
-                        onChange={(e) => setData(prev => ({
-                            ...prev,
-                            canvas_root: { ...prev.canvas_root, width: e.target.value }
-                        }))}
-                        placeholder="e.g., 100%, 100vw, 1200px"
-                        className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)]"
-                    />
-                </div>
-                <div>
-                    <label className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Height</label>
-                    <input
-                        type="text"
-                        value={data.canvas_root.height}
-                        onChange={(e) => setData(prev => ({
-                            ...prev,
-                            canvas_root: { ...prev.canvas_root, height: e.target.value }
-                        }))}
-                        placeholder="e.g., 100vh, 100%, auto"
-                        className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)]"
-                    />
-                </div>
-            </div>
-        </div>
+                 {/* Canvas Body Dimensions */}
+          <div>
+              <label className="block text-sm font-medium mb-3" style={{ color: 'var(--color-text)' }}>
+                  Canvas Body Dimensions
+              </label>
+              <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
+                  These styles apply to the &lt;body&gt; element (canvas root)
+              </p>
+              <div className="space-y-3">
+                  <div>
+                      <label className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Width</label>
+                      <input
+                          type="text"
+                          value={data.canvas_style.width}
+                          onChange={(e) => setData(prev => ({
+                              ...prev,
+                              canvas_style: { ...prev.canvas_style, width: e.target.value }
+                          }))}
+                          placeholder="e.g., 100vw, 100%, 1200px"
+                          className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)]"
+                      />
+                  </div>
+                  <div>
+                      <label className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Height</label>
+                      <input
+                          type="text"
+                          value={data.canvas_style.height}
+                          onChange={(e) => setData(prev => ({
+                              ...prev,
+                              canvas_style: { ...prev.canvas_style, height: e.target.value }
+                          }))}
+                          placeholder="e.g., 100vh, 100%, auto"
+                          className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)]"
+                      />
+                  </div>
+              </div>
+          </div>
       </div>
     </div>
   )

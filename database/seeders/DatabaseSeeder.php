@@ -35,6 +35,9 @@ class DatabaseSeeder extends Seeder
             // Basic elements
             BasicElementsSeeder::class,
             
+            // Navigation components
+            NavigationBarSeeder::class,
+            
             // Form elements
             //FormElementsSeeder::class,
             

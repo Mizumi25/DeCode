@@ -373,6 +373,70 @@ const TypographySection = ({
           </div>
         </div>
         
+        
+        {/* Text Gradient */}
+      <div>
+        <SubsectionHeader title="Text Gradient" />
+        <InputField
+          label="Enable Text Gradient"
+          value={!!(currentStyles.background?.includes('gradient') && 
+                   (currentStyles.WebkitBackgroundClip === 'text' || currentStyles.backgroundClip === 'text'))}
+          onChange={(value) => {
+            if (value) {
+              onPropertyChange('background', 'linear-gradient(135deg, #9333ea 0%, #ec4899 100%)', 'style');
+              onPropertyChange('WebkitBackgroundClip', 'text', 'style');
+              onPropertyChange('WebkitTextFillColor', 'transparent', 'style');
+              onPropertyChange('backgroundClip', 'text', 'style');
+            } else {
+              onPropertyChange('background', '', 'style');
+              onPropertyChange('WebkitBackgroundClip', '', 'style');
+              onPropertyChange('WebkitTextFillColor', '', 'style');
+              onPropertyChange('backgroundClip', '', 'style');
+            }
+          }}
+          type="checkbox"
+          searchTerm={searchTerm}
+        />
+        
+        {currentStyles.background?.includes('gradient') && (
+          <div className="mt-3 space-y-3 p-3 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)', border: '1px solid var(--color-border)' }}>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Start Color</label>
+                <input
+                  type="color"
+                  value="#9333ea"
+                  onChange={(e) => {
+                    const currentBg = currentStyles.background || '';
+                    const colors = currentBg.match(/#[0-9a-fA-F]{6}/g) || ['#9333ea', '#ec4899'];
+                    const newGradient = `linear-gradient(135deg, ${e.target.value} 0%, ${colors[1]} 100%)`;
+                    onPropertyChange('background', newGradient, 'style');
+                  }}
+                  className="w-full h-10 border rounded cursor-pointer"
+                  style={{ borderColor: 'var(--color-border)' }}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>End Color</label>
+                <input
+                  type="color"
+                  value="#ec4899"
+                  onChange={(e) => {
+                    const currentBg = currentStyles.background || '';
+                    const colors = currentBg.match(/#[0-9a-fA-F]{6}/g) || ['#9333ea', '#ec4899'];
+                    const newGradient = `linear-gradient(135deg, ${colors[0]} 0%, ${e.target.value} 100%)`;
+                    onPropertyChange('background', newGradient, 'style');
+                  }}
+                  className="w-full h-10 border rounded cursor-pointer"
+                  style={{ borderColor: 'var(--color-border)' }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+        
         {/* Writing Mode */}
         <InputField
           label="Writing Mode"

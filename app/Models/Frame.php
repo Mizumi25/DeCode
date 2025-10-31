@@ -22,7 +22,9 @@ protected $fillable = [
     'scroll_direction',
     'canvas_data', 
     'settings',
-    'canvas_root', // ADD THIS - JSON for body/root styling
+    'canvas_style',      // NEW: Canvas/body styles
+    'canvas_props',      // NEW: Canvas/body props
+    'canvas_animation',
     'thumbnail_path',
     'is_locked',
     'locked_by_user_id',
@@ -33,7 +35,9 @@ protected $fillable = [
   
 protected $casts = [
     'canvas_data' => 'array',
-    'canvas_root' => 'array', // ADD THIS
+    'canvas_style' => 'array',     // NEW
+    'canvas_props' => 'array',     // NEW
+    'canvas_animation' => 'array', // NEW
     'settings' => 'array',
     'is_locked' => 'boolean',
     'locked_at' => 'datetime',
@@ -46,20 +50,35 @@ protected static function boot()
     static::creating(function ($model) {
         $model->uuid = (string) Str::uuid();
         
-        // Initialize canvas_root with defaults if not provided
-        if (!$model->canvas_root) {
-            $model->canvas_root = [
-                'width' => '100%', // Can be px, vh, %, em, etc.
+        // Initialize canvas_style with proper body defaults
+        if (!$model->canvas_style) {
+            $model->canvas_style = [
+                // 🔥 CRITICAL: Body should be 100vh by default
+                'width' => '100vw',
                 'height' => '100vh',
+                'minHeight' => '100vh',
                 'backgroundColor' => '#ffffff',
                 'padding' => '0px',
                 'margin' => '0px',
                 'display' => 'block',
                 'overflow' => 'auto',
                 'fontFamily' => '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                'minHeight' => '100vh',
-                'style' => []
+                'lineHeight' => '1.6',
+                'color' => '#1f2937',
+                // Ensure children can use 100% properly
+                'position' => 'relative',
+                'boxSizing' => 'border-box',
             ];
+        }
+        
+        // Initialize canvas_props if not provided
+        if (!$model->canvas_props) {
+            $model->canvas_props = [];
+        }
+        
+        // Initialize canvas_animation if not provided
+        if (!$model->canvas_animation) {
+            $model->canvas_animation = [];
         }
     });
 }

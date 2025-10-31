@@ -1914,32 +1914,38 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
         )}
         
         {/* Main Canvas - Acts as Document Body */}
-<div 
-  ref={canvasRef}
-  className={`
-    relative transition-all duration-500
-    ${canvasClasses}
-    ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
-  `}
-  style={{
-    width: '100%',
-    minHeight: responsiveMode === 'desktop' ? '100vh' : '667px',
-    height: responsiveMode === 'desktop' ? 'auto' : `${canvasSize.height}px`,
-    maxWidth: canvasSize.maxWidth,
-    backgroundColor: 'var(--color-surface)',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    lineHeight: '1.6',
-    color: 'var(--color-text)',
-    cursor: dragState.isDragging ? 'copy' : 'default',
-    borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
-    boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
-    position: 'relative',
-    overflow: 'auto' // 🔥 CHANGE THIS FROM 'visible' TO 'auto'
-  }}
-  onDragOver={onCanvasDragOver}
-  onDrop={onCanvasDrop}
-  onClick={onCanvasClick}
->
+        <div 
+          ref={canvasRef}
+          className={`
+            relative transition-all duration-500
+            ${canvasClasses}
+            ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
+          `}
+          style={{
+            // 🔥 CRITICAL: Apply frame canvas_style (body styles)
+            ...getCanvasRootStyles(),
+            // Override with responsive/zoom adjustments
+            width: responsiveMode === 'desktop' ? '100%' : `${canvasSize.width}px`,
+            height: responsiveMode === 'desktop' ? '100vh' : `${canvasSize.height}px`,
+            maxWidth: canvasSize.maxWidth,
+            cursor: dragState.isDragging ? 'copy' : 'default',
+            borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
+            boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
+            position: 'relative',
+            overflow: 'auto', // Allow scrolling when content exceeds canvas
+          }}
+          onDragOver={onCanvasDragOver}
+          onDrop={onCanvasDrop}
+          onClick={(e) => {
+            // 🔥 Auto-select canvas root if clicking empty space
+            if (e.target === e.currentTarget) {
+              onCanvasClick(null, e);
+              onComponentClick('__canvas_root__', e); // Select canvas
+            } else {
+              onCanvasClick(e);
+            }
+          }}
+        >
          {/* Grid Lines - Only show if enabled */}
           {isOverlayEnabled('showGridLines') && gridVisible && (
               <div 

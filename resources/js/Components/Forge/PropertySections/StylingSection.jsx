@@ -229,13 +229,35 @@ const parseCurrentGradient = (backgroundImage) => {
           searchTerm={searchTerm}
         />
         
-        {/* Gradient Support */}
+               {/* Gradient Support - FIXED */}
         <div>
-            <SubsectionHeader title="Gradients" />
-            
-            {/* Gradient Parser Helper */}
+          <SubsectionHeader title="Gradients" />
+          
           {(() => {
-            const { type: gradientType, direction, colors: [color1, color2] } = parseCurrentGradient(currentStyles.backgroundImage);
+            const backgroundImage = currentStyles.backgroundImage || '';
+            const hasGradient = typeof backgroundImage === 'string' && backgroundImage.includes('gradient');
+            
+            let gradientType = 'none';
+            let direction = '45deg';
+            let color1 = '#667eea';
+            let color2 = '#764ba2';
+            
+            if (hasGradient) {
+              gradientType = backgroundImage.includes('linear-gradient') ? 'linear-gradient' :
+                            backgroundImage.includes('radial-gradient') ? 'radial-gradient' :
+                            backgroundImage.includes('conic-gradient') ? 'conic-gradient' : 'none';
+              
+              const colorMatches = backgroundImage.match(/#[0-9a-fA-F]{3,6}|rgb\([^)]+\)|rgba\([^)]+\)/g);
+              if (colorMatches && colorMatches.length >= 2) {
+                color1 = colorMatches[0];
+                color2 = colorMatches[1];
+              }
+              
+              const dirMatch = backgroundImage.match(/gradient\(([^,]+),/);
+              if (dirMatch) {
+                direction = dirMatch[1].trim();
+              }
+            }
             
             return (
               <>
@@ -309,7 +331,7 @@ const parseCurrentGradient = (backgroundImage) => {
                       <div 
                         className="w-full h-16 rounded-lg border"
                         style={{ 
-                          backgroundImage: currentStyles.backgroundImage,
+                          backgroundImage: backgroundImage,
                           borderColor: 'var(--color-border)'
                         }}
                       />

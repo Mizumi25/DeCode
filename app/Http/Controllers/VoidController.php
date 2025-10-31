@@ -106,7 +106,9 @@ class VoidController extends Controller
                   'project_id' => 'required|exists:projects,id',
                   'name' => 'required|string|max:255',
                   'type' => ['required', Rule::in(['page', 'component'])],
-                  'canvas_root' => 'nullable|array', // ADD THIS
+                  'canvas_style' => 'nullable|array',    // CHANGED
+                  'canvas_props' => 'nullable|array',    // CHANGED
+                  'canvas_animation' => 'nullable|array', // CHANGED
                   'canvas_data' => 'nullable|array',
                   'settings' => 'nullable|array',
               ]);
@@ -157,20 +159,33 @@ class VoidController extends Controller
               }
               
               if (!isset($validated['canvas_data'])) {
-        $validated['canvas_data'] = $this->getDefaultCanvasData($validated['type']);
-    }
-
-    if (!isset($validated['canvas_root'])) { // ADD THIS
-        $validated['canvas_root'] = [
-            'width' => '100%',
-            'height' => '100vh',
-            'backgroundColor' => '#ffffff',
-            'overflow' => 'auto',
-            'display' => 'block',
-            'padding' => '0px',
-            'margin' => '0px'
-        ];
-    }
+                  $validated['canvas_data'] = $this->getDefaultCanvasData($validated['type']);
+              }
+              
+              // 🔥 NEW: Initialize canvas styles if not provided
+              if (!isset($validated['canvas_style'])) {
+                  $validated['canvas_style'] = [
+                      'width' => '100vw',
+                      'height' => '100vh',
+                      'minHeight' => '100vh',
+                      'backgroundColor' => '#ffffff',
+                      'overflow' => 'auto',
+                      'display' => 'block',
+                      'padding' => '0px',
+                      'margin' => '0px',
+                      'position' => 'relative',
+                      'boxSizing' => 'border-box',
+                      'fontFamily' => '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                  ];
+              }
+              
+              if (!isset($validated['canvas_props'])) {
+                  $validated['canvas_props'] = [];
+              }
+              
+              if (!isset($validated['canvas_animation'])) {
+                  $validated['canvas_animation'] = [];
+              }
       
               // Create default settings if not provided
               if (!isset($validated['settings'])) {
@@ -421,6 +436,59 @@ class VoidController extends Controller
             'thumbnail_queued' => $canvasDataChanged || $shouldGenerateThumbnail
         ]);
     }
+    
+    
+    
+    
+   public function updateFrameStyles(Request $request, Frame $frame): JsonResponse
+{
+    try {
+        \Log::info('🎨 Canvas style update request:', [
+            'frame_uuid' => $frame->uuid,
+            'has_canvas_style' => $request->has('canvas_style'),
+            'has_canvas_props' => $request->has('canvas_props'),
+            'has_canvas_animation' => $request->has('canvas_animation'),
+            'keys' => array_keys($request->all())
+        ]);
+        
+        $validated = $request->validate([
+            'canvas_style' => 'sometimes|array',
+            'canvas_props' => 'sometimes|array',
+            'canvas_animation' => 'sometimes|array',
+        ]);
+        
+        \Log::info('✅ Validated data:', $validated);
+        
+        // 🔥 Update frame
+        $frame->update($validated);
+        
+        \Log::info('✅ Frame updated successfully');
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Canvas updated successfully',
+            'data' => [
+                'uuid' => $frame->uuid,
+                'canvas_style' => $frame->canvas_style,
+                'canvas_props' => $frame->canvas_props,
+                'canvas_animation' => $frame->canvas_animation,
+            ]
+        ]);
+        
+    } catch (\Exception $e) {
+        \Log::error('❌ Canvas update failed:', [
+            'error' => $e->getMessage(),
+            'line' => $e->getLine(),
+            'file' => $e->getFile()
+        ]);
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to update canvas: ' . $e->getMessage()
+        ], 500);
+    }
+}
+
 
     
    

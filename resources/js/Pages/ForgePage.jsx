@@ -140,7 +140,8 @@ export default function ForgePage({
   
   // Add these states near your other useState declarations
   const [dragPosition, setDragPosition] = useState(null);
-  const [isCanvasSelected, setIsCanvasSelected] = useState(false);
+  const [selectedComponent, setSelectedComponent] = useState('__canvas_root__') // ✅ Default to canvas
+const [isCanvasSelected, setIsCanvasSelected] = useState(true) // ✅ Track canvas selection
 
   // Canvas state for dropped components - Now frame-specific
  const [frameCanvasComponents, setFrameCanvasComponents] = useState(() => {
@@ -160,7 +161,7 @@ export default function ForgePage({
   
   
   
-  const [selectedComponent, setSelectedComponent] = useState('__canvas_root__') // ✅ Default to canvas
+  
   const [generatedCode, setGeneratedCode] = useState({ html: '', css: '', react: '', tailwind: '' })
   
   const showCodePanel = isForgePanelOpen('code-panel');
@@ -1868,8 +1869,14 @@ const handleComponentClick = useCallback((componentId, e) => {
   setIsCanvasSelected(false);
 }, []);
 
-// 🔥 ENHANCED: Smart canvas click handler that deselects components
+// 🔥 ENHANCED: Smart canvas click handler
 const handleCanvasClick = useCallback((e) => {
+  if (!e) {
+    setSelectedComponent('__canvas_root__');
+    setIsCanvasSelected(true);
+    return;
+  }
+  
   // Get all component elements under the click
   const clickPath = e.nativeEvent.composedPath();
   const componentElements = clickPath.filter(el => 
@@ -1877,23 +1884,20 @@ const handleCanvasClick = useCallback((e) => {
   );
   
   if (componentElements.length === 0) {
-    // Canvas click - deselect everything
-    console.log('🎯 Canvas click - deselecting all');
-    handleComponentClick(null, e);
+    // Canvas click - select canvas root
+    console.log('🎯 Canvas click - selecting canvas root');
+    setSelectedComponent('__canvas_root__');
+    setIsCanvasSelected(true);
     return;
   }
   
-  // Select the FIRST (deepest/innermost) component in the path
+  // Select the deepest component
   const targetElement = componentElements[0];
   const componentId = targetElement.getAttribute('data-component-id');
   
-  console.log('🎯 Smart selection:', {
-    clicked: componentId,
-    path: componentElements.map(el => el.getAttribute('data-component-id'))
-  });
-  
-  handleComponentClick(componentId, e);
-}, [handleComponentClick]);
+  setSelectedComponent(componentId);
+  setIsCanvasSelected(false);
+}, []);
 
 
 

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Settings, Code, Trash2, RotateCw, Move, RotateCcw, Search, X, Eye, EyeOff, Maximize2, Grid, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion'
-
+import axios from 'axios'; // Add this import
 // Import sub-components
 import LayoutSection from './PropertySections/LayoutSection';
 import TypographySection from './PropertySections/TypographySection';
@@ -137,8 +137,66 @@ useEffect(() => {
   };
 
    
+   
+   
+   // 🔥 NEW: Handle canvas property changes (saves to Frame model)
+const handleCanvasPropertyChange = useCallback(async (propName, value, category = 'style') => {
+  if (!frame) {
+    console.warn('⚠️ No frame available for canvas update');
+    return;
+  }
+  
+  console.log('🎨 Canvas property change:', { propName, value, category });
+  
+  try {
+    if (category === 'style') {
+      const currentCanvasStyle = frame.canvas_style || {};
+      const newCanvasStyle = { ...currentCanvasStyle, [propName]: value };
+      
+      // 🔥 CRITICAL: Update frame via API
+      const response = await axios.put(`/api/frames/${frame.uuid}`, {
+        canvas_style: newCanvasStyle
+      });
+      
+      if (response.data.success) {
+        console.log('✅ Canvas style updated successfully');
+        if (typeof onGenerateCode === 'function') {
+          onGenerateCode(canvasComponents);
+        }
+      }
+    } else if (category === 'props') {
+      const currentCanvasProps = frame.canvas_props || {};
+      const newCanvasProps = { ...currentCanvasProps, [propName]: value };
+      
+      await axios.put(`/api/frames/${frame.uuid}`, {
+        canvas_props: newCanvasProps
+      });
+    } else if (category === 'animation') {
+      const currentCanvasAnimation = frame.canvas_animation || {};
+      const newCanvasAnimation = { ...currentCanvasAnimation, [propName]: value };
+      
+      await axios.put(`/api/frames/${frame.uuid}`, {
+        canvas_animation: newCanvasAnimation
+      });
+    }
+  } catch (error) {
+    console.error('❌ Failed to update canvas:', error);
+  }
+}, [frame, canvasComponents, onGenerateCode]);
+   
+   
+   
+   
+   
 // MODIFY handlePropertyChange to trigger code generation
-const handlePropertyChange = useCallback((propName, value, category = 'style') => {
+ const handlePropertyChange = useCallback((propName, value, category = 'style') => {
+  // 🔥 NEW: Handle canvas root selection
+  if (selectedComponent === '__canvas_root__') {
+    console.log('🎨 Canvas root property change:', { propName, value, category });
+    handleCanvasPropertyChange(propName, value, category);
+    return;
+  }
+  
   if (!selectedComponent || !selectedComponentData) {
     console.warn('⚠️ Cannot update: no component selected');
     return;
@@ -187,11 +245,13 @@ const handlePropertyChange = useCallback((propName, value, category = 'style') =
     // In PropertiesPanel.jsx - add this debug section at the top of the return
 console.log('🔍 PropertiesPanel Debug:', {
   selectedComponent,
+  isCanvas: selectedComponent === '__canvas_root__',
   selectedComponentData,
   props: selectedComponentData?.props,
   style: selectedComponentData?.style,
   hasProps: !!selectedComponentData?.props,
-  hasStyle: !!selectedComponentData?.style
+  hasStyle: !!selectedComponentData?.style,
+  canvasStyle: selectedComponent === '__canvas_root__' ? frame?.canvas_style : undefined
 });
 
 
@@ -213,7 +273,9 @@ const commonProps = {
 
 // Handle canvas root selection - show canvas properties
 if (!selectedComponent || selectedComponent === '__canvas_root__') {
-  const canvasRootData = frame?.canvas_root || {};
+  const canvasStyle = frame?.canvas_style || {};
+  const canvasProps = frame?.canvas_props || {};
+  const canvasAnimation = frame?.canvas_animation || {};
   
   return (
     <div className="space-y-6 p-4" style={{ backgroundColor: 'var(--color-bg)' }}>
@@ -222,32 +284,45 @@ if (!selectedComponent || selectedComponent === '__canvas_root__') {
           <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
         </div>
         <div>
-          <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Canvas Root</h3>
-          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Edit body/root styles</p>
+          <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Canvas Body</h3>
+          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Edit &lt;body&gt; root styles</p>
         </div>
       </div>
       
       <LayoutSection 
-        currentStyles={canvasRootData}
-        currentAnimation={{}}
-        onPropertyChange={(propName, value) => {
-          onPropertyUpdate('__canvas_root__', 'canvas_root', { ...canvasRootData, [propName]: value });
+        currentStyles={canvasStyle}
+        currentAnimation={canvasAnimation}
+        onPropertyChange={(propName, value, category) => {
+          // 🔥 Update frame canvas_style via API
+          if (category === 'style') {
+            const newStyle = { ...canvasStyle, [propName]: value };
+            axios.put(`/api/frames/${frame.uuid}`, {
+              canvas_style: newStyle
+            }).then(() => {
+              console.log('Canvas style updated');
+            });
+          }
         }}
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
-        selectedComponentData={canvasRootData}
+        selectedComponentData={{ style: canvasStyle }}
         searchTerm={activeSearchTerm}
       />
       
       <StylingSection 
-        currentStyles={canvasRootData}
-        currentAnimation={{}}
-        onPropertyChange={(propName, value) => {
-          onPropertyUpdate('__canvas_root__', 'canvas_root', { ...canvasRootData, [propName]: value });
+        currentStyles={canvasStyle}
+        currentAnimation={canvasAnimation}
+        onPropertyChange={(propName, value, category) => {
+          if (category === 'style') {
+            const newStyle = { ...canvasStyle, [propName]: value };
+            axios.put(`/api/frames/${frame.uuid}`, {
+              canvas_style: newStyle
+            });
+          }
         }}
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
-        selectedComponentData={canvasRootData}
+        selectedComponentData={{ style: canvasStyle }}
         searchTerm={activeSearchTerm}
       />
     </div>
@@ -284,6 +359,28 @@ const componentDefinition = componentLibraryService?.getComponentDefinition?.(se
         }}
       >
   
+{/* 🔥 DEBUG PANEL - Canvas Selection */}
+{selectedComponent === '__canvas_root__' && (
+  <div className="p-4 mb-4 bg-green-50 border-2 border-green-300 rounded-lg space-y-2">
+    <div className="flex items-center justify-between mb-2">
+      <h4 className="font-semibold text-green-900">Canvas Root Debug</h4>
+      <span className="text-xs px-2 py-1 bg-green-200 text-green-800 rounded">
+        SELECTED
+      </span>
+    </div>
+    
+    <div className="bg-white p-3 rounded border border-green-200 text-xs overflow-auto">
+      <div><strong>Selected:</strong> {selectedComponent}</div>
+      <div><strong>Frame UUID:</strong> {frame?.uuid}</div>
+      <div><strong>Canvas Style Keys:</strong> {Object.keys(frame?.canvas_style || {}).join(', ')}</div>
+      <div><strong>Canvas Props Keys:</strong> {Object.keys(frame?.canvas_props || {}).join(', ')}</div>
+      <div><strong>Sample Canvas Style:</strong></div>
+      <pre className="bg-gray-50 p-2 rounded mt-1">{JSON.stringify(frame?.canvas_style, null, 2)}</pre>
+    </div>
+  </div>
+)}
+
+
 
 <div className="p-3 mb-4 bg-[var(--color-primary-soft)] border border-[var(--color-primary-soft)] rounded text-xs overflow-auto">
   <div><strong>DEBUG:</strong> Component: {selectedComponent}</div>
@@ -381,153 +478,49 @@ const componentDefinition = componentLibraryService?.getComponentDefinition?.(se
       
       {/* Scrollable Content */}
       <div className="p-4 space-y-4">
-        {/* 🔥 TEXT CONTENT INPUTS - Show for all text elements and their children */}
+        {/* 🔥 TEXT CONTENT INPUTS - FIXED with direct text_content field */}
         {(() => {
-            // Get all text child nodes
-            const textChildren = selectedComponentData?.children?.filter(child => 
-                child.type === 'text-node' || child.isPseudoElement
-            ) || [];
-            
-            // Check if current element can have text
-            const textElements = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 
-                'small', 'label', 'blockquote', 'button', 'link', 'text-node'];
-            
-            const canHaveText = textElements.includes(selectedComponentData?.type);
-            
-            if (!canHaveText && textChildren.length === 0) return null;
-            
-            return (
-                <div className="p-4 mb-4 bg-blue-50 border-2 border-blue-300 rounded-lg space-y-4">
-                    <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold text-blue-900">Text Content Editor</h4>
-                        <span className="text-xs px-2 py-1 bg-blue-200 text-blue-800 rounded">
-                            {textChildren.length + (canHaveText ? 1 : 0)} text node(s)
-                        </span>
-                    </div>
-
-{/* 🔥 TEXT CONTENT EDITOR - Only for text-node components */}
-{selectedComponentData?.type === 'text-node' && (
-    <div className="p-4 mb-4 bg-blue-50 border-2 border-blue-300 rounded-lg space-y-4">
-        <div className="flex items-center justify-between mb-2">
-            <h4 className="font-semibold text-blue-900">Text Node Content</h4>
-            <span className="text-xs px-2 py-1 bg-blue-200 text-blue-800 rounded">
-                Independent Element
-            </span>
-        </div>
-        
-        <div className="bg-white p-3 rounded border border-blue-200">
-            <label className="block text-sm font-medium text-blue-900 mb-2 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                Text Content
-            </label>
-            <textarea
-                value={selectedComponentData?.props?.content || selectedComponentData?.text_content || ''}
-                onChange={(e) => {
+          const textElements = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 
+              'small', 'label', 'blockquote', 'button', 'link', 'text-node'];
+          
+          const canHaveText = textElements.includes(selectedComponentData?.type);
+          
+          if (!canHaveText) return null;
+          
+          return (
+            <div className="p-4 mb-4 bg-blue-50 border-2 border-blue-300 rounded-lg space-y-4">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-semibold text-blue-900">Text Content Editor</h4>
+                <span className="text-xs px-2 py-1 bg-blue-200 text-blue-800 rounded">
+                  {selectedComponentData.type}
+                </span>
+              </div>
+              
+              <div className="bg-white p-3 rounded border border-blue-200">
+                <label className="block text-sm font-medium text-blue-900 mb-2 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                  Text Content
+                </label>
+                <textarea
+                  value={selectedComponentData?.text_content || selectedComponentData?.props?.content || selectedComponentData?.props?.text || ''}
+                  onChange={(e) => {
                     const value = e.target.value;
+                    // Update text_content field directly
+                    onPropertyUpdate(selectedComponent, 'text_content', value, 'direct');
+                    // Also update props.content for compatibility
                     handlePropertyChange('content', value, 'props');
-                    handlePropertyChange('text_content', value, 'direct');
-                }}
-                className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
-                placeholder="Enter text content..."
-                rows={4}
-                style={{
+                  }}
+                  className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                  placeholder="Enter text content..."
+                  rows={4}
+                  style={{
                     backgroundColor: 'var(--color-surface)',
                     color: 'var(--color-text)'
-                }}
-            />
-            <p className="text-xs text-blue-600 mt-2 flex items-start gap-2">
-                <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
-                This is an independent text node. It can be dragged, selected, and positioned separately from other elements.
-            </p>
-        </div>
-    </div>
-)}
-                    
-                    {/* Child text nodes */}
-                    {textChildren.map((child, index) => (
-                        <div key={child.id || `text-child-${index}`} className="bg-amber-50 p-3 rounded border border-amber-200">
-                            <div className="flex items-center justify-between mb-2">
-                                <label className="text-sm font-medium text-amber-900 flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                                    Text Child Node {index + 1}
-                                </label>
-                                <span className="text-xs px-2 py-0.5 bg-amber-200 text-amber-800 rounded">
-                                    PSEUDO
-                                </span>
-                            </div>
-                            <textarea
-                                value={child.props?.content || child.props?.text || ''}
-                                onChange={(e) => {
-                                    const value = e.target.value;
-                                    const updatedChildren = [...(selectedComponentData.children || [])];
-                                    const childIndex = updatedChildren.findIndex(c => c.id === child.id);
-                                    if (childIndex !== -1) {
-                                        updatedChildren[childIndex] = {
-                                            ...updatedChildren[childIndex],
-                                            props: {
-                                                ...updatedChildren[childIndex].props,
-                                                content: value,
-                                                text: value
-                                            }
-                                        };
-                                        onPropertyUpdate(selectedComponent, 'children', updatedChildren);
-                                    }
-                                }}
-                                className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-mono"
-                                placeholder="Enter text content..."
-                                rows={2}
-                                style={{
-                                    backgroundColor: 'var(--color-surface)',
-                                    color: 'var(--color-text)'
-                                }}
-                            />
-                            <button
-                                onClick={() => {
-                                    const updatedChildren = selectedComponentData.children.filter(c => c.id !== child.id);
-                                    onPropertyUpdate(selectedComponent, 'children', updatedChildren);
-                                }}
-                                className="mt-2 text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
-                            >
-                                Remove Text Node
-                            </button>
-                        </div>
-                    ))}
-                    
-                    {/* Add new text node button */}
-                    <button
-                        onClick={() => {
-                            const newTextNode = {
-                                id: `text-node_${Date.now()}`,
-                                type: 'text-node',
-                                isPseudoElement: true,
-                                props: {
-                                    content: 'New text content',
-                                    text: 'New text content'
-                                }
-                            };
-                            const updatedChildren = [...(selectedComponentData.children || []), newTextNode];
-                            onPropertyUpdate(selectedComponent, 'children', updatedChildren);
-                        }}
-                        className="w-full py-2 px-3 bg-green-100 text-green-800 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors flex items-center justify-center gap-2"
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                        </svg>
-                        Add Text Node
-                    </button>
-                    
-                    <p className="text-xs text-blue-600 mt-2 flex items-start gap-2">
-                        <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                        </svg>
-                        {textChildren.length > 0 
-                            ? `Managing ${textChildren.length} child text node(s) and parent content` 
-                            : 'Text content for this element. Add child nodes for complex text.'}
-                    </p>
-                </div>
-            );
+                  }}
+                />
+              </div>
+            </div>
+          );
         })()}
         <LayoutSection {...commonProps} />
         <TypographySection {...commonProps} />

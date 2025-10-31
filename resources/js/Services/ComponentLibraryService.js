@@ -559,6 +559,12 @@ getDeviceCanvasDimensions(responsiveMode) {
             
           case 'range':
             return this.renderRange(mergedProps, id);
+            
+          case 'badge':
+            return this.renderBadge(mergedProps, id);
+          
+          case 'navbar':
+            return this.renderNavbar(mergedProps, id);
           
           // 🔥 SMART FALLBACK
           default:
@@ -962,6 +968,108 @@ renderParagraph(props, id) {
     'data-is-layout': false,
   }, textNode);
 }
+
+
+
+
+
+renderBadge(props, id, layoutStyles = {}) {
+  const content = props.content || props.text || 'Badge';
+  const hasIndicator = props.indicator !== false;
+  
+  const badgeStyle = {
+    ...props.style,
+    ...layoutStyles,
+  };
+  
+  return React.createElement('span', {
+    key: id,
+    style: badgeStyle,
+    'data-component-id': id,
+    'data-component-type': 'badge',
+    'data-is-layout': false,
+  }, [
+    hasIndicator && React.createElement('span', {
+      key: `${id}-indicator`,
+      style: {
+        width: '8px',
+        height: '8px',
+        background: '#10b981',
+        borderRadius: '50%',
+      }
+    }),
+    content
+  ]);
+}
+
+renderNavbar(props, id, layoutStyles = {}) {
+  const logoText = props.logoText || 'Logo';
+  const navLinks = props.navLinks || ['Home', 'About', 'Contact'];
+  const ctaText = props.ctaText || 'Button';
+  
+  const navStyle = {
+    ...props.style,
+    ...layoutStyles,
+  };
+  
+  return React.createElement('nav', {
+    key: id,
+    style: navStyle,
+    'data-component-id': id,
+    'data-component-type': 'navbar',
+    'data-is-layout': true,
+  }, [
+    // Logo
+    React.createElement('div', {
+      key: `${id}-logo`,
+      style: {
+        fontSize: '20px',
+        fontWeight: '700',
+        color: '#000000',
+      }
+    }, logoText),
+    
+    // Nav Links
+    React.createElement('div', {
+      key: `${id}-links`,
+      style: {
+        display: 'flex',
+        gap: '32px',
+        alignItems: 'center',
+      }
+    }, navLinks.map((link, index) => 
+      React.createElement('a', {
+        key: `${id}-link-${index}`,
+        href: '#',
+        style: {
+          fontSize: '16px',
+          color: '#374151',
+          textDecoration: 'none',
+        },
+        onClick: (e) => e.preventDefault(),
+      }, link)
+    )),
+    
+    // CTA Button
+    React.createElement('button', {
+      key: `${id}-cta`,
+      style: {
+        padding: '12px 24px',
+        fontSize: '16px',
+        fontWeight: '600',
+        borderRadius: '9999px',
+        background: '#000000',
+        color: '#ffffff',
+        border: 'none',
+        cursor: 'pointer',
+      }
+    }, ctaText)
+  ]);
+}
+
+
+
+
 
 // 🔥 SPAN RENDERER
 renderSpan(props, id) {
