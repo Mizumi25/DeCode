@@ -36,8 +36,8 @@ class BasicElementsSeeder extends Seeder
                     [
                         'name' => 'Primary Gradient',
                         'description' => 'Modern gradient button with shadow',
-                        'props' => ['content' => 'Get Started'], // ✅ NO STYLES HERE
-                        'style' => [ // ✅ ALL STYLES HERE (CSS)
+                        'props' => ['content' => 'Get Started'],
+                        'style' => [
                             'display' => 'inline-flex',
                             'alignItems' => 'center',
                             'justifyContent' => 'center',
@@ -138,47 +138,46 @@ class BasicElementsSeeder extends Seeder
                         ],
                         'preview_code' => '<button class="inline-flex items-center justify-center font-medium" style="padding: 12px 24px; font-size: 16px; border-radius: 8px; background: transparent; color: #374151; border: none; transition: all 0.2s ease; cursor: pointer;">Learn More</button>'
                     ],
-                    // Add these new variants to the Button component's variants array:
-[
-    'name' => 'Outline Button',
-    'description' => 'Transparent with black border',
-    'props' => ['content' => 'View My Work'],
-    'style' => [
-        'display' => 'inline-flex',
-        'alignItems' => 'center',
-        'justifyContent' => 'center',
-        'padding' => '16px 32px',
-        'fontSize' => '18px',
-        'fontWeight' => '500',
-        'borderRadius' => '9999px',
-        'background' => 'transparent',
-        'color' => '#000000',
-        'border' => '2px solid #000000',
-        'transition' => 'all 0.3s ease',
-        'cursor' => 'pointer',
-    ],
-    'preview_code' => '<button class="inline-flex items-center justify-center font-medium" style="padding: 16px 32px; font-size: 18px; border-radius: 9999px; background: transparent; color: #000000; border: 2px solid #000000; transition: all 0.3s ease; cursor: pointer;">View My Work</button>'
-],
-[
-    'name' => 'Black Solid',
-    'description' => 'Solid black button',
-    'props' => ['content' => 'Get in touch'],
-    'style' => [
-        'display' => 'inline-flex',
-        'alignItems' => 'center',
-        'justifyContent' => 'center',
-        'padding' => '16px 32px',
-        'fontSize' => '18px',
-        'fontWeight' => '600',
-        'borderRadius' => '9999px',
-        'background' => '#000000',
-        'color' => '#ffffff',
-        'border' => 'none',
-        'transition' => 'all 0.3s ease',
-        'cursor' => 'pointer',
-    ],
-    'preview_code' => '<button class="inline-flex items-center justify-center font-semibold" style="padding: 16px 32px; font-size: 18px; border-radius: 9999px; background: #000000; color: #ffffff; border: none; transition: all 0.3s ease; cursor: pointer;">Get in touch</button>'
-],
+                    [
+                        'name' => 'Outline Button',
+                        'description' => 'Transparent with black border',
+                        'props' => ['content' => 'View My Work'],
+                        'style' => [
+                            'display' => 'inline-flex',
+                            'alignItems' => 'center',
+                            'justifyContent' => 'center',
+                            'padding' => '16px 32px',
+                            'fontSize' => '18px',
+                            'fontWeight' => '500',
+                            'borderRadius' => '9999px',
+                            'background' => 'transparent',
+                            'color' => '#000000',
+                            'border' => '2px solid #000000',
+                            'transition' => 'all 0.3s ease',
+                            'cursor' => 'pointer',
+                        ],
+                        'preview_code' => '<button class="inline-flex items-center justify-center font-medium" style="padding: 16px 32px; font-size: 18px; border-radius: 9999px; background: transparent; color: #000000; border: 2px solid #000000; transition: all 0.3s ease; cursor: pointer;">View My Work</button>'
+                    ],
+                    [
+                        'name' => 'Black Solid',
+                        'description' => 'Solid black button',
+                        'props' => ['content' => 'Get in touch'],
+                        'style' => [
+                            'display' => 'inline-flex',
+                            'alignItems' => 'center',
+                            'justifyContent' => 'center',
+                            'padding' => '16px 32px',
+                            'fontSize' => '18px',
+                            'fontWeight' => '600',
+                            'borderRadius' => '9999px',
+                            'background' => '#000000',
+                            'color' => '#ffffff',
+                            'border' => 'none',
+                            'transition' => 'all 0.3s ease',
+                            'cursor' => 'pointer',
+                        ],
+                        'preview_code' => '<button class="inline-flex items-center justify-center font-semibold" style="padding: 16px 32px; font-size: 18px; border-radius: 9999px; background: #000000; color: #ffffff; border: none; transition: all 0.3s ease; cursor: pointer;">Get in touch</button>'
+                    ],
                 ],
                 'has_animation' => true,
                 'animation_type' => 'css',
@@ -415,83 +414,137 @@ class BasicElementsSeeder extends Seeder
                 'sort_order' => 6
             ],
             
-            
             // ============================================
-// BADGE
-// ============================================
-[
-    'name' => 'Badge',
-    'type' => 'badge',
-    'component_type' => 'element',
-    'category' => 'display',
-    'alphabet_group' => 'B',
-    'description' => 'Small status or label badge',
-    'icon' => 'Tag',
-    'default_props' => [
-        'content' => 'Open To New Opportunities',
-    ],
-    'prop_definitions' => [
-        'content' => ['type' => 'textarea', 'label' => 'Badge Text', 'default' => 'Open To New Opportunities'],
-    ],
-    'render_template' => 'badge-template',
-    'code_generators' => ['react-tailwind' => 'templates/display/badge.js'],
-    'variants' => [
-        [
-            'name' => 'Status Badge',
-            'description' => 'Badge with green dot indicator',
-            'props' => ['content' => 'Open To New Opportunities'],
-            'style' => [
-                'display' => 'inline-flex',
-                'alignItems' => 'center',
-                'gap' => '8px',
-                'padding' => '8px 16px',
-                'fontSize' => '14px',
-                'fontWeight' => '500',
-                'borderRadius' => '9999px',
-                'background' => 'rgba(255, 255, 255, 0.9)',
-                'border' => '1px solid #e5e7eb',
-                'color' => '#374151',
+            // BADGE
+            // ============================================
+            [
+                'name' => 'Badge',
+                'type' => 'badge',
+                'component_type' => 'element',
+                'category' => 'display',
+                'alphabet_group' => 'B',
+                'description' => 'Small status or label badge',
+                'icon' => 'Tag',
+                'default_props' => [
+                    'content' => 'Open To New Opportunities',
+                ],
+                'prop_definitions' => [
+                    'content' => ['type' => 'textarea', 'label' => 'Badge Text', 'default' => 'Open To New Opportunities'],
+                ],
+                'render_template' => 'badge-template',
+                'code_generators' => ['react-tailwind' => 'templates/display/badge.js'],
+                'variants' => [
+                    [
+                        'name' => 'Status Badge',
+                        'description' => 'Badge with green dot indicator',
+                        'props' => ['content' => 'Open To New Opportunities'],
+                        'style' => [
+                            'display' => 'inline-flex',
+                            'alignItems' => 'center',
+                            'gap' => '8px',
+                            'padding' => '8px 16px',
+                            'fontSize' => '14px',
+                            'fontWeight' => '500',
+                            'borderRadius' => '9999px',
+                            'background' => 'rgba(255, 255, 255, 0.9)',
+                            'border' => '1px solid #e5e7eb',
+                            'color' => '#374151',
+                        ],
+                        'preview_code' => '<span style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; font-size: 14px; font-weight: 500; border-radius: 9999px; background: rgba(255, 255, 255, 0.9); border: 1px solid #e5e7eb; color: #374151;"><span style="width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></span>Open To New Opportunities</span>'
+                    ],
+                    [
+                        'name' => 'Primary Badge',
+                        'description' => 'Badge with primary colors',
+                        'props' => ['content' => 'New'],
+                        'style' => [
+                            'display' => 'inline-flex',
+                            'alignItems' => 'center',
+                            'padding' => '4px 12px',
+                            'fontSize' => '12px',
+                            'fontWeight' => '600',
+                            'borderRadius' => '9999px',
+                            'background' => '#3b82f6',
+                            'color' => '#ffffff',
+                        ],
+                        'preview_code' => '<span style="display: inline-flex; align-items: center; padding: 4px 12px; font-size: 12px; font-weight: 600; border-radius: 9999px; background: #3b82f6; color: #ffffff;">New</span>'
+                    ],
+                    [
+                        'name' => 'Outline Badge',
+                        'description' => 'Badge with border only',
+                        'props' => ['content' => 'Featured'],
+                        'style' => [
+                            'display' => 'inline-flex',
+                            'alignItems' => 'center',
+                            'padding' => '4px 12px',
+                            'fontSize' => '12px',
+                            'fontWeight' => '500',
+                            'borderRadius' => '9999px',
+                            'background' => 'transparent',
+                            'border' => '1px solid #000000',
+                            'color' => '#000000',
+                        ],
+                        'preview_code' => '<span style="display: inline-flex; align-items: center; padding: 4px 12px; font-size: 12px; font-weight: 500; border-radius: 9999px; background: transparent; border: 1px solid #000000; color: #000000;">Featured</span>'
+                    ],
+                ],
+                'has_animation' => false,
+                'animation_type' => null,
+                'sort_order' => 7
             ],
-            'preview_code' => '<span style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; font-size: 14px; font-weight: 500; border-radius: 9999px; background: rgba(255, 255, 255, 0.9); border: 1px solid #e5e7eb; color: #374151;"><span style="width: 8px; height: 8px; background: #10b981; border-radius: 50%;"></span>Open To New Opportunities</span>'
-        ],
-        [
-            'name' => 'Primary Badge',
-            'description' => 'Badge with primary colors',
-            'props' => ['content' => 'New'],
-            'style' => [
-                'display' => 'inline-flex',
-                'alignItems' => 'center',
-                'padding' => '4px 12px',
-                'fontSize' => '12px',
-                'fontWeight' => '600',
-                'borderRadius' => '9999px',
-                'background' => '#3b82f6',
-                'color' => '#ffffff',
+
+            // ============================================
+            // HEADING 1
+            // ============================================
+            [
+                'name' => 'Heading 1',
+                'type' => 'h1',
+                'component_type' => 'element',
+                'category' => 'typography',
+                'alphabet_group' => 'H',
+                'description' => 'Primary page heading',
+                'icon' => 'Type',
+                'default_props' => [
+                    'content' => 'Heading 1',
+                ],
+                'prop_definitions' => [
+                    'content' => ['type' => 'textarea', 'label' => 'Heading Text', 'default' => 'Heading 1'],
+                ],
+                'render_template' => 'h1-template',
+                'code_generators' => ['react-tailwind' => 'templates/typography/h1.js'],
+                'variants' => [
+                    [
+                        'name' => 'Black Heading',
+                        'description' => 'Bold black heading',
+                        'props' => ['content' => 'Hello'],
+                        'style' => [
+                            'fontSize' => '96px',
+                            'fontWeight' => '700',
+                            'color' => '#000000',
+                            'lineHeight' => '1.1',
+                            'margin' => '0',
+                        ],
+                        'preview_code' => '<h1 style="font-size: 96px; font-weight: 700; color: #000000; line-height: 1.1; margin: 0;">Hello, I\'m UXZehra</h1>'
+                    ],
+                    [
+                        'name' => 'Subtle Gold Gradient',
+                        'description' => 'Black with subtle gold shimmer',
+                        'props' => ['content' => 'Premium Heading'],
+                        'style' => [
+                            'fontSize' => '96px',
+                            'fontWeight' => '700',
+                            'background' => 'linear-gradient(135deg, #000000 0%, #1a1a1a 45%, #d4af37 50%, #1a1a1a 55%, #000000 100%)',
+                            'WebkitBackgroundClip' => 'text',
+                            'WebkitTextFillColor' => 'transparent',
+                            'backgroundClip' => 'text',
+                            'lineHeight' => '1.1',
+                            'margin' => '0',
+                        ],
+                        'preview_code' => '<h1 style="font-size: 96px; font-weight: 700; background: linear-gradient(135deg, #000000 0%, #1a1a1a 45%, #d4af37 50%, #1a1a1a 55%, #000000 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1.1; margin: 0;">Premium Heading</h1>'
+                    ],
+                ],
+                'has_animation' => false,
+                'animation_type' => null,
+                'sort_order' => 8
             ],
-            'preview_code' => '<span style="display: inline-flex; align-items: center; padding: 4px 12px; font-size: 12px; font-weight: 600; border-radius: 9999px; background: #3b82f6; color: #ffffff;">New</span>'
-        ],
-        [
-            'name' => 'Outline Badge',
-            'description' => 'Badge with border only',
-            'props' => ['content' => 'Featured'],
-            'style' => [
-                'display' => 'inline-flex',
-                'alignItems' => 'center',
-                'padding' => '4px 12px',
-                'fontSize' => '12px',
-                'fontWeight' => '500',
-                'borderRadius' => '9999px',
-                'background' => 'transparent',
-                'border' => '1px solid #000000',
-                'color' => '#000000',
-            ],
-            'preview_code' => '<span style="display: inline-flex; align-items: center; padding: 4px 12px; font-size: 12px; font-weight: 500; border-radius: 9999px; background: transparent; border: 1px solid #000000; color: #000000;">Featured</span>'
-        ],
-    ],
-    'has_animation' => false,
-    'animation_type' => null,
-    'sort_order' => 7
-],
         ];
 
         foreach ($basicElements as $element) {

@@ -126,136 +126,51 @@ class ComponentLibraryService {
   
   
 
-/**
- * Calculate responsive styles based on device type and component properties
- */
 calculateResponsiveStyles(component, responsiveMode, canvasDimensions, parentStyles = {}) {
   const baseStyles = { ...component.style };
   
-  // Get device-specific scaling factors
+  // Device-specific scaling factors
   const deviceScales = {
     desktop: 1.0,
-    tablet: 0.8,  // Increased from 0.7
-    mobile: 0.6   // Increased from 0.5
+    tablet: 1.0,  // 🔥 FIXED: No scaling for tablet
+    mobile: 1.0   // 🔥 FIXED: No scaling for mobile
   };
   
   const scale = deviceScales[responsiveMode] || 1.0;
   
-  // 🔥 CRITICAL FIX: Only apply scaling at root level or when explicitly needed
-  // Don't apply nested scaling for interactive elements inside containers
-  const shouldApplyScaling = !parentStyles._responsiveScale || 
-                            component.isLayoutContainer ||
-                            ['button', 'input', 'select', 'textarea'].includes(component.type);
+  // 🔥 CRITICAL FIX: NEVER apply nested scaling
+  // Scaling happens ONLY at the layout/positioning level, NOT on individual elements
+  const isLayoutContainer = component.isLayoutContainer || 
+                            ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
   
-  let nestedScale = scale;
-  if (parentStyles._responsiveScale && shouldApplyScaling) {
-    // For interactive elements inside containers, use parent scale directly
-    // Don't multiply scales to prevent double-shrinking
-    nestedScale = parentStyles._responsiveScale;
-  } else if (parentStyles._responsiveScale) {
-    nestedScale = parentStyles._responsiveScale * scale;
-  }
-
   const scaledStyles = {};
   
   Object.keys(baseStyles).forEach(key => {
     const value = baseStyles[key];
     
-    if (typeof value === 'string') {
-      // Handle pixel values - ONLY scale if it's not already responsive
-      if (value.endsWith('px')) {
-        const numericValue = parseFloat(value);
-        if (!isNaN(numericValue)) {
-          // Scale based on property type
-          let scaledValue = numericValue;
-          
-          // 🔥 FIX: Don't scale interactive element dimensions as aggressively
-          if (['width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight'].includes(key)) {
-            if (['button', 'input', 'select', 'textarea'].includes(component.type)) {
-              // Interactive elements get less scaling when inside containers
-              scaledValue = numericValue * (component.isLayoutContainer ? nestedScale : Math.max(nestedScale, 0.7));
-            } else {
-              scaledValue = numericValue * nestedScale;
-            }
-          } else if (['fontSize', 'lineHeight', 'letterSpacing'].includes(key)) {
-            scaledValue = numericValue * nestedScale;
-          } else if (['padding', 'margin', 'gap', 'borderRadius'].includes(key)) {
-            // Handle shorthand values like "10px 20px"
-            if (value.includes(' ')) {
-              const parts = value.split(' ').map(part => {
-                if (part.endsWith('px')) {
-                  const num = parseFloat(part);
-                  return !isNaN(num) ? `${num * nestedScale}px` : part;
-                }
-                return part;
-              });
-              scaledStyles[key] = parts.join(' ');
-              return;
-            } else {
-              scaledValue = numericValue * nestedScale;
-            }
-          }
-          
-          scaledStyles[key] = `${scaledValue}px`;
-          return;
-        }
-      }
-      
-      // Handle viewport units for true responsiveness
-      if (value.endsWith('vw') || value.endsWith('vh')) {
-        const unit = value.slice(-2);
-        const numericValue = parseFloat(value);
-        
-        if (!isNaN(numericValue)) {
-          // Adjust viewport units based on device
-          let adjustedValue = numericValue;
-          
-          if (unit === 'vw') {
-            // Scale vw units for different devices
-            adjustedValue = numericValue * (responsiveMode === 'mobile' ? 1.5 : 1.0);
-          }
-          
-          scaledStyles[key] = `${adjustedValue}${unit}`;
-          return;
-        }
-      }
-      
-      // Handle percentage values - they should remain percentages
-      if (value.endsWith('%')) {
-        scaledStyles[key] = value;
-        return;
-      }
-    }
-    
-    // Keep original value for non-numeric or non-pixel values
+    // 🔥 CRITICAL: Direct copy - NO scaling on values
+    // Responsive behavior is handled by CSS media queries, not runtime scaling
     scaledStyles[key] = value;
   });
   
-  // 🔥 CRITICAL: Store the cumulative scale for nested children
-  scaledStyles._responsiveScale = nestedScale;
-  
-  // Ensure minimum touch targets for mobile - BUT don't override explicit styles
+  // Ensure minimum touch targets for mobile
   if (responsiveMode === 'mobile') {
     if (['button', 'input', 'select', 'textarea'].includes(component.type)) {
       if (!scaledStyles.minHeight) scaledStyles.minHeight = '44px';
       if (!scaledStyles.minWidth) scaledStyles.minWidth = '44px';
-      
-      // Ensure buttons remain reasonably sized in mobile
       if (component.type === 'button' && !scaledStyles.fontSize) {
-        scaledStyles.fontSize = '16px'; // Prevent too-small text
+        scaledStyles.fontSize = '16px';
       }
     }
   }
   
-  // Add responsive display properties
+  // Add responsive layout adjustments (NOT scaling)
   if (responsiveMode === 'mobile') {
-    // Stack elements vertically on mobile
-    if (component.style?.flexDirection === 'row' && component.isLayoutContainer) {
+    if (scaledStyles.flexDirection === 'row' && isLayoutContainer) {
       scaledStyles.flexDirection = 'column';
     }
     
-    // Full width for most elements on mobile
-    if (!scaledStyles.width || scaledStyles.width === 'auto') {
+    if (isLayoutContainer && (!scaledStyles.width || scaledStyles.width === 'auto')) {
       scaledStyles.width = '100%';
     }
   }
@@ -564,7 +479,7 @@ getDeviceCanvasDimensions(responsiveMode) {
             return this.renderBadge(mergedProps, id);
           
           case 'navbar':
-            return this.renderNavbar(mergedProps, id);
+             return this.renderNavbarComponent(mergedProps, id);
           
           // 🔥 SMART FALLBACK
           default:
@@ -1067,6 +982,99 @@ renderNavbar(props, id, layoutStyles = {}) {
   ]);
 }
 
+
+
+renderNavbarComponent(props, id) {
+  const logoText = props.logoText || 'Logo';
+  const navLinks = props.navLinks || ['Home', 'About', 'Contact'];
+  const ctaText = props.ctaText || 'Button';
+  
+  // 🔥 CRITICAL: Navbar is a FLEX container with children
+  const navStyle = {
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '24px 48px',
+    background: 'rgba(255, 255, 255, 0.9)',
+    backdropFilter: 'blur(12px)',
+    borderBottom: '1px solid rgba(0, 0, 0, 0.1)',
+    position: props.style?.position || 'static',  // 🔥 Allow position override
+    top: props.style?.top || 'auto',
+    left: props.style?.left || 'auto',
+    right: props.style?.right || 'auto',
+    zIndex: props.style?.zIndex || 'auto',
+    ...props.style,
+  };
+  
+  return React.createElement('nav', {
+    key: id,
+    style: navStyle,
+    'data-component-id': id,
+    'data-component-type': 'navbar',
+    'data-is-layout': true,
+  }, [
+    // Logo (text-node child)
+    React.createElement('div', {
+      key: `${id}-logo`,
+      'data-component-id': `${id}-logo`,
+      'data-component-type': 'text-node',
+      'data-parent-id': id,
+      style: {
+        fontSize: '20px',
+        fontWeight: '700',
+        color: '#000000',
+      }
+    }, logoText),
+    
+    // Nav Links Container
+    React.createElement('div', {
+      key: `${id}-links`,
+      'data-component-id': `${id}-links-container`,
+      'data-component-type': 'flex',
+      'data-parent-id': id,
+      'data-is-layout': true,
+      style: {
+        display: 'flex',
+        gap: '32px',
+        alignItems: 'center',
+      }
+    }, navLinks.map((link, index) => 
+      React.createElement('a', {
+        key: `${id}-link-${index}`,
+        'data-component-id': `${id}-link-${index}`,
+        'data-component-type': 'link',
+        'data-parent-id': `${id}-links-container`,
+        href: '#',
+        style: {
+          fontSize: '16px',
+          color: '#374151',
+          textDecoration: 'none',
+        },
+        onClick: (e) => e.preventDefault(),
+      }, link)
+    )),
+    
+    // CTA Button
+    React.createElement('button', {
+      key: `${id}-cta`,
+      'data-component-id': `${id}-cta`,
+      'data-component-type': 'button',
+      'data-parent-id': id,
+      style: {
+        padding: '12px 24px',
+        fontSize: '16px',
+        fontWeight: '600',
+        borderRadius: '9999px',
+        background: '#000000',
+        color: '#ffffff',
+        border: 'none',
+        cursor: 'pointer',
+      }
+    }, ctaText)
+  ]);
+}
 
 
 
@@ -1742,55 +1750,76 @@ getCardClasses(props) {
         return tabMap[style] || ['react'];
     }
 
-  generateReactTailwindCode(allComponents) {
+// ENHANCE the sanitizeClassName method
+sanitizeClassName(className) {
+  if (!className || typeof className !== 'string') return '';
+  
+  return className
+    .split(' ') // Split by spaces for multiple classes
+    .map(cls => cls
+      .replace(/[^a-zA-Z0-9-_:/.]/g, '') // Keep only safe characters
+      .replace(/(^-|-$)/g, '') // Remove leading/trailing hyphens
+      .trim()
+    )
+    .filter(cls => cls.length > 0) // Remove empty strings
+    .join(' ');
+}
+
+// REPLACE the generateReactTailwindCode method
+generateReactTailwindCode(allComponents) {
   if (!allComponents || allComponents.length === 0) {
     return {
-      react: `import React from 'react';
-
-const GeneratedComponent = () => {
-  return (
-    <div className="w-full min-h-screen">
-      {/* No components yet */}
-    </div>
-  );
-};
-
-export default GeneratedComponent;`,
+      react: `import React from 'react';\n\nconst GeneratedComponent = () => {\n  return (\n    <div className="w-full min-h-screen">\n      {/* No components yet */}\n    </div>\n  );\n};\n\nexport default GeneratedComponent;`,
       tailwind: '// No components to generate classes for'
     };
   }
 
-  // 🔥 NEW: Recursive component rendering with proper nesting
   const renderComponentTree = (components, depth = 0) => {
     return components.map(comp => {
       const indent = '  '.repeat(depth + 2);
-      const classes = this.buildDynamicTailwindClasses(comp);
+      
+      // 🔥 CRITICAL FIX: Handle text nodes properly
+      if (comp.type === 'text-node') {
+        const textContent = comp.props?.content || comp.props?.text || comp.text_content || '';
+        return `${indent}${this.escapeJSXText(textContent)}`;
+      }
+      
+      const classes = this.sanitizeClassName(this.buildDynamicTailwindClasses(comp));
       const content = this.extractComponentContent(comp);
       const hasChildren = comp.children && comp.children.length > 0;
       
-      // Render opening tag with all attributes
-      let jsx = `${indent}<${this.getComponentTag(comp.type)}`;
-      // Add className if exists
+      const reactTag = this.getComponentTag(comp.type);
+      
+      let jsx = `${indent}<${reactTag}`;
+      
+      // Add className if it exists
       if (classes) {
-        jsx += `\n${indent}  className="${classes}"`;
+        jsx += ` className="${classes}"`;
       }
       
-      // Add other props dynamically
-      const otherProps = this.buildDynamicProps(comp);
+      // Add other props
+      const otherProps = this.buildReactProps(comp);
       if (otherProps) {
-        jsx += `\n${indent}  ${otherProps}`;
+        jsx += ` ${otherProps}`;
       }
       
-      jsx += `\n${indent}>`;
+      // Handle self-closing tags
+      const selfClosingTags = ['input', 'img', 'br', 'hr'];
+      if (selfClosingTags.includes(comp.type) && !hasChildren && !content) {
+        jsx += ' />';
+        return jsx;
+      }
       
-      // Add content or children
+      jsx += '>';
+      
+      // Handle content and children
       if (hasChildren) {
         jsx += '\n' + renderComponentTree(comp.children, depth + 1);
-        jsx += `\n${indent}</${this.getComponentTag(comp.type)}>`;
+        jsx += `\n${indent}</${reactTag}>`;
       } else if (content) {
-        jsx += `\n${indent}  ${content}\n${indent}</${this.getComponentTag(comp.type)}>`;
+        jsx += `\n${indent}  ${this.escapeJSXText(content)}\n${indent}</${reactTag}>`;
       } else {
-        jsx += `</${this.getComponentTag(comp.type)}>`;
+        jsx += `</${reactTag}>`;
       }
       
       return jsx;
@@ -1799,23 +1828,23 @@ export default GeneratedComponent;`,
 
   const reactComponents = renderComponentTree(allComponents);
 
-
   return {
-    react: `import React from 'react';
-
-const GeneratedComponent = () => {
-  return (
-    <div className="w-full min-h-screen">
-${reactComponents}
-    </div>
-  );
-};
-
-export default GeneratedComponent;`,
+    react: `import React from 'react';\n\nconst GeneratedComponent = () => {\n  return (\n    <div className="w-full min-h-screen">\n${reactComponents}\n    </div>\n  );\n};\n\nexport default GeneratedComponent;`,
     tailwind: allComponents.map(comp => 
-      `// ${comp.name} (${comp.type})\n${this.buildDynamicTailwindClasses(comp)}`
+      `// ${comp.name} (${comp.type})\n${this.sanitizeClassName(this.buildDynamicTailwindClasses(comp))}`
     ).join('\n\n')
   };
+}
+
+// ADD this helper method for escaping JSX text
+escapeJSXText(text) {
+  if (typeof text !== 'string') return text;
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
 }
 
 
@@ -2255,10 +2284,14 @@ ${htmlComponents}
   };
 }
 
-// Around line 850 - ADD NEW HELPER METHODS
 generateCSSClassName(component) {
-  // Create unique, readable CSS class name
-  const baseName = component.name?.toLowerCase().replace(/\s+/g, '-') || component.type;
+  // Create valid CSS class name (no special characters)
+  const baseName = (component.name || component.type)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '-')  // Replace ALL non-alphanumeric with hyphens
+    .replace(/-+/g, '-')         // Replace multiple hyphens with single
+    .replace(/^-|-$/g, '');      // Remove leading/trailing hyphens
+  
   const uniqueId = component.id.split('_').pop().substring(0, 6);
   return `${baseName}-${uniqueId}`;
 }

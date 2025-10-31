@@ -827,36 +827,42 @@ const handleAssetDrop = useCallback((e) => {
     setComponentSearchTerm(searchTerm)
   }, [])
 
-  // Component drag handlers
-  const handleComponentDragStart = useCallback((e, componentType, variant = null, dragData = null) => {
-    console.log('Drag started:', componentType, variant ? `with variant: ${variant.name}` : 'without variant');
+const handleComponentDragStart = useCallback((e, componentType, variant = null, dragData = null) => {
+  console.log('Drag started:', componentType);
 
-    // CRITICAL: Get element bounds for accurate ghost positioning
-    const element = e.target.closest('[data-component-id]');
-    let ghostBounds = null;
+  // 🔥 CRITICAL: Get element ACTUAL rendered size
+  const element = e.target.closest('[data-component-id]');
+  let ghostBounds = null;
+  
+  if (element) {
+    const rect = element.getBoundingClientRect();
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
     
-    if (element) {
-      const rect = element.getBoundingClientRect();
-      ghostBounds = {
-        width: rect.width,
-        height: rect.height,
-      };
-    }
+    // 🔥 Calculate scale factor based on responsive mode
+    const scaleFactor = responsiveMode === 'mobile' ? 0.6 : 
+                       responsiveMode === 'tablet' ? 0.8 : 1.0;
+    
+    ghostBounds = {
+      width: rect.width / scaleFactor,  // Normalize to original size
+      height: rect.height / scaleFactor,
+      scaleFactor: scaleFactor  // 🔥 Pass scale factor
+    };
+  }
 
-    setDragState({
-      isDragging: true,
-      draggedComponent: {
-        type: componentType,
-        name: componentType,
-        ghostBounds, // Pass bounds to canvas
-      },
-      variant: variant,
-      dragPreview: null
-    });
+  setDragState({
+    isDragging: true,
+    draggedComponent: {
+      type: componentType,
+      name: componentType,
+      ghostBounds,
+    },
+    variant: variant,
+    dragPreview: null
+  });
 
-    e.dataTransfer.effectAllowed = 'copy';
-    e.dataTransfer.setData('text/plain', JSON.stringify({ componentType, variant, ghostBounds }));
-}, []);
+  e.dataTransfer.effectAllowed = 'copy';
+  e.dataTransfer.setData('text/plain', JSON.stringify({ componentType, variant, ghostBounds }));
+}, [responsiveMode]);
 
 
 

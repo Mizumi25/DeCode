@@ -1913,39 +1913,39 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
           </div>
         )}
         
-        {/* Main Canvas - Acts as Document Body */}
-        <div 
-          ref={canvasRef}
-          className={`
-            relative transition-all duration-500
-            ${canvasClasses}
-            ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
-          `}
-          style={{
-            // 🔥 CRITICAL: Apply frame canvas_style (body styles)
-            ...getCanvasRootStyles(),
-            // Override with responsive/zoom adjustments
-            width: responsiveMode === 'desktop' ? '100%' : `${canvasSize.width}px`,
-            height: responsiveMode === 'desktop' ? '100vh' : `${canvasSize.height}px`,
-            maxWidth: canvasSize.maxWidth,
-            cursor: dragState.isDragging ? 'copy' : 'default',
-            borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
-            boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
-            position: 'relative',
-            overflow: 'auto', // Allow scrolling when content exceeds canvas
-          }}
-          onDragOver={onCanvasDragOver}
-          onDrop={onCanvasDrop}
-          onClick={(e) => {
-            // 🔥 Auto-select canvas root if clicking empty space
-            if (e.target === e.currentTarget) {
-              onCanvasClick(null, e);
-              onComponentClick('__canvas_root__', e); // Select canvas
-            } else {
-              onCanvasClick(e);
-            }
-          }}
-        >
+       {/* Main Canvas - Acts as Document Body */}
+<div 
+  ref={canvasRef}
+  className={`
+    relative transition-all duration-500
+    ${canvasClasses}
+    ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
+  `}
+  style={{
+    // 🔥 CRITICAL: Apply frame canvas_style (body styles)
+    ...getCanvasRootStyles(),
+    // 🔥 FIX: Add position context for fixed children
+    position: 'relative',
+    isolation: 'isolate',  // Creates new stacking context
+    width: responsiveMode === 'desktop' ? '100%' : `${canvasSize.width}px`,
+    height: responsiveMode === 'desktop' ? '100vh' : `${canvasSize.height}px`,
+    maxWidth: canvasSize.maxWidth,
+    cursor: dragState.isDragging ? 'copy' : 'default',
+    borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
+    boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
+    overflow: 'hidden', // 🔥 CRITICAL: Clip fixed elements to canvas bounds
+  }}
+  onDragOver={onCanvasDragOver}
+  onDrop={onCanvasDrop}
+  onClick={(e) => {
+    if (e.target === e.currentTarget) {
+      onCanvasClick(null, e);
+      onComponentClick('__canvas_root__', e);
+    } else {
+      onCanvasClick(e);
+    }
+  }}
+>
          {/* Grid Lines - Only show if enabled */}
           {isOverlayEnabled('showGridLines') && gridVisible && (
               <div 
