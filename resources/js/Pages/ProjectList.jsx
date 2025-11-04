@@ -20,6 +20,8 @@ export default function ProjectList({
   stats = {},
   clipboardStatus = { has_project: false }
 }) {
+  const [dragStart, setDragStart] = useState(null);
+  const [isClicking, setIsClicking] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [layouts, setLayouts] = useState({});
@@ -42,6 +44,8 @@ export default function ProjectList({
   const workspaceDropdownRef = useRef(null);
   const pullStartY = useRef(0);
   const containerRef = useRef(null);
+  
+  const clickTimerRef = useRef(null);
   
   // Get current user from Inertia
   const { auth } = usePage().props;
@@ -966,131 +970,140 @@ export default function ProjectList({
                     overflowX: 'hidden'
                   }}
                 >
-                  {projects.map((project) => (
-                    <div
-                      key={project.id}
-                      className="project-card relative rounded-xl shadow-md overflow-hidden group"
-                      style={{ 
-                        height: '100%',
-                        width: '100%',
-                        position: 'relative',
-                        backgroundColor: 'var(--color-bg-muted)',
-                        border: '1px solid var(--color-border)'
+                {projects.map((project) => (
+                <div
+                  key={project.id}
+                  className="project-card relative rounded-xl shadow-md overflow-hidden group"
+                  style={{ 
+                    height: '100%',
+                    width: '100%',
+                    position: 'relative',
+                    backgroundColor: 'var(--color-bg-muted)',
+                    border: '1px solid var(--color-border)'
+                  }}
+                >
+                  {/* Drag handle - positioned at top left */}
+                  <div 
+                    className="drag-handle-only absolute top-2 left-2 w-7 h-7 z-30 cursor-grab active:cursor-grabbing"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('Drag handle clicked - drag should work');
+                    }}
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('Drag handle touched - drag should work');
+                    }}
+                  >
+                    <GripVertical size={14} className="text-[var(--color-text-muted)]" />
+                  </div>
+              
+                  {/* Context menu trigger (three dots) - moved to top right corner */}
+                  <div 
+                    className="context-menu-trigger absolute top-2 right-2 w-7 h-7 z-30 bg-[var(--color-bg)] border border-[var(--color-border)] rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:bg-[var(--color-bg-muted)] flex items-center justify-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleContextMenu(e, project);
+                    }}
+                    onTouchStart={(e) => handleTouchStart(e, project)}
+                    title="More options"
+                  >
+                    <MoreHorizontal size={14} className="text-[var(--color-text-muted)]" />
+                  </div>
+                  
+                  {/* Status indicator */}
+                  <div className="absolute top-2 left-10 z-20 pointer-events-none">
+                    <div className={`w-2 h-2 rounded-full ${
+                      project.project.status === 'published' ? 'bg-green-500' :
+                      project.project.status === 'active' ? 'bg-blue-500' :
+                      project.project.status === 'archived' ? 'bg-gray-400' :
+                      'bg-yellow-500'
+                    }`} title={project.project.status}></div>
+                  </div>
+                  
+                  {/* Clickable content area */}
+                  <motion.div
+                    variants={projectVariants}
+                    whileHover={{ 
+                      scale: 1.02,
+                      y: -2,
+                      transition: { duration: 0.2 }
+                    }}
+                    whileTap={{ 
+                      scale: 0.98,
+                      transition: { duration: 0.1 }
+                    }}
+                    className="absolute inset-0 cursor-pointer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('DIRECT CLICK on project:', project.title);
+                      handleProjectClick(project, e);
+                    }}
+                    style={{
+                      height: '100%',
+                      width: '100%',
+                      zIndex: 15
+                    }}
+                  >
+                    {/* Project info at bottom */}
+                    <div className="absolute bottom-2 left-2 right-2 text-xs text-[var(--color-text-muted)] z-20 pointer-events-none">
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium text-[var(--color-text)] truncate flex-1 mr-2">
+                          {project.title}
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] opacity-75 whitespace-nowrap">
+                          <span>{project.date}</span>
+                          <span>•</span>
+                          <span>{project.componentCount} components</span>
+                        </div>
+                      </div>
+                      {project.description && (
+                        <div className="text-[10px] opacity-60 mt-1 line-clamp-1 text-[var(--color-text-muted)] truncate">
+                          {project.description}
+                        </div>
+                      )}
+                    </div>
+              
+                    {/* Themed preview area with left/right spacing */}
+                    <div 
+                      className="preview-area w-full h-full flex items-center justify-center text-[var(--color-text-muted)] text-sm rounded-xl"
+                      style={{
+                        background: 'var(--color-surface)',
+                        border: '1px solid var(--color-border)',
+                        margin: '0 4px', // Add tiny space left and right
+                        width: 'calc(100% - 8px)' // Adjust width to account for margins
                       }}
                     >
-                      {/* Enhanced drag handle with grip icon */}
-                      <div 
-                        className="drag-handle-only absolute top-2 right-2 w-7 h-7 z-30"
-                        title="Drag to reorder"
-                        onMouseDown={(e) => {
-                          // Prevent project click when starting drag
-                          e.stopPropagation();
-                        }}
-                      >
-                        <GripVertical size={14} />
-                      </div>
-
-                      {/* Context menu trigger (three dots) */}
-                      <div 
-                        className="context-menu-trigger absolute top-2 right-10 w-7 h-7 z-30 bg-[var(--color-bg)] border border-[var(--color-border)] rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:bg-[var(--color-bg-muted)] flex items-center justify-center"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleContextMenu(e, project);
-                        }}
-                        onTouchStart={(e) => handleTouchStart(e, project)}
-                        title="More options"
-                      >
-                        <MoreHorizontal size={14} className="text-[var(--color-text-muted)]" />
-                      </div>
-                      
-                      {/* Project type badge */}
-                      <div className="absolute top-2 left-2 z-20 pointer-events-none">
-                        <span className={`px-2 py-1 rounded-md text-xs font-medium ${getProjectTypeBadge(project.type)}`}>
-                          {project.type.replace('_', ' ')}
-                        </span>
-                      </div>
-                      
-                      {/* Status indicator */}
-                      <div className="absolute top-10 left-2 z-20 pointer-events-none">
-                        <div className={`w-2 h-2 rounded-full ${
-                          project.project.status === 'published' ? 'bg-green-500' :
-                          project.project.status === 'active' ? 'bg-blue-500' :
-                          project.project.status === 'archived' ? 'bg-gray-400' :
-                          'bg-yellow-500'
-                        }`} title={project.project.status}></div>
-                      </div>
-                      
-                      {/* Clickable content area */}
-                      <motion.div
-                        variants={projectVariants}
-                        whileHover={{ 
-                          scale: 1.02,
-                          y: -2,
-                          transition: { duration: 0.2 }
-                        }}
-                        whileTap={{ 
-                          scale: 0.98,
-                          transition: { duration: 0.1 }
-                        }}
-                        className="absolute inset-0 cursor-pointer"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          console.log('DIRECT CLICK on project:', project.title);
-                          handleProjectClick(project, e);
-                        }}
-                        style={{
-                          height: '100%',
-                          width: '100%',
-                          zIndex: 15
-                        }}
-                      >
-                        {/* Project info at bottom */}
-                        <div className="absolute bottom-2 left-2 right-2 text-xs text-[var(--color-text-muted)] z-20 pointer-events-none">
-                          <div className="font-medium text-[var(--color-text)] mb-1 truncate">{project.title}</div>
-                          <div className="text-[10px] opacity-75">{project.date}</div>
-                          {project.description && (
-                            <div className="text-[10px] opacity-60 mt-1 line-clamp-2 text-[var(--color-text-muted)]">
-                              {project.description}
-                            </div>
-                          )}
-                          <div className="text-[10px] opacity-75 mt-1">
-                            {project.componentCount} components
+                      <div className="text-center pointer-events-none w-full h-full">
+                        {project.project.thumbnail ? (
+                          <img 
+                            src={project.project.thumbnail} 
+                            alt={project.title}
+                            className="w-full h-full object-cover rounded-lg"
+                            style={{
+                              margin: '0 4px', // Consistent spacing for images
+                              width: 'calc(100% - 8px)'
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center">
+                            <div 
+                              className="w-full h-3/4 rounded-lg opacity-60"
+                              style={{
+                                background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))',
+                                margin: '0 4px', // Consistent spacing for placeholder
+                                width: 'calc(100% - 8px)'
+                              }}
+                            ></div>
                           </div>
-                        </div>
-
-                        {/* Themed preview area */}
-                        <div 
-                          className="preview-area w-full h-full flex items-center justify-center text-[var(--color-text-muted)] text-sm rounded-xl"
-                          style={{
-                            background: 'var(--color-surface)',
-                            border: '1px solid var(--color-border)'
-                          }}
-                        >
-                          <div className="text-center pointer-events-none">
-                            {project.project.thumbnail ? (
-                              <img 
-                                src={project.project.thumbnail} 
-                                alt={project.title}
-                                className="w-full h-full object-cover rounded-lg opacity-80"
-                              />
-                            ) : (
-                              <>
-                                <div 
-                                  className="w-12 h-12 mx-auto mb-2 rounded-lg opacity-60"
-                                  style={{
-                                    background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))'
-                                  }}
-                                ></div>
-                                <p className="text-sm font-medium text-[var(--color-text)]">Preview</p>
-                                <p className="text-xs mt-1 opacity-75 text-[var(--color-text-muted)]">Click anywhere to open</p>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </motion.div>
+                        )}
+                      </div>
                     </div>
-                  ))}
+                  </motion.div>
+                </div>
+              ))}
                 </ResponsiveGridLayout>
               </div>
             )}

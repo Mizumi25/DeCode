@@ -13,75 +13,73 @@ class Frame extends Model
     use HasFactory;
 
 
-protected $fillable = [
-    'uuid', 
-    'project_id', 
-    'name', 
-    'type',
-    'scrolled_component',
-    'scroll_direction',
-    'canvas_data', 
-    'settings',
-    'canvas_style',      // NEW: Canvas/body styles
-    'canvas_props',      // NEW: Canvas/body props
-    'canvas_animation',
-    'thumbnail_path',
-    'is_locked',
-    'locked_by_user_id',
-    'locked_at',
-    'locked_mode',
-    'lock_reason',
-];
-  
-protected $casts = [
-    'canvas_data' => 'array',
-    'canvas_style' => 'array',     // NEW
-    'canvas_props' => 'array',     // NEW
-    'canvas_animation' => 'array', // NEW
-    'settings' => 'array',
-    'is_locked' => 'boolean',
-    'locked_at' => 'datetime',
-];
+ protected $fillable = [
+        'uuid', 
+        'project_id', 
+        'name', 
+        'type',
+        'scrolled_component',
+        'scroll_direction',
+        'canvas_data', 
+        'settings',
+        'canvas_style',      // Stores body/root styles
+        'canvas_props',      // Stores body/root props
+        'canvas_animation',  // Stores body/root animations
+        'thumbnail_path',
+        'is_locked',
+        'locked_by_user_id',
+        'locked_at',
+        'locked_mode',
+        'lock_reason',
+    ];
+    
+    protected $casts = [
+        'canvas_data' => 'array',
+        'canvas_style' => 'array',      // ✅ Laravel handles this automatically
+        'canvas_props' => 'array',      // ✅ Laravel handles this automatically
+        'canvas_animation' => 'array',  // ✅ Laravel handles this automatically
+        'settings' => 'array',
+        'is_locked' => 'boolean',
+        'locked_at' => 'datetime',
+    ];
 
 protected static function boot()
-{
-    parent::boot();
-    
-    static::creating(function ($model) {
-        $model->uuid = (string) Str::uuid();
+    {
+        parent::boot();
         
-        // Initialize canvas_style with proper body defaults
-        if (!$model->canvas_style) {
-            $model->canvas_style = [
-                // 🔥 CRITICAL: Body should be 100vh by default
-                'width' => '100vw',
-                'height' => '100vh',
-                'minHeight' => '100vh',
-                'backgroundColor' => '#ffffff',
-                'padding' => '0px',
-                'margin' => '0px',
-                'display' => 'block',
-                'overflow' => 'auto',
-                'fontFamily' => '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                'lineHeight' => '1.6',
-                'color' => '#1f2937',
-                // Ensure children can use 100% properly
-                'position' => 'relative',
-                'boxSizing' => 'border-box',
-            ];
-        }
-        
-        // Initialize canvas_props if not provided
-        if (!$model->canvas_props) {
-            $model->canvas_props = [];
-        }
-        
-        // Initialize canvas_animation if not provided
-        if (!$model->canvas_animation) {
-            $model->canvas_animation = [];
-        }
-    });
-}
+        static::creating(function ($model) {
+            $model->uuid = (string) Str::uuid();
+            
+            // ✅ Initialize canvas_style with responsive defaults
+            if (!$model->canvas_style) {
+                $model->canvas_style = [
+                    'width' => '100%',
+                    'height' => '100%',
+                    'minHeight' => '100%',
+                    'backgroundColor' => '#ffffff',
+                    'padding' => '0px',
+                    'margin' => '0px',
+                    'display' => 'block',
+                    'overflow' => 'auto',
+                    'fontFamily' => '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    'fontSize' => '16px',
+                    'lineHeight' => '1.6',
+                    'color' => '#1f2937',
+                    'position' => 'relative',
+                    'boxSizing' => 'border-box',
+                ];
+            }
+            
+            if (!$model->canvas_props) {
+                $model->canvas_props = [];
+            }
+            
+            if (!$model->canvas_animation) {
+                $model->canvas_animation = [];
+            }
+        });
+    }
+
 
     public function getRouteKeyName()
     {

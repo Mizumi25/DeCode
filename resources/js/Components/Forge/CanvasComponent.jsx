@@ -111,20 +111,106 @@ const CanvasComponent = ({
 
   const canvasSize = getCanvasSize();
   
-  const getCanvasRootStyles = () => {
-    // Get canvas root styles from frame settings or default
-    const canvasRootData = frame?.canvas_root || {};
-    
-    return {
-      backgroundColor: canvasRootData.backgroundColor || 'var(--color-surface)',
-      backgroundImage: canvasRootData.backgroundImage || undefined,
-      color: canvasRootData.color || 'var(--color-text)',
-      fontFamily: canvasRootData.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      lineHeight: canvasRootData.lineHeight || '1.6',
-      // Add any other canvas-specific styles from settings
-      ...canvasRootData // Spread all other custom styles
-    };
+
+
+
+const getCanvasRootStyles = () => {
+  const canvasStyle = frame?.canvas_style || {};
+  
+  // 🔥 BASE viewport dimensions (100vh/100vw)
+  const baseDimensions = {
+    mobile: {
+      width: '375px',
+      minHeight: '667px', // Portrait
+    },
+    tablet: {
+      width: '768px',
+      minHeight: '1024px', // Portrait
+    },
+    desktop: {
+      width: '100%',
+      minHeight: '100vh', // 🔥 LANDSCAPE - full viewport height
+      maxWidth: '100%', // 🔥 Full width
+    }
   };
+  
+  return {
+    ...baseDimensions[responsiveMode],
+    
+    // User-defined dimensions
+    height: canvasStyle.height || (responsiveMode === 'desktop' ? '100vh' : 'auto'),
+    width: canvasStyle.width || (responsiveMode === 'desktop' ? '100%' : baseDimensions[responsiveMode].width),
+    
+    // Other styles
+    backgroundColor: canvasStyle.backgroundColor || '#ffffff',
+    color: canvasStyle.color || '#1f2937',
+    fontFamily: canvasStyle.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    fontSize: canvasStyle.fontSize || '16px',
+    lineHeight: canvasStyle.lineHeight || '1.6',
+    overflow: 'visible',
+    position: 'relative',
+    boxSizing: 'border-box',
+    padding: canvasStyle.padding || '0px',
+    margin: '0px',
+    display: 'block',
+  };
+};
+
+
+
+
+
+const ViewportBoundaryIndicator = ({ responsiveMode, canvasRef }) => {
+  const baseHeights = {
+    mobile: 667,
+    tablet: 1024,
+    desktop: null, // Desktop doesn't need indicator
+  };
+  
+  const baseHeight = baseHeights[responsiveMode];
+  
+  if (!baseHeight || !canvasRef?.current) return null;
+  
+  return (
+    <div
+      className="fixed left-0 right-0 pointer-events-none z-[999]"
+      style={{
+        top: '50%', // 🔥 Centered vertically in viewport
+        transform: 'translateY(-50%)',
+      }}
+    >
+      {/* Centered container that matches canvas width */}
+      <div
+        className="mx-auto relative"
+        style={{
+          width: responsiveMode === 'mobile' ? '375px' : '768px',
+        }}
+      >
+      {/* Pink viewport line - positioned at 100vh mark */}
+        <div
+          className="absolute left-0 right-0"
+          style={{
+            top: `${baseHeight}px`,
+            height: '2px',
+            background: 'linear-gradient(90deg, transparent, rgba(236, 72, 153, 0.4) 20%, rgba(236, 72, 153, 0.4) 80%, transparent)',
+            boxShadow: '0 0 4px rgba(236, 72, 153, 0.2)',
+          }}
+        >
+          {/* Subtle label */}
+          <div
+            className="absolute right-4 -top-6 px-2 py-0.5 rounded text-xs font-mono bg-pink-500/80 text-white shadow-sm"
+            style={{
+              fontSize: '9px',
+            }}
+          >
+            100vh
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
   
   // Configure dnd-kit sensors with better touch response
@@ -458,31 +544,49 @@ const handleDndDragStart = useCallback((event) => {
 
 
 
+// REPLACE handleDndDragOver
 const handleDndDragOver = useCallback((event) => {
   const { active, over } = event;
   
-  // Clear previous visual feedback
+  // Clear previous feedback
   document.querySelectorAll('.drag-over-layout').forEach(el => {
     el.classList.remove('drag-over-layout');
   });
   
-  // CRITICAL FIX: If dragging over a layout container, don't set overId
   if (over) {
-    // 🔥 FIX: Check using DOM attribute instead of flatComponents
     const targetElement = document.querySelector(`[data-component-id="${over.id}"]`);
     const isTargetLayout = targetElement?.getAttribute('data-is-layout') === 'true';
     
     if (isTargetLayout) {
-      // We're over a layout container - show visual feedback
       setOverId(null);
       
       if (targetElement) {
         targetElement.classList.add('drag-over-layout');
+        
+        // 🔥 NEW: Calculate drop position intent
+        const rect = targetElement.getBoundingClientRect();
+        const mouseY = event.activatorEvent?.clientY || event.clientY;
+        const relativeY = mouseY - rect.top;
+        const dropZoneHeight = rect.height;
+        
+        // Center 60% is "inside", top/bottom 20% is "adjacent"
+        const centerStart = dropZoneHeight * 0.2;
+        const centerEnd = dropZoneHeight * 0.8;
+        
+        if (relativeY >= centerStart && relativeY <= centerEnd) {
+          // Drop INSIDE layout
+          targetElement.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
+          targetElement.style.border = '2px solid #10b981';
+        } else {
+          // Drop ADJACENT to layout
+          targetElement.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
+          targetElement.style.borderTop = relativeY < centerStart ? '2px dashed #3b82f6' : '';
+          targetElement.style.borderBottom = relativeY > centerEnd ? '2px dashed #3b82f6' : '';
+        }
       }
       
-      console.log('🎯 Dragging over layout container:', over.id);
+      console.log('🎯 Over layout container:', over.id);
     } else {
-      // We're over a regular component - allow reordering
       setOverId(over.id);
     }
   } else {
@@ -1004,20 +1108,25 @@ const handleDoubleClickText = useCallback((e, componentId) => {
 const handleSmartClick = useCallback((e) => {
   e.stopPropagation();
   
+  console.log('🎯 Smart click initiated:', {
+    target: e.target,
+    path: e.nativeEvent.composedPath().map(el => el.getAttribute?.('data-component-id')).filter(Boolean)
+  });
+  
   // Get all component elements under the click
   const clickPath = e.nativeEvent.composedPath();
   
-  // 🔥 PRIORITY 1: Check for text node clicks
+  // 🔥 PRIORITY 1: Check for text node clicks (ENHANCED)
   const textNode = clickPath.find(el => 
     el.nodeType === 1 && 
     el.hasAttribute && 
-    el.getAttribute('data-is-pseudo') === 'true' &&
-    el.getAttribute('data-component-type') === 'text-node'
+    (el.getAttribute('data-is-pseudo') === 'true' ||
+     el.getAttribute('data-component-type') === 'text-node')
   );
   
   if (textNode) {
     const textNodeId = textNode.getAttribute('data-component-id');
-    console.log('🎯 Text node clicked:', textNodeId);
+    console.log('✅ Text node clicked:', textNodeId);
     onComponentClick(textNodeId, e);
     return;
   }
@@ -1026,24 +1135,18 @@ const handleSmartClick = useCallback((e) => {
   const componentElements = clickPath.filter(el => 
     el.nodeType === 1 && el.hasAttribute && el.hasAttribute('data-component-id')
   );
-  
   if (componentElements.length === 0) {
-    console.log('🎯 Canvas click - deselecting all');
-    onComponentClick(null, e);
+    console.log('🎯 Canvas click - selecting canvas root');
+    onComponentClick('__canvas_root__', e);
     setIsCanvasSelected(true);
     return;
   }
   
-  // Select the FIRST (deepest/innermost) component in the path
+  // Select the FIRST (deepest/innermost) component
   const targetElement = componentElements[0];
   const componentId = targetElement.getAttribute('data-component-id');
   
-  console.log('🎯 Smart selection:', {
-    clicked: componentId,
-    isTextNode: targetElement.getAttribute('data-is-pseudo') === 'true',
-    path: componentElements.map(el => el.getAttribute('data-component-id'))
-  });
-  
+  console.log('✅ Component selected:', componentId);
   onComponentClick(componentId, e);
 }, [onComponentClick]);
   
@@ -1589,20 +1692,47 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
       position: 'relative',
       zIndex: 1 // ✅ Ensure canvas container has proper stacking
     }}>
-      {/* Responsive Canvas Container */}
+      {/* Responsive Canvas Container - EXPANDS with content */}
       <div
-        className={`relative transition-all duration-500 ease-in-out overflow-visible
+        className={`relative transition-all duration-500 ease-in-out
           ${isFrameSwitching ? 'opacity-50 scale-95' : 'opacity-100 scale-100'}
           ${responsiveMode !== 'desktop' ? 'shadow-2xl' : ''}
         `}
         style={{ 
+          // 🔥 FIXED WIDTH, but HEIGHT grows with content
           width: canvasSize.width,
           maxWidth: canvasSize.maxWidth,
-          transform: responsiveMode === 'desktop' ? 'none' : `scale(${scaleFactor})`,
+          minHeight: canvasSize.height, // Base viewport height
+          height: 'auto', // 🔥 ALLOW EXPANSION
+          transform: 'none',
           transformOrigin: 'center top',
-          zIndex: 10
+          zIndex: 10,
+          overflow: 'visible', // 🔥 Show overflow (frame expands)
         }}
       >
+      
+      
+        {/* 🔥 MOVED: Device info label at TOP */}
+        <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 z-50">
+          <div 
+            className="px-3 py-1 rounded-full text-xs flex items-center gap-2 font-medium"
+            style={{ 
+              backgroundColor: 'var(--color-surface)',
+              color: 'var(--color-text)',
+              border: '1px solid var(--color-border)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            }}
+          >
+            {responsiveMode === 'mobile' ? <Smartphone className="w-3 h-3" /> : 
+             responsiveMode === 'tablet' ? <Tablet className="w-3 h-3" /> : 
+             <Monitor className="w-3 h-3" />}
+            {canvasSize.deviceName} ({canvasSize.width}×{canvasSize.height})
+            {zoomLevel !== 100 && <span>• {zoomLevel}%</span>}
+            <span className="text-green-500">• {responsiveMode}</span>
+          </div>
+        </div>
+      
+      
         {/* Device-Specific Browser Frame */}
         {responsiveMode === 'desktop' && (
           /* MacBook-Style Browser Tab Frame */
@@ -1848,25 +1978,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                 style={{ backgroundColor: '#111827' }}
               />
             )}
-            
-          {/* Device info label */}
-          <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2">
-            <div 
-              className="px-3 py-1 rounded-full text-xs flex items-center gap-2 font-medium"
-              style={{ 
-                backgroundColor: 'var(--color-surface)',
-                color: 'var(--color-text)',
-                border: '1px solid var(--color-border)'
-              }}
-            >
-              {responsiveMode === 'mobile' ? <Smartphone className="w-3 h-3" /> : 
-               responsiveMode === 'tablet' ? <Tablet className="w-3 h-3" /> : 
-               <Monitor className="w-3 h-3" />}
-              {canvasSize.deviceName} ({canvasSize.width}px)
-              {zoomLevel !== 100 && <span>• {zoomLevel}%</span>}
-              <span className="text-green-500">• Responsive</span>
-            </div>
-          </div>
+     
                   
             {/* Mobile/Tablet Browser Tabs at top of device frame */}
             {responsiveMode === 'tablet' && (
@@ -1913,39 +2025,49 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
           </div>
         )}
         
-       {/* Main Canvas - Acts as Document Body */}
-<div 
-  ref={canvasRef}
-  className={`
-    relative transition-all duration-500
-    ${canvasClasses}
-    ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
-  `}
-  style={{
-    // 🔥 CRITICAL: Apply frame canvas_style (body styles)
-    ...getCanvasRootStyles(),
-    // 🔥 FIX: Add position context for fixed children
-    position: 'relative',
-    isolation: 'isolate',  // Creates new stacking context
-    width: responsiveMode === 'desktop' ? '100%' : `${canvasSize.width}px`,
-    height: responsiveMode === 'desktop' ? '100vh' : `${canvasSize.height}px`,
-    maxWidth: canvasSize.maxWidth,
-    cursor: dragState.isDragging ? 'copy' : 'default',
-    borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
-    boxShadow: responsiveMode !== 'desktop' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none',
-    overflow: 'hidden', // 🔥 CRITICAL: Clip fixed elements to canvas bounds
-  }}
-  onDragOver={onCanvasDragOver}
-  onDrop={onCanvasDrop}
-  onClick={(e) => {
-    if (e.target === e.currentTarget) {
-      onCanvasClick(null, e);
-      onComponentClick('__canvas_root__', e);
-    } else {
-      onCanvasClick(e);
-    }
-  }}
->
+     {/* Main Canvas - Acts as Document Body */}
+  <div 
+    ref={canvasRef}
+    className={`
+      relative transition-all duration-500
+      ${canvasClasses}
+      ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
+    `}
+    style={{
+      // 🔥 Canvas styles - CAN EXPAND
+      ...getCanvasRootStyles(),
+      
+      // 🔥 Fixed width, expandable height
+      width: responsiveMode === 'desktop' ? '100%' : `${canvasSize.width}px`,
+      minHeight: responsiveMode === 'desktop' ? '100vh' : `${canvasSize.height}px`,
+      height: 'auto', // 🔥 GROWS with content
+      
+      // 🔥 NO SCROLL - frame expands
+      overflow: 'visible',
+      
+      cursor: dragState.isDragging ? 'copy' : 'default',
+      borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
+      isolation: 'isolate',
+    }}
+    onDragOver={onCanvasDragOver}
+    onDrop={onCanvasDrop}
+    onClick={(e) => {
+      if (e.target === e.currentTarget) {
+        onCanvasClick(null, e);
+        onComponentClick('__canvas_root__', e);
+      } else {
+        onCanvasClick(e);
+      }
+    }}
+  >
+  
+    {/* 🔥 Viewport Boundary Indicator */}
+    <ViewportBoundaryIndicator 
+          responsiveMode={responsiveMode} 
+          canvasRef={canvasRef}
+        />
+  
+  
          {/* Grid Lines - Only show if enabled */}
           {isOverlayEnabled('showGridLines') && gridVisible && (
               <div 
@@ -2042,6 +2164,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                 responsiveMode={responsiveMode}
               />
             ) : (
+              <>
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -2080,56 +2203,61 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                     WebkitUserSelect: 'none',
                     pointerEvents: 'none'
                   }}
-                  modifiers={[
-                    ({ transform, active }) => {
-                      if (!active?.data?.current) return transform;
-                      
-                      // Calculate offset only once
-                      if (!active.data.current.grabOffset) {
-                        const element = document.querySelector(`[data-component-id="${activeId}"]`);
-                        const canvas = canvasRef.current;
+                    modifiers={[
+                      ({ transform, active }) => {
+                        if (!active?.data?.current) return transform;
                         
-                        if (!element || !canvas) return transform;
-                        
-                        const elementRect = element.getBoundingClientRect();
-                        
-                        // Get mouse/touch position
-                        const event = active.data.current.activatorEvent;
-                        if (!event) return transform;
-                        
-                        const mouseX = event.clientX || event.touches?.[0]?.clientX;
-                        const mouseY = event.clientY || event.touches?.[0]?.clientY;
-                        
-                        if (!mouseX || !mouseY) return transform;
-                        
-                        // Calculate where we grabbed relative to element
-                        const grabX = mouseX - elementRect.left;
-                        const grabY = mouseY - elementRect.top;
-                        
-                        // Store the offset needed to position ghost at grab point
-                        active.data.current.grabOffset = {
-                          x: -grabX,
-                          y: -grabY
-                        };
-                        
-                        console.log('🎯 Grab offset calculated:', {
-                          grabX,
-                          grabY,
-                          elementRect,
-                          mousePos: { mouseX, mouseY }
-                        });
-                      }
-                      
-                      const offset = active.data.current.grabOffset;
-                      if (!offset) return transform;
-                      
-                      return {
-                        ...transform,
-                        x: transform.x + offset.x,
-                        y: transform.y + offset.y
-                      };
-                    }
-                  ]}
+                        // 🔥 FIX: Calculate offset ONCE at drag start
+                        if (!active.data.current.grabOffset) {
+                          const element = document.querySelector(`[data-component-id="${activeId}"]`);
+                          const canvas = canvasRef.current;
+                          
+                          if (!element || !canvas) return transform;
+                          
+                          const elementRect = element.getBoundingClientRect();
+                          const canvasRect = canvas.getBoundingClientRect();
+                          
+                          // Get mouse/touch position
+                          const event = active.data.current.activatorEvent;
+                          if (!event) return transform;
+                          
+                          const mouseX = event.clientX || event.touches?.[0]?.clientX;
+                          const mouseY = event.clientY || event.touches?.[0]?.clientY;
+                          
+                          if (!mouseX || !mouseY) return transform;
+                          
+                          // 🔥 FIX: Calculate relative to CANVAS, not viewport
+                          const relativeMouseX = mouseX - canvasRect.left;
+                          const relativeMouseY = mouseY - canvasRect.top;
+                          const relativeElementX = elementRect.left - canvasRect.left;
+                          const relativeElementY = elementRect.top - canvasRect.top;
+                          
+                          const grabX = relativeMouseX - relativeElementX;
+                          const grabY = relativeMouseY - relativeElementY;
+                          
+                          active.data.current.grabOffset = {
+                            x: -grabX,
+                            y: -grabY
+                          };
+                          
+                          console.log('🎯 Grab offset (canvas-relative):', {
+                                grabX,
+                                grabY,
+                                elementPos: { x: relativeElementX, y: relativeElementY },
+                                mousePos: { x: relativeMouseX, y: relativeMouseY }
+                              });
+                            }
+                            
+                            const offset = active.data.current.grabOffset;
+                            if (!offset) return transform;
+                            
+                            return {
+                              ...transform,
+                              x: transform.x + offset.x,
+                              y: transform.y + offset.y
+                            };
+                          }
+                        ]}
                 >
                  {activeId && draggedComponent ? (
                   <div
@@ -2210,6 +2338,42 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                 ) : null}
                 </DragOverlay>
               </DndContext>
+              
+              {/* 🔥 NEW: Quick Add Section at Bottom */}
+      <div className="flex justify-center py-8">
+        <button
+          onClick={() => {
+            const sectionComponent = componentLibraryService?.createLayoutElement('section');
+            if (sectionComponent) {
+              const updatedComponents = [...canvasComponents, sectionComponent];
+              setFrameCanvasComponents(prev => ({
+                ...prev,
+                [currentFrame]: updatedComponents
+              }));
+              setSelectedComponent(sectionComponent.id);
+              
+              // Scroll to bottom to show new section
+              setTimeout(() => {
+                canvasRef.current?.scrollTo({
+                  top: canvasRef.current.scrollHeight,
+                  behavior: 'smooth'
+                });
+              }, 100);
+            }
+          }}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all hover:scale-105 shadow-md"
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            color: 'var(--color-primary)',
+            border: '2px dashed var(--color-primary)',
+          }}
+        >
+          <Square className="w-4 h-4" />
+          Add Section
+        </button>
+      </div>
+      
+      </>
             )}
           </div>
 

@@ -144,8 +144,6 @@ export default function FrameCreator({ project, onFrameCreated, onClose }) {
         elements: []
     },
     settings: {
-        viewport_width: 1440,
-        viewport_height: 900,
         background_color: '#ffffff',
         grid_enabled: true,
         snap_to_grid: true
@@ -191,11 +189,6 @@ export default function FrameCreator({ project, onFrameCreated, onClose }) {
           width: preset.width,
           height: preset.height
         }
-      },
-      settings: {
-        ...prev.settings,
-        viewport_width: preset.width,
-        viewport_height: preset.height
       }
     }))
   }
@@ -377,55 +370,6 @@ export default function FrameCreator({ project, onFrameCreated, onClose }) {
           </div>
         </div>
 
-        {/* Custom Dimensions */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text)' }}>
-              Width (px)
-            </label>
-            <input
-              type="number"
-              value={data.settings.viewport_width}
-              onChange={(e) => {
-                const width = parseInt(e.target.value) || 1440
-                setData(prev => ({
-                  ...prev,
-                  settings: { ...prev.settings, viewport_width: width },
-                  canvas_data: {
-                    ...prev.canvas_data,
-                    viewport: { ...prev.canvas_data.viewport, width }
-                  }
-                }))
-              }}
-              className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-all"
-              min="320"
-              max="3840"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text)' }}>
-              Height (px)
-            </label>
-            <input
-              type="number"
-              value={data.settings.viewport_height}
-              onChange={(e) => {
-                const height = parseInt(e.target.value) || 900
-                setData(prev => ({
-                  ...prev,
-                  settings: { ...prev.settings, viewport_height: height },
-                  canvas_data: {
-                    ...prev.canvas_data,
-                    viewport: { ...prev.canvas_data.viewport, height }
-                  }
-                }))
-              }}
-              className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-all"
-              min="240"
-              max="2160"
-            />
-          </div>
-        </div>
 
         {/* Grid Settings */}
         <div className="space-y-4">
@@ -490,42 +434,91 @@ export default function FrameCreator({ project, onFrameCreated, onClose }) {
         
         
         
-                 {/* Canvas Body Dimensions */}
+                   {/* Canvas Dimensions */}
           <div>
-              <label className="block text-sm font-medium mb-3" style={{ color: 'var(--color-text)' }}>
-                  Canvas Body Dimensions
-              </label>
-              <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
-                  These styles apply to the &lt;body&gt; element (canvas root)
-              </p>
-              <div className="space-y-3">
-                  <div>
-                      <label className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Width</label>
-                      <input
-                          type="text"
-                          value={data.canvas_style.width}
-                          onChange={(e) => setData(prev => ({
-                              ...prev,
-                              canvas_style: { ...prev.canvas_style, width: e.target.value }
-                          }))}
-                          placeholder="e.g., 100vw, 100%, 1200px"
-                          className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)]"
-                      />
-                  </div>
-                  <div>
-                      <label className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Height</label>
-                      <input
-                          type="text"
-                          value={data.canvas_style.height}
-                          onChange={(e) => setData(prev => ({
-                              ...prev,
-                              canvas_style: { ...prev.canvas_style, height: e.target.value }
-                          }))}
-                          placeholder="e.g., 100vh, 100%, auto"
-                          className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)]"
-                      />
-                  </div>
+            <label className="block text-sm font-medium mb-3" style={{ color: 'var(--color-text)' }}>
+              Canvas Dimensions
+            </label>
+            <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
+              These dimensions apply to the canvas root element (body/html)
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
+                  Width
+                </label>
+                <input
+                  type="text"
+                  value={data.canvas_style.width}
+                  onChange={(e) => setData(prev => ({
+                    ...prev,
+                    canvas_style: { ...prev.canvas_style, width: e.target.value }
+                  }))}
+                  placeholder="e.g., 100%, 100vw, 1200px"
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-all"
+                />
               </div>
+              <div>
+                <label className="block text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
+                  Height
+                </label>
+                <input
+                  type="text"
+                  value={data.canvas_style.height}
+                  onChange={(e) => setData(prev => ({
+                    ...prev,
+                    canvas_style: { ...prev.canvas_style, height: e.target.value }
+                  }))}
+                  placeholder="e.g., 100%, 100vh, auto"
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-all"
+                />
+              </div>
+            </div>
+            <div className="mt-3">
+              <label className="block text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
+                Min Height
+              </label>
+              <input
+                type="text"
+                value={data.canvas_style.minHeight}
+                onChange={(e) => setData(prev => ({
+                  ...prev,
+                  canvas_style: { ...prev.canvas_style, minHeight: e.target.value }
+                }))}
+                placeholder="e.g., 100vh, 600px"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-all"
+              />
+            </div>
+          </div>
+          
+          {/* Background Color */}
+          <div>
+            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text)' }}>
+              Background Color
+            </label>
+            <div className="flex gap-3">
+              <input
+                type="color"
+                value={data.canvas_style.backgroundColor}
+                onChange={(e) => setData(prev => ({
+                  ...prev,
+                  canvas_style: { ...prev.canvas_style, backgroundColor: e.target.value },
+                  settings: { ...prev.settings, background_color: e.target.value }
+                }))}
+                className="w-16 h-10 rounded-lg cursor-pointer"
+              />
+              <input
+                type="text"
+                value={data.canvas_style.backgroundColor}
+                onChange={(e) => setData(prev => ({
+                  ...prev,
+                  canvas_style: { ...prev.canvas_style, backgroundColor: e.target.value },
+                  settings: { ...prev.settings, background_color: e.target.value }
+                }))}
+                placeholder="#ffffff"
+                className="flex-1 px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-all"
+              />
+            </div>
           </div>
       </div>
     </div>

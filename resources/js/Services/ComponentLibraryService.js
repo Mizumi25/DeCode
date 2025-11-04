@@ -126,32 +126,12 @@ class ComponentLibraryService {
   
   
 
+// REPLACE calculateResponsiveStyles
 calculateResponsiveStyles(component, responsiveMode, canvasDimensions, parentStyles = {}) {
   const baseStyles = { ...component.style };
   
-  // Device-specific scaling factors
-  const deviceScales = {
-    desktop: 1.0,
-    tablet: 1.0,  // 🔥 FIXED: No scaling for tablet
-    mobile: 1.0   // 🔥 FIXED: No scaling for mobile
-  };
-  
-  const scale = deviceScales[responsiveMode] || 1.0;
-  
-  // 🔥 CRITICAL FIX: NEVER apply nested scaling
-  // Scaling happens ONLY at the layout/positioning level, NOT on individual elements
-  const isLayoutContainer = component.isLayoutContainer || 
-                            ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
-  
-  const scaledStyles = {};
-  
-  Object.keys(baseStyles).forEach(key => {
-    const value = baseStyles[key];
-    
-    // 🔥 CRITICAL: Direct copy - NO scaling on values
-    // Responsive behavior is handled by CSS media queries, not runtime scaling
-    scaledStyles[key] = value;
-  });
+  // 🔥 CRITICAL: NO automatic scaling - let CSS handle it
+  const scaledStyles = { ...baseStyles };
   
   // Ensure minimum touch targets for mobile
   if (responsiveMode === 'mobile') {
@@ -166,6 +146,9 @@ calculateResponsiveStyles(component, responsiveMode, canvasDimensions, parentSty
   
   // Add responsive layout adjustments (NOT scaling)
   if (responsiveMode === 'mobile') {
+    const isLayoutContainer = component.isLayoutContainer || 
+                              ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
+    
     if (scaledStyles.flexDirection === 'row' && isLayoutContainer) {
       scaledStyles.flexDirection = 'column';
     }
@@ -494,6 +477,28 @@ getDeviceCanvasDimensions(responsiveMode) {
     }
     
     
+    
+    
+    // ADD this new method after loadComponents
+renderCanvasRoot(frame, canvasRef) {
+  if (!frame || !canvasRef?.current) return;
+  
+  const canvasStyle = frame.canvas_style || {};
+  const canvas = canvasRef.current;
+  
+  // Apply styles directly to canvas element
+  Object.entries(canvasStyle).forEach(([key, value]) => {
+    const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
+    canvas.style[key] = value;
+  });
+  
+  console.log('🎨 Canvas styles applied in real-time:', Object.keys(canvasStyle));
+}
+    
+    
+    
+    
+    
 renderLayoutContainer(componentDef, props, id, children) {
     // 🔥 CRITICAL FIX: Apply ALL style properties including flexDirection
     const containerStyle = {
@@ -583,25 +588,28 @@ renderButton(props, id, layoutStyles = {}) {
     // 🔥 Text node wrapper for independent selection
     const textNodeId = `${id}-text`;
     const textNode = React.createElement('span', {
-        key: textNodeId,
-        'data-component-id': textNodeId,
-        'data-component-type': 'text-node',
-        'data-parent-id': id,
-        'data-is-layout': false,
-        'data-is-pseudo': true,
-        className: 'text-node-child',
-        style: {
-            cursor: 'text',
-            userSelect: 'none',
-            display: 'inline-block',
-            pointerEvents: 'auto'
-        },
-        onClick: (e) => {
-            e.stopPropagation();
-            if (window.forgeSelectComponent) {
-                window.forgeSelectComponent(textNodeId);
-            }
+      key: textNodeId,
+      'data-component-id': textNodeId,
+      'data-component-type': 'text-node',
+      'data-parent-id': id,
+      'data-is-layout': false,
+      'data-is-pseudo': true,
+      className: 'text-node-child',
+      style: {
+        cursor: 'pointer', // 🔥 CHANGED from 'text'
+        userSelect: 'none',
+        display: 'inline-block',
+        pointerEvents: 'auto',
+        position: 'relative', // 🔥 NEW
+        zIndex: 10, // 🔥 NEW - ensure it's clickable
+      },
+      onClick: (e) => {
+        e.stopPropagation();
+        console.log('🎯 Text node clicked:', textNodeId);
+        if (window.forgeSelectComponent) {
+          window.forgeSelectComponent(textNodeId);
         }
+      }
     }, buttonText);
     
     return React.createElement('button', {

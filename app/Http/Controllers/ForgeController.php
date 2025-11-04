@@ -1,5 +1,6 @@
 <?php
 
+
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
@@ -38,19 +39,18 @@ class ForgeController extends Controller
             })->toArray();
         
         $canvasData = [
-            'components' => $projectComponents, // USE DATABASE COMPONENTS
+            'components' => $projectComponents,
             'settings' => $frame->settings ?? [],
             'version' => '1.0'
         ];
         
-        // CRITICAL: Ensure components array exists and is valid
         if (!isset($canvasData['components']) || !is_array($canvasData['components'])) {
             $canvasData['components'] = [];
         }
     
         return [
             'uuid' => $frame->uuid,
-            'id' => $frame->uuid, // CRITICAL: Use UUID consistently
+            'id' => $frame->uuid,
             'name' => $frame->name,
             'type' => $frame->type ?? 'desktop',
             'description' => $frame->description,
@@ -60,86 +60,100 @@ class ForgeController extends Controller
             'updated_at' => $frame->updated_at,
             'project_id' => $frame->project_id,
             'settings' => $frame->settings ?? [],
-            'canvas_data' => $canvasData, // FIXED: Always properly structured
+            'canvas_data' => $canvasData,
             
-            // Add debugging information
+            // 🔥 CRITICAL: Add canvas_style, canvas_props, canvas_animation with proper decoding
+            'canvas_style' => $this->decodeCanvasField($frame->canvas_style),
+            'canvas_props' => $this->decodeCanvasField($frame->canvas_props),
+            'canvas_animation' => $this->decodeCanvasField($frame->canvas_animation),
+            
             'debug' => [
                 'has_components' => !empty($canvasData['components']),
                 'component_count' => count($canvasData['components'] ?? []),
                 'last_updated' => $frame->updated_at->toISOString(),
                 'raw_canvas_data_type' => gettype($frame->canvas_data),
+                'canvas_style_decoded' => $this->decodeCanvasField($frame->canvas_style),
             ]
         ];
     }
     
     /**
-     * Enhanced show method with better debugging
+     * 🔥 CRITICAL: Decode canvas fields from JSON strings to arrays
      */
-      public function show(Project $project, Frame $frame): Response
-  {
-      $user = Auth::user();
-      
-      // Quick access check
-      if ($frame->project_id !== $project->id) {
-          abort(404);
-      }
-      
-      if (!$this->checkProjectAccess($project, $user)) {
-          abort(403);
-      }
+    private function decodeCanvasField($field)
+    {
+        if (is_string($field)) {
+            $decoded = json_decode($field, true);
+            return $decoded ?? [];
+        }
+        
+        if (is_array($field)) {
+            return $field;
+        }
+        
+        return [];
+    }
+    
+    /**
+     * Enhanced show method with proper canvas style decoding
+     */
+    public function show(Project $project, Frame $frame): Response
+    {
+        $user = Auth::user();
+        
+        if ($frame->project_id !== $project->id) {
+            abort(404);
+        }
+        
+        if (!$this->checkProjectAccess($project, $user)) {
+            abort(403);
+        }
   
-      $frameData = [
-        'uuid' => $frame->uuid,
-        'id' => $frame->uuid,
-        'name' => $frame->name,
-        'type' => $frame->type ?? 'page',
-        'canvas_root' => $frame->canvas_root ?? [ // ADD THIS
-            'width' => '100%',
-            'height' => '100vh',
-            'backgroundColor' => '#ffffff',
-            'overflow' => 'auto'
-        ],
-        'canvas_data' => [
-            'components' => [],
-            'settings' => $frame->settings ?? []
-        ],
-        'settings' => $frame->settings ?? []
-    ]; 
+        // 🔥 CRITICAL: Use getFrameData which properly decodes canvas_style
+        $frameData = $this->getFrameData($frame);
+        
+        // CRITICAL: Lazy load project frames with proper canvas style decoding
+        $projectFrames = $project->frames()
+            ->select(['uuid', 'name', 'type', 'updated_at', 'canvas_style', 'canvas_props', 'canvas_animation'])
+            ->orderBy('created_at', 'asc')
+            ->get()
+            ->map(function($f) {
+                return [
+                    'id' => $f->uuid,
+                    'uuid' => $f->uuid,
+                    'name' => $f->name,
+                    'type' => $f->type ?? 'desktop',
+                    'lastModified' => $f->updated_at->diffForHumans(),
+                    'isActive' => false, // Will be set by frontend
+                    
+                    // 🔥 CRITICAL: Decode canvas styles for all frames too
+                    'canvas_style' => $this->decodeCanvasField($f->canvas_style),
+                    'canvas_props' => $this->decodeCanvasField($f->canvas_props),
+                    'canvas_animation' => $this->decodeCanvasField($f->canvas_animation),
+                ];
+            });
   
-      // CRITICAL: Lazy load project frames (only basic info)
-      $projectFrames = $project->frames()
-          ->select(['uuid', 'name', 'type', 'updated_at'])
-          ->orderBy('created_at', 'asc')
-          ->get()
-          ->map(fn($f) => [
-              'id' => $f->uuid,
-              'uuid' => $f->uuid,
-              'name' => $f->name,
-              'type' => $f->type ?? 'desktop',
-              'lastModified' => $f->updated_at->diffForHumans(),
-              'isActive' => $f->uuid === $frame->uuid,
-          ]);
+        $userPermissions = [
+            'canEdit' => $project->user_id === $user->id,
+            'canCreateFrames' => $project->user_id === $user->id,
+            'canDeleteFrames' => $project->user_id === $user->id,
+        ];
   
-      // CRITICAL: Get user permissions without loading full workspace
-      $userPermissions = [
-          'canEdit' => $project->user_id === $user->id,
-          'canCreateFrames' => $project->user_id === $user->id,
-          'canDeleteFrames' => $project->user_id === $user->id,
-      ];
-  
-      return Inertia::render('ForgePage', [
-          'project' => [
-              'uuid' => $project->uuid,
-              'name' => $project->name,
-          ],
-          'frame' => $frameData,
-          'projectFrames' => $projectFrames,
-          'userRole' => 'owner',
-          'canEdit' => $userPermissions['canEdit'],
-          'projectId' => $project->uuid,
-          'frameId' => $frame->uuid,
-      ]);
-  }
+        return Inertia::render('ForgePage', [
+            'project' => [
+                'uuid' => $project->uuid,
+                'name' => $project->name,
+            ],
+            'frame' => $frameData, // 🔥 Now includes properly decoded canvas_style
+            'projectFrames' => $projectFrames,
+            'userRole' => 'owner',
+            'canEdit' => $userPermissions['canEdit'],
+            'projectId' => $project->uuid,
+            'frameId' => $frame->uuid,
+        ]);
+    }
+
+
 
     /**
      * Switch to a different frame (AJAX endpoint for smooth transitions)

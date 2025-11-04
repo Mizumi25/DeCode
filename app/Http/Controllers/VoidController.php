@@ -490,6 +490,91 @@ class VoidController extends Controller
 }
 
 
+
+
+// app/Http/Controllers/VoidController.php - SIMPLIFIED updateCanvasStyles
+
+public function updateCanvasStyles(Request $request, Frame $frame): JsonResponse
+{
+    $user = Auth::user();
+    $project = $frame->project;
+    
+    // Check permissions
+    $canEdit = false;
+    if ($project->user_id === $user->id) {
+        $canEdit = true;
+    } elseif ($project->workspace && $project->workspace->hasUser($user->id)) {
+        $canEdit = $project->workspace->canUserEdit($user->id);
+    }
+    
+    if (!$canEdit) {
+        return response()->json([
+            'success' => false,
+            'message' => 'You do not have permission to edit this frame'
+        ], 403);
+    }
+
+    try {
+        $validated = $request->validate([
+            'canvas_style' => 'sometimes|array',
+            'canvas_props' => 'sometimes|array',
+            'canvas_animation' => 'sometimes|array',
+        ]);
+        
+        // 🔥 FIX: Merge with existing data (Laravel casts handle JSON automatically)
+        $updateData = [];
+        
+        if (isset($validated['canvas_style'])) {
+            $currentStyle = $frame->canvas_style ?? [];
+            $updateData['canvas_style'] = array_merge($currentStyle, $validated['canvas_style']);
+        }
+        
+        if (isset($validated['canvas_props'])) {
+            $currentProps = $frame->canvas_props ?? [];
+            $updateData['canvas_props'] = array_merge($currentProps, $validated['canvas_props']);
+        }
+        
+        if (isset($validated['canvas_animation'])) {
+            $currentAnimation = $frame->canvas_animation ?? [];
+            $updateData['canvas_animation'] = array_merge($currentAnimation, $validated['canvas_animation']);
+        }
+        
+        // ✅ Update using Eloquent (let Laravel handle JSON encoding)
+        $frame->update($updateData);
+        
+        Log::info('✅ Frame canvas updated:', [
+            'canvas_style_keys' => array_keys($frame->canvas_style ?? [])
+        ]);
+        
+        // Broadcast update
+        if ($project->workspace) {
+            broadcast(new \App\Events\FrameUpdated($frame, $project->workspace))->toOthers();
+        }
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Canvas styles updated successfully',
+            'data' => [
+                'uuid' => $frame->uuid,
+                'canvas_style' => $frame->canvas_style,
+                'canvas_props' => $frame->canvas_props,
+                'canvas_animation' => $frame->canvas_animation,
+            ]
+        ]);
+        
+    } catch (\Exception $e) {
+        Log::error('❌ Canvas update failed:', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to update canvas: ' . $e->getMessage()
+        ], 500);
+    }
+}
+
     
    
      /**

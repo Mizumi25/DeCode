@@ -48,7 +48,10 @@ const SelectionOverlay = ({
   const [showActions, setShowActions] = useState(false);
   const [nestedComponents, setNestedComponents] = useState([]);
   const [parentComponent, setParentComponent] = useState(null);
-  
+  const [hoveredComponent, setHoveredComponent] = useState(null);
+  const [ancestorHighlights, setAncestorHighlights] = useState([]);
+  const [childrenHighlights, setChildrenHighlights] = useState([]);
+
   
   const { 
     responsiveMode, 
@@ -131,106 +134,110 @@ const SelectionOverlay = ({
     setNestedComponents(findChildren(componentId, canvasComponents));
     setParentComponent(findParent(componentId, canvasComponents));
   }, [componentId, canvasComponents]);
+  
+  
+  
+  
+  useEffect(() => {
+  if (!hoveredComponent || !canvasComponents.length) {
+    setAncestorHighlights([]);
+    setChildrenHighlights([]);
+    return;
+  }
+  
+  // Find ancestors
+  const ancestors = [];
+  let current = canvasComponents.find(c => c.id === hoveredComponent);
+  
+  while (current?.parentId) {
+    const parent = canvasComponents.find(c => c.id === current.parentId);
+    if (parent) {
+      ancestors.push(parent);
+      current = parent;
+    } else {
+      break;
+    }
+  }
+  // Find all descendants recursively
+  const findAllDescendants = (compId) => {
+    const descendants = [];
+    const findChildren = (id) => {
+      canvasComponents.forEach(comp => {
+        if (comp.parentId === id) {
+          descendants.push(comp);
+          findChildren(comp.id); // Recurse
+        }
+      });
+    };
+    findChildren(compId);
+    return descendants;
+  };
+  
+  setAncestorHighlights(ancestors);
+  setChildrenHighlights(findAllDescendants(hoveredComponent));
+}, [hoveredComponent, canvasComponents]);
+
+
+
+// ADD global hover listener
+useEffect(() => {
+  const handleGlobalHover = (e) => {
+    const target = e.target.closest('[data-component-id]');
+    if (target) {
+      const id = target.getAttribute('data-component-id');
+      setHoveredComponent(id);
+    } else {
+      setHoveredComponent(null);
+    }
+  };
+  
+  const canvas = canvasRef.current;
+  if (canvas) {
+    canvas.addEventListener('mouseover', handleGlobalHover);
+    return () => canvas.removeEventListener('mouseover', handleGlobalHover);
+  }
+}, [canvasRef]);
 
 
 
   /**
    * Update bounds and styles with high precision - ENHANCED FOR DRAGGING
    */
-  const updateBounds = useCallback(() => {
-        if (!componentId || !canvasRef.current) {
-        setBounds(null);
-        setComputedStyles(null);
-        return;
-      }
-      
-      // 🔥 ENHANCED: For canvas selection, we want the entire canvas bounds
-      if (isCanvasSelection) {
-        const canvasRect = canvasRef.current.getBoundingClientRect();
-        const scale = responsiveMode !== 'desktop' ? getResponsiveScaleFactor() : 1;
-        
-        setBounds({
-          top: 0,
-          left: 0,
-          width: canvasRect.width / scale,
-          height: canvasRect.height / scale,
-        });
-        
-        // For canvas, we don't need computed styles from an element
-        setComputedStyles({
-          marginTop: 0,
-          marginRight: 0, 
-          marginBottom: 0,
-          marginLeft: 0,
-          paddingTop: 0,
-          paddingRight: 0,
-          paddingBottom: 0,
-          paddingLeft: 0,
-        });
-        return;
-      }
+const updateBounds = useCallback(() => {
+  if (!componentId || !canvasRef.current) {
+    setBounds(null);
+    setComputedStyles(null);
+    return;
+  }
+  
+  if (isCanvasSelection) {
+    const canvasRect = canvasRef.current.getBoundingClientRect();
     
-       // 🔥 ENHANCED: Handle dragging state with proper transform calculation
-    if (isDragging && dragTransform) {
-      const canvasRect = canvasRef.current.getBoundingClientRect();
-      const scale = responsiveMode !== 'desktop' ? getResponsiveScaleFactor() : 1;
-      
-      // 🔥 FIXED: Use the drag overlay's actual position
-      const dragOverlay = document.querySelector('[data-dnd-kit-drag-overlay]');
-      if (dragOverlay) {
-        const overlayRect = dragOverlay.getBoundingClientRect();
-        
-        setBounds({
-          top: (overlayRect.top - canvasRect.top) / scale,
-          left: (overlayRect.left - canvasRect.left) / scale,
-          width: overlayRect.width / scale,
-          height: overlayRect.height / scale,
-          right: (overlayRect.right - canvasRect.left) / scale,
-          bottom: (overlayRect.bottom - canvasRect.top) / scale,
-        });
-      } else {
-        // Fallback to transform-based calculation
-        const dragX = dragTransform.x || 0;
-        const dragY = dragTransform.y || 0;
-        
-        const originalElement = document.querySelector(`[data-component-id="${componentId}"]`);
-        let originalWidth = 100;
-        let originalHeight = 100;
-        
-        if (originalElement) {
-          const originalRect = originalElement.getBoundingClientRect();
-          originalWidth = originalRect.width / scale;
-          originalHeight = originalRect.height / scale;
-        }
-        
-        setBounds({
-          top: dragY / scale,
-          left: dragX / scale,
-          width: originalWidth,
-          height: originalHeight,
-          right: (dragX / scale) + originalWidth,
-          bottom: (dragY / scale) + originalHeight,
-        });
-      }
-      
-      setComputedStyles({
-        marginTop: 0,
-        marginRight: 0,
-        marginBottom: 0,
-        marginLeft: 0,
-        paddingTop: 0,
-        paddingRight: 0,
-        paddingBottom: 0,
-        paddingLeft: 0,
-        display: 'block',
-        position: 'absolute',
-        zIndex: 9999,
-        opacity: 1,
-      });
-      return;
-    }
+    // 🔥 FIXED: Get actual canvas dimensions (not scaled)
+    const canvasComputedStyle = window.getComputedStyle(canvasRef.current);
+    const actualWidth = parseFloat(canvasComputedStyle.width);
+    const actualHeight = parseFloat(canvasComputedStyle.height);
+    
+    setBounds({
+      top: 0,
+      left: 0,
+      width: actualWidth,
+      height: actualHeight,
+    });
+    
+    setComputedStyles({
+      marginTop: 0,
+      marginRight: 0, 
+      marginBottom: 0,
+      marginLeft: 0,
+      paddingTop: 0,
+      paddingRight: 0,
+      paddingBottom: 0,
+      paddingLeft: 0,
+    });
+  return;
+  }
 
-  // In SelectionOverlay.jsx - ensure this line doesn't filter out children
   const element = document.querySelector(`[data-component-id="${componentId}"]`);
   if (!element) {
     setBounds(null);
@@ -242,94 +249,47 @@ const SelectionOverlay = ({
   const canvasRect = canvasRef.current.getBoundingClientRect();
   const styles = window.getComputedStyle(element);
 
-  // Get actual scale from canvas transform
-  let scaleFactor = 1;
-  
-  if (responsiveMode !== 'desktop') {
-    scaleFactor = getResponsiveScaleFactor();
-  }
-  
-  const canvasTransform = window.getComputedStyle(canvasRef.current).transform;
-  if (canvasTransform && canvasTransform !== 'none') {
-    const matrix = new DOMMatrix(canvasTransform);
-    scaleFactor = matrix.a;
-  }
-
-  // 🔥 CRITICAL FIX: Account for canvas scroll position
+  // 🔥 NO SCALING - direct pixel calculations
   const scrollTop = canvasRef.current.scrollTop || 0;
   const scrollLeft = canvasRef.current.scrollLeft || 0;
 
-  // Calculate bounds relative to canvas INCLUDING scroll offset
   const newBounds = {
-    top: ((rect.top - canvasRect.top) / scaleFactor) + scrollTop,
-    left: ((rect.left - canvasRect.left) / scaleFactor) + scrollLeft,
-    width: rect.width / scaleFactor,
-    height: rect.height / scaleFactor,
-    right: ((rect.right - canvasRect.left) / scaleFactor) + scrollLeft,
-    bottom: ((rect.bottom - canvasRect.top) / scaleFactor) + scrollTop,
+    top: (rect.top - canvasRect.top) + scrollTop,
+    left: (rect.left - canvasRect.left) + scrollLeft,
+    width: rect.width,
+    height: rect.height,
+    right: (rect.right - canvasRect.left) + scrollLeft,
+    bottom: (rect.bottom - canvasRect.top) + scrollTop,
   };
-
-  // ✅ CRITICAL FIX: Extract computed styles for ALL components, not just layouts
+  
+  
+  // Extract computed styles
   const newStyles = {
-    // Margins - ALWAYS extract these
     marginTop: parseFloat(styles.marginTop) || 0,
     marginRight: parseFloat(styles.marginRight) || 0,
     marginBottom: parseFloat(styles.marginBottom) || 0,
     marginLeft: parseFloat(styles.marginLeft) || 0,
-    // Padding - ALWAYS extract these  
     paddingTop: parseFloat(styles.paddingTop) || 0,
     paddingRight: parseFloat(styles.paddingRight) || 0,
     paddingBottom: parseFloat(styles.paddingBottom) || 0,
     paddingLeft: parseFloat(styles.paddingLeft) || 0,
-    // Display properties
     display: styles.display,
     position: styles.position,
     zIndex: styles.zIndex,
     opacity: parseFloat(styles.opacity) || 1,
-    // Transform
     transform: styles.transform,
-    // Border
     borderWidth: parseFloat(styles.borderWidth) || 0,
     borderRadius: styles.borderRadius,
-    // ✅ ADD: Box sizing to understand content vs border box
     boxSizing: styles.boxSizing,
   };
 
-  console.log('🔍 SelectionOverlay - Component Styles:', {
-    componentId,
-    type: selectedComponent?.type,
-    isLayout: selectedComponent?.isLayoutContainer,
-    margins: {
-      top: newStyles.marginTop,
-      right: newStyles.marginRight,
-      bottom: newStyles.marginBottom,
-      left: newStyles.marginLeft
-    },
-    padding: {
-      top: newStyles.paddingTop,
-      right: newStyles.paddingRight,
-      bottom: newStyles.paddingBottom,
-      left: newStyles.paddingLeft
-    },
-    display: newStyles.display,
-    position: newStyles.position
-  });
-
   setBounds(newBounds);
-  // In SelectionOverlay.jsx - after setBounds(newBounds);
-console.log('🎯 BOUNDS DEBUG for', selectedComponent?.type, {
-  bounds: newBounds,
-  computedStyles: {
-    marginTop: newStyles.marginTop,
-    paddingTop: newStyles.paddingTop,
-    display: newStyles.display,
-    boxSizing: newStyles.boxSizing
-  },
-  element: element,
-  elementStyle: window.getComputedStyle(element)
-});
   setComputedStyles(newStyles);
-}, [componentId, canvasRef, responsiveMode, getResponsiveScaleFactor, isCanvasSelection, isDragging, dragTransform, draggedComponent]);
+}, [componentId, canvasRef, responsiveMode, isCanvasSelection]);
+  
+  
+  
+  
   
   
 // ✅ FORCE re-calculation when overlay settings change
@@ -1142,18 +1102,20 @@ if (isCanvasSelection) {
         )}
       </AnimatePresence>
       
-      {/* Padding Visualization - Green - FOR ALL COMPONENTS */}
+      // REPLACE the padding visualization section
+      {/* Padding Visualization - FOR ALL COMPONENTS */}
       <AnimatePresence>
-        {showSpacing && (
+        {isOverlayEnabled('showSpacingIndicators') && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            style={{ zIndex: 200 }} // 🔥 CRITICAL: High z-index
           >
-            {/* Top Padding - Show for ANY component with padding */}
+            {/* Top Padding */}
             {computedStyles.paddingTop > 0 && (
               <div
-                className="absolute"
+                className="absolute pointer-events-none"
                 style={{
                   top: bounds.top,
                   left: bounds.left,
@@ -1162,21 +1124,26 @@ if (isCanvasSelection) {
                   backgroundColor: `${CONFIG.SPACING_COLOR.padding}20`,
                   borderTop: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
                   borderBottom: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
+                  zIndex: 200, // 🔥 CRITICAL
                 }}
               >
                 <span 
                   className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm"
-                  style={{ backgroundColor: CONFIG.SPACING_COLOR.padding, color: 'white' }}
+                  style={{ 
+                    backgroundColor: CONFIG.SPACING_COLOR.padding, 
+                    color: 'white',
+                    zIndex: 201 // 🔥 Above overlay
+                  }}
                 >
                   {Math.round(computedStyles.paddingTop)}
                 </span>
               </div>
             )}
-      
+            
             {/* Right Padding */}
             {computedStyles.paddingRight > 0 && (
               <div
-                className="absolute"
+                className="absolute pointer-events-none"
                 style={{
                   top: bounds.top,
                   left: bounds.left + bounds.width - computedStyles.paddingRight,
@@ -1185,21 +1152,22 @@ if (isCanvasSelection) {
                   backgroundColor: `${CONFIG.SPACING_COLOR.padding}20`,
                   borderLeft: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
                   borderRight: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
+                  zIndex: 200,
                 }}
               >
                 <span 
                   className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm"
-                  style={{ backgroundColor: CONFIG.SPACING_COLOR.padding, color: 'white' }}
+                  style={{ backgroundColor: CONFIG.SPACING_COLOR.padding, color: 'white', zIndex: 201 }}
                 >
                   {Math.round(computedStyles.paddingRight)}
                 </span>
               </div>
             )}
-      
+            
             {/* Bottom Padding */}
             {computedStyles.paddingBottom > 0 && (
               <div
-                className="absolute"
+                className="absolute pointer-events-none"
                 style={{
                   top: bounds.top + bounds.height - computedStyles.paddingBottom,
                   left: bounds.left,
@@ -1208,21 +1176,22 @@ if (isCanvasSelection) {
                   backgroundColor: `${CONFIG.SPACING_COLOR.padding}20`,
                   borderTop: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
                   borderBottom: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
+                  zIndex: 200,
                 }}
               >
                 <span 
                   className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm"
-                  style={{ backgroundColor: CONFIG.SPACING_COLOR.padding, color: 'white' }}
+                  style={{ backgroundColor: CONFIG.SPACING_COLOR.padding, color: 'white', zIndex: 201 }}
                 >
                   {Math.round(computedStyles.paddingBottom)}
                 </span>
               </div>
             )}
-      
+            
             {/* Left Padding */}
             {computedStyles.paddingLeft > 0 && (
               <div
-                className="absolute"
+                className="absolute pointer-events-none"
                 style={{
                   top: bounds.top,
                   left: bounds.left,
@@ -1231,36 +1200,14 @@ if (isCanvasSelection) {
                   backgroundColor: `${CONFIG.SPACING_COLOR.padding}20`,
                   borderLeft: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
                   borderRight: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
+                  zIndex: 200,
                 }}
               >
                 <span 
                   className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm"
-                  style={{ backgroundColor: CONFIG.SPACING_COLOR.padding, color: 'white' }}
+                  style={{ backgroundColor: CONFIG.SPACING_COLOR.padding, color: 'white', zIndex: 201 }}
                 >
                   {Math.round(computedStyles.paddingLeft)}
-                </span>
-              </div>
-            )}
-      
-            {/* Content Area Border - Blue - Show for ANY component with padding */}
-            {(computedStyles.paddingTop > 0 || computedStyles.paddingRight > 0 || 
-              computedStyles.paddingBottom > 0 || computedStyles.paddingLeft > 0) && (
-              <div
-                className="absolute border border-dashed"
-                style={{
-                  top: contentArea.top,
-                  left: contentArea.left,
-                  width: contentArea.width,
-                  height: contentArea.height,
-                  borderColor: CONFIG.SPACING_COLOR.content,
-                  pointerEvents: 'none',
-                }}
-              >
-                <span 
-                  className="absolute -top-5 left-0 text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap"
-                  style={{ backgroundColor: CONFIG.SPACING_COLOR.content, color: 'white' }}
-                >
-                  {Math.round(contentArea.width)} × {Math.round(contentArea.height)}
                 </span>
               </div>
             )}
@@ -1566,6 +1513,82 @@ if (isCanvasSelection) {
           </motion.div>
         )}
       </AnimatePresence>
+      
+      
+      {/* 🔥 NEW: Ancestor/Children Hover Overlays */}
+    <AnimatePresence>
+      {(ancestorHighlights.length > 0 || childrenHighlights.length > 0) && (
+        <>
+          {/* Ancestor overlays (purple tint) */}
+          {ancestorHighlights.map((ancestor) => {
+            const element = document.querySelector(`[data-component-id="${ancestor.id}"]`);
+            if (!element || !canvasRef.current) return null;
+            
+            const rect = element.getBoundingClientRect();
+            const canvasRect = canvasRef.current.getBoundingClientRect();
+            
+            const ancestorBounds = {
+              top: (rect.top - canvasRect.top),
+              left: (rect.left - canvasRect.left),
+              width: rect.width,
+              height: rect.height,
+            };
+            
+            return (
+              <motion.div
+                key={`ancestor-${ancestor.id}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.05 }}
+                exit={{ opacity: 0 }}
+                className="absolute pointer-events-none"
+                style={{
+                  top: ancestorBounds.top,
+                  left: ancestorBounds.left,
+                  width: ancestorBounds.width,
+                  height: ancestorBounds.height,
+                  backgroundColor: '#8b5cf6',
+                  borderRadius: '4px',
+                }}
+              />
+            );
+          })}
+      
+      {/* Children overlays (green tint) */}
+      {childrenHighlights.map((child) => {
+        const element = document.querySelector(`[data-component-id="${child.id}"]`);
+        if (!element || !canvasRef.current) return null;
+        
+        const rect = element.getBoundingClientRect();
+        const canvasRect = canvasRef.current.getBoundingClientRect();
+        
+        const childBounds = {
+          top: (rect.top - canvasRect.top),
+          left: (rect.left - canvasRect.left),
+          width: rect.width,
+          height: rect.height,
+        };
+        
+        return (
+          <motion.div
+            key={`child-${child.id}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.05 }}
+            exit={{ opacity: 0 }}
+            className="absolute pointer-events-none"
+            style={{
+              top: childBounds.top,
+              left: childBounds.left,
+              width: childBounds.width,
+              height: childBounds.height,
+              backgroundColor: '#10b981',
+              borderRadius: '4px',
+            }}
+          />
+        );
+      })}
+    </>
+      )}
+   </AnimatePresence>
     </div>
   );
 };

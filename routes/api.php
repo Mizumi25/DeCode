@@ -69,6 +69,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('frames')->group(function () {
         Route::get('/', [VoidController::class, 'index']);
         Route::post('/', [VoidController::class, 'store']);
+        // Frame canvas styles (BEFORE the generic /{frame:uuid} route)
+Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasStyles']);
         Route::get('/{frame:uuid}', [VoidController::class, 'showFrame']);
         Route::put('/{frame:uuid}', [VoidController::class, 'update']);
         Route::delete('/{frame:uuid}', [VoidController::class, 'destroy']);

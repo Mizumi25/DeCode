@@ -367,6 +367,68 @@ useEffect(() => {
   
   
   
+  
+
+// 🔥 NEW: Listen for canvas style updates via Echo
+useEffect(() => {
+  if (!frame?.uuid || !window.Echo) return;
+  
+  const channelName = `frame-updates.${frame.uuid}`;
+  
+  const channel = window.Echo.private(channelName)
+    .listen('FrameUpdated', (event) => {
+      console.log('🔄 Canvas styles updated remotely:', event);
+      
+      if (event.frame?.canvas_style) {
+        // Force re-render by updating frame reference
+        setCurrentFrame(prev => prev); // Trigger re-render
+      }
+    });
+  
+  return () => {
+    try {
+      if (window.Echo.connector?.channels?.[channelName]) {
+        window.Echo.leave(channelName);
+      }
+    } catch (e) {
+      console.warn('Failed to leave channel:', e);
+    }
+  };
+}, [frame?.uuid]);
+
+
+
+
+
+// 🔥 ADD: Auto-refresh frame data when canvas styles change
+useEffect(() => {
+  const refreshFrameData = async () => {
+    if (!frame?.uuid) return;
+    
+    try {
+      const response = await axios.get(`/api/frames/${frame.uuid}`);
+      if (response.data.frame) {
+        // Update frame reference to trigger re-render
+        console.log('✅ Refreshed frame data:', response.data.frame.canvas_style);
+      }
+    } catch (error) {
+      console.warn('Failed to refresh frame:', error);
+    }
+  };
+  
+  // Debounce refresh
+  const timer = setTimeout(refreshFrameData, 500);
+  return () => clearTimeout(timer);
+}, [frame?.canvas_style, frame?.uuid]);
+  
+  
+  
+  
+  
+  
+  
+  
+  
   // ADD: GitHub sync handler
   const handleGitHubSync = useCallback(async () => {
     if (!isGitHubProject || !projectId) return;
@@ -2061,6 +2123,7 @@ const handleCanvasClick = useCallback((e) => {
     createMockPanel('properties-panel', 'Properties',
       PropertiesPanel ? (
         <PropertiesPanel
+          canvasRef={canvasRef}
           frame={frame}  
           canvasComponents={canvasComponents}
           selectedComponent={selectedComponent}

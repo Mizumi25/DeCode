@@ -1,6 +1,6 @@
 // @/Components/Forge/PropertiesPanel.jsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Settings, Code, Trash2, RotateCw, Move, RotateCcw, Search, X, Eye, EyeOff, Maximize2, Grid, Layers } from 'lucide-react';
+import { Settings, Code, Trash2, RotateCw, Move, RotateCcw, Search, X, Eye, EyeOff, Maximize2, Grid, Layers, Layout, Square } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'; // Add this import
 // Import sub-components
@@ -17,6 +17,7 @@ import CanvasSettingsDropdown from './CanvasSettingsDropdown';
 import { useCanvasOverlayStore } from '@/stores/useCanvasOverlayStore';
 
 const PropertiesPanel = ({ 
+  canvasRef,
   frame,  // ADD THIS
   canvasComponents, 
   selectedComponent, 
@@ -28,42 +29,56 @@ const PropertiesPanel = ({
   onSearchChange
 }) => {
   
-  const selectedComponentData = useMemo(() => {
-    if (!selectedComponent || !canvasComponents) return null;
-    
-    // 🔥 ENHANCED: Recursive search with depth tracking for debugging
-    const findComponent = (components, id, depth = 0) => {
-      console.log(`🔍 Searching at depth ${depth}:`, components.map(c => c.id));
-      
-      for (const comp of components) {
-        if (comp.id === id) {
-          console.log(`✅ FOUND at depth ${depth}:`, {
-            id: comp.id,
-            type: comp.type,
-            hasProps: !!comp.props,
-            hasStyle: !!comp.style,
-            hasChildren: comp.children?.length > 0
-          });
-          return comp;
-        }
-        
-        // 🔥 CRITICAL: Search in ALL children recursively
-        if (comp.children?.length > 0) {
-          const found = findComponent(comp.children, id, depth + 1);
-          if (found) return found;
-        }
-      }
-      return null;
+  // REPLACE the selectedComponentData lookup in PropertiesPanel.jsx
+const selectedComponentData = useMemo(() => {
+  if (!selectedComponent || !canvasComponents) return null;
+  
+  // 🔥 FIX: Handle canvas root specially
+  if (selectedComponent === '__canvas_root__') {
+    return {
+      id: '__canvas_root__',
+      type: 'canvas_root',
+      name: 'Canvas Root',
+      style: frame?.canvas_style || {},
+      props: frame?.canvas_props || {},
+      animation: frame?.canvas_animation || {},
+      isCanvasRoot: true // 🔥 Flag to identify canvas root
     };
+  }
+  
+  // 🔥 ENHANCED: Recursive search for real components
+  const findComponent = (components, id, depth = 0) => {
+    console.log(`🔍 Searching at depth ${depth}:`, components.map(c => c.id));
     
-    const found = findComponent(canvasComponents, selectedComponent);
-    
-    if (!found) {
-      console.warn('⚠️ Component not found:', selectedComponent);
+    for (const comp of components) {
+      if (comp.id === id) {
+        console.log(`✅ FOUND at depth ${depth}:`, {
+          id: comp.id,
+          type: comp.type,
+          hasProps: !!comp.props,
+          hasStyle: !!comp.style,
+          hasChildren: comp.children?.length > 0
+        });
+        return comp;
+      }
+      
+      // 🔥 CRITICAL: Search in ALL children recursively
+      if (comp.children?.length > 0) {
+        const found = findComponent(comp.children, id, depth + 1);
+        if (found) return found;
+      }
     }
-    
-    return found;
-}, [selectedComponent, canvasComponents]);
+    return null;
+  };
+  
+  const found = findComponent(canvasComponents, selectedComponent);
+  
+  if (!found) {
+    console.warn('⚠️ Component not found:', selectedComponent);
+  }
+  
+  return found;
+}, [selectedComponent, canvasComponents, frame]);
   
   
   
@@ -139,7 +154,6 @@ useEffect(() => {
    
    
    
-   // 🔥 NEW: Handle canvas property changes (saves to Frame model)
 const handleCanvasPropertyChange = useCallback(async (propName, value, category = 'style') => {
   if (!frame) {
     console.warn('⚠️ No frame available for canvas update');
@@ -148,42 +162,39 @@ const handleCanvasPropertyChange = useCallback(async (propName, value, category 
   
   console.log('🎨 Canvas property change:', { propName, value, category });
   
+  // 🔥 NEW: Apply style IMMEDIATELY to canvas DOM element
+  if (category === 'style' && canvasRef?.current) {
+    const canvas = canvasRef.current;
+    canvas.style[propName] = value;
+    console.log('⚡ Applied style immediately to canvas:', { propName, value });
+  }
+  
   try {
+    const updatePayload = {};
+    
     if (category === 'style') {
-      const currentCanvasStyle = frame.canvas_style || {};
-      const newCanvasStyle = { ...currentCanvasStyle, [propName]: value };
-      
-      // 🔥 CRITICAL: Update frame via API
-      const response = await axios.put(`/api/frames/${frame.uuid}`, {
-        canvas_style: newCanvasStyle
-      });
-      
-      if (response.data.success) {
-        console.log('✅ Canvas style updated successfully');
-        if (typeof onGenerateCode === 'function') {
-          onGenerateCode(canvasComponents);
-        }
-      }
+      updatePayload.canvas_style = { [propName]: value };
     } else if (category === 'props') {
-      const currentCanvasProps = frame.canvas_props || {};
-      const newCanvasProps = { ...currentCanvasProps, [propName]: value };
-      
-      await axios.put(`/api/frames/${frame.uuid}`, {
-        canvas_props: newCanvasProps
-      });
+      updatePayload.canvas_props = { [propName]: value };
     } else if (category === 'animation') {
-      const currentCanvasAnimation = frame.canvas_animation || {};
-      const newCanvasAnimation = { ...currentCanvasAnimation, [propName]: value };
+      updatePayload.canvas_animation = { [propName]: value };
+    }
+    
+    console.log('📤 Sending canvas update to backend:', updatePayload);
+    
+   const response = await axios.put(`/api/frames/${frame.uuid}/canvas-styles`, updatePayload);
+    
+    if (response.data.success) {
+      console.log('✅ Canvas updated on backend');
       
-      await axios.put(`/api/frames/${frame.uuid}`, {
-        canvas_animation: newCanvasAnimation
-      });
+      if (typeof onGenerateCode === 'function') {
+        onGenerateCode(canvasComponents);
+      }
     }
   } catch (error) {
-    console.error('❌ Failed to update canvas:', error);
+    console.error('❌ Failed to update canvas:', error.response?.data || error.message);
   }
-}, [frame, canvasComponents, onGenerateCode]);
-   
+}, [frame, canvasComponents, onGenerateCode, canvasRef]);
    
    
    
@@ -242,17 +253,6 @@ const handleCanvasPropertyChange = useCallback(async (propName, value, category 
     
 
 
-    // In PropertiesPanel.jsx - add this debug section at the top of the return
-console.log('🔍 PropertiesPanel Debug:', {
-  selectedComponent,
-  isCanvas: selectedComponent === '__canvas_root__',
-  selectedComponentData,
-  props: selectedComponentData?.props,
-  style: selectedComponentData?.style,
-  hasProps: !!selectedComponentData?.props,
-  hasStyle: !!selectedComponentData?.style,
-  canvasStyle: selectedComponent === '__canvas_root__' ? frame?.canvas_style : undefined
-});
 
 
 
@@ -272,13 +272,168 @@ const commonProps = {
 
 
 // Handle canvas root selection - show canvas properties
+// Handle canvas root selection - show canvas properties
 if (!selectedComponent || selectedComponent === '__canvas_root__') {
   const canvasStyle = frame?.canvas_style || {};
   const canvasProps = frame?.canvas_props || {};
   const canvasAnimation = frame?.canvas_animation || {};
   
+// 🔥 ENHANCED: Merged debug for Canvas + Element properties
+  const debugData = {
+    canvas: {
+      frame_uuid: frame?.uuid,
+      frame_type: frame?.type,
+      style_keys: Object.keys(canvasStyle),
+      props_keys: Object.keys(canvasProps),
+      sample_styles: Object.entries(canvasStyle).slice(0, 5),
+      last_updated: new Date().toLocaleTimeString()
+    },
+    element: {
+      selected: selectedComponent,
+      is_canvas: selectedComponent === '__canvas_root__',
+      component_count: canvasComponents?.length || 0
+    },
+    device: {
+      mode: frame?.settings?.responsive_mode || 'desktop',
+      viewport: frame?.settings?.viewport_width ? 
+        `${frame.settings.viewport_width}×${frame.settings.viewport_height}` : 
+        'Auto'
+    }
+  };
+  
   return (
     <div className="space-y-6 p-4" style={{ backgroundColor: 'var(--color-bg)' }}>
+          {/* 🔥 DYNAMIC DEBUG PANEL - GLASS MORPHISM STYLE */}
+        <div className="p-4 mb-10 rounded-xl backdrop-blur-md" style={{
+          background: 'rgba(255, 255, 255, 0.8)',
+          boxShadow: '0 8px 25px var(--color-primary-soft)',
+          border: '1px solid rgba(255, 255, 255, 0.3)'
+        }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              {(!selectedComponent || selectedComponent === '__canvas_root__') ? (
+                <div className="p-2 rounded-lg bg-blue-100">
+                  <Layout className="w-4 h-4 text-blue-600" />
+                </div>
+              ) : (
+                <div className="p-2 rounded-lg bg-purple-100">
+                  <Square className="w-4 h-4 text-purple-600" />
+                </div>
+              )}
+              <div>
+                <h4 className="font-semibold text-gray-800">
+                  {(!selectedComponent || selectedComponent === '__canvas_root__') ? 'Canvas Root' : 'Selected Element'}
+                </h4>
+                <p className="text-xs text-gray-500">
+                  {(!selectedComponent || selectedComponent === '__canvas_root__') ? 'Frame styles & properties' : `${selectedComponentData?.type} component`}
+                </p>
+              </div>
+            </div>
+            <span className="text-xs px-2 py-1 bg-white/60 rounded-full text-gray-600 font-medium">
+              {new Date().toLocaleTimeString()}
+            </span>
+          </div>
+          
+          <div className="space-y-3">
+            {(!selectedComponent || selectedComponent === '__canvas_root__') ? (
+              <>
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div className="text-center p-2 bg-white/50 rounded-lg">
+                    <div className="text-cyan-600 font-semibold">
+                      {frame?.canvas_style ? Object.keys(frame.canvas_style).length : 0}
+                    </div>
+                    <div className="text-xs text-gray-500">Canvas Styles</div>
+                  </div>
+                  <div className="text-center p-2 bg-white/50 rounded-lg">
+                    <div className="text-cyan-600 font-semibold">
+                      {frame?.canvas_props ? Object.keys(frame.canvas_props).length : 0}
+                    </div>
+                    <div className="text-xs text-gray-500">Canvas Props</div>
+                  </div>
+                  <div className="text-center p-2 bg-white/50 rounded-lg">
+                    <div className="text-cyan-600 font-semibold">
+                      {frame?.uuid ? frame.uuid.slice(0, 6) : 'N/A'}
+                    </div>
+                    <div className="text-xs text-gray-500">Frame ID</div>
+                  </div>
+                </div>
+                
+                {/* Show canvas styles */}
+                {frame?.canvas_style && Object.keys(frame.canvas_style).length > 0 ? (
+                  <div className="bg-white/60 rounded-xl p-3 max-h-32 overflow-y-auto border border-white/40">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 mb-2">
+                      <Layout className="w-3 h-3" />
+                      Canvas Body Styles
+                    </div>
+                    <div className="space-y-2 font-mono text-xs">
+                      {Object.entries(frame.canvas_style).map(([key, value]) => (
+                        <div key={key} className="flex items-start gap-2">
+                          <span className="text-cyan-600 font-semibold flex-shrink-0">{key}:</span>
+                          <span className="text-pink-600 flex-1 break-all">{String(value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-gray-400 text-sm bg-blue-50 rounded-lg border border-blue-200">
+                    <Layout className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <div>No canvas styles applied yet</div>
+                    <div className="text-xs mt-1 text-blue-600">Set background color in properties panel below</div>
+                  </div>
+                )}
+              </>
+            ) : selectedComponentData ? (
+              <>
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div className="text-center p-2 bg-white/50 rounded-lg">
+                    <div className="text-cyan-600 font-semibold">{Object.keys(selectedComponentData?.style || {}).length}</div>
+                    <div className="text-xs text-gray-500">Styles</div>
+                  </div>
+                  <div className="text-center p-2 bg-white/50 rounded-lg">
+                    <div className="text-cyan-600 font-semibold">{Object.keys(selectedComponentData?.props || {}).length}</div>
+                    <div className="text-xs text-gray-500">Props</div>
+                  </div>
+                  <div className="text-center p-2 bg-white/50 rounded-lg">
+                    <div className="text-cyan-600 font-semibold">{selectedComponentData?.type}</div>
+                    <div className="text-xs text-gray-500">Type</div>
+                  </div>
+                </div>
+                
+                {/* Scrollable Styles */}
+                {selectedComponentData?.style && Object.keys(selectedComponentData.style).length > 0 && (
+                  <div className="bg-white/60 rounded-xl p-3 max-h-32 overflow-y-auto border border-white/40">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 mb-2">
+                      <Code className="w-3 h-3" />
+                      Live Styles
+                    </div>
+                    <div className="space-y-2 font-mono text-xs">
+                      {Object.entries(selectedComponentData.style).map(([key, value]) => (
+                        <div key={key} className="flex items-start gap-2">
+                          <span className="text-cyan-600 font-semibold flex-shrink-0">{key}:</span>
+                          <span className="text-pink-600 flex-1 break-all">{String(value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {(!selectedComponentData?.style || Object.keys(selectedComponentData.style).length === 0) && (
+                  <div className="text-center py-4 text-gray-400 text-sm">
+                    <Code className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <div>No styles applied yet</div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-4 text-gray-400">
+                <Square className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <div>No element selected</div>
+              </div>
+            )}
+          </div>
+        </div>
+      
+      
       <div className="flex items-center gap-3 mb-6">
         <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
           <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
@@ -293,15 +448,8 @@ if (!selectedComponent || selectedComponent === '__canvas_root__') {
         currentStyles={canvasStyle}
         currentAnimation={canvasAnimation}
         onPropertyChange={(propName, value, category) => {
-          // 🔥 Update frame canvas_style via API
-          if (category === 'style') {
-            const newStyle = { ...canvasStyle, [propName]: value };
-            axios.put(`/api/frames/${frame.uuid}`, {
-              canvas_style: newStyle
-            }).then(() => {
-              console.log('Canvas style updated');
-            });
-          }
+          console.log('🎨 Canvas property change:', { propName, value, category });
+          handleCanvasPropertyChange(propName, value, category);
         }}
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
@@ -313,12 +461,8 @@ if (!selectedComponent || selectedComponent === '__canvas_root__') {
         currentStyles={canvasStyle}
         currentAnimation={canvasAnimation}
         onPropertyChange={(propName, value, category) => {
-          if (category === 'style') {
-            const newStyle = { ...canvasStyle, [propName]: value };
-            axios.put(`/api/frames/${frame.uuid}`, {
-              canvas_style: newStyle
-            });
-          }
+          console.log('🎨 Canvas styling change:', { propName, value, category });
+          handleCanvasPropertyChange(propName, value, category);
         }}
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
@@ -345,69 +489,154 @@ const componentDefinition = componentLibraryService?.getComponentDefinition?.(se
   
 
 
-  return (
-    <div 
-      className="space-y-0 max-h-full overflow-y-auto"
-      style={{ backgroundColor: 'var(--color-bg)' }}
-    >
-      {/* Enhanced Header with Canvas Settings */}
-      <div 
-        className="sticky top-0 z-10 border-b"
-        style={{ 
-          backgroundColor: 'var(--color-surface)',
-          borderColor: 'var(--color-border)'
-        }}
-      >
-  
-{/* 🔥 DEBUG PANEL - Canvas Selection */}
-{selectedComponent === '__canvas_root__' && (
-  <div className="p-4 mb-4 bg-green-50 border-2 border-green-300 rounded-lg space-y-2">
-    <div className="flex items-center justify-between mb-2">
-      <h4 className="font-semibold text-green-900">Canvas Root Debug</h4>
-      <span className="text-xs px-2 py-1 bg-green-200 text-green-800 rounded">
-        SELECTED
-      </span>
-    </div>
-    
-    <div className="bg-white p-3 rounded border border-green-200 text-xs overflow-auto">
-      <div><strong>Selected:</strong> {selectedComponent}</div>
-      <div><strong>Frame UUID:</strong> {frame?.uuid}</div>
-      <div><strong>Canvas Style Keys:</strong> {Object.keys(frame?.canvas_style || {}).join(', ')}</div>
-      <div><strong>Canvas Props Keys:</strong> {Object.keys(frame?.canvas_props || {}).join(', ')}</div>
-      <div><strong>Sample Canvas Style:</strong></div>
-      <pre className="bg-gray-50 p-2 rounded mt-1">{JSON.stringify(frame?.canvas_style, null, 2)}</pre>
-    </div>
-  </div>
-)}
-
-
-
-<div className="p-3 mb-4 bg-[var(--color-primary-soft)] border border-[var(--color-primary-soft)] rounded text-xs overflow-auto">
-  <div><strong>DEBUG:</strong> Component: {selectedComponent}</div>
-  <div><strong>Props:</strong> {JSON.stringify(selectedComponentData?.props)}</div>
-  <div><strong>Style:</strong> {JSON.stringify(selectedComponentData?.style)}</div>
-  <div><strong>Type:</strong> {selectedComponentData?.type}</div>
-</div>
-        <div className="p-4">
-          {/* Top row with title and settings */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
-                <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Properties</h3>
-                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                  {componentDefinition?.name || selectedComponentData.type} #{selectedComponent.split('_').pop()}
+return (
+  <div className="space-y-0 max-h-full overflow-y-auto" style={{ backgroundColor: 'var(--color-bg)' }}>
+      {/* 🔥 DYNAMIC DEBUG PANEL - GLASS MORPHISM STYLE */}
+        <div className="p-4 mb-10 rounded-xl backdrop-blur-md" style={{
+          background: 'rgba(255, 255, 255, 0.8)',
+          boxShadow: '0 8px 25px var(--color-primary-soft)',
+          border: '1px solid rgba(255, 255, 255, 0.3)'
+        }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              {(!selectedComponent || selectedComponent === '__canvas_root__') ? (
+                <div className="p-2 rounded-lg bg-blue-100">
+                  <Layout className="w-4 h-4 text-blue-600" />
+                </div>
+              ) : (
+                <div className="p-2 rounded-lg bg-purple-100">
+                  <Square className="w-4 h-4 text-purple-600" />
+                </div>
+              )}
+              <div>
+                <h4 className="font-semibold text-gray-800">
+                  {(!selectedComponent || selectedComponent === '__canvas_root__') ? 'Canvas Root' : 'Selected Element'}
+                </h4>
+                <p className="text-xs text-gray-500">
+                  {(!selectedComponent || selectedComponent === '__canvas_root__') ? 'Frame styles & properties' : `${selectedComponentData?.type} component`}
                 </p>
               </div>
             </div>
-            
-            {/* Canvas Settings Dropdown Button */}
-            <CanvasSettingsDropdown />
+            <span className="text-xs px-2 py-1 bg-white/60 rounded-full text-gray-600 font-medium">
+              {new Date().toLocaleTimeString()}
+            </span>
           </div>
-      
-          {/* Component Name Input */}
+          
+          <div className="space-y-3">
+            {(!selectedComponent || selectedComponent === '__canvas_root__') ? (
+              <>
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div className="text-center p-2 bg-white/50 rounded-lg">
+                    <div className="text-cyan-600 font-semibold">{Object.keys(frame?.canvas_style || {}).length}</div>
+                    <div className="text-xs text-gray-500">Styles</div>
+                  </div>
+                  <div className="text-center p-2 bg-white/50 rounded-lg">
+                    <div className="text-cyan-600 font-semibold">{Object.keys(frame?.canvas_props || {}).length}</div>
+                    <div className="text-xs text-gray-500">Props</div>
+                  </div>
+                  <div className="text-center p-2 bg-white/50 rounded-lg">
+                    <div className="text-cyan-600 font-semibold">{frame?.uuid?.slice(0, 6)}</div>
+                    <div className="text-xs text-gray-500">Frame ID</div>
+                  </div>
+                </div>
+                
+                {/* Scrollable Styles */}
+                {frame?.canvas_style && Object.keys(frame.canvas_style).length > 0 && (
+                  <div className="bg-white/60 rounded-xl p-3 max-h-32 overflow-y-auto border border-white/40">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 mb-2">
+                      <Code className="w-3 h-3" />
+                      Live Styles
+                    </div>
+                    <div className="space-y-2 font-mono text-xs">
+                      {Object.entries(frame.canvas_style).map(([key, value]) => (
+                        <div key={key} className="flex items-start gap-2">
+                          <span className="text-cyan-600 font-semibold flex-shrink-0">{key}:</span>
+                          <span className="text-pink-600 flex-1 break-all">{String(value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : selectedComponentData ? (
+              <>
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div className="text-center p-2 bg-white/50 rounded-lg">
+                    <div className="text-cyan-600 font-semibold">{Object.keys(selectedComponentData?.style || {}).length}</div>
+                    <div className="text-xs text-gray-500">Styles</div>
+                  </div>
+                  <div className="text-center p-2 bg-white/50 rounded-lg">
+                    <div className="text-cyan-600 font-semibold">{Object.keys(selectedComponentData?.props || {}).length}</div>
+                    <div className="text-xs text-gray-500">Props</div>
+                  </div>
+                  <div className="text-center p-2 bg-white/50 rounded-lg">
+                    <div className="text-cyan-600 font-semibold">{selectedComponentData?.type}</div>
+                    <div className="text-xs text-gray-500">Type</div>
+                  </div>
+                </div>
+                
+                {/* Scrollable Styles */}
+                {selectedComponentData?.style && Object.keys(selectedComponentData.style).length > 0 && (
+                  <div className="bg-white/60 rounded-xl p-3 max-h-32 overflow-y-auto border border-white/40">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 mb-2">
+                      <Code className="w-3 h-3" />
+                      Live Styles
+                    </div>
+                    <div className="space-y-2 font-mono text-xs">
+                      {Object.entries(selectedComponentData.style).map(([key, value]) => (
+                        <div key={key} className="flex items-start gap-2">
+                          <span className="text-cyan-600 font-semibold flex-shrink-0">{key}:</span>
+                          <span className="text-pink-600 flex-1 break-all">{String(value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {(!selectedComponentData?.style || Object.keys(selectedComponentData.style).length === 0) && (
+                  <div className="text-center py-4 text-gray-400 text-sm">
+                    <Code className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <div>No styles applied yet</div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-4 text-gray-400">
+                <Square className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <div>No element selected</div>
+              </div>
+            )}
+          </div>
+        </div>
+    {/* Enhanced Header with Canvas Settings */}
+    <div className="sticky top-0 z-10 border-b" style={{ 
+      backgroundColor: 'var(--color-surface)',
+      borderColor: 'var(--color-border)'
+    }}>
+      <div className="p-4">
+        {/* Top row with title and settings */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+              <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Properties</h3>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                {selectedComponent === '__canvas_root__' ? 'Canvas Body' : 
+                 selectedComponentData ? `${componentDefinition?.name || selectedComponentData.type} #${selectedComponent.split('_').pop()}` : 'No selection'}
+              </p>
+            </div>
+          </div>
+          
+          {/* Canvas Settings Dropdown Button */}
+          <CanvasSettingsDropdown />
+        </div>
+
+    
+
+        {/* Component Name Input - Only show for elements */}
+        {selectedComponentData && selectedComponent !== '__canvas_root__' && (
           <div className="space-y-2 mb-4">
             <label className="block text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
               Component Name
@@ -425,56 +654,57 @@ const componentDefinition = componentLibraryService?.getComponentDefinition?.(se
               placeholder="Enter component name"
             />
           </div>
-          
-          {/* Search Properties */}
-          <div className="space-y-2">
-            <label className="block text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
-              Search Properties
-            </label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
-              <input
-                type="text"
-                value={activeSearchTerm}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                placeholder="e.g., background, color, padding..."
-                className="w-full pl-10 pr-10 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm"
-                style={{
-                  backgroundColor: 'var(--color-surface)',
-                  borderColor: 'var(--color-border)',
-                  color: 'var(--color-text)'
-                }}
-              />
-              {activeSearchTerm && (
-                <button
-                  onClick={handleClearSearch}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded transition-colors"
-                  style={{ 
-                    backgroundColor: 'transparent',
-                    color: 'var(--color-text-muted)'
-                  }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-bg-muted)'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-            
+        )}
+        
+        {/* Search Properties */}
+        <div className="space-y-2">
+          <label className="block text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+            Search Properties
+          </label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+            <input
+              type="text"
+              value={activeSearchTerm}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="e.g., background, color, padding..."
+              className="w-full pl-10 pr-10 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+            />
             {activeSearchTerm && (
-              <div 
-                className="text-xs px-2 py-1 rounded text-center"
+              <button
+                onClick={handleClearSearch}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded transition-colors"
                 style={{ 
-                  backgroundColor: 'var(--color-primary-soft)',
-                  color: 'var(--color-primary)'
+                  backgroundColor: 'transparent',
+                  color: 'var(--color-text-muted)'
                 }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-bg-muted)'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
               >
-                Showing matching properties only
-              </div>
+                <X className="w-3 h-3" />
+              </button>
             )}
           </div>
+          
+          {activeSearchTerm && (
+            <div className="text-xs px-2 py-1 rounded text-center"
+              style={{ 
+                backgroundColor: 'var(--color-primary-soft)',
+                color: 'var(--color-primary)'
+              }}
+            >
+              Showing matching properties only
+            </div>
+          )}
         </div>
       </div>
+    </div>
+
       
       {/* Scrollable Content */}
       <div className="p-4 space-y-4">

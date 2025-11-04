@@ -29,13 +29,25 @@ class FrameUpdated implements ShouldBroadcast
         return new PrivateChannel('workspace.' . $this->workspace->id);
     }
 
+    // REPLACE lines 35-43 with:
     public function broadcastWith()
     {
+        // 🔥 FIX: Ensure frame has project loaded
+        $this->frame->loadMissing('project');
+        
         return [
-            'frame' => $this->frame,
-            'project_uuid' => $this->frame->project->uuid,
+            'frame' => [
+                'uuid' => $this->frame->uuid,
+                'name' => $this->frame->name,
+                'type' => $this->frame->type,
+                'canvas_style' => $this->frame->canvas_style,
+                'canvas_props' => $this->frame->canvas_props,
+                'canvas_animation' => $this->frame->canvas_animation,
+                'updated_at' => $this->frame->updated_at->toISOString(),
+            ],
+            'project_uuid' => $this->frame->project ? $this->frame->project->uuid : null,
             'workspace_id' => $this->workspace->id,
-            'updated_by' => auth()->user()->name,
+            'updated_by' => auth()->user() ? auth()->user()->name : 'System',
             'updated_at' => now()->toISOString(),
         ];
     }
