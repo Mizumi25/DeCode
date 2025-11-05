@@ -76,7 +76,7 @@ const CanvasSettingsDropdown = () => {
   }, [isOpen, toggleOverlay]);
 
   // Setting configurations with icons and descriptions
-  const settingConfigs = [
+    const settingConfigs = [
     {
       key: 'showSelectionBorders',
       label: 'Selection Borders',
@@ -85,13 +85,23 @@ const CanvasSettingsDropdown = () => {
       color: '#3b82f6',
       shortcut: '1',
     },
+    // 🔥 NEW: Separate label control
     {
       key: 'showLabel',
-      label: 'Selection Label',
-      description: 'Labels and Element info',
+      label: 'Selection Labels',
+      description: 'Component name and info labels',
       icon: Maximize2,
       color: '#3b82f6',
-      shortcut: '1',
+      shortcut: '2',
+    },
+    // 🔥 NEW: Separate coordinate control
+    {
+      key: 'showCoordinates',
+      label: 'Position Coordinates',
+      description: 'Show X/Y position and size',
+      icon: Move,
+      color: '#6366f1',
+      shortcut: null,
     },
     {
       key: 'showSnapGuides',
@@ -99,7 +109,7 @@ const CanvasSettingsDropdown = () => {
       description: 'Alignment guides when dragging',
       icon: Grid,
       color: '#8b5cf6',
-      shortcut: '2',
+      shortcut: '3',
     },
     {
       key: 'showSpacingIndicators',

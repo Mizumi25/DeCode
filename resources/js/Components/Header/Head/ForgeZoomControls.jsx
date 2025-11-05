@@ -1,7 +1,31 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Minus, Plus } from 'lucide-react'
 
 const ForgeZoomControls = ({ zoomLevel, onZoomChange }) => {
+  // 🔥 NEW: Mouse wheel zoom support
+  useEffect(() => {
+    const handleWheel = (e) => {
+      // Check if Ctrl/Cmd is pressed (standard zoom modifier)
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        
+        const delta = e.deltaY > 0 ? -10 : 10;
+        const newZoom = Math.max(10, Math.min(200, zoomLevel + delta));
+        
+        if (onZoomChange) {
+          onZoomChange(newZoom);
+        }
+      }
+    };
+    
+    // Add to canvas area specifically
+    const canvasArea = document.querySelector('[data-canvas-area]');
+    if (canvasArea) {
+      canvasArea.addEventListener('wheel', handleWheel, { passive: false });
+      return () => canvasArea.removeEventListener('wheel', handleWheel);
+    }
+  }, [zoomLevel, onZoomChange]);
+  
   return (
     <div className="flex items-center gap-0.5">
       <button 

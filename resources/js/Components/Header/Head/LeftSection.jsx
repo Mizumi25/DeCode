@@ -10,6 +10,8 @@ import ForgeUndoRedo from './ForgeUndoRedo';
 import ForgeZoomControls from './ForgeZoomControls';
 import BinaryToggle from './BinaryToggle';
 import AnimatedBlackHoleLogo from '@/Components/AnimatedBlackHoleLogo';
+import { useForgeStore } from '@/stores/useForgeStore';
+
 
 const fadeIn = {
   hidden: { opacity: 0, y: -10 },
@@ -51,6 +53,10 @@ const LeftSection = ({
   handleUndo,
   handleRedo
 }) => {
+  
+  const { canvasZoom, setCanvasZoom } = useForgeStore();
+
+  
   const { url, props } = usePage(); 
   const { project } = props;
   const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects');
@@ -217,7 +223,11 @@ const LeftSection = ({
           <div className="w-px h-2.5 bg-[var(--color-border)]"></div>
 
           {/* Zoom Controls */}
-          <ForgeZoomControls zoomLevel={zoomLevel} onZoomChange={setZoomLevel} size="small" />
+          <ForgeZoomControls 
+            zoomLevel={canvasZoom} 
+            onZoomChange={setCanvasZoom} 
+            size="small" 
+          />
 
           {/* Vertical Divider */}
           <div className="w-px h-2.5 bg-[var(--color-border)]"></div>

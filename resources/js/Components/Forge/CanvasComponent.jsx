@@ -98,6 +98,7 @@ const {
   const canvasDimensions = getCurrentCanvasDimensions();
 
    const getCanvasSize = () => {
+    // 🔥 FIXED: Responsive sizes that fit in viewport
     switch (responsiveMode) {
       case 'mobile':
         return {
@@ -116,9 +117,9 @@ const {
       case 'desktop':
       default:
         return {
-          width: 1440, // 🔥 FIXED: Hardcoded landscape width
-          height: 900,  // 🔥 FIXED: Hardcoded landscape height
-          maxWidth: '1440px',
+          width: 1440,
+          height: 900,
+          maxWidth: '100%', // 🔥 CRITICAL: Fit container
           deviceName: 'Desktop'
         };
     }
@@ -137,19 +138,20 @@ const getCanvasRootStyles = () => {
       width: '375px',
       height: canvasExpansionEnabled ? 'auto' : '667px',
       minHeight: '667px',
-      maxHeight: 'none', // 🔥 CHANGED: Always none for expansion
+      maxHeight: 'none',
     },
     tablet: {
       width: '768px',
       height: canvasExpansionEnabled ? 'auto' : '1024px',
       minHeight: '1024px',
-      maxHeight: 'none', // 🔥 CHANGED: Always none
+      maxHeight: 'none',
     },
     desktop: {
-      width: '1440px',
+      width: '100%', // 🔥 CHANGED from '1440px'
+      maxWidth: '1440px', // 🔥 ADD constraint
       height: canvasExpansionEnabled ? 'auto' : '900px',
-      minHeight: '900px',
-      maxHeight: 'none', // 🔥 CHANGED: Always none
+      minHeight: '600px', // 🔥 REDUCED from 900px
+      maxHeight: 'none',
     }
   };
   
@@ -574,57 +576,68 @@ const handleDndDragStart = useCallback((event) => {
 const handleDndDragOver = useCallback((event) => {
   const { active, over } = event;
   
-  // Clear previous feedback
-  document.querySelectorAll('.drag-over-layout').forEach(el => {
-    el.classList.remove('drag-over-layout');
+  // 🔥 CRITICAL: Clear ALL previous feedback first
+  document.querySelectorAll('.drag-over-layout, .drop-zone-active, [data-drop-intent]').forEach(el => {
+    el.classList.remove('drag-over-layout', 'drop-zone-active');
     el.style.backgroundColor = '';
     el.style.border = '';
     el.style.borderTop = '';
     el.style.borderBottom = '';
+    el.style.boxShadow = '';
+    el.removeAttribute('data-drop-intent');
   });
   
   if (over) {
     const targetElement = document.querySelector(`[data-component-id="${over.id}"]`);
     const isTargetLayout = targetElement?.getAttribute('data-is-layout') === 'true';
     
-    // 🔥 FIX: Always allow dropping into layouts
-    if (isTargetLayout) {
-      setOverId(null);
+    // 🔥 SMART DROP DETECTION: Check mouse position relative to element
+    if (isTargetLayout && targetElement) {
+      const rect = targetElement.getBoundingClientRect();
+      const mouseX = event.activatorEvent?.clientX || event.active.rect.current.translated?.left || rect.left;
+      const mouseY = event.activatorEvent?.clientY || event.active.rect.current.translated?.top || rect.top;
       
-      if (targetElement) {
-        targetElement.classList.add('drag-over-layout');
-        
-        const rect = targetElement.getBoundingClientRect();
-        const mouseY = event.activatorEvent?.clientY || event.active.rect.current.translated?.top || rect.top;
-        const relativeY = mouseY - rect.top;
-        const dropZoneHeight = rect.height;
-        
-        const topZone = dropZoneHeight * 0.3;
-        const bottomStart = dropZoneHeight * 0.7;
-        
-        if (relativeY >= topZone && relativeY <= bottomStart) {
-          // DROP INSIDE
-          targetElement.style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
-          targetElement.style.border = '3px solid #10b981';
-          targetElement.style.boxShadow = 'inset 0 0 20px rgba(16, 185, 129, 0.2)';
-          targetElement.style.pointerEvents = 'auto'; // 🔥 CRITICAL: Enable pointer events
-          targetElement.setAttribute('data-drop-intent', 'inside');
-        } else if (relativeY < topZone) {
-          // DROP ABOVE
-          targetElement.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
-          targetElement.style.borderTop = '3px dashed #3b82f6';
-          targetElement.setAttribute('data-drop-intent', 'before');
-        } else {
-          // DROP BELOW
-          targetElement.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
-          targetElement.style.borderBottom = '3px dashed #3b82f6';
-          targetElement.setAttribute('data-drop-intent', 'after');
-        }
+      // Calculate relative position within target
+      const relativeX = mouseX - rect.left;
+      const relativeY = mouseY - rect.top;
+      
+      // Calculate drop zones (30% top/bottom for before/after, 40% middle for inside)
+      const topZone = rect.height * 0.3;
+      const bottomStart = rect.height * 0.7;
+      
+      setOverId(over.id);
+      targetElement.classList.add('drag-over-layout');
+      
+      // Determine drop intent
+      if (relativeY < topZone) {
+        // DROP BEFORE
+        targetElement.style.borderTop = '3px solid #3b82f6';
+        targetElement.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
+        targetElement.setAttribute('data-drop-intent', 'before');
+        console.log('🎯 Drop intent: BEFORE', over.id);
+      } else if (relativeY > bottomStart) {
+        // DROP AFTER
+        targetElement.style.borderBottom = '3px solid #3b82f6';
+        targetElement.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
+        targetElement.setAttribute('data-drop-intent', 'after');
+        console.log('🎯 Drop intent: AFTER', over.id);
+      } else {
+        // DROP INSIDE (middle zone)
+        targetElement.style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
+        targetElement.style.border = '3px solid #10b981';
+        targetElement.style.boxShadow = 'inset 0 0 20px rgba(16, 185, 129, 0.2)';
+        targetElement.setAttribute('data-drop-intent', 'inside');
+        console.log('🎯 Drop intent: INSIDE', over.id);
       }
+      
+      // 🔥 CRITICAL: Ensure pointer events work
+      targetElement.style.pointerEvents = 'auto';
+      
+      return; // Exit early for layout elements
     }
-  } else {
-    setOverId(null);
   }
+  
+  setOverId(null);
 }, []);
 
 
@@ -1329,7 +1342,7 @@ const SortableComponent = ({
           ))}
         </SortableContext>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-60">
             <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
               Drop here • {component.type} • {responsiveMode}
               {componentStyles._responsiveScale && ` • Scale: ${componentStyles._responsiveScale.toFixed(2)}`}
@@ -1724,25 +1737,29 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
     );
   }, [selectedComponent, onPropertyUpdate]);
 
-  // The rest of your return statement remains the same...
-  return (
+
+return (
   <div 
-    className="w-full max-w-none flex justify-center"
+    className="relative w-full h-full flex items-center justify-center"
     style={{ 
       backgroundColor: 'transparent',
       position: 'relative',
       zIndex: 1,
-      paddingLeft: '120px',
-      paddingRight: '120px',
-      // 🔥 ENHANCED: Different spacing per mode
-      paddingTop: responsiveMode === 'mobile' ? '80px' : 
-                  responsiveMode === 'tablet' ? '160px' : '180px', // Desktop gets most space
-      paddingBottom: '120px',
-      overflow: 'visible',
-      minHeight: '100vh',
-      height: 'auto',
+      overflow: 'auto', // 🔥 CRITICAL: Allow scrolling
+      minHeight: '100%',
+      padding: responsiveMode === 'mobile' ? '40px 20px' : 
+               responsiveMode === 'tablet' ? '60px 40px' : '80px 120px',
     }}
   >
+    {/* 🔥 NEW: Scaled container that constrains canvas */}
+    <div 
+      className="relative"
+      style={{
+        transform: `scale(${forgeCanvasZoom / 100})`,
+        transformOrigin: 'center center',
+        transition: 'transform 0.2s ease-out',
+      }}
+    >
       {/* Responsive Canvas Container - EXPANDS with content */}
 
 <div
@@ -1751,24 +1768,22 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
     ${responsiveMode !== 'desktop' ? 'shadow-2xl' : ''}
   `}
   style={{ 
-    width: canvasSize.width,
-    maxWidth: canvasSize.maxWidth,
-    // 🔥 FIX: Always auto height to fit content, but frame visual stays at device height
-    height: 'auto', // Always fit content
-    minHeight: responsiveMode === 'desktop' ? '900px' : 
-               responsiveMode === 'tablet' ? '1024px' : '667px',
-    // 🔥 FIX: Let content overflow naturally
+    width: responsiveMode === 'desktop' ? '100%' : `${canvasSize.width}px`,
+    maxWidth: responsiveMode === 'desktop' ? '1440px' : canvasSize.maxWidth,
+    height: 'auto',
+    minHeight: responsiveMode === 'desktop' ? '600px' : 
+               responsiveMode === 'tablet' ? '800px' : '500px', // 🔥 Reduced heights
     overflow: 'visible', 
     transform: 'none',
     transformOrigin: 'center top',
     zIndex: 10,
-    marginTop: responsiveMode === 'mobile' ? 'auto' : '0',
-    marginBottom: 'auto',
+    margin: '0 auto', // 🔥 Center horizontally
   }}
 >
       
 
-<div className="absolute -top-20 left-1/2 transform -translate-x-1/2 z-50">
+{/* Expansion Toggle */}
+<div className="absolute -top-20 left-1/2 transform -translate-x-1/2 z-40"> 
   <div 
     className="flex items-center gap-3 px-4 py-2 rounded-full shadow-md"
     style={{ 
@@ -1817,8 +1832,8 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
       
       
       
-        {/* 🔥 MOVED: Device info label at TOP */}
-        <div className="absolute -top-15 left-1/2 transform -translate-x-1/2 z-50">
+        {/* Device Info Label */}
+        <div className="absolute -top-15 left-1/2 transform -translate-x-1/2 z-40">
           <div 
             className="px-3 py-1 rounded-full text-xs flex items-center gap-2 font-medium"
             style={{ 
@@ -2108,23 +2123,20 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
         )}
         
      {/* Main Canvas - Acts as Document Body */}
-
 <div 
   ref={canvasRef}
   className={`
     relative transition-all duration-500
     ${canvasClasses}
     ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
+    ${dragState.isDragging ? 'overflow-visible' : ''}
   `}
   style={{
-    // 🔥 CRITICAL FIX: Apply ALL canvas root styles INCLUDING width/height
     ...getCanvasRootStyles(),
     
-    // 🔥 RESTORE: Explicit dimensions per mode (OVERRIDE any auto values if needed)
     width: responsiveMode === 'desktop' ? '1440px' : 
            responsiveMode === 'tablet' ? '768px' : '375px',
     
-    // 🔥 Dynamic height based on expansion toggle
     height: useForgeStore.getState().canvasExpansionEnabled 
       ? 'auto' 
       : (responsiveMode === 'desktop' ? '900px' : 
@@ -2133,16 +2145,15 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
     minHeight: responsiveMode === 'desktop' ? '900px' : 
                responsiveMode === 'tablet' ? '1024px' : '667px',
     
-    maxHeight: useForgeStore.getState().canvasExpansionEnabled 
-      ? 'none' 
-      : (responsiveMode === 'desktop' ? '900px' : 
-         responsiveMode === 'tablet' ? '1024px' : '667px'),
+    maxHeight: useForgeStore.getState().canvasExpansionEnabled ? 'none' : (
+      responsiveMode === 'desktop' ? '900px' : 
+      responsiveMode === 'tablet' ? '1024px' : '667px'
+    ),
     
-    // 🔥 Dynamic overflow
-    overflow: useForgeStore.getState().canvasExpansionEnabled ? 'visible' : 'auto',
-    overflowY: useForgeStore.getState().canvasExpansionEnabled ? 'visible' : 'auto',
+    // 🔥 SMART OVERFLOW: Only visible during drag, otherwise auto for scrolling
+    overflow: dragState.isDragging || activeId ? 'visible' : 'auto',
+    overflowY: dragState.isDragging || activeId ? 'visible' : 'auto',
     
-    // Keep existing props
     cursor: dragState.isDragging ? 'copy' : 'default',
     borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
     isolation: 'isolate',
@@ -2181,14 +2192,16 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
           )}
           
          {/* Drag Snap Lines - Only show if enabled */}
-          {DragSnapLines && dragPosition && isOverlayEnabled('showSnapGuides') && (
-              <DragSnapLines
-                  dragPosition={dragPosition}
-                  canvasComponents={canvasComponents}
-                  canvasRef={canvasRef}
-                  isDragging={isDraggingComponent || dragState.isDragging}
-              />
-          )}
+        {DragSnapLines && dragPosition && isOverlayEnabled('showSnapGuides') && (
+          <DragSnapLines
+            dragPosition={dragPosition}
+            canvasComponents={canvasComponents}
+            canvasRef={canvasRef}
+            isDragging={isDraggingComponent || dragState.isDragging || !!activeId} // 🔥 ADD: activeId check
+            draggedComponentId={activeId || selectedComponent} // 🔥 ADD: Pass dragged ID
+            ghostBounds={dragState.draggedComponent?.ghostBounds} // 🔥 ADD: Pass ghost bounds
+          />
+        )}
           
 
 
@@ -2285,7 +2298,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                 </SortableContext>
               
                  {/* PROFESSIONAL DRAG GHOST - Dynamic positioning based on actual element position */}
-                    <DragOverlay
+                  <DragOverlay
                       dropAnimation={{
                         duration: 200,
                         easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
@@ -2294,7 +2307,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                         position: 'fixed',
                         top: 0,
                         left: 0,
-                        zIndex: 9999,
+                        zIndex: 99999, // 🔥 CHANGED: Much higher to be above everything
                         cursor: 'grabbing',
                         touchAction: 'none',
                         userSelect: 'none',
@@ -2469,6 +2482,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
               </div>
             </div>
           )}
+      </div>
       </div>
     </div>
   );

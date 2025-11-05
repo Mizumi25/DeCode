@@ -524,10 +524,10 @@ const DragSnapLines = ({
   ]);
 
   // Don't render anything if not dragging
-  if (!isDragging) return null;
+  if (!isDragging || !dragPosition) return null; // 🔥 ADD dragPosition check
 
-  return (
-    <div className="absolute inset-0 pointer-events-none z-50">
+return (
+  <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 9998 }}> 
      {/* Smart Drop Zone - Visual Box Based on Container Style */}
 <AnimatePresence>
   {hoveredTarget && (

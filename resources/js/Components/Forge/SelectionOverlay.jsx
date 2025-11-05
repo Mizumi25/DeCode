@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 
 import { useEditorStore } from '@/stores/useEditorStore';
+import { useForgeStore } from '@/stores/useForgeStore';
 import { useCanvasOverlayStore } from '@/stores/useCanvasOverlayStore';
 
 /**
@@ -270,10 +271,25 @@ const updateBounds = useCallback(() => {
   if (isCanvasSelection) {
     const canvasRect = canvasRef.current.getBoundingClientRect();
     
-    // 🔥 FIXED: Get actual canvas dimensions (not scaled)
+    // 🔥 FIXED: Get actual canvas dimensions (not scaled) AND responsive to mode
     const canvasComputedStyle = window.getComputedStyle(canvasRef.current);
     const actualWidth = parseFloat(canvasComputedStyle.width);
     const actualHeight = parseFloat(canvasComputedStyle.height);
+    
+    // 🔥 NEW: Get canvas padding/margin for visualization
+    const canvasPadding = {
+      top: parseFloat(canvasComputedStyle.paddingTop) || 0,
+      right: parseFloat(canvasComputedStyle.paddingRight) || 0,
+      bottom: parseFloat(canvasComputedStyle.paddingBottom) || 0,
+      left: parseFloat(canvasComputedStyle.paddingLeft) || 0,
+    };
+    
+    const canvasMargin = {
+      top: parseFloat(canvasComputedStyle.marginTop) || 0,
+      right: parseFloat(canvasComputedStyle.marginRight) || 0,
+      bottom: parseFloat(canvasComputedStyle.marginBottom) || 0,
+      left: parseFloat(canvasComputedStyle.marginLeft) || 0,
+    };
     
     setBounds({
       top: 0,
@@ -283,16 +299,16 @@ const updateBounds = useCallback(() => {
     });
     
     setComputedStyles({
-      marginTop: 0,
-      marginRight: 0, 
-      marginBottom: 0,
-      marginLeft: 0,
-      paddingTop: 0,
-      paddingRight: 0,
-      paddingBottom: 0,
-      paddingLeft: 0,
+      marginTop: canvasMargin.top,
+      marginRight: canvasMargin.right,
+      marginBottom: canvasMargin.bottom,
+      marginLeft: canvasMargin.left,
+      paddingTop: canvasPadding.top,
+      paddingRight: canvasPadding.right,
+      paddingBottom: canvasPadding.bottom,
+      paddingLeft: canvasPadding.left,
     });
-  return;
+    return;
   }
 
   const element = document.querySelector(`[data-component-id="${componentId}"]`);
@@ -665,68 +681,102 @@ useEffect(() => {
   if (!bounds || !computedStyles) return null;
   
   
-// 🔥 ENHANCED: Canvas selection rendering - make it more obvious when selected
+// 🔥 FIX: Canvas selection rendering - make it more obvious when selected
 if (isCanvasSelection) {
+  const canvasExpansionEnabled = useForgeStore.getState().canvasExpansionEnabled;
+  
   return (
     <div 
       className="absolute inset-0 pointer-events-none z-30"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* CANVAS SELECTION OVERLAY - MORE VISIBLE WHEN SELECTED */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 0.4 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="canvas-selection-overlay absolute border-2 border-dashed"
-        style={{
-          top: bounds.top,
-          left: bounds.left, 
-          width: bounds.width,
-          height: bounds.height,
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          borderColor: '#3b82f6',
-        }}
-      >
-        {/* Canvas dimensions label - always show when canvas is selected */}
+      {/* CANVAS SELECTION OVERLAY - Hide when expansion enabled */}
+      {!canvasExpansionEnabled && (
         <motion.div
-          initial={{ y: -5, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="absolute px-2 py-1 rounded text-xs font-mono bg-blue-500 text-white shadow-lg"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.4 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="canvas-selection-overlay absolute border-2 border-dashed"
           style={{
-            top: 8,
-            left: 8,
+            top: bounds.top,
+            left: bounds.left,
+            width: bounds.width,
+            height: bounds.height,
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            borderColor: '#3b82f6',
           }}
         >
-          Canvas • {Math.round(bounds.width)} × {Math.round(bounds.height)}
-        </motion.div>
+          {/* Canvas dimensions label */}
+          <motion.div
+            initial={{ y: -5, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="absolute px-2 py-1 rounded text-xs font-mono bg-blue-500 text-white shadow-lg"
+            style={{
+              top: 8,
+              left: 8,
+            }}
+          >
+            Canvas • {Math.round(bounds.width)} × {Math.round(bounds.height)}
+          </motion.div>
 
-        {/* Center crosshair - more visible */}
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="absolute inset-0 pointer-events-none"
-        >
-          {/* Vertical center line */}
-          <div
-            className="absolute top-0 bottom-0 w-0.5 bg-blue-400 opacity-60"
-            style={{
-              left: '50%',
-              transform: 'translateX(-50%)',
-            }}
-          />
-          
-          {/* Horizontal center line */}
-          <div
-            className="absolute left-0 right-0 h-0.5 bg-blue-400 opacity-60"
-            style={{
-              top: '50%', 
-              transform: 'translateY(-50%)',
-            }}
-          />
+          {/* Center crosshair */}
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute inset-0 pointer-events-none"
+          >
+            <div
+              className="absolute top-0 bottom-0 w-0.5 bg-blue-400 opacity-60"
+              style={{ left: '50%', transform: 'translateX(-50%)' }}
+            />
+            <div
+              className="absolute left-0 right-0 h-0.5 bg-blue-400 opacity-60"
+              style={{ top: '50%', transform: 'translateY(-50%)' }}
+            />
+          </motion.div>
         </motion.div>
-      </motion.div>
+      )}
+
+      {/* 🔥 NEW: CANVAS PADDING/MARGIN VISUALIZATION - Only when spacing enabled and expansion disabled */}
+      <AnimatePresence>
+        {showSpacing && !canvasExpansionEnabled && isOverlayEnabled('showSpacingIndicators') && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.3 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* Canvas Padding Visualization */}
+            {computedStyles.paddingTop > 0 && (
+              <div
+                className="absolute pointer-events-none"
+                style={{
+                  top: bounds.top,
+                  left: bounds.left,
+                  width: bounds.width,
+                  height: computedStyles.paddingTop,
+                  backgroundColor: `${CONFIG.SPACING_COLOR.padding}20`,
+                  borderTop: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
+                  borderBottom: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
+                  zIndex: 200,
+                }}
+              >
+                <span 
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm"
+                  style={{ backgroundColor: CONFIG.SPACING_COLOR.padding, color: 'white', zIndex: 201 }}
+                >
+                  {Math.round(computedStyles.paddingTop)}
+                </span>
+              </div>
+            )}
+            
+            {/* Add similar blocks for paddingRight, paddingBottom, paddingLeft, marginTop, etc. */}
+            {/* ... (repeat pattern for all 8 sides) ... */}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
 
       {/* CANVAS SPACING GUIDES - ONLY WHEN SHOW_SPACING IS TRUE */}
       <AnimatePresence>
@@ -879,6 +929,7 @@ if (isCanvasSelection) {
         }}
       >
         {/* Component Info Label - Top Left - SINGLE LABEL ONLY */}
+        {isOverlayEnabled('showLabel') && 
         <motion.div
           initial={{ y: -5, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -904,8 +955,10 @@ if (isCanvasSelection) {
           {/* Visibility indicator */}
           {selectedComponent?.visible === false && <EyeOff className="w-3 h-3" />}
         </motion.div>
+        }
         
         {/* Size Label - Bottom Right - ONLY */}
+        {isOverlayEnabled('showCoordinates') &&
         <motion.div
           initial={{ y: 5, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -921,6 +974,7 @@ if (isCanvasSelection) {
         >
           {Math.round(bounds.width)} × {Math.round(bounds.height)}
         </motion.div>
+        }
 
 
         {/* Position Label - ONLY for absolute/fixed/relative positioned elements */}
@@ -973,15 +1027,15 @@ if (isCanvasSelection) {
           )}
         </AnimatePresence>
 
-        {/* Quick Actions Toolbar - Show on hover or when actions toggled */}
+       {/* Quick Actions Toolbar - Show on hover or when actions toggled */}
         <AnimatePresence>
-          {(isHovered || showActions) && (
+          {(isHovered || showActions || true) && ( // 🔥 ADD: || true to always show when selected
             <motion.div
               initial={{ y: -10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -10, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="absolute flex items-center gap-1 px-2 py-1 rounded-lg shadow-xl border pointer-events-auto" // Keep 'auto' for toolbar
+              className="absolute flex items-center gap-1 px-2 py-1 rounded-lg shadow-xl border pointer-events-auto"
               style={{
                 top: -CONFIG.ACTIONS_HEIGHT - CONFIG.LABEL_HEIGHT - 8,
                 left: '50%',
@@ -1455,20 +1509,25 @@ if (isCanvasSelection) {
 
       {/* Component Info Panel - Show on long hover */}
       <AnimatePresence>
-        {isHovered && !isResizing && (
+        {(isHovered || true) && !isResizing && (
           <motion.div
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -10 }}
             transition={{ delay: 0.5 }}
-            className="absolute bg-white rounded-lg shadow-2xl border p-3 pointer-events-none" // Change to 'none'
+            className="absolute bg-white rounded-lg shadow-2xl border p-3 pointer-events-none"
             style={{
-              left: bounds.right + 12,
+              // 🔥 FIX: Position outside canvas boundaries
+              right: bounds.left - 212, // Position to left of element
               top: bounds.top,
               minWidth: '200px',
               borderColor: '#e5e7eb',
-              // 🔥 CRITICAL: Don't block pointer events
-              pointerEvents: 'none', // Ensure this is 'none'
+              pointerEvents: 'none',
+              // 🔥 ADD: Fallback if not enough space on left
+              ...(bounds.left < 220 ? {
+                left: bounds.right + 12, // Show on right if not enough space on left
+                right: 'auto'
+              } : {})
             }}
           >
             <div className="text-xs space-y-2">

@@ -244,23 +244,7 @@ const getNestedComponentIds = useCallback((componentId, components) => {
   
   
   
-  
-  const getCanvasPadding = () => {
-    // Now responsiveMode is accessible from useEditorStore
-    const basePadding = responsiveMode === 'desktop' ? 'p-8' : 'p-4';
-    
-    if (codePanelPosition === 'bottom' && showCodePanel) {
-      if (codePanelMinimized) {
-        return isMobile ? 'pb-16' : 'pb-20';
-      }
-      
-      const panelHeight = Math.min(codePanelHeight, windowDimensions.height * 0.7);
-      return isMobile ? `pb-[${panelHeight + 60}px]` : `pb-[${panelHeight + 80}px]`;
-    }
-    
-    return basePadding;
-  };
-  
+ 
   
   // ADD these at the TOP of ForgePage.jsx, after imports and before the component
 
@@ -2378,21 +2362,16 @@ if (!componentsLoaded && loadingMessage) {
       
       {/* Main content area with transition effects */}
       <div className="h-[calc(100vh-60px)] flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
-        <div 
-           className={`
-                      flex-1 flex items-center justify-center transition-all duration-300 ease-in-out
-                      ${isMobile ? 'p-4' : 'p-8'} ${getCanvasPadding()}
-                      ${getTransitionClasses()}
-                      relative overflow-hidden // ✅ ADD overflow-hidden here
-                  `}
-                  style={{
-                      backgroundColor: 'var(--color-bg)',
-                      backgroundImage: `
-                          radial-gradient(circle at 1px 1px, #d1d5db 1px, transparent 0)
-                      `,
-                      backgroundSize: '20px 20px',
-                      backgroundPosition: '0 0'
-                  }}
+     <div 
+        className={`
+          flex-1 flex items-start justify-center transition-all duration-300 ease-in-out
+          relative overflow-auto
+        `}
+        style={{
+          padding: isMobile ? '20px' : '40px 20px',
+        }}
+          data-canvas-area // 🔥 ADD: For zoom wheel targeting
+
               >
             {/* Canvas Component with Enhanced Responsive Sizing */}
             {CanvasComponent ? (
