@@ -7,6 +7,7 @@ export const useCanvasOverlayStore = create(
     (set, get) => ({
       // Overlay visibility settings
       overlays: {
+        showLabel: true,
         showSelectionBorders: true,
         showSnapGuides: true,
         showSpacingIndicators: true,
@@ -61,6 +62,7 @@ export const useCanvasOverlayStore = create(
       // Reset all to defaults
       resetOverlays: () => {
         const defaults = {
+          showLabel: true,
           showSelectionBorders: true,
           showSnapGuides: true,
           showSpacingIndicators: true,

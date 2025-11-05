@@ -15,7 +15,47 @@ export const useForgeStore = create(
         'assets-panel': false       // Changed from true to false
       },
             
-      codePanelMode: 'bottom', 
+      // ADD THESE LINES (after codePanelMode: 'bottom',)
+codePanelMode: 'bottom', 
+      
+// 🔥 NEW: Canvas expansion control
+canvasExpansionEnabled: false, // Default: scroll inside canvas
+
+// Action to toggle canvas expansion
+toggleCanvasExpansion: () => set((state) => ({
+  canvasExpansionEnabled: !state.canvasExpansionEnabled,
+  _triggerUpdate: state._triggerUpdate + 1
+})),
+      
+      
+      // ADD after canvasExpansionEnabled
+canvasZoom: 100, // Default 100%
+interactionMode: 'edit', // 'edit' or 'preview'
+previewPanelOpen: false,
+previewPanelResponsiveMode: 'desktop', // Independent from main canvas
+
+// Actions
+setCanvasZoom: (zoom) => set({ 
+  canvasZoom: Math.max(10, Math.min(200, zoom)),
+  _triggerUpdate: get()._triggerUpdate + 1 
+}),
+
+setInteractionMode: (mode) => set({ 
+  interactionMode: mode,
+  _triggerUpdate: get()._triggerUpdate + 1 
+}),
+
+togglePreviewPanel: () => set((state) => ({ 
+  previewPanelOpen: !state.previewPanelOpen,
+  _triggerUpdate: state._triggerUpdate + 1 
+})),
+
+setPreviewPanelResponsiveMode: (mode) => set({ 
+  previewPanelResponsiveMode: mode,
+  _triggerUpdate: get()._triggerUpdate + 1 
+}),
+      
+      
       
     // ADD action to change code panel mode
     setCodePanelMode: (mode) => set({ codePanelMode: mode }),
@@ -28,23 +68,25 @@ export const useForgeStore = create(
       
       // UPDATED: Toggle individual panel - now allows ALL panels to be toggled
       toggleForgePanel: (panelId) => set((state) => {
-        console.log(`ForgeStore: Toggling panel ${panelId} from ${state.forgePanelStates[panelId]} to ${!state.forgePanelStates[panelId]}`);
-        
-        // REMOVED the restriction - ALL panels can now be toggled
-        const newState = {
-          forgePanelStates: {
-            ...state.forgePanelStates,
-            [panelId]: !state.forgePanelStates[panelId]
-          },
-          // If we're showing a panel, unhide all panels
-          allPanelsHidden: state.forgePanelStates[panelId] ? state.allPanelsHidden : false,
-          // Increment trigger to force re-render
-          _triggerUpdate: state._triggerUpdate + 1
+        const newPanelStates = {
+          ...state.forgePanelStates,
+          [panelId]: !state.forgePanelStates[panelId]
         };
         
-        console.log('ForgeStore: New panel states:', newState.forgePanelStates);
-        console.log(`ForgeStore: Panel ${panelId} is now ${newState.forgePanelStates[panelId] ? 'OPEN' : 'CLOSED'}`);
-        return newState;
+        // 🔥 FIX: If closing a panel, ensure it's fully removed
+        if (state.forgePanelStates[panelId]) {
+          // Was open, now closing - trigger cleanup
+          setTimeout(() => {
+            const panels = document.querySelectorAll(`[data-panel-id="${panelId}"]`);
+            panels.forEach(p => p.remove());
+          }, 300);
+        }
+        
+        return {
+          forgePanelStates: newPanelStates,
+          allPanelsHidden: false,
+          _triggerUpdate: state._triggerUpdate + 1
+        };
       }),
       
       // UPDATED: Check if panel is open - includes code-panel logic
@@ -215,11 +257,13 @@ export const useForgeStore = create(
     {
       name: 'forge-store',
       version: 2, // Increment version to handle schema changes
-      partialize: (state) => ({
-        forgePanelStates: state.forgePanelStates,
-        allPanelsHidden: state.allPanelsHidden
-        // Don't persist _triggerUpdate
-      }),
+     partialize: (state) => ({
+  forgePanelStates: state.forgePanelStates,
+  allPanelsHidden: state.allPanelsHidden,
+  canvasExpansionEnabled: state.canvasExpansionEnabled,
+  canvasZoom: state.canvasZoom, // 🔥 ADD
+  interactionMode: state.interactionMode, // 🔥 ADD
+}),
       // Handle version migration
       migrate: (persistedState, version) => {
         if (version === 0) {

@@ -954,62 +954,47 @@ const handleComponentDragEnd = useCallback(() => {
 const findDropTarget = useCallback((components, dropX, dropY, canvasRect) => {
   console.log('🎯 Looking for drop target at:', { dropX, dropY });
   
-  // Sort by z-index (check topmost first) and prioritize layout containers
+  // 🔥 CRITICAL: Check ALL elements, not just layouts
   const sorted = [...components].sort((a, b) => {
-    // Prioritize layout containers
+    // Prioritize layout containers, but allow all
     const aIsLayout = a.isLayoutContainer;
     const bIsLayout = b.isLayoutContainer;
     if (aIsLayout && !bIsLayout) return -1;
     if (!aIsLayout && bIsLayout) return 1;
     
-    // Then by z-index
     return (b.zIndex || 0) - (a.zIndex || 0);
   });
 
   for (const comp of sorted) {
-    // Only consider layout containers as drop targets
-    if (comp.isLayoutContainer) {
-      const element = document.querySelector(`[data-component-id="${comp.id}"]`);
-      if (element) {
-        const rect = element.getBoundingClientRect();
-        const relativeX = dropX + canvasRect.left;
-        const relativeY = dropY + canvasRect.top;
+    const element = document.querySelector(`[data-component-id="${comp.id}"]`);
+    if (element) {
+      const rect = element.getBoundingClientRect();
+      const relativeX = dropX + canvasRect.left;
+      const relativeY = dropY + canvasRect.top;
+      
+      // Check if drop position is inside this element
+      if (relativeX >= rect.left && relativeX <= rect.right &&
+          relativeY >= rect.top && relativeY <= rect.bottom) {
         
-        console.log('🔍 Checking container:', comp.name, {
-          containerBounds: {
-            left: rect.left, right: rect.right,
-            top: rect.top, bottom: rect.bottom
-          },
-          dropPoint: { x: relativeX, y: relativeY },
-          isInside: relativeX >= rect.left && relativeX <= rect.right &&
-                   relativeY >= rect.top && relativeY <= rect.bottom
-        });
+        console.log('✅ Found target:', comp.name, 'isLayout:', comp.isLayoutContainer);
         
-        // Check if drop position is inside this container
-        if (relativeX >= rect.left && relativeX <= rect.right &&
-            relativeY >= rect.top && relativeY <= rect.bottom) {
-          
-          console.log('✅ Found container for drop:', comp.name);
-          
-          // Recursively check children for nested containers
-          if (comp.children?.length > 0) {
-            const childTarget = findDropTarget(comp.children, dropX, dropY, canvasRect);
-            if (childTarget) {
-              console.log('📦 Found nested container:', childTarget.name);
-              return childTarget;
-            }
+        // 🔥 ALWAYS allow drop if element is in bounds
+        // Check children recursively
+        if (comp.children?.length > 0) {
+          const childTarget = findDropTarget(comp.children, dropX, dropY, canvasRect);
+          if (childTarget) {
+            return childTarget;
           }
-          
-          return comp; // Return this container as drop target
         }
+        
+        return comp; // 🔥 Return ANY component as valid drop target
       }
     }
   }
   
-  console.log('❌ No container found at drop position');
-  return null; // No container found, drop at root
+  console.log('❌ No element found, drop at root');
+  return null;
 }, []);
-
 
 
 
@@ -2698,6 +2683,16 @@ if (!componentsLoaded && loadingMessage) {
       {renderThumbnailStatus()}
       
       <IconWindowPanel onIconSelect={handleIconSelect} />
+      
+      {/* Preview Panel Modal */}
+      {isForgePanelOpen('preview-panel') && (
+        <PreviewPanelModal
+          canvasComponents={canvasComponents}
+          frame={frame}
+          componentLibraryService={componentLibraryService}
+          onClose={() => toggleForgePanel('preview-panel')}
+        />
+      )}
       
       
       {/* Modal Code Panel */}

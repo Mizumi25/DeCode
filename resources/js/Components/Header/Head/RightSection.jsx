@@ -136,6 +136,90 @@ const RightSection = ({
     setForceInviteMode(false)
   }
 
+  // Enhanced Save Button Component
+  const SaveButton = () => {
+  if (!(onForgePage || onSourcePage) || !currentFrame) return null
+
+  return (
+    <div className="relative">
+      <div className="flex items-center">
+        {/* Main Save Button */}
+        <button
+          onClick={() => handleSaveOption('save')}
+          disabled={isSaving || !frameHasUnsavedChanges}
+          className={`px-[4px] py-[2px] rounded-l border transition-colors flex items-center gap-[2px] ${
+            frameHasUnsavedChanges
+              ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white border-[var(--color-primary)] cursor-pointer'
+              : 'bg-[var(--color-bg-muted)] border-[var(--color-border)] text-[var(--color-text-muted)] cursor-default'
+          }`}
+          title={frameHasUnsavedChanges ? 'Save changes' : 'All changes saved'}
+        >
+          {isSaving ? (
+            <div className="w-[8px] h-[8px] border border-white border-t-transparent rounded-full animate-spin" />
+          ) : frameHasUnsavedChanges ? (
+            <Save className="w-[10px] h-[10px]" />
+          ) : (
+            <div className="w-[6px] h-[6px] bg-green-400 rounded-full" />
+          )}
+          <span className="text-[8px] font-medium">
+            {isSaving ? '...' : frameHasUnsavedChanges ? 'Save' : '✓'}
+          </span>
+        </button>
+        
+        {/* Dropdown Chevron */}
+        <button
+          onClick={() => frameHasUnsavedChanges && setShowSaveDropdown(!showSaveDropdown)}
+          disabled={isSaving || !frameHasUnsavedChanges}
+          className={`px-[3px] py-[2px] rounded-r border border-l-0 transition-colors ${
+            frameHasUnsavedChanges
+              ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white border-[var(--color-primary)] cursor-pointer'
+              : 'bg-[var(--color-bg-muted)] border-[var(--color-border)] text-[var(--color-text-muted)] cursor-default'
+          }`}
+          title="Save options"
+        >
+          <ChevronDown className={`w-[10px] h-[10px] transition-transform ${
+            showSaveDropdown ? 'rotate-180' : ''
+          }`} />
+        </button>
+      </div>
+      
+      {/* Save Options Dropdown */}
+      {showSaveDropdown && frameHasUnsavedChanges && (
+        <div className="absolute top-full left-0 mt-[2px] w-32 bg-[var(--color-surface)] border border-[var(--color-border)] rounded shadow-lg z-50">
+          <div className="p-[2px]">
+            <button
+              onClick={() => handleSaveOption('save')}
+              disabled={isSaving}
+              className="w-full px-2 py-1 text-left hover:bg-[var(--color-bg-muted)] rounded text-[10px] transition-colors flex items-center gap-1"
+            >
+              <Save className="w-3 h-3" />
+              <div className="font-medium">Quick Save</div>
+            </button>
+            
+            <button
+              onClick={() => handleSaveOption('revision')}
+              disabled={isSaving}
+              className="w-full px-2 py-1 text-left hover:bg-[var(--color-bg-muted)] rounded text-[10px] transition-colors flex items-center gap-1"
+            >
+              <History className="w-3 h-3" />
+              <div className="font-medium">Create Revision</div>
+            </button>
+            
+            <button
+              onClick={() => handleSaveOption('auto-revision')}
+              disabled={isSaving}
+              className="w-full px-2 py-1 text-left hover:bg-[var(--color-bg-muted)] rounded text-[10px] transition-colors flex items-center gap-1"
+            >
+              <Circle className="w-3 h-3" />
+              <div className="font-medium">Auto Revision</div>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
   return (
     <>
       <motion.div
@@ -166,104 +250,8 @@ const RightSection = ({
               </div>
             )}
 
-            {/* Enhanced Save Button with Revision Support */}
-            <div className="relative">
-              <div className="flex items-center">
-                {/* Save Status/Button */}
-                <button
-                  onClick={() => frameHasUnsavedChanges ? setShowSaveDropdown(!showSaveDropdown) : null}
-                  disabled={isSaving}
-                  className={`px-2 py-0.5 rounded-l border-r-0 transition-colors ${
-                    frameHasUnsavedChanges 
-                      ? 'bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 dark:hover:bg-orange-900/50 cursor-pointer border border-orange-300' 
-                      : 'bg-[var(--color-bg-muted)] border border-[var(--color-border)]'
-                  }`}
-                  title={frameHasUnsavedChanges ? 'Click to save options' : 'All changes saved'}
-                >
-                  <div className="flex items-center gap-1">
-                    {isSaving ? (
-                      <div className="w-2 h-2 border border-current border-t-transparent rounded-full animate-spin" />
-                    ) : frameHasUnsavedChanges ? (
-                      <Save className="w-2.5 h-2.5 text-orange-600 dark:text-orange-400" />
-                    ) : (
-                      <div className="w-2 h-2 bg-green-400 rounded-full" />
-                    )}
-                    <span className="text-[8px] font-medium text-[var(--color-text-muted)]">
-                      {isSaving ? 'Saving...' : frameHasUnsavedChanges ? 'Unsaved' : 'Saved'}
-                    </span>
-                  </div>
-                </button>
-                
-                {/* Dropdown Arrow - Only show when there are unsaved changes */}
-                {frameHasUnsavedChanges && (
-                  <button
-                    onClick={() => setShowSaveDropdown(!showSaveDropdown)}
-                    disabled={isSaving}
-                    className="px-1 py-0.5 bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 dark:hover:bg-orange-900/50 rounded-r border border-l-0 border-orange-300 transition-colors"
-                    title="Save options"
-                  >
-                    <ChevronDown className={`w-2.5 h-2.5 text-orange-600 dark:text-orange-400 transition-transform ${
-                      showSaveDropdown ? 'rotate-180' : ''
-                    }`} />
-                  </button>
-                )}
-              </div>
-              
-              {/* Save Options Dropdown */}
-              {showSaveDropdown && frameHasUnsavedChanges && (
-                <div className="absolute top-full left-0 mt-1 w-48 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg z-50">
-                  <div className="p-1">
-                    <button
-                      onClick={() => handleSaveOption('save')}
-                      disabled={isSaving}
-                      className="w-full px-3 py-2 text-left hover:bg-[var(--color-bg-muted)] rounded text-sm transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Save className="w-4 h-4" />
-                        <div>
-                          <div className="font-medium">Quick Save</div>
-                          <div className="text-xs text-[var(--color-text-muted)]">Save current changes</div>
-                        </div>
-                      </div>
-                    </button>
-                    
-                    <button
-                      onClick={() => handleSaveOption('revision')}
-                      disabled={isSaving}
-                      className="w-full px-3 py-2 text-left hover:bg-[var(--color-bg-muted)] rounded text-sm transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <History className="w-4 h-4" />
-                        <div>
-                          <div className="font-medium">Create Revision</div>
-                          <div className="text-xs text-[var(--color-text-muted)]">Save with custom name</div>
-                        </div>
-                      </div>
-                    </button>
-                    
-                    <button
-                      onClick={() => handleSaveOption('auto-revision')}
-                      disabled={isSaving}
-                      className="w-full px-3 py-2 text-left hover:bg-[var(--color-bg-muted)] rounded text-sm transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Circle className="w-4 h-4" />
-                        <div>
-                          <div className="font-medium">Auto Revision</div>
-                          <div className="text-xs text-[var(--color-text-muted)]">Save with timestamp</div>
-                        </div>
-                      </div>
-                    </button>
-                    
-                    {historyInfo && (
-                      <div className="px-3 py-2 text-xs text-[var(--color-text-muted)] border-t border-[var(--color-border)] mt-1">
-                        {historyInfo.totalActions} changes since last save
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Unified Save Button */}
+            <SaveButton />
 
             {/* Comments - Only on Void Page */}
             {onVoidPage && (
@@ -341,7 +329,13 @@ const RightSection = ({
         />
 
         {/* === Preview Button (always present) === */}
-        <button className="bg-[var(--color-primary)] text-white px-2 py-1 rounded-lg flex items-center justify-center shadow-md hover:bg-[var(--color-primary-hover)] transition-colors">
+        <button 
+          onClick={() => {
+            const { toggleForgePanel } = useForgeStore.getState();
+            toggleForgePanel('preview-panel');
+          }}
+          className="bg-[var(--color-primary)] text-white px-2 py-1 rounded-lg flex items-center justify-center shadow-md hover:bg-[var(--color-primary-hover)] transition-colors"
+        >
           <Play className="w-3 h-3" />
         </button>
       </motion.div>

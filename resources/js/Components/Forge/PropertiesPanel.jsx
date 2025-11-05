@@ -162,10 +162,18 @@ const handleCanvasPropertyChange = useCallback(async (propName, value, category 
   
   console.log('🎨 Canvas property change:', { propName, value, category });
   
-  // 🔥 NEW: Apply style IMMEDIATELY to canvas DOM element
+  // 🔥 CRITICAL: Apply style IMMEDIATELY to canvas DOM element
   if (category === 'style' && canvasRef?.current) {
     const canvas = canvasRef.current;
     canvas.style[propName] = value;
+    
+    // 🔥 SPECIAL: If display changes to flex, apply flex defaults
+    if (propName === 'display' && value === 'flex') {
+      canvas.style.flexDirection = canvas.style.flexDirection || 'row';
+      canvas.style.justifyContent = canvas.style.justifyContent || 'flex-start';
+      canvas.style.alignItems = canvas.style.alignItems || 'flex-start';
+    }
+    
     console.log('⚡ Applied style immediately to canvas:', { propName, value });
   }
   

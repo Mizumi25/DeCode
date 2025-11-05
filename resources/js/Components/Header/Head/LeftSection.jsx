@@ -7,7 +7,7 @@ import ThemeSelector from './ThemeSelector';
 import NavigationDropdown from './NavigationDropdown';
 import ResponsiveToggle from './ResponsiveToggle';
 import ForgeUndoRedo from './ForgeUndoRedo';
-import ZoomControls from './ZoomControls';
+import ForgeZoomControls from './ForgeZoomControls';
 import BinaryToggle from './BinaryToggle';
 import AnimatedBlackHoleLogo from '@/Components/AnimatedBlackHoleLogo';
 
@@ -217,18 +217,24 @@ const LeftSection = ({
           <div className="w-px h-2.5 bg-[var(--color-border)]"></div>
 
           {/* Zoom Controls */}
-          <ZoomControls zoomLevel={zoomLevel} onZoomChange={setZoomLevel} size="small" />
+          <ForgeZoomControls zoomLevel={zoomLevel} onZoomChange={setZoomLevel} size="small" />
 
           {/* Vertical Divider */}
           <div className="w-px h-2.5 bg-[var(--color-border)]"></div>
 
-          {/* Interaction Mode Toggle */}
-          <BinaryToggle 
-            activeMode={interactionMode} 
-            setActiveMode={setInteractionMode}
-            options={interactionOptions}
-            size="small"
-          />
+            {/* Interaction Mode Toggle */}
+            <BinaryToggle 
+              activeMode={interactionMode} 
+              setActiveMode={(mode) => {
+                setInteractionMode(mode);
+                // If switching to preview, disable selection
+                if (mode === 'preview') {
+                  setSelectedComponent(null);
+                }
+              }}
+              options={interactionOptions}
+              size="small"
+            />
         </>
       )}
 

@@ -50,17 +50,21 @@ const CanvasSettingsDropdown = () => {
         }
         if (e.key === '2') {
           e.preventDefault();
-          toggleOverlay('showSnapGuides');
+          toggleOverlay('showLabel');
         }
         if (e.key === '3') {
           e.preventDefault();
-          toggleOverlay('showSpacingIndicators');
+          toggleOverlay('showSnapGuides');
         }
         if (e.key === '4') {
           e.preventDefault();
-          toggleOverlay('showGridLines');
+          toggleOverlay('showSpacingIndicators');
         }
         if (e.key === '5') {
+          e.preventDefault();
+          toggleOverlay('showGridLines');
+        }
+        if (e.key === '6') {
           e.preventDefault();
           toggleOverlay('enableComponentReflow');
         }
@@ -77,6 +81,14 @@ const CanvasSettingsDropdown = () => {
       key: 'showSelectionBorders',
       label: 'Selection Borders',
       description: 'Blue borders around selected components',
+      icon: Maximize2,
+      color: '#3b82f6',
+      shortcut: '1',
+    },
+    {
+      key: 'showLabel',
+      label: 'Selection Label',
+      description: 'Labels and Element info',
       icon: Maximize2,
       color: '#3b82f6',
       shortcut: '1',
@@ -209,7 +221,7 @@ const CanvasSettingsDropdown = () => {
               </div>
               <div>
                 <h4 className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>
-                  🧭 Canvas Settings
+                   Canvas Settings
                 </h4>
                 <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                   {activeCount} of {settingConfigs.length} active

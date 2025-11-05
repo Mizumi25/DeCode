@@ -138,53 +138,102 @@ const SelectionOverlay = ({
   
   
   
-  useEffect(() => {
+ // ENHANCE this useEffect (around line 145)
+useEffect(() => {
   if (!hoveredComponent || !canvasComponents.length) {
     setAncestorHighlights([]);
     setChildrenHighlights([]);
     return;
   }
   
-  // Find ancestors
-  const ancestors = [];
-  let current = canvasComponents.find(c => c.id === hoveredComponent);
-  
-  while (current?.parentId) {
-    const parent = canvasComponents.find(c => c.id === current.parentId);
-    if (parent) {
-      ancestors.push(parent);
-      current = parent;
-    } else {
-      break;
+  // 🔥 FIXED: Recursive search through entire tree
+  const findComponentInTree = (components, targetId) => {
+    for (const comp of components) {
+      if (comp.id === targetId) return comp;
+      if (comp.children?.length > 0) {
+        const found = findComponentInTree(comp.children, targetId);
+        if (found) return found;
+      }
     }
+    return null;
+  };
+  
+  const current = findComponentInTree(canvasComponents, hoveredComponent);
+  if (!current) return;
+  
+  // Find ancestors (up to 2 levels)
+  const ancestors = [];
+  const findAncestors = (targetId, maxDepth = 2) => {
+    if (maxDepth === 0) return;
+    
+    for (const comp of canvasComponents) {
+      if (comp.children?.some(child => child.id === targetId)) {
+        ancestors.push(comp);
+        findAncestors(comp.id, maxDepth - 1);
+        return;
+      }
+      if (comp.children?.length > 0) {
+        const searchNested = (children) => {
+          for (const child of children) {
+            if (child.children?.some(c => c.id === targetId)) {
+              ancestors.push(child);
+              findAncestors(child.id, maxDepth - 1);
+              return true;
+            }
+            if (child.children?.length > 0) {
+              if (searchNested(child.children)) return true;
+            }
+          }
+          return false;
+        };
+        searchNested(comp.children);
+      }
+    }
+  };
+  
+  if (current.parentId) {
+    findAncestors(hoveredComponent);
   }
-  // Find all descendants recursively
-  const findAllDescendants = (compId) => {
+  
+  // Find all descendants
+  const findAllDescendants = (comp) => {
     const descendants = [];
-    const findChildren = (id) => {
-      canvasComponents.forEach(comp => {
-        if (comp.parentId === id) {
-          descendants.push(comp);
-          findChildren(comp.id); // Recurse
-        }
-      });
+    const recurse = (c) => {
+      if (c.children?.length > 0) {
+        descendants.push(...c.children);
+        c.children.forEach(recurse);
+      }
     };
-    findChildren(compId);
+    recurse(comp);
     return descendants;
   };
   
   setAncestorHighlights(ancestors);
-  setChildrenHighlights(findAllDescendants(hoveredComponent));
+  setChildrenHighlights(findAllDescendants(current));
 }, [hoveredComponent, canvasComponents]);
 
 
 
-// ADD global hover listener
+// REPLACE the useEffect for hoveredComponent (around line 120)
 useEffect(() => {
   const handleGlobalHover = (e) => {
-    const target = e.target.closest('[data-component-id]');
+    // 🔥 CRITICAL: Work on both touch and mouse
+    const isTouchEvent = e.type.startsWith('touch');
+    const clientX = isTouchEvent ? e.touches?.[0]?.clientX : e.clientX;
+    const clientY = isTouchEvent ? e.touches?.[0]?.clientY : e.clientY;
+    
+    if (!clientX || !clientY) {
+      setHoveredComponent(null);
+      return;
+    }
+    
+    // Get element at touch/mouse position
+    const elementAtPoint = document.elementFromPoint(clientX, clientY);
+    const target = elementAtPoint?.closest('[data-component-id]');
+    
     if (target) {
       const id = target.getAttribute('data-component-id');
+      console.log('🎯 Hovered component:', id);
       setHoveredComponent(id);
     } else {
       setHoveredComponent(null);
@@ -193,8 +242,16 @@ useEffect(() => {
   
   const canvas = canvasRef.current;
   if (canvas) {
-    canvas.addEventListener('mouseover', handleGlobalHover);
-    return () => canvas.removeEventListener('mouseover', handleGlobalHover);
+    // 🔥 Listen to both mouse and touch events
+    canvas.addEventListener('mousemove', handleGlobalHover);
+    canvas.addEventListener('touchmove', handleGlobalHover, { passive: true });
+    canvas.addEventListener('touchstart', handleGlobalHover, { passive: true });
+    
+    return () => {
+      canvas.removeEventListener('mousemove', handleGlobalHover);
+      canvas.removeEventListener('touchmove', handleGlobalHover);
+      canvas.removeEventListener('touchstart', handleGlobalHover);
+    };
   }
 }, [canvasRef]);
 
@@ -1102,118 +1159,118 @@ if (isCanvasSelection) {
         )}
       </AnimatePresence>
       
-      // REPLACE the padding visualization section
-      {/* Padding Visualization - FOR ALL COMPONENTS */}
-      <AnimatePresence>
-        {isOverlayEnabled('showSpacingIndicators') && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{ zIndex: 200 }} // 🔥 CRITICAL: High z-index
-          >
-            {/* Top Padding */}
-            {computedStyles.paddingTop > 0 && (
-              <div
-                className="absolute pointer-events-none"
-                style={{
-                  top: bounds.top,
-                  left: bounds.left,
-                  width: bounds.width,
-                  height: computedStyles.paddingTop,
-                  backgroundColor: `${CONFIG.SPACING_COLOR.padding}20`,
-                  borderTop: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
-                  borderBottom: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
-                  zIndex: 200, // 🔥 CRITICAL
-                }}
-              >
-                <span 
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm"
-                  style={{ 
-                    backgroundColor: CONFIG.SPACING_COLOR.padding, 
-                    color: 'white',
-                    zIndex: 201 // 🔥 Above overlay
+
+        {/* Padding Visualization - FOR ALL COMPONENTS */}
+        <AnimatePresence>
+          {isOverlayEnabled('showSpacingIndicators') && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{ zIndex: 200 }}
+            >
+              {/* 🔥 CRITICAL: Padding applies to ACTUAL element bounds, not wrapper */}
+              {computedStyles.paddingTop > 0 && (
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    top: bounds.top, // 🔥 FIXED: Use element bounds directly
+                    left: bounds.left,
+                    width: bounds.width,
+                    height: computedStyles.paddingTop,
+                    backgroundColor: `${CONFIG.SPACING_COLOR.padding}20`,
+                    borderTop: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
+                    borderBottom: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
+                    zIndex: 200,
                   }}
                 >
-                  {Math.round(computedStyles.paddingTop)}
-                </span>
-              </div>
-            )}
-            
-            {/* Right Padding */}
-            {computedStyles.paddingRight > 0 && (
-              <div
-                className="absolute pointer-events-none"
-                style={{
-                  top: bounds.top,
-                  left: bounds.left + bounds.width - computedStyles.paddingRight,
-                  width: computedStyles.paddingRight,
-                  height: bounds.height,
-                  backgroundColor: `${CONFIG.SPACING_COLOR.padding}20`,
-                  borderLeft: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
-                  borderRight: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
-                  zIndex: 200,
-                }}
-              >
-                <span 
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm"
-                  style={{ backgroundColor: CONFIG.SPACING_COLOR.padding, color: 'white', zIndex: 201 }}
+                  <span 
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm"
+                    style={{ 
+                      backgroundColor: CONFIG.SPACING_COLOR.padding, 
+                      color: 'white',
+                      zIndex: 201
+                    }}
+                  >
+                    {Math.round(computedStyles.paddingTop)}
+                  </span>
+                </div>
+              )}
+              
+              {/* Right Padding */}
+              {computedStyles.paddingRight > 0 && (
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    top: bounds.top,
+                    left: bounds.left + bounds.width - computedStyles.paddingRight, // 🔥 FIXED
+                    width: computedStyles.paddingRight,
+                    height: bounds.height,
+                    backgroundColor: `${CONFIG.SPACING_COLOR.padding}20`,
+                    borderLeft: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
+                    borderRight: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
+                    zIndex: 200,
+                  }}
                 >
-                  {Math.round(computedStyles.paddingRight)}
-                </span>
-              </div>
-            )}
-            
-            {/* Bottom Padding */}
-            {computedStyles.paddingBottom > 0 && (
-              <div
-                className="absolute pointer-events-none"
-                style={{
-                  top: bounds.top + bounds.height - computedStyles.paddingBottom,
-                  left: bounds.left,
-                  width: bounds.width,
-                  height: computedStyles.paddingBottom,
-                  backgroundColor: `${CONFIG.SPACING_COLOR.padding}20`,
-                  borderTop: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
-                  borderBottom: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
-                  zIndex: 200,
-                }}
-              >
-                <span 
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm"
-                  style={{ backgroundColor: CONFIG.SPACING_COLOR.padding, color: 'white', zIndex: 201 }}
+                  <span 
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm"
+                    style={{ backgroundColor: CONFIG.SPACING_COLOR.padding, color: 'white', zIndex: 201 }}
+                  >
+                    {Math.round(computedStyles.paddingRight)}
+                  </span>
+                </div>
+              )}
+              
+              {/* Bottom Padding */}
+              {computedStyles.paddingBottom > 0 && (
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    top: bounds.top + bounds.height - computedStyles.paddingBottom, // 🔥 FIXED
+                    left: bounds.left,
+                    width: bounds.width,
+                    height: computedStyles.paddingBottom,
+                    backgroundColor: `${CONFIG.SPACING_COLOR.padding}20`,
+                    borderTop: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
+                    borderBottom: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
+                    zIndex: 200,
+                  }}
                 >
-                  {Math.round(computedStyles.paddingBottom)}
-                </span>
-              </div>
-            )}
-            
-            {/* Left Padding */}
-            {computedStyles.paddingLeft > 0 && (
-              <div
-                className="absolute pointer-events-none"
-                style={{
-                  top: bounds.top,
-                  left: bounds.left,
-                  width: computedStyles.paddingLeft,
-                  height: bounds.height,
-                  backgroundColor: `${CONFIG.SPACING_COLOR.padding}20`,
-                  borderLeft: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
-                  borderRight: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
-                  zIndex: 200,
-                }}
-              >
-                <span 
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm"
-                  style={{ backgroundColor: CONFIG.SPACING_COLOR.padding, color: 'white', zIndex: 201 }}
+                  <span 
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm"
+                    style={{ backgroundColor: CONFIG.SPACING_COLOR.padding, color: 'white', zIndex: 201 }}
+                  >
+                    {Math.round(computedStyles.paddingBottom)}
+                  </span>
+                </div>
+              )}
+              
+              {/* Left Padding */}
+              {computedStyles.paddingLeft > 0 && (
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    top: bounds.top,
+                    left: bounds.left, // 🔥 FIXED
+                    width: computedStyles.paddingLeft,
+                    height: bounds.height,
+                    backgroundColor: `${CONFIG.SPACING_COLOR.padding}20`,
+                    borderLeft: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
+                    borderRight: `1px dashed ${CONFIG.SPACING_COLOR.padding}`,
+                    zIndex: 200,
+                  }}
                 >
-                  {Math.round(computedStyles.paddingLeft)}
-                </span>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+                  <span 
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm"
+                    style={{ backgroundColor: CONFIG.SPACING_COLOR.padding, color: 'white', zIndex: 201 }}
+                  >
+                    {Math.round(computedStyles.paddingLeft)}
+                  </span>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       {/* Nested Components Highlight - Lighter blue borders */}
       <AnimatePresence>

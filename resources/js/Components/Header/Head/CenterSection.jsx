@@ -4,11 +4,14 @@ import { Settings, EyeOff, Eye, Sparkles } from 'lucide-react';
 import SearchBar from './SearchBar';
 import VoidUndoRedo from './VoidUndoRedo';
 import VoidZoomControls from './VoidZoomControls';
+import ForgeZoomControls from '@/Components/Header/Head/ForgeZoomControls';
 import BinaryToggle from './BinaryToggle';
 import MiddlePanelControls from './MiddlePanelControls';
 import { MousePointer, Hand } from 'lucide-react';
 import { useHeaderStore } from '@/stores/useHeaderStore';
 import { useIconStore } from '@/stores/useIconStore';
+import { useEditorStore } from '@/stores/useEditorStore';
+
 
 const fadeIn = {
   hidden: { opacity: 0, y: -10 },
@@ -32,8 +35,24 @@ const CenterSection = ({
   onPanelToggle,
   panelStates
 }) => {
-  const { toggleStyleModal } = useHeaderStore();
-  const { toggleIconPanel, isIconPanelOpen } = useIconStore();
+  const { 
+    toggleStyleModal 
+  } = useHeaderStore();
+  
+  const { 
+    toggleIconPanel, 
+    isIconPanelOpen 
+  } = useIconStore();
+  
+  // 🔥 NEW: Get editor store values
+  const { 
+    interactiveMode,
+    setInteractiveMode: setEditorInteractiveMode,
+    canvasZoom,
+    setCanvasZoom,
+    clipCanvas,
+    setClipCanvas
+  } = useEditorStore();
   
   const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects');
   const onForgePage = currentRoute.includes('/modeForge');

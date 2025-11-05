@@ -126,12 +126,32 @@ class ComponentLibraryService {
   
   
 
-// REPLACE calculateResponsiveStyles
 calculateResponsiveStyles(component, responsiveMode, canvasDimensions, parentStyles = {}) {
   const baseStyles = { ...component.style };
   
-  // 🔥 CRITICAL: NO automatic scaling - let CSS handle it
-  const scaledStyles = { ...baseStyles };
+  // Device-specific scaling factors
+  const deviceScales = {
+    desktop: 1.0,
+    tablet: 1.0,  // 🔥 FIXED: No scaling for tablet
+    mobile: 1.0   // 🔥 FIXED: No scaling for mobile
+  };
+  
+  const scale = deviceScales[responsiveMode] || 1.0;
+  
+  // 🔥 CRITICAL FIX: NEVER apply nested scaling
+  // Scaling happens ONLY at the layout/positioning level, NOT on individual elements
+  const isLayoutContainer = component.isLayoutContainer || 
+                            ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
+  
+  const scaledStyles = {};
+  
+  Object.keys(baseStyles).forEach(key => {
+    const value = baseStyles[key];
+    
+    // 🔥 CRITICAL: Direct copy - NO scaling on values
+    // Responsive behavior is handled by CSS media queries, not runtime scaling
+    scaledStyles[key] = value;
+  });
   
   // Ensure minimum touch targets for mobile
   if (responsiveMode === 'mobile') {
@@ -146,9 +166,6 @@ calculateResponsiveStyles(component, responsiveMode, canvasDimensions, parentSty
   
   // Add responsive layout adjustments (NOT scaling)
   if (responsiveMode === 'mobile') {
-    const isLayoutContainer = component.isLayoutContainer || 
-                              ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
-    
     if (scaledStyles.flexDirection === 'row' && isLayoutContainer) {
       scaledStyles.flexDirection = 'column';
     }
