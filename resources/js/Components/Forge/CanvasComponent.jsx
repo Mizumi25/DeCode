@@ -1,7 +1,7 @@
 // @/Components/Forge/CanvasComponent.jsx - Enhanced for True Responsive Canvas Sizing
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Square, Sparkles, Monitor, Tablet, Smartphone, Move, RotateCcw, GripVertical } from 'lucide-react';
+import { Square, Sparkles, Monitor, Tablet, Smartphone, Move, RotateCcw, Layers, GripVertical } from 'lucide-react';
 
 import SectionDropZone from './SectionDropZone';
 import EmptyCanvasState from './EmptyCanvasState';
@@ -28,6 +28,91 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+
+
+
+
+
+
+// 🔥 HELPER: Remove component from tree recursively
+const removeComponentFromTree = (components, componentId) => {
+  return components.reduce((acc, comp) => {
+    if (comp.id === componentId) {
+      return acc; // Skip this component
+    }
+    
+    if (comp.children?.length > 0) {
+      return [...acc, {
+        ...comp,
+        children: removeComponentFromTree(comp.children, componentId)
+      }];
+    }
+    
+    return [...acc, comp];
+  }, []);
+};
+
+// 🔥 HELPER: Add component to container recursively
+const addComponentToContainer = (components, containerId, childToAdd) => {
+  return components.map(comp => {
+    if (comp.id === containerId) {
+      return {
+        ...comp,
+        children: [
+          ...(comp.children || []),
+          {
+            ...childToAdd,
+            parentId: comp.id
+          }
+        ]
+      };
+    }
+    
+    if (comp.children?.length > 0) {
+      return {
+        ...comp,
+        children: addComponentToContainer(comp.children, containerId, childToAdd)
+      };
+    }
+    
+    return comp;
+  });
+};
+
+// 🔥 HELPER: Array move utility
+const arrayMove = (array, from, to) => {
+  const newArray = [...array];
+  const [movedItem] = newArray.splice(from, 1);
+  newArray.splice(to, 0, movedItem);
+  return newArray;
+};
+
+// 🔥 HELPER: Rebuild tree from flat array
+const rebuildTree = (flatArray) => {
+  const map = new Map();
+  const roots = [];
+
+  flatArray.forEach(item => {
+    map.set(item.id, { ...item, children: [] });
+  });
+
+  flatArray.forEach(item => {
+    const node = map.get(item.id);
+    if (item.parentId && map.has(item.parentId)) {
+      map.get(item.parentId).children.push(node);
+    } else {
+      roots.push(node);
+    }
+  });
+
+  return roots;
+};
+
+
+
+
+
+
 
 const CanvasComponent = ({
   canvasRef,
@@ -97,61 +182,68 @@ const {
   const canvasClasses = getResponsiveCanvasClasses();
   const canvasDimensions = getCurrentCanvasDimensions();
 
-   const getCanvasSize = () => {
-    // 🔥 FIXED: Responsive sizes that fit in viewport
-    switch (responsiveMode) {
-      case 'mobile':
-        return {
-          width: 375,
-          height: 667,
-          maxWidth: '375px',
-          deviceName: 'iPhone SE'
-        };
-      case 'tablet':
-        return {
-          width: 768,
-          height: 1024,
-          maxWidth: '768px',
-          deviceName: 'iPad'
-        };
-      case 'desktop':
-      default:
-        return {
-          width: 1440,
-          height: 900,
-          maxWidth: '100%', // 🔥 CRITICAL: Fit container
-          deviceName: 'Desktop'
-        };
-    }
-  };
 
-  const canvasSize = getCanvasSize();
+
+const getCanvasSize = () => {
+  // 🔥 FIXED: Properly scaled sizes that fit viewport
+  switch (responsiveMode) {
+    case 'mobile':
+      return {
+        width: 375,
+        height: 667,
+        maxWidth: '375px',
+        deviceName: 'iPhone SE',
+        scale: 0.8 // 🔥 NEW: Scale down mobile preview
+      };
+    case 'tablet':
+      return {
+        width: 768,
+        height: 1024,
+        maxWidth: '768px',
+        deviceName: 'iPad',
+        scale: 0.7 // 🔥 NEW: Scale down tablet preview
+      };
+    case 'desktop':
+    default:
+      return {
+        width: 1440,
+        height: 900,
+        maxWidth: '1440px',
+        deviceName: 'Desktop',
+        scale: 0.6 // 🔥 NEW: Scale down desktop to 60%
+      };
+  }
+};
+
+const canvasSize = getCanvasSize();
   
+
 
 
 
 const getCanvasRootStyles = () => {
   const canvasStyle = frame?.canvas_style || {};
   
+  // 🔥 FIXED: Proper dimensions per mode
   const baseDimensions = {
     mobile: {
       width: '375px',
       height: canvasExpansionEnabled ? 'auto' : '667px',
       minHeight: '667px',
-      maxHeight: 'none',
+      maxHeight: canvasExpansionEnabled ? 'none' : '667px',
     },
     tablet: {
       width: '768px',
       height: canvasExpansionEnabled ? 'auto' : '1024px',
       minHeight: '1024px',
-      maxHeight: 'none',
+      maxHeight: canvasExpansionEnabled ? 'none' : '1024px',
     },
     desktop: {
-      width: '100%', // 🔥 CHANGED from '1440px'
-      maxWidth: '1440px', // 🔥 ADD constraint
+      width: '1440px', // 🔥 EXPLICIT width
+      maxWidth: '1440px',
       height: canvasExpansionEnabled ? 'auto' : '900px',
-      minHeight: '600px', // 🔥 REDUCED from 900px
-      maxHeight: 'none',
+      minHeight: '900px',
+      maxHeight: canvasExpansionEnabled ? 'none' : '900px',
     }
   };
   
@@ -163,15 +255,15 @@ const getCanvasRootStyles = () => {
     fontFamily: canvasStyle.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     fontSize: canvasStyle.fontSize || '16px',
     lineHeight: canvasStyle.lineHeight || '1.6',
-    overflow: 'visible', // 🔥 CHANGED: Always visible
+    overflow: 'visible',
     position: 'relative',
     boxSizing: 'border-box',
     padding: canvasStyle.padding || '0px',
-    paddingBottom: canvasExpansionEnabled ? '80px' : '0px', // 🔥 ADD: Extra padding at bottom
+    paddingBottom: canvasExpansionEnabled ? '80px' : (canvasStyle.padding || '0px'),
     margin: '0px',
     display: 'block',
     transformOrigin: 'top center',
-    transform: `scale(${forgeCanvasZoom / 100})`,
+    // 🔥 NO extra transform here - handled by parent wrapper
   };
 };
 
@@ -522,9 +614,14 @@ useEffect(() => {
 
 
 
+
+
 const handleDndDragStart = useCallback((event) => {
   if (isPreviewMode) return; 
   const { active } = event;
+  
+  console.log('🎬 Drag started:', active.id);
+  
   setActiveId(active.id);
   
   const component = flatComponents.find(c => c.id === active.id);
@@ -535,21 +632,16 @@ const handleDndDragStart = useCallback((event) => {
   }
   active.data.current.activatorEvent = event.activatorEvent;
   
-  // 🔥 ENHANCED: Completely hide element and overlays during drag
-  const element = document.querySelector(`[data-component-id="${active.id}"]`);
-  if (element) {
-    element.style.visibility = 'hidden';
-    element.style.pointerEvents = 'none';
-    element.style.opacity = '0';
-    
-    const childElements = element.querySelectorAll('[data-component-id]');
-    childElements.forEach(child => {
-      child.style.visibility = 'hidden';
-      child.style.opacity = '0';
-    });
+  // 🔥 CRITICAL: Store original position for smart dropping
+  if (component) {
+    active.data.current.originalComponent = component;
+    active.data.current.isLayoutContainer = component.isLayoutContainer;
   }
   
-  // 🔥 NEW: Hide selection overlay
+  // 🔥 DON'T hide the element - let DnD handle it
+  // This allows proper collision detection
+  
+  // 🔥 Notify overlays
   window.dispatchEvent(new CustomEvent('element-drag-start', { 
     detail: { componentId: active.id } 
   }));
@@ -558,86 +650,114 @@ const handleDndDragStart = useCallback((event) => {
     navigator.vibrate(50);
   }
   
-  canvasComponents.forEach(comp => {
-    if (comp.id !== active.id) {
-      const el = document.querySelector(`[data-component-id="${comp.id}"]`);
-      if (el) {
-        el.style.opacity = '0.6';
-        el.style.transition = 'opacity 0.2s';
-      }
+  // 🔥 ADD visual feedback to potential drop targets
+  document.querySelectorAll('[data-is-layout="true"]').forEach(el => {
+    if (el.getAttribute('data-component-id') !== active.id) {
+      el.style.transition = 'all 0.2s ease';
+      el.style.outline = '2px dashed rgba(59, 130, 246, 0.3)';
     }
   });
-}, [isPreviewMode, flatComponents, canvasComponents]);
+  
+}, [isPreviewMode, flatComponents]);
+
 
 
 
 
 
 const handleDndDragOver = useCallback((event) => {
-  const { active, over } = event;
+  const { active, over, activatorEvent } = event;
   
-  // 🔥 CRITICAL: Clear ALL previous feedback first
-  document.querySelectorAll('.drag-over-layout, .drop-zone-active, [data-drop-intent]').forEach(el => {
-    el.classList.remove('drag-over-layout', 'drop-zone-active');
-    el.style.backgroundColor = '';
-    el.style.border = '';
+  // 🔥 CLEAR previous feedback
+  document.querySelectorAll('[data-drop-intent], .drop-indicator').forEach(el => {
+    el.removeAttribute('data-drop-intent');
+    el.classList.remove('drop-indicator');
     el.style.borderTop = '';
     el.style.borderBottom = '';
+    el.style.backgroundColor = '';
+    el.style.border = '';
     el.style.boxShadow = '';
-    el.removeAttribute('data-drop-intent');
   });
   
-  if (over) {
-    const targetElement = document.querySelector(`[data-component-id="${over.id}"]`);
-    const isTargetLayout = targetElement?.getAttribute('data-is-layout') === 'true';
-    
-    // 🔥 SMART DROP DETECTION: Check mouse position relative to element
-    if (isTargetLayout && targetElement) {
-      const rect = targetElement.getBoundingClientRect();
-      const mouseX = event.activatorEvent?.clientX || event.active.rect.current.translated?.left || rect.left;
-      const mouseY = event.activatorEvent?.clientY || event.active.rect.current.translated?.top || rect.top;
+  if (!over || !active) {
+    setOverId(null);
+    return;
+  }
+  
+  const targetElement = document.querySelector(`[data-component-id="${over.id}"]`);
+  if (!targetElement) return;
+  
+  const isTargetLayout = targetElement.getAttribute('data-is-layout') === 'true';
+  const targetRect = targetElement.getBoundingClientRect();
+  
+  // 🔥 Get mouse position
+  const mouseY = activatorEvent?.clientY || event.active.rect.current.translated?.top || 0;
+  const relativeY = mouseY - targetRect.top;
+  
+  // 🔥 SMART DROP ZONES (Enhanced detection)
+  const topZone = Math.min(40, targetRect.height * 0.25); // 25% or 40px max
+  const bottomZone = targetRect.height - Math.min(40, targetRect.height * 0.25);
+  
+  setOverId(over.id);
+  
+  if (isTargetLayout) {
+    // 🔥 LAYOUT CONTAINER - Show inside/before/after
+    if (relativeY < topZone) {
+      // DROP BEFORE
+      targetElement.style.borderTop = '4px solid #3b82f6';
+      targetElement.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
+      targetElement.setAttribute('data-drop-intent', 'before');
+      console.log('📍 Drop intent: BEFORE layout');
+    } else if (relativeY > bottomZone) {
+      // DROP AFTER
+      targetElement.style.borderBottom = '4px solid #3b82f6';
+      targetElement.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
+      targetElement.setAttribute('data-drop-intent', 'after');
+      console.log('📍 Drop intent: AFTER layout');
+    } else {
+      // DROP INSIDE
+      targetElement.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+      targetElement.style.border = '4px solid #10b981';
+      targetElement.style.boxShadow = 'inset 0 0 30px rgba(16, 185, 129, 0.3)';
+      targetElement.setAttribute('data-drop-intent', 'inside');
+      console.log('📦 Drop intent: INSIDE layout');
       
-      // Calculate relative position within target
-      const relativeX = mouseX - rect.left;
-      const relativeY = mouseY - rect.top;
-      
-      // Calculate drop zones (30% top/bottom for before/after, 40% middle for inside)
-      const topZone = rect.height * 0.3;
-      const bottomStart = rect.height * 0.7;
-      
-      setOverId(over.id);
-      targetElement.classList.add('drag-over-layout');
-      
-      // Determine drop intent
-      if (relativeY < topZone) {
-        // DROP BEFORE
-        targetElement.style.borderTop = '3px solid #3b82f6';
-        targetElement.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
-        targetElement.setAttribute('data-drop-intent', 'before');
-        console.log('🎯 Drop intent: BEFORE', over.id);
-      } else if (relativeY > bottomStart) {
-        // DROP AFTER
-        targetElement.style.borderBottom = '3px solid #3b82f6';
-        targetElement.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
-        targetElement.setAttribute('data-drop-intent', 'after');
-        console.log('🎯 Drop intent: AFTER', over.id);
-      } else {
-        // DROP INSIDE (middle zone)
-        targetElement.style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
-        targetElement.style.border = '3px solid #10b981';
-        targetElement.style.boxShadow = 'inset 0 0 20px rgba(16, 185, 129, 0.2)';
-        targetElement.setAttribute('data-drop-intent', 'inside');
-        console.log('🎯 Drop intent: INSIDE', over.id);
+      // 🔥 Show drop position inside container
+      const children = targetElement.querySelectorAll(':scope > [data-component-id]');
+      if (children.length === 0) {
+        // Empty container - show center drop indicator
+        const indicator = document.createElement('div');
+        indicator.className = 'drop-indicator';
+        indicator.style.cssText = `
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          padding: 20px 40px;
+          background: rgba(16, 185, 129, 0.9);
+          color: white;
+          border-radius: 12px;
+          font-weight: 600;
+          pointer-events: none;
+          z-index: 999;
+        `;
+        indicator.textContent = 'Drop here';
+        targetElement.appendChild(indicator);
       }
-      
-      // 🔥 CRITICAL: Ensure pointer events work
-      targetElement.style.pointerEvents = 'auto';
-      
-      return; // Exit early for layout elements
+    }
+  } else {
+    // 🔥 REGULAR COMPONENT - Show before/after only
+    if (relativeY < targetRect.height / 2) {
+      targetElement.style.borderTop = '3px solid #3b82f6';
+      targetElement.setAttribute('data-drop-intent', 'before');
+      console.log('📍 Drop intent: BEFORE component');
+    } else {
+      targetElement.style.borderBottom = '3px solid #3b82f6';
+      targetElement.setAttribute('data-drop-intent', 'after');
+      console.log('📍 Drop intent: AFTER component');
     }
   }
   
-  setOverId(null);
 }, []);
 
 
@@ -662,78 +782,77 @@ const isDescendant = (parentId, childId, components) => {
 
 
   
-const handleDndDragEnd = useCallback((event) => {
 
-  
+const handleDndDragEnd = useCallback((event) => {
   const { active, over } = event;
   
-  // 🔥 ENHANCED: Immediately restore visibility
-const restoreElements = () => {
-  if (activeId) {
-    const element = document.querySelector(`[data-component-id="${activeId}"]`);
-    if (element) {
-      element.style.opacity = '1';
-      element.style.pointerEvents = '';
-      element.style.visibility = 'visible';
-      element.style.transform = '';
-      
-      const childElements = element.querySelectorAll('[data-component-id]');
-      childElements.forEach(child => {
-        child.style.visibility = 'visible';
-        child.style.opacity = '1';
-      });
-    }
-  }
+  console.log('🎯 Drag end:', { activeId: active?.id, overId: over?.id });
   
-  canvasComponents.forEach(comp => {
-    const el = document.querySelector(`[data-component-id="${comp.id}"]`);
-    if (el) {
+  // 🔥 ENHANCED CLEANUP FUNCTION
+  const restoreElements = () => {
+    if (activeId) {
+      const element = document.querySelector(`[data-component-id="${activeId}"]`);
+      if (element) {
+        element.style.opacity = '1';
+        element.style.pointerEvents = '';
+        element.style.visibility = 'visible';
+        element.style.transform = '';
+        
+        const childElements = element.querySelectorAll('[data-component-id]');
+        childElements.forEach(child => {
+          child.style.visibility = 'visible';
+          child.style.opacity = '1';
+        });
+      }
+    }
+    
+    // 🔥 CLEAR ALL DROP INDICATORS
+    document.querySelectorAll('[data-drop-intent], .drop-indicator').forEach(el => {
+      el.removeAttribute('data-drop-intent');
+      el.classList.remove('drop-indicator', 'drag-over-layout', 'drop-zone-active');
+      el.style.borderTop = '';
+      el.style.borderBottom = '';
+      el.style.backgroundColor = '';
+      el.style.border = '';
+      el.style.boxShadow = '';
+      el.style.outline = '';
       el.style.opacity = '';
       el.style.transition = '';
       el.style.transform = '';
-    }
-  });
-  
-  // 🔥 NEW: Notify overlays to show again
-  window.dispatchEvent(new CustomEvent('element-drag-end', { 
-    detail: { componentId: activeId } 
-  }));
-};
+      if (el.classList.contains('drop-indicator')) {
+        el.remove();
+      }
+    });
+    
+    canvasComponents.forEach(comp => {
+      const el = document.querySelector(`[data-component-id="${comp.id}"]`);
+      if (el) {
+        el.style.opacity = '';
+        el.style.transition = '';
+        el.style.transform = '';
+      }
+    });
+    
+    window.dispatchEvent(new CustomEvent('element-drag-end', { 
+      detail: { componentId: activeId } 
+    }));
+  };
 
-restoreElements(); // Call immediately at start of function
-  
+  restoreElements(); // 🔥 Call immediately at start
   
   setActiveId(null);
   setOverId(null);
   setDraggedComponent(null);
+  document.body.classList.remove('dragging');
 
+  // 🔥 HANDLE NO DROP TARGET - Drop at root
   if (!over) {
     console.log('❌ No drop target - dropping at root level');
     
-    // 🔥 NEW: Allow dropping at root when no target
     const draggedComp = flatComponents.find(c => c.id === active.id);
     if (draggedComp) {
-      // Remove from current position and add to root
-      const removeFromTree = (components, idToRemove) => {
-        return components.reduce((acc, comp) => {
-          if (comp.id === idToRemove) {
-            return acc; // Skip this component (will be added to root)
-          }
-          
-          if (comp.children?.length > 0) {
-            return [...acc, {
-              ...comp,
-              children: removeFromTree(comp.children, idToRemove)
-            }];
-          }
-          
-          return [...acc, comp];
-        }, []);
-      };
+      let updatedTree = removeComponentFromTree(canvasComponents, active.id);
       
-      let updatedTree = removeFromTree(canvasComponents, active.id);
-      
-      // Add to root with default position
       const rootPosition = {
         x: dragPosition?.x || 100,
         y: dragPosition?.y || 100
@@ -768,16 +887,14 @@ restoreElements(); // Call immediately at start of function
       }, 500);
     }
     
-    document.body.classList.remove('dragging');
     return;
   }
   
-  
-  
+  // 🔥 GET DRAGGED AND TARGET COMPONENTS
   const draggedComp = flatComponents.find(c => c.id === active.id);
   const targetComp = flatComponents.find(c => c.id === over.id);
   
-  console.log('🎯 Drag end:', {
+  console.log('🎯 Drop details:', {
     dragged: draggedComp?.name,
     target: targetComp?.name,
     targetIsLayout: targetComp?.isLayoutContainer,
@@ -785,176 +902,101 @@ restoreElements(); // Call immediately at start of function
     targetParent: targetComp?.parentId
   });
 
- 
-
-  // 🔥 CRITICAL: Read drop intent from target element
+  // 🔥 READ DROP INTENT FROM DOM
   const targetElement = document.querySelector(`[data-component-id="${over.id}"]`);
   const dropIntent = targetElement?.getAttribute('data-drop-intent') || 'auto';
   
   console.log('🎯 Drop intent:', dropIntent);
   
-  // Clean up visual feedback
-  document.querySelectorAll('.drag-over-layout').forEach(el => {
-    el.classList.remove('drag-over-layout');
-    el.style.backgroundColor = '';
-    el.style.border = '';
-    el.style.borderTop = '';
-    el.style.borderBottom = '';
-    el.style.boxShadow = '';
-    el.removeAttribute('data-drop-intent');
-  });
-
-  // 🔥 SMART NESTING: Use drop intent
-  const shouldNest = (() => {
-    if (!targetComp || draggedComp?.id === targetComp?.id) return false;
-    
-    const isTargetLayout = targetElement?.getAttribute('data-is-layout') === 'true';
-    
-    // 🔥 EXPLICIT INTENT: Only nest if intent is "inside"
-    if (dropIntent === 'inside' && isTargetLayout) {
-      const isDifferentParent = draggedComp?.parentId !== targetComp?.id;
-      const isCircular = isDescendant(targetComp.id, draggedComp.id, canvasComponents);
-      
-      console.log('🔍 Nest check (intent-based):', {
-        target: targetComp.name,
-        isLayout: isTargetLayout,
-        isDifferentParent,
-        isCircular,
-        shouldNest: isDifferentParent && !isCircular
-      });
-      
-      return isDifferentParent && !isCircular;
-    }
-    
-    return false;
-  })();
-
-  if (shouldNest) {
-    console.log('📦 Nesting into container:', targetComp.name);
-    
-    // Remove from current position
-    const removeFromTree = (components, idToRemove) => {
-      return components.reduce((acc, comp) => {
-        if (comp.id === idToRemove) {
-          return acc;
-        }
-        
-        if (comp.children?.length > 0) {
-          return [...acc, {
-            ...comp,
-            children: removeFromTree(comp.children, idToRemove)
-          }];
-        }
-        
-        return [...acc, comp];
-      }, []);
-    };
-    
-    // Add to target container
-    const addToContainer = (components, containerId, childToAdd) => {
-      return components.map(comp => {
-        if (comp.id === containerId) {
-          return {
-            ...comp,
-            children: [
-              {
-                ...childToAdd,
-                parentId: comp.id,
-                position: { x: 20, y: 20 }
-              },
-              ...(comp.children || [])
-            ]
-          };
-        }
-        
-        if (comp.children?.length > 0) {
-          return {
-            ...comp,
-            children: addToContainer(comp.children, containerId, childToAdd)
-          };
-        }
-        
-        return comp;
-      });
-    };
-    
-    let updatedTree = removeFromTree(canvasComponents, active.id);
-    updatedTree = addToContainer(updatedTree, over.id, draggedComp);
-    
-    setFrameCanvasComponents(prev => ({
-      ...prev,
-      [currentFrame]: updatedTree
-    }));
-    
-    if (pushHistory && actionTypes) {
-      pushHistory(currentFrame, updatedTree, actionTypes.MOVE, {
-        componentId: active.id,
-        action: 'nested_into_container',
-        containerId: over.id
-      });
-    }
-    
-    setTimeout(() => {
-      if (componentLibraryService?.saveProjectComponents) {
-        componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedTree);
-      }
-    }, 500);
-    
-    document.body.classList.remove('dragging');
-    
-    // 🔥 Haptic feedback
-    if ('vibrate' in navigator) {
-      navigator.vibrate([50, 30, 50]); // Success pattern
-    }
-    
+  // 🔥 PREVENT CIRCULAR NESTING
+  if (isDescendant(active.id, over.id, canvasComponents)) {
+    console.warn('⚠️ Cannot drop parent into its own child');
+    if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
     return;
   }
 
-  // 🔥 SIBLING PLACEMENT: Handle "before" and "after" intents
+  // 🔥 HANDLE DROP BASED ON INTENT
+  
+  // ============================================
+  // 1. NEST INTO CONTAINER (dropIntent === 'inside')
+  // ============================================
+  if (dropIntent === 'inside') {
+    const isTargetLayout = targetElement?.getAttribute('data-is-layout') === 'true';
+    
+    if (!isTargetLayout) {
+      console.warn('⚠️ Cannot nest into non-layout component');
+      if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
+      return;
+    }
+    
+    const isDifferentParent = draggedComp?.parentId !== targetComp?.id;
+    
+    if (!isDifferentParent) {
+      console.log('ℹ️ Already a child of this container, reordering instead');
+      // Fall through to default reorder
+    } else {
+      console.log('📦 Nesting into container:', targetComp.name);
+      
+      let updatedTree = removeComponentFromTree(canvasComponents, active.id);
+      updatedTree = addComponentToContainer(updatedTree, over.id, {
+        ...draggedComp,
+        parentId: over.id,
+        position: { x: 20, y: 20 }
+      });
+      
+      setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: updatedTree
+      }));
+      
+      if (pushHistory && actionTypes) {
+        pushHistory(currentFrame, updatedTree, actionTypes.MOVE, {
+          componentId: active.id,
+          action: 'nested_into_container',
+          containerId: over.id
+        });
+      }
+      
+      setTimeout(() => {
+        if (componentLibraryService?.saveProjectComponents) {
+          componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedTree);
+        }
+      }, 500);
+      
+      if ('vibrate' in navigator) {
+        navigator.vibrate([50, 30, 50]);
+      }
+      
+      return;
+    }
+  }
+
+  // ============================================
+  // 2. SIBLING PLACEMENT (before/after)
+  // ============================================
   if (dropIntent === 'before' || dropIntent === 'after') {
     console.log(`↔️ Placing ${dropIntent === 'before' ? 'BEFORE' : 'AFTER'} sibling:`, targetComp.name);
     
-    const oldIndex = flatComponents.findIndex(c => c.id === active.id);
-    let targetIndex = flatComponents.findIndex(c => c.id === over.id);
+    const flatArray = flattenForReorder(canvasComponents);
+    const oldIndex = flatArray.findIndex(c => c.id === active.id);
+    let targetIndex = flatArray.findIndex(c => c.id === over.id);
+    
+    if (oldIndex === -1 || targetIndex === -1) {
+      console.error('❌ Invalid indices for reordering');
+      return;
+    }
     
     // Adjust index based on intent
     if (dropIntent === 'after') {
       targetIndex += 1;
     }
     
-    if (oldIndex === -1 || targetIndex === -1) {
-      document.body.classList.remove('dragging');
-      return;
+    // Adjust if moving within same list
+    if (oldIndex < targetIndex) {
+      targetIndex -= 1;
     }
     
-    const arrayMove = (array, from, to) => {
-      const newArray = [...array];
-      const [movedItem] = newArray.splice(from, 1);
-      newArray.splice(to, 0, movedItem);
-      return newArray;
-    };
-    
-    const rebuildTree = (flatArray) => {
-      const map = new Map();
-      const roots = [];
-
-      flatArray.forEach(item => {
-        map.set(item.id, { ...item, children: [] });
-      });
-
-      flatArray.forEach(item => {
-        const node = map.get(item.id);
-        if (item.parentId && map.has(item.parentId)) {
-          map.get(item.parentId).children.push(node);
-        } else {
-          roots.push(node);
-        }
-      });
-
-      return roots;
-    };
-
-    const reorderedFlat = arrayMove(flatComponents, oldIndex, targetIndex);
+    const reorderedFlat = arrayMove(flatArray, oldIndex, targetIndex);
     const reorderedTree = rebuildTree(reorderedFlat);
 
     setFrameCanvasComponents(prev => ({
@@ -977,8 +1019,6 @@ restoreElements(); // Call immediately at start of function
       }
     }, 500);
     
-    document.body.classList.remove('dragging');
-    
     if ('vibrate' in navigator) {
       navigator.vibrate(30);
     }
@@ -986,45 +1026,26 @@ restoreElements(); // Call immediately at start of function
     return;
   }
 
-  // 🔥 DEFAULT: Standard sibling reordering (existing logic)
-  const oldIndex = flatComponents.findIndex(c => c.id === active.id);
-  const newIndex = flatComponents.findIndex(c => c.id === over.id);
+  // ============================================
+  // 3. DEFAULT REORDERING (auto intent or fallback)
+  // ============================================
+  console.log('↔️ Default reordering:', active.id, 'to position of', over.id);
+  
+  const flatArray = flattenForReorder(canvasComponents);
+  const oldIndex = flatArray.findIndex(c => c.id === active.id);
+  const newIndex = flatArray.findIndex(c => c.id === over.id);
 
   if (oldIndex === -1 || newIndex === -1) {
-    document.body.classList.remove('dragging');
+    console.error('❌ Invalid indices for default reordering');
     return;
   }
 
-  console.log('↔️ Default reordering:', active.id, 'from', oldIndex, 'to', newIndex);
+  if (oldIndex === newIndex) {
+    console.log('ℹ️ No position change needed');
+    return;
+  }
 
-  const arrayMove = (array, from, to) => {
-    const newArray = [...array];
-    const [movedItem] = newArray.splice(from, 1);
-    newArray.splice(to, 0, movedItem);
-    return newArray;
-  };
-
-  const rebuildTree = (flatArray) => {
-    const map = new Map();
-    const roots = [];
-
-    flatArray.forEach(item => {
-      map.set(item.id, { ...item, children: [] });
-    });
-
-    flatArray.forEach(item => {
-      const node = map.get(item.id);
-      if (item.parentId && map.has(item.parentId)) {
-        map.get(item.parentId).children.push(node);
-      } else {
-        roots.push(node);
-      }
-    });
-
-    return roots;
-  };
-
-  const reorderedFlat = arrayMove(flatComponents, oldIndex, newIndex);
+  const reorderedFlat = arrayMove(flatArray, oldIndex, newIndex);
   const reorderedTree = rebuildTree(reorderedFlat);
 
   setFrameCanvasComponents(prev => ({
@@ -1045,14 +1066,17 @@ restoreElements(); // Call immediately at start of function
       componentLibraryService.saveProjectComponents(projectId, currentFrame, reorderedTree);
     }
   }, 500);
-  
-  document.body.classList.remove('dragging');
 
   if ('vibrate' in navigator) {
     navigator.vibrate(30);
   }
   
-}, [flatComponents, currentFrame, projectId, componentLibraryService, pushHistory, actionTypes, setFrameCanvasComponents, activeId, canvasComponents, dragPosition, isDescendant]);
+  console.log('✅ Drop complete:', {
+    intent: dropIntent,
+    newTreeSize: reorderedTree.length
+  });
+  
+}, [flatComponents, currentFrame, projectId, componentLibraryService, pushHistory, actionTypes, setFrameCanvasComponents, activeId, canvasComponents, dragPosition, isDescendant, flattenForReorder]);
 
 
  const handleDndDragCancel = useCallback(() => {
@@ -1274,8 +1298,7 @@ const SortableComponent = ({
 
   const componentStyles = getDeviceAwareStyles();
 
-  // Rest of the SortableComponent implementation remains the same...
-  if (isLayout) {
+if (isLayout) {
     return (
       <div
         key={component.id}
@@ -1738,48 +1761,45 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
   }, [selectedComponent, onPropertyUpdate]);
 
 
-return (
-  <div 
-    className="relative w-full h-full flex items-center justify-center"
-    style={{ 
-      backgroundColor: 'transparent',
-      position: 'relative',
-      zIndex: 1,
-      overflow: 'auto', // 🔥 CRITICAL: Allow scrolling
-      minHeight: '100%',
-      padding: responsiveMode === 'mobile' ? '40px 20px' : 
-               responsiveMode === 'tablet' ? '60px 40px' : '80px 120px',
-    }}
-  >
-    {/* 🔥 NEW: Scaled container that constrains canvas */}
+
+  return (
     <div 
-      className="relative"
-      style={{
-        transform: `scale(${forgeCanvasZoom / 100})`,
-        transformOrigin: 'center center',
-        transition: 'transform 0.2s ease-out',
+      className="relative w-full h-full flex items-center justify-center"
+      style={{ 
+        backgroundColor: 'transparent',
+        position: 'relative',
+        zIndex: 1,
+        overflow: 'auto',
+        minHeight: '100%',
+        padding: '40px 20px', // 🔥 REDUCED padding
       }}
     >
-      {/* Responsive Canvas Container - EXPANDS with content */}
-
-<div
-  className={`relative transition-all duration-500 ease-in-out
-    ${isFrameSwitching ? 'opacity-50 scale-95' : 'opacity-100 scale-100'}
-    ${responsiveMode !== 'desktop' ? 'shadow-2xl' : ''}
-  `}
-  style={{ 
-    width: responsiveMode === 'desktop' ? '100%' : `${canvasSize.width}px`,
-    maxWidth: responsiveMode === 'desktop' ? '1440px' : canvasSize.maxWidth,
-    height: 'auto',
-    minHeight: responsiveMode === 'desktop' ? '600px' : 
-               responsiveMode === 'tablet' ? '800px' : '500px', // 🔥 Reduced heights
-    overflow: 'visible', 
-    transform: 'none',
-    transformOrigin: 'center top',
-    zIndex: 10,
-    margin: '0 auto', // 🔥 Center horizontally
-  }}
->
+      {/* 🔥 SCALED container - respects viewport */}
+      <div 
+        className="relative"
+        style={{
+          transform: `scale(${canvasSize.scale * (forgeCanvasZoom / 100)})`, // 🔥 COMBINED scales
+          transformOrigin: 'center center',
+          transition: 'transform 0.2s ease-out',
+        }}
+      >
+        {/* Responsive Canvas Container */}
+        <div
+          className={`relative transition-all duration-500 ease-in-out
+            ${isFrameSwitching ? 'opacity-50 scale-95' : 'opacity-100 scale-100'}
+            ${responsiveMode !== 'desktop' ? 'shadow-2xl' : ''}
+          `}
+          style={{ 
+            width: `${canvasSize.width}px`, // 🔥 EXPLICIT width
+            maxWidth: canvasSize.maxWidth,
+            height: 'auto',
+            minHeight: responsiveMode === 'desktop' ? '600px' : 
+                       responsiveMode === 'tablet' ? '700px' : '500px',
+            overflow: 'visible', 
+            zIndex: 10,
+            margin: '0 auto',
+          }}
+        >
       
 
 {/* Expansion Toggle */}

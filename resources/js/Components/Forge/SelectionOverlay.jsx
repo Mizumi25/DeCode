@@ -270,43 +270,24 @@ const updateBounds = useCallback(() => {
   
   if (isCanvasSelection) {
     const canvasRect = canvasRef.current.getBoundingClientRect();
-    
-    // 🔥 FIXED: Get actual canvas dimensions (not scaled) AND responsive to mode
     const canvasComputedStyle = window.getComputedStyle(canvasRef.current);
-    const actualWidth = parseFloat(canvasComputedStyle.width);
-    const actualHeight = parseFloat(canvasComputedStyle.height);
-    
-    // 🔥 NEW: Get canvas padding/margin for visualization
-    const canvasPadding = {
-      top: parseFloat(canvasComputedStyle.paddingTop) || 0,
-      right: parseFloat(canvasComputedStyle.paddingRight) || 0,
-      bottom: parseFloat(canvasComputedStyle.paddingBottom) || 0,
-      left: parseFloat(canvasComputedStyle.paddingLeft) || 0,
-    };
-    
-    const canvasMargin = {
-      top: parseFloat(canvasComputedStyle.marginTop) || 0,
-      right: parseFloat(canvasComputedStyle.marginRight) || 0,
-      bottom: parseFloat(canvasComputedStyle.marginBottom) || 0,
-      left: parseFloat(canvasComputedStyle.marginLeft) || 0,
-    };
     
     setBounds({
       top: 0,
       left: 0,
-      width: actualWidth,
-      height: actualHeight,
+      width: parseFloat(canvasComputedStyle.width),
+      height: parseFloat(canvasComputedStyle.height),
     });
     
     setComputedStyles({
-      marginTop: canvasMargin.top,
-      marginRight: canvasMargin.right,
-      marginBottom: canvasMargin.bottom,
-      marginLeft: canvasMargin.left,
-      paddingTop: canvasPadding.top,
-      paddingRight: canvasPadding.right,
-      paddingBottom: canvasPadding.bottom,
-      paddingLeft: canvasPadding.left,
+      marginTop: 0,
+      marginRight: 0,
+      marginBottom: 0,
+      marginLeft: 0,
+      paddingTop: 0,
+      paddingRight: 0,
+      paddingBottom: 0,
+      paddingLeft: 0,
     });
     return;
   }
@@ -318,25 +299,25 @@ const updateBounds = useCallback(() => {
     return;
   }
 
-  const rect = element.getBoundingClientRect();
+  // 🔥 KEY FIX: The overlay is INSIDE the scaled wrapper, so we use DIRECT positions
+  const elementRect = element.getBoundingClientRect();
   const canvasRect = canvasRef.current.getBoundingClientRect();
-  const styles = window.getComputedStyle(element);
-
-  // 🔥 NO SCALING - direct pixel calculations
-  const scrollTop = canvasRef.current.scrollTop || 0;
-  const scrollLeft = canvasRef.current.scrollLeft || 0;
-
+  
+  // 🔥 Since overlay is inside canvas, just use offsetTop/Left (no scaling needed)
+  const computedStyle = window.getComputedStyle(element);
+  const elementOffsetLeft = element.offsetLeft || 0;
+  const elementOffsetTop = element.offsetTop || 0;
+  
   const newBounds = {
-    top: (rect.top - canvasRect.top) + scrollTop,
-    left: (rect.left - canvasRect.left) + scrollLeft,
-    width: rect.width,
-    height: rect.height,
-    right: (rect.right - canvasRect.left) + scrollLeft,
-    bottom: (rect.bottom - canvasRect.top) + scrollTop,
+    top: elementOffsetTop,
+    left: elementOffsetLeft,
+    width: element.offsetWidth,
+    height: element.offsetHeight,
+    right: elementOffsetLeft + element.offsetWidth,
+    bottom: elementOffsetTop + element.offsetHeight,
   };
-  
-  
-  // Extract computed styles
+
+  const styles = window.getComputedStyle(element);
   const newStyles = {
     marginTop: parseFloat(styles.marginTop) || 0,
     marginRight: parseFloat(styles.marginRight) || 0,
@@ -349,16 +330,20 @@ const updateBounds = useCallback(() => {
     display: styles.display,
     position: styles.position,
     zIndex: styles.zIndex,
-    opacity: parseFloat(styles.opacity) || 1,
-    transform: styles.transform,
-    borderWidth: parseFloat(styles.borderWidth) || 0,
-    borderRadius: styles.borderRadius,
-    boxSizing: styles.boxSizing,
   };
+
+  console.log('🎯 SelectionOverlay bounds:', {
+    componentId,
+    bounds: newBounds,
+    offsetLeft: elementOffsetLeft,
+    offsetTop: elementOffsetTop,
+    offsetWidth: element.offsetWidth,
+    offsetHeight: element.offsetHeight
+  });
 
   setBounds(newBounds);
   setComputedStyles(newStyles);
-}, [componentId, canvasRef, responsiveMode, isCanvasSelection]);
+}, [componentId, canvasRef, isCanvasSelection]);
   
   
   
@@ -1506,8 +1491,8 @@ if (isCanvasSelection) {
           </motion.div>
         )}
       </AnimatePresence>
+{/*
 
-      {/* Component Info Panel - Show on long hover */}
       <AnimatePresence>
         {(isHovered || true) && !isResizing && (
           <motion.div
@@ -1592,7 +1577,7 @@ if (isCanvasSelection) {
               )}
             </div>
 
-            {/* Arrow pointing to component */}
+
             <div
               className="absolute w-2 h-2 bg-white border-l border-t transform rotate-45"
               style={{
@@ -1604,6 +1589,7 @@ if (isCanvasSelection) {
           </motion.div>
         )}
       </AnimatePresence>
+      */}
 
       {/* Keyboard Shortcuts Hint - Show on first hover */}
       <AnimatePresence>

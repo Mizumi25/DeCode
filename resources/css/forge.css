@@ -607,6 +607,74 @@ body.dragging [contenteditable="true"] {
 
 
 
+/* Add to your global CSS file (e.g., app.css or index.css) */
+
+/* 🔥 DnD Visual Feedback */
+body.dragging {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+body.dragging * {
+  cursor: grabbing !important;
+}
+
+/* 🔥 Drop zone active state */
+[data-drop-intent="inside"] {
+  animation: pulse-green 1s ease-in-out infinite;
+}
+
+[data-drop-intent="before"],
+[data-drop-intent="after"] {
+  animation: pulse-blue 0.5s ease-in-out infinite;
+}
+
+@keyframes pulse-green {
+  0%, 100% {
+    background-color: rgba(16, 185, 129, 0.15);
+  }
+  50% {
+    background-color: rgba(16, 185, 129, 0.25);
+  }
+}
+
+@keyframes pulse-blue {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* 🔥 Layout container hover states */
+.layout-container {
+  transition: all 0.2s ease;
+}
+
+.layout-container:hover {
+  outline: 2px dashed rgba(59, 130, 246, 0.3);
+  outline-offset: 2px;
+}
+
+/* 🔥 Drag ghost enhancement */
+.drag-ghost-wrapper {
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* 🔥 Drop indicator */
+.drop-indicator {
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+
+
 
 /* ========== FIXED DRAG & DROP STYLES ========== */
 
