@@ -368,6 +368,11 @@ const BottomCodePanel = ({
         maxHeight: codePanelMinimized ? 'auto' : '80vh',
         backgroundColor: 'var(--color-surface)',
         borderColor: 'var(--color-border)',
+        width: '80%', // 🔥 FIX: Ensure full width
+        margin: 0, // 🔥 FIX: Remove any margins
+        padding: 0, // 🔥 FIX: Remove any padding
+        left: 0, // 🔥 FIX: Explicitly set to 0
+        right: 0 // 🔥 FIX: Explicitly set to 0
       }}
     >
       {/* Modern Apple-style resize handle */}
