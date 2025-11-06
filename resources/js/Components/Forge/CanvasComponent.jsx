@@ -616,7 +616,7 @@ useEffect(() => {
 
 
 
-// MODIFY handleDndDragStart - ADD placeholder logic
+// MODIFY handleDndDragStart - DON'T hide the original element
 const handleDndDragStart = useCallback((event) => {
   if (isPreviewMode) return;
   const { active } = event;
@@ -638,33 +638,12 @@ const handleDndDragStart = useCallback((event) => {
     active.data.current.isLayoutContainer = component.isLayoutContainer;
   }
   
-  // 🔥 NEW: Create placeholder in original position
-  const originalElement = document.querySelector(`[data-component-id="${active.id}"]`);
-  if (originalElement) {
-    const rect = originalElement.getBoundingClientRect();
-    const parent = originalElement.parentElement;
-    
-    // Create placeholder div
-    const placeholder = document.createElement('div');
-    placeholder.setAttribute('data-placeholder-for', active.id);
-    placeholder.className = 'drag-placeholder';
-    placeholder.style.cssText = `
-      width: ${rect.width}px;
-      height: ${rect.height}px;
-      background: rgba(59, 130, 246, 0.1);
-      border: 2px dashed rgba(59, 130, 246, 0.3);
-      border-radius: 4px;
-      transition: all 0.2s ease;
-      pointer-events: none;
-    `;
-    
-    // Insert placeholder before hiding original
-    originalElement.parentNode.insertBefore(placeholder, originalElement);
-    
-    // Hide original element (keep in DOM for layout)
-    originalElement.style.opacity = '0';
-    originalElement.style.pointerEvents = 'none';
-  }
+  // 🔥 REMOVED: Don't hide the original element - dnd-kit needs it for positioning
+  // const originalElement = document.querySelector(`[data-component-id="${active.id}"]`);
+  // if (originalElement) {
+  //   originalElement.style.opacity = '0';
+  //   originalElement.style.pointerEvents = 'none';
+  // }
   
   window.dispatchEvent(new CustomEvent('element-drag-start', { 
     detail: { componentId: active.id } 
@@ -692,9 +671,7 @@ const handleDndDragStart = useCallback((event) => {
 const handleDndDragOver = useCallback((event) => {
   const { active, over, activatorEvent } = event;
   
-  // Remove old drop ghost
-  document.querySelectorAll('.drop-ghost-indicator').forEach(el => el.remove());
-  
+ 
   if (!over || !active) {
     setOverId(null);
     return;
@@ -717,93 +694,8 @@ const handleDndDragOver = useCallback((event) => {
   
   setOverId(over.id);
   
-  // 🔥 NEW: Create drop ghost indicator
-  const dropGhost = document.createElement('div');
-  dropGhost.className = 'drop-ghost-indicator';
-  dropGhost.style.cssText = `
-    position: fixed;
-    pointer-events: none;
-    z-index: 9998;
-    background: rgba(16, 185, 129, 0.15);
-    border: 2px solid rgba(16, 185, 129, 0.5);
-    border-radius: 6px;
-    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
-  `;
-  
-  // Get dragged component size
-  const draggedElement = document.querySelector(`[data-component-id="${active.id}"]`);
-  const draggedRect = draggedElement?.getBoundingClientRect() || { width: 100, height: 50 };
-  
-  if (isTargetLayout) {
-    const computedStyle = window.getComputedStyle(targetElement);
-    const display = computedStyle.display;
-    const flexDirection = computedStyle.flexDirection;
-    
-    if (relativeY < topZone) {
-      // DROP BEFORE
-      Object.assign(dropGhost.style, {
-        width: `${targetRect.width}px`,
-        height: `${draggedRect.height}px`,
-        top: `${targetRect.top - draggedRect.height - 4}px`,
-        left: `${targetRect.left}px`,
-      });
-    } else if (relativeY > bottomZone) {
-      // DROP AFTER
-      Object.assign(dropGhost.style, {
-        width: `${targetRect.width}px`,
-        height: `${draggedRect.height}px`,
-        top: `${targetRect.bottom + 4}px`,
-        left: `${targetRect.left}px`,
-      });
-    } else {
-      // DROP INSIDE
-      if (display === 'flex' && flexDirection === 'row') {
-        // Horizontal flex - show vertical indicator at mouse position
-        Object.assign(dropGhost.style, {
-          width: `${draggedRect.width}px`,
-          height: `${targetRect.height - 8}px`,
-          top: `${targetRect.top + 4}px`,
-          left: `${activatorEvent?.clientX - draggedRect.width / 2}px`,
-        });
-      } else if (display === 'flex' && flexDirection === 'column') {
-        // Vertical flex - show horizontal indicator at mouse position
-        Object.assign(dropGhost.style, {
-          width: `${targetRect.width - 8}px`,
-          height: `${draggedRect.height}px`,
-          top: `${mouseY - draggedRect.height / 2}px`,
-          left: `${targetRect.left + 4}px`,
-        });
-      } else {
-        // Block layout - center in container
-        Object.assign(dropGhost.style, {
-          width: `${draggedRect.width}px`,
-          height: `${draggedRect.height}px`,
-          top: `${targetRect.top + (targetRect.height - draggedRect.height) / 2}px`,
-          left: `${targetRect.left + (targetRect.width - draggedRect.width) / 2}px`,
-        });
-      }
-    }
-  } else {
-    // Regular component - show before/after
-    if (relativeY < targetRect.height / 2) {
-      Object.assign(dropGhost.style, {
-        width: `${targetRect.width}px`,
-        height: `${draggedRect.height}px`,
-        top: `${targetRect.top - draggedRect.height - 4}px`,
-        left: `${targetRect.left}px`,
-      });
-    } else {
-      Object.assign(dropGhost.style, {
-        width: `${targetRect.width}px`,
-        height: `${draggedRect.height}px`,
-        top: `${targetRect.bottom + 4}px`,
-        left: `${targetRect.left}px`,
-      });
-    }
-  }
-  
-  document.body.appendChild(dropGhost);
+
+ 
   
   // Original visual feedback (keep this)
   document.querySelectorAll('[data-drop-intent], .drop-indicator').forEach(el => {
@@ -843,26 +735,22 @@ const isDescendant = (parentId, childId, components) => {
   
 
 // MODIFY handleDndDragEnd - ADD cleanup for placeholder and drop ghost
+// MODIFY handleDndDragEnd - REMOVE placeholder cleanup
 const handleDndDragEnd = useCallback((event) => {
   const { active, over } = event;
   
   console.log('🎯 Drag end:', { activeId: active?.id, overId: over?.id });
   
-  // 🔥 ENHANCED CLEANUP
+  // 🔥 ENHANCED CLEANUP - NO placeholder removal needed
   const restoreElements = () => {
-    // Remove placeholder
-    document.querySelectorAll(`[data-placeholder-for="${activeId}"]`).forEach(el => {
-      el.style.transition = 'opacity 0.2s ease';
-      el.style.opacity = '0';
-      setTimeout(() => el.remove(), 200);
-    });
-    
-    // Remove drop ghost
+    // Remove drop ghost (keep this)
     document.querySelectorAll('.drop-ghost-indicator').forEach(el => {
       el.style.transition = 'opacity 0.15s ease';
       el.style.opacity = '0';
       setTimeout(() => el.remove(), 150);
     });
+    
+    // 🔥 REMOVED: Placeholder removal logic
     
     // Restore original element
     if (activeId) {
@@ -912,6 +800,8 @@ const handleDndDragEnd = useCallback((event) => {
   };
 
   restoreElements();
+  
+
   
   setActiveId(null);
   setOverId(null);
@@ -1420,33 +1310,35 @@ if (isLayout) {
         
         
         {/* Nested components */}
-        {component.children && component.children.length > 0 ? (
-         <SortableContext 
-          items={component.children.map(c => c.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {component.children.map((child, childIndex) => (
-            <SortableComponent
-              key={child.id}
-              component={child}
-              depth={depth + 1}
-              parentId={component.id}
-              index={childIndex}
-              parentStyle={componentStyles}
-              responsiveMode={responsiveMode}
-            />
-          ))}
-        </SortableContext>
+       {component.children && component.children.length > 0 ? (
+          <SortableContext 
+            items={component.children.map(c => c.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {component.children.map((child, childIndex) => (
+              <SortableComponent
+                key={child.id}
+                component={child}
+                depth={depth + 1}
+                parentId={component.id}
+                index={childIndex}
+                parentStyle={componentStyles}
+                responsiveMode={responsiveMode}
+              />
+            ))}
+          </SortableContext>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-60">
-            <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
-              Drop here • {component.type} • {responsiveMode}
-              {componentStyles._responsiveScale && ` • Scale: ${componentStyles._responsiveScale.toFixed(2)}`}
+          !activeId && ( // 🔥 ADD THIS: Hide empty state during drag
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-60">
+              <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
+                Drop here • {component.type} • {responsiveMode}
+                {componentStyles._responsiveScale && ` • Scale: ${componentStyles._responsiveScale.toFixed(2)}`}
+              </div>
             </div>
-          </div>
+          )
         )}
         
-        {isSelected && (
+         {isSelected && !activeId && (
           <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
             {component.name} • {component.children?.length || 0} children • {responsiveMode}
           </div>
@@ -1543,7 +1435,7 @@ return (
       </div>
       
       {/* Selection label */}
-      {isSelected && (
+       {isSelected && !activeId && (
         <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50 pointer-events-none">
           {component.name} • {responsiveMode}
         </div>
@@ -2216,6 +2108,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
         )}
         
      {/* Main Canvas - Acts as Document Body */}
+
 <div 
   ref={canvasRef}
   className={`
@@ -2230,7 +2123,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
     width: responsiveMode === 'desktop' ? '1440px' : 
            responsiveMode === 'tablet' ? '768px' : '375px',
     
-    height: useForgeStore.getState().canvasExpansionEnabled 
+    height: canvasExpansionEnabled 
       ? 'auto' 
       : (responsiveMode === 'desktop' ? '900px' : 
          responsiveMode === 'tablet' ? '1024px' : '667px'),
@@ -2238,19 +2131,20 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
     minHeight: responsiveMode === 'desktop' ? '900px' : 
                responsiveMode === 'tablet' ? '1024px' : '667px',
     
-    maxHeight: useForgeStore.getState().canvasExpansionEnabled ? 'none' : (
+    maxHeight: canvasExpansionEnabled ? 'none' : (
       responsiveMode === 'desktop' ? '900px' : 
       responsiveMode === 'tablet' ? '1024px' : '667px'
     ),
     
-    // 🔥 SMART OVERFLOW: Only visible during drag, otherwise auto for scrolling
-    overflow: dragState.isDragging || activeId ? 'visible' : 'auto',
-    overflowY: dragState.isDragging || activeId ? 'visible' : 'auto',
+    // 🔥 FIX: Keep overflow as auto when not expanded, even during drag
+    overflow: canvasExpansionEnabled ? 'visible' : 'auto',
+    overflowX: 'hidden',
     
     cursor: dragState.isDragging ? 'copy' : 'default',
     borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
     isolation: 'isolate',
   }}
+  
   onDragOver={onCanvasDragOver}
   onDrop={onCanvasDrop}
   onClick={(e) => {
@@ -2390,127 +2284,190 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                   </div>
                 </SortableContext>
               
-                 {/* PROFESSIONAL DRAG GHOST - Dynamic positioning based on actual element position */}
-                  <DragOverlay
-                      dropAnimation={{
-                        duration: 200,
-                        easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
-                      }}
-                      style={{ 
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        zIndex: 99999, // 🔥 CHANGED: Much higher to be above everything
-                        cursor: 'grabbing',
-                        touchAction: 'none',
-                        userSelect: 'none',
-                        WebkitUserSelect: 'none',
-                        pointerEvents: 'none',
-                        // 🔥 CRITICAL FIX: Remove background
-                        backgroundColor: 'transparent', // Was missing
-                      }}
-                    >
-                      {activeId && draggedComponent ? (
-                        <div
-                          className="drag-ghost-wrapper"
-                          style={{
-                            transform: `scale(1.05)`,
-                            filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.4))',
-                            border: '2px solid rgba(59, 130, 246, 0.5)',
-                            borderRadius: '8px',
-                            overflow: 'visible',
-                            // 🔥 CRITICAL FIX: Explicit transparent background
-                            backgroundColor: 'transparent',
-                            pointerEvents: 'none',
-                            minWidth: draggedComponent.isLayoutContainer ? '200px' : 'auto',
-                            minHeight: draggedComponent.isLayoutContainer ? '100px' : 'auto',
-                            padding: draggedComponent.isLayoutContainer ? '16px' : '8px',
-                          }}
-                        >
-                          {/* Content wrapper with white background ONLY */}
-                          <div style={{
-                            backgroundColor: '#ffffff', // 🔥 Only here, not parent
-                            width: '100%',
-                            height: '100%',
-                            borderRadius: '6px',
-                            overflow: 'hidden',
-                          }}>
-                            {(() => {
-                              const originalElement = document.querySelector(`[data-component-id="${activeId}"]`);
-                              
-                              if (!originalElement) {
-                                return (
-                                  <div className="p-4 bg-white rounded border-2 border-blue-500 min-w-[120px]">
-                                    <div className="font-semibold text-sm">{draggedComponent.name}</div>
-                                    <div className="text-xs text-gray-500 mt-1">{draggedComponent.type}</div>
-                                  </div>
-                                );
-                              }
-                              
-                              const clonedElement = originalElement.cloneNode(true);
-                              
-                              clonedElement.removeAttribute('data-dnd-kit-draggable-context-id');
-                              clonedElement.removeAttribute('draggable');
-                              
-                              const computedStyles = window.getComputedStyle(originalElement);
-                              const criticalStyles = [
-                                'display', 'width', 'height', 'padding', 'margin',
-                                'backgroundColor', 'color', 'fontSize', 'fontWeight',
-                                'border', 'borderRadius', 'boxShadow'
-                              ];
-                              
-                              criticalStyles.forEach(prop => {
-                                clonedElement.style[prop] = computedStyles[prop];
-                              });
-                              
-                              clonedElement.style.backgroundColor = '#ffffff';
-                              clonedElement.style.visibility = 'visible';
-                              clonedElement.style.opacity = '1';
-                              clonedElement.style.position = 'relative';
-                              clonedElement.style.pointerEvents = 'none';
-                              clonedElement.style.transform = 'none';
-                              clonedElement.style.minWidth = '60px';
-                              clonedElement.style.minHeight = '30px';
-                              
-                              const clonedChildren = clonedElement.querySelectorAll('*');
-                              clonedChildren.forEach(child => {
-                                child.style.visibility = 'visible';
-                                child.style.opacity = '1';
-                                child.style.pointerEvents = 'none';
-                              });
-                              
-                              return <div 
-                                dangerouslySetInnerHTML={{ __html: clonedElement.outerHTML }}
-                                style={{ 
-                                  pointerEvents: 'none',
-                                  backgroundColor: 'transparent', // 🔥 Transparent wrapper
-                                  width: '100%',
-                                  height: '100%',
-                                  minWidth: '60px',
-                                  minHeight: '30px',
-                                }}
-                              />;
-                            })()}
-                          </div>
-                          
-             
-                      
-                      {/* Drag indicator */}
-                      <div className="absolute -top-3 -right-3 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shadow-lg">
-                        <Move className="w-3 h-3 text-white" />
-                      </div>
-                      
-                      {/* Child count for layouts */}
-                      {draggedComponent.children?.length > 0 && (
-                        <div className="absolute -bottom-6 left-0 right-0 flex items-center justify-center">
-                          <div className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full font-semibold shadow-lg">
-                            {draggedComponent.children.length} nested
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
-                </DragOverlay>
+{/* PROPERLY POSITIONED DRAG GHOST - No offset, no clipping */}
+<DragOverlay
+    dropAnimation={{
+      duration: 200,
+      easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+    }}
+    adjustScale={false} // 🔥 CRITICAL: Prevent automatic scale adjustment
+    style={{ 
+      zIndex: 99999,
+      cursor: 'grabbing',
+      // 🔥 ENSURE no interference with positioning
+      position: 'fixed',
+    }}
+  >
+    {activeId && draggedComponent ? (
+      <div
+        style={{
+          // 🔥 REMOVE scale transform from wrapper - let dnd-kit handle it
+          // transform: 'scale(0.85)', // REMOVE THIS
+          filter: 'drop-shadow(0 15px 30px rgba(0,0,0,0.3))',
+          border: '2px solid rgba(59, 130, 246, 0.4)',
+          borderRadius: '6px',
+          overflow: 'visible', // 🔥 CHANGE: visible instead of hidden
+          backgroundColor: '#ffffff',
+          pointerEvents: 'none',
+          // 🔥 REMOVE padding that causes offset
+          padding: '0px', // CHANGED: from 8px to 0px
+          // 🔥 LET CONTENT DETERMINE SIZE
+          width: 'auto',
+          height: 'auto',
+          maxWidth: 'none',
+          // 🔥 ENSURE no clipping
+          minWidth: 'auto',
+          minHeight: 'auto',
+        }}
+      >
+        {(() => {
+          const originalElement = document.querySelector(`[data-component-id="${activeId}"]`);
+          
+          if (!originalElement) {
+            return (
+              <div style={{ 
+                padding: '12px',
+                minWidth: '120px',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontWeight: 'bold', fontSize: '14px', margin: 0 }}>{draggedComponent.name}</div>
+                <div style={{ fontSize: '12px', color: '#666', margin: '4px 0 0 0' }}>{draggedComponent.type}</div>
+              </div>
+            );
+          }
+
+          // Get original dimensions
+          const originalRect = originalElement.getBoundingClientRect();
+          
+          // 🔥 USE THE ACTUAL COMPONENT RENDERER FOR PERFECT APPEARANCE
+          try {
+            const componentRenderer = componentLibraryService?.getComponent(draggedComponent.type);
+            if (componentRenderer?.render) {
+              const mergedProps = {
+                ...draggedComponent.props,
+                style: {
+                  ...draggedComponent.style,
+                  // 🔥 PRESERVE original dimensions but make visible
+                  width: originalRect.width,
+                  height: originalRect.height,
+                  pointerEvents: 'none',
+                  transform: 'scale(0.85)', // 🔥 APPLY scale here instead
+                  transformOrigin: 'center center',
+                  opacity: 1,
+                  visibility: 'visible',
+                  // 🔥 PREVENT CLIPPING
+                  overflow: 'visible',
+                  minWidth: 'auto',
+                  minHeight: 'auto',
+                }
+              };
+              
+              return (
+                <div style={{
+                  pointerEvents: 'none',
+                  // 🔥 NO additional transforms
+                  transform: 'none',
+                  opacity: 1,
+                  // 🔥 ENSURE no clipping
+                  overflow: 'visible',
+                  width: 'auto',
+                  height: 'auto',
+                }}>
+                  {componentRenderer.render(mergedProps, draggedComponent.id)}
+                </div>
+              );
+            }
+          } catch (error) {
+            console.warn('Ghost render error:', error);
+          }
+
+          // 🔥 FALLBACK: Simple clone approach
+          const clonedElement = originalElement.cloneNode(true);
+          clonedElement.removeAttribute('data-dnd-kit-draggable-context-id');
+          clonedElement.removeAttribute('draggable');
+          
+          // Apply ghost styles
+          clonedElement.style.cssText = `
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: none !important;
+            transform: scale(0.85) !important;
+            transform-origin: center center !important;
+            position: relative !important;
+            width: ${originalRect.width}px !important;
+            height: ${originalRect.height}px !important;
+            overflow: visible !important;
+            background-color: white !important;
+            border-radius: 4px !important;
+            display: block !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          `;
+          
+          // Make children visible
+          const clonedChildren = clonedElement.querySelectorAll('*');
+          clonedChildren.forEach(child => {
+            child.style.cssText += `
+              visibility: visible !important;
+              opacity: 1 !important;
+              pointer-events: none !important;
+              overflow: visible !important;
+            `;
+          });
+
+          return (
+            <div 
+              dangerouslySetInnerHTML={{ __html: clonedElement.outerHTML }}
+              style={{ 
+                pointerEvents: 'none',
+                backgroundColor: 'transparent',
+                overflow: 'visible',
+              }}
+            />
+          );
+        })()}
+        
+        {/* 🔥 BETTER POSITIONED drag handle indicator */}
+        <div style={{
+          position: 'absolute',
+          top: '4px', // 🔥 CHANGED: from -8px to 4px (inside the ghost)
+          right: '4px', // 🔥 CHANGED: from -8px to 4px (inside the ghost)
+          width: '16px', // 🔥 SMALLER
+          height: '16px', // 🔥 SMALLER
+          borderRadius: '50%',
+          backgroundColor: '#3b82f6',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
+          zIndex: 999999,
+        }}>
+          <Move className="w-2.5 h-2.5 text-white" />
+        </div>
+        
+        {/* 🔥 BETTER POSITIONED child count badge */}
+        {draggedComponent.children?.length > 0 && (
+          <div style={{
+            position: 'absolute',
+            bottom: '4px', // 🔥 CHANGED: from -10px to 4px (inside the ghost)
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: '#3b82f6',
+            color: 'white',
+            fontSize: '9px', // 🔥 SMALLER
+            fontWeight: 'bold',
+            padding: '1px 6px', // 🔥 SMALLER
+            borderRadius: '8px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+            zIndex: 999999,
+            whiteSpace: 'nowrap',
+          }}>
+            {draggedComponent.children.length}
+          </div>
+        )}
+      </div>
+    ) : null}
+</DragOverlay>
               </DndContext>
               
               {/* 🔥 NEW: Quick Add Section at Bottom */}

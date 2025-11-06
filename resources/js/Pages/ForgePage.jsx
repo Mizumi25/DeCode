@@ -934,49 +934,113 @@ const handleComponentDragEnd = useCallback(() => {
 
 
 
+const calculateDropIntent = (rect, mouseX, mouseY, isLayout) => {
+  // Non-layout elements: Always sibling placement
+  if (!isLayout) {
+    const middleY = rect.top + (rect.height / 2);
+    return mouseY < middleY ? 'before' : 'after';
+  }
+  
+  // Layout elements: Use smart zones
+  const width = rect.width;
+  const height = rect.height;
+  
+  // Define zones (percentages from edge)
+  const EDGE_THRESHOLD = 0.25; // 25% from edge = sibling zone
+  const CENTER_THRESHOLD = 0.4; // 40% center = nest zone
+  
+  // Calculate normalized positions (0 to 1)
+  const normalizedX = (mouseX - rect.left) / width;
+  const normalizedY = (mouseY - rect.top) / height;
+  
+  // Check if in center "nest zone" (40% center area)
+  const centerMinX = (1 - CENTER_THRESHOLD) / 2;
+  const centerMaxX = 1 - centerMinX;
+  const centerMinY = (1 - CENTER_THRESHOLD) / 2;
+  const centerMaxY = 1 - centerMinY;
+  
+  const isInCenterX = normalizedX > centerMinX && normalizedX < centerMaxX;
+  const isInCenterY = normalizedY > centerMinY && normalizedY < centerMaxY;
+  
+  if (isInCenterX && isInCenterY) {
+    console.log('🎯 CENTER ZONE → NEST');
+    return 'nest';
+  }
+  
+  // Check edge zones for sibling placement
+  const isTopEdge = normalizedY < EDGE_THRESHOLD;
+  const isBottomEdge = normalizedY > (1 - EDGE_THRESHOLD);
+  const isLeftEdge = normalizedX < EDGE_THRESHOLD;
+  const isRightEdge = normalizedX > (1 - EDGE_THRESHOLD);
+  
+  // Prioritize vertical placement
+  if (isTopEdge) {
+    console.log('⬆️ TOP EDGE → BEFORE');
+    return 'before';
+  }
+  if (isBottomEdge) {
+    console.log('⬇️ BOTTOM EDGE → AFTER');
+    return 'after';
+  }
+  
+  // If closer to left/right but not top/bottom, still use vertical middle
+  const middleY = rect.top + (height / 2);
+  return mouseY < middleY ? 'before' : 'after';
+};
+
+
+
+
 // 🔥 ENHANCED: Better drop target detection with visual feedback
 const findDropTarget = useCallback((components, dropX, dropY, canvasRect) => {
-  console.log('🎯 Looking for drop target at:', { dropX, dropY });
+  console.log('🎯 Smart drop detection at:', { dropX, dropY });
   
-  // 🔥 CRITICAL: Check ALL elements, not just layouts
+  // Sort by z-index (highest first) and prioritize layouts
   const sorted = [...components].sort((a, b) => {
-    // Prioritize layout containers, but allow all
     const aIsLayout = a.isLayoutContainer;
     const bIsLayout = b.isLayoutContainer;
+    
+    // Layouts first
     if (aIsLayout && !bIsLayout) return -1;
     if (!aIsLayout && bIsLayout) return 1;
     
+    // Then by z-index
     return (b.zIndex || 0) - (a.zIndex || 0);
   });
 
   for (const comp of sorted) {
     const element = document.querySelector(`[data-component-id="${comp.id}"]`);
-    if (element) {
-      const rect = element.getBoundingClientRect();
-      const relativeX = dropX + canvasRect.left;
-      const relativeY = dropY + canvasRect.top;
-      
-      // Check if drop position is inside this element
-      if (relativeX >= rect.left && relativeX <= rect.right &&
-          relativeY >= rect.top && relativeY <= rect.bottom) {
-        
-        console.log('✅ Found target:', comp.name, 'isLayout:', comp.isLayoutContainer);
-        
-        // 🔥 ALWAYS allow drop if element is in bounds
-        // Check children recursively
-        if (comp.children?.length > 0) {
-          const childTarget = findDropTarget(comp.children, dropX, dropY, canvasRect);
-          if (childTarget) {
-            return childTarget;
-          }
-        }
-        
-        return comp; // 🔥 Return ANY component as valid drop target
-      }
-    }
+    if (!element) continue;
+    
+    const rect = element.getBoundingClientRect();
+    const relativeX = dropX + canvasRect.left;
+    const relativeY = dropY + canvasRect.top;
+    
+    // Check if cursor is within element bounds
+    const isInBounds = 
+      relativeX >= rect.left && relativeX <= rect.right &&
+      relativeY >= rect.top && relativeY <= rect.bottom;
+    
+    if (!isInBounds) continue;
+    
+    // ✅ SMART INTENT DETECTION
+    const intent = calculateDropIntent(rect, relativeX, relativeY, comp.isLayoutContainer);
+    
+    console.log('✅ Found target:', {
+      name: comp.name,
+      isLayout: comp.isLayoutContainer,
+      intent: intent
+    });
+    
+    // Return target with intent metadata
+    return {
+      component: comp,
+      intent: intent, // 'nest' | 'before' | 'after'
+      bounds: rect
+    };
   }
   
-  console.log('❌ No element found, drop at root');
+  console.log('❌ No target found, drop at root');
   return null;
 }, []);
 
@@ -994,39 +1058,92 @@ const handleCanvasDragOver = useCallback((e) => {
   const dropX = e.clientX - canvasRect.left;
   const dropY = e.clientY - canvasRect.top;
 
-  // Track drag position for snap lines
-  setDragPosition({
-    x: dropX,
-    y: dropY
-  });
+  setDragPosition({ x: dropX, y: dropY });
 
-  // 🔥 NEW: Visual feedback for drop targets
+  // Clear previous feedback
+  document.querySelectorAll('.drop-intent-visual').forEach(el => {
+    el.remove();
+  });
+  
   const dropTarget = findDropTarget(canvasComponents, dropX, dropY, canvasRect);
   
-  // Remove all existing drop zone classes
-  document.querySelectorAll('.layout-container').forEach(el => {
-    el.classList.remove('drop-zone-active', 'drop-zone-hover');
-  });
+  if (!dropTarget) return;
   
-  // Add visual feedback to potential drop target
-  if (dropTarget) {
-    const targetElement = document.querySelector(`[data-component-id="${dropTarget.id}"]`);
-    if (targetElement) {
-      targetElement.classList.add('drop-zone-active');
-      
-      // More prominent feedback when directly over the container
-      const targetRect = targetElement.getBoundingClientRect();
-      const isNearCenter = 
-        e.clientX > targetRect.left + 50 && 
-        e.clientX < targetRect.right - 50 &&
-        e.clientY > targetRect.top + 50 && 
-        e.clientY < targetRect.bottom - 50;
-      
-      if (isNearCenter) {
-        targetElement.classList.add('drop-zone-hover');
-      }
-    }
+  const { component, intent, bounds } = dropTarget;
+  const targetElement = document.querySelector(`[data-component-id="${component.id}"]`);
+  
+  if (!targetElement) return;
+  
+  // Remove old visual feedback
+  targetElement.classList.remove('drop-intent-nest', 'drop-intent-before', 'drop-intent-after');
+  
+  // Add new visual feedback
+  if (intent === 'nest') {
+    targetElement.classList.add('drop-intent-nest');
+    
+    // Show "Drop inside" indicator
+    const indicator = document.createElement('div');
+    indicator.className = 'drop-intent-visual drop-nest-indicator';
+    indicator.textContent = '📦 Drop inside';
+    indicator.style.cssText = `
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(16, 185, 129, 0.95);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      pointer-events: none;
+      z-index: 10000;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    `;
+    targetElement.appendChild(indicator);
+    
+  } else if (intent === 'before') {
+    targetElement.classList.add('drop-intent-before');
+    
+    // Show line ABOVE element
+    const line = document.createElement('div');
+    line.className = 'drop-intent-visual drop-line-before';
+    line.style.cssText = `
+      position: absolute;
+      top: -2px;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+      border-radius: 2px;
+      pointer-events: none;
+      z-index: 10000;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+    `;
+    targetElement.appendChild(line);
+    
+  } else if (intent === 'after') {
+    targetElement.classList.add('drop-intent-after');
+    
+    // Show line BELOW element
+    const line = document.createElement('div');
+    line.className = 'drop-intent-visual drop-line-after';
+    line.style.cssText = `
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+      border-radius: 2px;
+      pointer-events: none;
+      z-index: 10000;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+    `;
+    targetElement.appendChild(line);
   }
+  
 }, [canvasComponents, findDropTarget]);
 
 
@@ -1038,6 +1155,12 @@ const handleCanvasDrop = useCallback((e) => {
   e.stopPropagation();
   
   setDragPosition(null);
+  
+  // Clear visual feedback
+  document.querySelectorAll('.drop-intent-visual').forEach(el => el.remove());
+  document.querySelectorAll('[class*="drop-intent-"]').forEach(el => {
+    el.classList.remove('drop-intent-nest', 'drop-intent-before', 'drop-intent-after');
+  });
   
   if (!canvasRef.current) return;
 
@@ -1052,8 +1175,7 @@ const handleCanvasDrop = useCallback((e) => {
       return;
     }
 
-    const { componentType, variant } = dragData;
-    const isLayout = ['section', 'container', 'div', 'flex', 'grid'].includes(componentType);
+    const { componentType, variant, ghostBounds } = dragData;
     
     const canvasRect = canvasRef.current.getBoundingClientRect();
     const dropX = e.clientX - canvasRect.left;
@@ -1061,20 +1183,22 @@ const handleCanvasDrop = useCallback((e) => {
 
     const dropTarget = findDropTarget(canvasComponents, dropX, dropY, canvasRect);
 
+    // Get component definition
     let componentDef = componentLibraryService?.getComponentDefinition(componentType);
+    const isLayout = ['section', 'container', 'div', 'flex', 'grid'].includes(componentType);
 
-    // 🔥 CRITICAL: Build component with variant styles
+    // Create new component
     const newComponent = {
       id: `${componentType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       type: componentType,
       props: {
         ...(componentDef?.default_props || {}),
-        ...(variant?.props || {})  // Props from variant (NOT STYLES)
+        ...(variant?.props || {})
       },
       name: variant ? `${componentType} (${variant.name})` : (componentDef?.name || componentType),
-      variant: variant || null,  // 🔥 Store full variant object
+      variant: variant || null,
       style: {
-        ...(variant?.style || {}),  // 🔥 CRITICAL: Variant styles here
+        ...(variant?.style || {}),
       },
       animation: {},
       children: [],
@@ -1084,71 +1208,80 @@ const handleCanvasDrop = useCallback((e) => {
       position: { x: dropX - 50, y: dropY - 20 }
     };
 
-    console.log('🎨 Created component with variant styles:', {
-      name: newComponent.name,
-      hasVariant: !!variant,
-      variantName: variant?.name,
-      styleKeys: Object.keys(newComponent.style),
-      style: newComponent.style
-    });
+    console.log('🎨 Created component:', newComponent.name);
 
     let updatedComponents;
 
-    // 🔥 NEW: If drop target exists, nest component inside it
-    if (dropTarget) {
-      console.log('🎯 Dropping INTO container:', dropTarget.name, dropTarget.id);
-      
-      // Calculate position relative to the container
-      const containerElement = document.querySelector(`[data-component-id="${dropTarget.id}"]`);
-      if (containerElement) {
-        const containerRect = containerElement.getBoundingClientRect();
-        const relativeX = e.clientX - containerRect.left - 20; // Offset from container edge
-        const relativeY = e.clientY - containerRect.top - 20;
-        
-        newComponent.position = { 
-          x: Math.max(0, relativeX), 
-          y: Math.max(0, relativeY) 
-        };
-      }
-      
-      // Add as child to the target container
-      updatedComponents = canvasComponents.map(comp => {
-        if (comp.id === dropTarget.id) {
-          const updatedChildren = [
-            ...(comp.children || []),
-            {
-              ...newComponent,
-              parentId: comp.id,
-              // Position is already set relative to container
-            }
-          ];
-          
-          console.log('✅ Added to container children:', {
-            container: comp.name,
-            newChild: newComponent.name,
-            totalChildren: updatedChildren.length
-          });
-          
-          return {
-            ...comp,
-            children: updatedChildren
-          };
-        }
-        return comp;
-      });
-    } else {
-      // Drop at root level
+    // ============================================
+    // 🧠 EXECUTE DROP BASED ON INTENT
+    // ============================================
+    
+    if (!dropTarget) {
+      // Drop at root
       console.log('🌍 Dropping at root level');
       updatedComponents = [...canvasComponents, newComponent];
+      
+    } else {
+      const { component: targetComp, intent } = dropTarget;
+      
+      if (intent === 'nest') {
+        // NEST INSIDE CONTAINER
+        console.log('📦 NESTING inside:', targetComp.name);
+        
+        // Calculate position relative to container
+        const containerElement = document.querySelector(`[data-component-id="${targetComp.id}"]`);
+        if (containerElement) {
+          const containerRect = containerElement.getBoundingClientRect();
+          const relativeX = e.clientX - containerRect.left - 20;
+          const relativeY = e.clientY - containerRect.top - 20;
+          
+          newComponent.position = { 
+            x: Math.max(0, relativeX), 
+            y: Math.max(0, relativeY) 
+          };
+        }
+        
+        updatedComponents = canvasComponents.map(comp => {
+          if (comp.id === targetComp.id) {
+            return {
+              ...comp,
+              children: [
+                ...(comp.children || []),
+                {
+                  ...newComponent,
+                  parentId: comp.id
+                }
+              ]
+            };
+          }
+          return comp;
+        });
+        
+      } else if (intent === 'before') {
+        // INSERT BEFORE SIBLING
+        console.log('⬆️ INSERTING BEFORE:', targetComp.name);
+        
+        const targetIndex = canvasComponents.findIndex(c => c.id === targetComp.id);
+        updatedComponents = [
+          ...canvasComponents.slice(0, targetIndex),
+          newComponent,
+          ...canvasComponents.slice(targetIndex)
+        ];
+        
+      } else if (intent === 'after') {
+        // INSERT AFTER SIBLING
+        console.log('⬇️ INSERTING AFTER:', targetComp.name);
+        
+        const targetIndex = canvasComponents.findIndex(c => c.id === targetComp.id);
+        updatedComponents = [
+          ...canvasComponents.slice(0, targetIndex + 1),
+          newComponent,
+          ...canvasComponents.slice(targetIndex + 1)
+        ];
+      }
     }
     
-    // Validate updated components
-    if (!Array.isArray(updatedComponents)) {
-      console.error('Invalid components array, reverting');
-      return;
-    }
-    
-    // Force new state reference
+    // Update state
     setFrameCanvasComponents(prev => ({
       ...prev,
       [currentFrame]: updatedComponents
@@ -1159,18 +1292,15 @@ const handleCanvasDrop = useCallback((e) => {
       componentType: newComponent.type,
       position: newComponent.position,
       componentId: newComponent.id,
-      droppedInto: dropTarget?.id || null
+      droppedInto: dropTarget?.component?.id || null,
+      intent: dropTarget?.intent || 'root'
     });
     
     setSelectedComponent(newComponent.id);
     handleComponentDragEnd();
     generateCode(updatedComponents);
     
-    console.log('✅ Component dropped successfully:', {
-      name: newComponent.name,
-      into: dropTarget?.name || 'root',
-      position: newComponent.position
-    });
+    console.log('✅ Drop completed successfully');
     
   } catch (error) {
     console.error('❌ Drop error:', error);
