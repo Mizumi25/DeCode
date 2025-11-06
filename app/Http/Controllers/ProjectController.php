@@ -194,6 +194,19 @@ class ProjectController extends Controller
 
         // Get clipboard status for copy/paste functionality
         $clipboardStatus = $this->getClipboardStatus(new Request())->getData();
+        
+        $workspaceProps = null;
+        if ($currentWorkspace && $currentWorkspace->type !== 'personal') {
+            $workspaceProps = [
+                'currentWorkspace' => [
+                    'id' => $currentWorkspace->id,
+                    'uuid' => $currentWorkspace->uuid,
+                    'name' => $currentWorkspace->name,
+                    'type' => $currentWorkspace->type,
+                    // Add any other properties WorkspaceChat needs
+                ]
+            ];
+        }
 
         return Inertia::render('ProjectList', [
             'projects' => $projects,
@@ -235,7 +248,8 @@ class ProjectController extends Controller
                     ->groupBy('type')
                     ->pluck('count', 'type')
                     ->toArray(),
-            ]
+            ],
+            'workspaceProps' => $workspaceProps
         ]);
     }
 

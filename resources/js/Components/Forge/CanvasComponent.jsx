@@ -2284,40 +2284,61 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                   </div>
                 </SortableContext>
               
-{/* PROPERLY POSITIONED DRAG GHOST - No offset, no clipping */}
+{/* PERFECTLY CENTERED DRAG GHOST - Exact touch position and proper scaling */}
 <DragOverlay
-    dropAnimation={{
-      duration: 200,
-      easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
-    }}
-    adjustScale={false} // 🔥 CRITICAL: Prevent automatic scale adjustment
+    dropAnimation={null} // 🔥 DISABLE drop animation to prevent jumping
+    modifiers={[
+      // 🔥 CUSTOM MODIFIER to position ghost at exact touch point
+      ({ activatorEvent, transform }) => {
+        if (!activatorEvent) return transform;
+        
+        const touchX = activatorEvent.clientX || activatorEvent.touches?.[0]?.clientX;
+        const touchY = activatorEvent.clientY || activatorEvent.touches?.[0]?.clientY;
+        
+        if (touchX && touchY) {
+          // Calculate offset from the original element's center
+          const originalElement = document.querySelector(`[data-component-id="${activeId}"]`);
+          if (originalElement) {
+            const rect = originalElement.getBoundingClientRect();
+            const elementCenterX = rect.left + rect.width / 2;
+            const elementCenterY = rect.top + rect.height / 2;
+            
+            const offsetX = touchX - elementCenterX;
+            const offsetY = touchY - elementCenterY;
+            
+            return {
+              ...transform,
+              x: transform.x + offsetX,
+              y: transform.y + offsetY,
+            };
+          }
+        }
+        
+        return transform;
+      }
+    ]}
     style={{ 
       zIndex: 99999,
       cursor: 'grabbing',
-      // 🔥 ENSURE no interference with positioning
-      position: 'fixed',
     }}
   >
     {activeId && draggedComponent ? (
       <div
         style={{
-          // 🔥 REMOVE scale transform from wrapper - let dnd-kit handle it
-          // transform: 'scale(0.85)', // REMOVE THIS
-          filter: 'drop-shadow(0 15px 30px rgba(0,0,0,0.3))',
-          border: '2px solid rgba(59, 130, 246, 0.4)',
-          borderRadius: '6px',
-          overflow: 'visible', // 🔥 CHANGE: visible instead of hidden
+          // 🔥 NO transform here - we'll scale the content properly
+          filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.25))',
+          border: '2px solid rgba(59, 130, 246, 0.5)',
+          borderRadius: '8px',
+          overflow: 'visible',
           backgroundColor: '#ffffff',
           pointerEvents: 'none',
-          // 🔥 REMOVE padding that causes offset
-          padding: '0px', // CHANGED: from 8px to 0px
-          // 🔥 LET CONTENT DETERMINE SIZE
+          padding: '0px',
+          // 🔥 USE exact original dimensions
           width: 'auto',
           height: 'auto',
-          maxWidth: 'none',
-          // 🔥 ENSURE no clipping
-          minWidth: 'auto',
-          minHeight: 'auto',
+          // 🔥 ENSURE no layout interference
+          display: 'inline-block',
+          lineHeight: 'normal',
         }}
       >
         {(() => {
@@ -2336,127 +2357,157 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
             );
           }
 
-          // Get original dimensions
           const originalRect = originalElement.getBoundingClientRect();
           
-          // 🔥 USE THE ACTUAL COMPONENT RENDERER FOR PERFECT APPEARANCE
-          try {
-            const componentRenderer = componentLibraryService?.getComponent(draggedComponent.type);
-            if (componentRenderer?.render) {
-              const mergedProps = {
-                ...draggedComponent.props,
-                style: {
-                  ...draggedComponent.style,
-                  // 🔥 PRESERVE original dimensions but make visible
-                  width: originalRect.width,
-                  height: originalRect.height,
-                  pointerEvents: 'none',
-                  transform: 'scale(0.85)', // 🔥 APPLY scale here instead
-                  transformOrigin: 'center center',
-                  opacity: 1,
-                  visibility: 'visible',
-                  // 🔥 PREVENT CLIPPING
-                  overflow: 'visible',
-                  minWidth: 'auto',
-                  minHeight: 'auto',
-                }
-              };
-              
-              return (
-                <div style={{
-                  pointerEvents: 'none',
-                  // 🔥 NO additional transforms
-                  transform: 'none',
-                  opacity: 1,
-                  // 🔥 ENSURE no clipping
-                  overflow: 'visible',
-                  width: 'auto',
-                  height: 'auto',
-                }}>
-                  {componentRenderer.render(mergedProps, draggedComponent.id)}
-                </div>
-              );
-            }
-          } catch (error) {
-            console.warn('Ghost render error:', error);
-          }
-
-          // 🔥 FALLBACK: Simple clone approach
-          const clonedElement = originalElement.cloneNode(true);
-          clonedElement.removeAttribute('data-dnd-kit-draggable-context-id');
-          clonedElement.removeAttribute('draggable');
-          
-          // Apply ghost styles
-          clonedElement.style.cssText = `
-            visibility: visible !important;
-            opacity: 1 !important;
-            pointer-events: none !important;
-            transform: scale(0.85) !important;
-            transform-origin: center center !important;
-            position: relative !important;
-            width: ${originalRect.width}px !important;
-            height: ${originalRect.height}px !important;
-            overflow: visible !important;
-            background-color: white !important;
-            border-radius: 4px !important;
-            display: block !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          `;
-          
-          // Make children visible
-          const clonedChildren = clonedElement.querySelectorAll('*');
-          clonedChildren.forEach(child => {
-            child.style.cssText += `
-              visibility: visible !important;
-              opacity: 1 !important;
-              pointer-events: none !important;
-              overflow: visible !important;
-            `;
-          });
-
+          // 🔥 CREATE A PROPERLY SCALED CONTAINER
           return (
             <div 
-              dangerouslySetInnerHTML={{ __html: clonedElement.outerHTML }}
-              style={{ 
+              style={{
+                // 🔥 SCALE THE ENTIRE CONTAINER including all children
+                transform: 'scale(0.85)',
+                transformOrigin: 'center center',
+                // 🔥 PRESERVE original dimensions
+                width: `${originalRect.width}px`,
+                height: `${originalRect.height}px`,
+                // 🔥 ENSURE proper content rendering
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'flex-start',
                 pointerEvents: 'none',
-                backgroundColor: 'transparent',
-                overflow: 'visible',
+                backgroundColor: '#ffffff',
+                borderRadius: '6px',
+                overflow: 'hidden',
+                // 🔥 CRITICAL: Preserve text rendering
+                fontFamily: 'inherit',
+                fontSize: 'inherit',
+                lineHeight: 'inherit',
               }}
-            />
+            >
+              {/* 🔥 RENDER ACTUAL COMPONENT CONTENT */}
+              {(() => {
+                try {
+                  const componentRenderer = componentLibraryService?.getComponent(draggedComponent.type);
+                  if (componentRenderer?.render) {
+                    const mergedProps = {
+                      ...draggedComponent.props,
+                      style: {
+                        ...draggedComponent.style,
+                        // 🔥 PRESERVE original styling but make visible
+                        width: '100%',
+                        height: '100%',
+                        pointerEvents: 'none',
+                        opacity: 1,
+                        visibility: 'visible',
+                        transform: 'none', // 🔥 NO transform here - handled by parent
+                        // 🔥 PRESERVE text properties
+                        fontFamily: 'inherit',
+                        fontSize: 'inherit',
+                        lineHeight: 'inherit',
+                        color: 'inherit',
+                      }
+                    };
+                    
+                    return componentRenderer.render(mergedProps, draggedComponent.id);
+                  }
+                } catch (error) {
+                  console.warn('Ghost render error:', error);
+                }
+
+                // 🔥 FALLBACK: Direct clone with proper scaling
+                const clonedElement = originalElement.cloneNode(true);
+                clonedElement.removeAttribute('data-dnd-kit-draggable-context-id');
+                clonedElement.removeAttribute('draggable');
+                
+                // Apply clean styles
+                clonedElement.style.cssText = `
+                  width: 100% !important;
+                  height: 100% !important;
+                  visibility: visible !important;
+                  opacity: 1 !important;
+                  pointer-events: none !important;
+                  transform: none !important;
+                  background-color: white !important;
+                  display: flex !important;
+                  align-items: flex-start !important;
+                  justify-content: flex-start !important;
+                  font-family: inherit !important;
+                  font-size: inherit !important;
+                  line-height: inherit !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  border: none !important;
+                  overflow: hidden !important;
+                `;
+                
+                // 🔥 PRESERVE all child styles including text nodes
+                const clonedChildren = clonedElement.querySelectorAll('*');
+                clonedChildren.forEach(child => {
+                  const childStyles = window.getComputedStyle(child);
+                  child.style.cssText = `
+                    visibility: visible !important;
+                    opacity: 1 !important;
+                    pointer-events: none !important;
+                    transform: none !important;
+                    font-family: ${childStyles.fontFamily} !important;
+                    font-size: ${childStyles.fontSize} !important;
+                    line-height: ${childStyles.lineHeight} !important;
+                    color: ${childStyles.color} !important;
+                    display: ${childStyles.display} !important;
+                    align-items: ${childStyles.alignItems} !important;
+                    justify-content: ${childStyles.justifyContent} !important;
+                    width: ${childStyles.width} !important;
+                    height: ${childStyles.height} !important;
+                    margin: ${childStyles.margin} !important;
+                    padding: ${childStyles.padding} !important;
+                    background-color: ${childStyles.backgroundColor} !important;
+                  `;
+                });
+
+                return (
+                  <div 
+                    dangerouslySetInnerHTML={{ __html: clonedElement.outerHTML }}
+                    style={{ 
+                      width: '100%',
+                      height: '100%',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                );
+              })()}
+            </div>
           );
         })()}
         
-        {/* 🔥 BETTER POSITIONED drag handle indicator */}
+        {/* 🔥 SIMPLIFIED drag indicator */}
         <div style={{
           position: 'absolute',
-          top: '4px', // 🔥 CHANGED: from -8px to 4px (inside the ghost)
-          right: '4px', // 🔥 CHANGED: from -8px to 4px (inside the ghost)
-          width: '16px', // 🔥 SMALLER
-          height: '16px', // 🔥 SMALLER
+          top: '6px',
+          right: '6px',
+          width: '14px',
+          height: '14px',
           borderRadius: '50%',
           backgroundColor: '#3b82f6',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
           zIndex: 999999,
         }}>
-          <Move className="w-2.5 h-2.5 text-white" />
+          <Move className="w-2 h-2 text-white" />
         </div>
         
-        {/* 🔥 BETTER POSITIONED child count badge */}
+        {/* Child count badge */}
         {draggedComponent.children?.length > 0 && (
           <div style={{
             position: 'absolute',
-            bottom: '4px', // 🔥 CHANGED: from -10px to 4px (inside the ghost)
+            bottom: '6px',
             left: '50%',
             transform: 'translateX(-50%)',
             backgroundColor: '#3b82f6',
             color: 'white',
-            fontSize: '9px', // 🔥 SMALLER
+            fontSize: '9px',
             fontWeight: 'bold',
-            padding: '1px 6px', // 🔥 SMALLER
+            padding: '1px 6px',
             borderRadius: '8px',
             boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
             zIndex: 999999,

@@ -18,7 +18,8 @@ export default function ProjectList({
   currentWorkspace: initialCurrentWorkspace = null, 
   filters = {}, 
   stats = {},
-  clipboardStatus = { has_project: false }
+  clipboardStatus = { has_project: false },
+  workspaceProps = null
 }) {
   const [dragStart, setDragStart] = useState(null);
   const [isClicking, setIsClicking] = useState(false);
@@ -658,11 +659,12 @@ export default function ProjectList({
           </h2>
         </div>
       }
+      workspaceProps={workspaceProps}
     >
       <Head title="Projects" />
       
       {/* Enhanced CSS to fix colors, overflow issues, and improve drag handle */}
-      <style jsx>{`
+      <style>{`
         .layout .react-grid-item {
           pointer-events: auto !important;
           transition: transform 0.2s ease, box-shadow 0.2s ease !important;

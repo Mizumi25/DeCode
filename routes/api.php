@@ -17,6 +17,7 @@ use App\Http\Controllers\RevisionController;
 use App\Models\Frame;
 use App\Models\ProjectComponent;
 use App\Http\Controllers\ForgePageController;
+use App\Http\Controllers\MessageController;
 /*
 |--------------------------------------------------------------------------
 | API Routes - All using UUIDs for resource identification
@@ -153,6 +154,18 @@ Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasS
     Route::put('/workspaces/{workspace:uuid}', [WorkspaceController::class, 'update']);
     Route::delete('/workspaces/{workspace:uuid}', [WorkspaceController::class, 'destroy']);
     
+    
+  
+    
+
+// Workspace message routes - IMPORTANT: Use {workspaceId} not {workspace:uuid}
+Route::prefix('workspaces/{workspaceId}/messages')->group(function () {
+    Route::get('/', [MessageController::class, 'index'])->name('api.messages.index');
+    Route::post('/', [MessageController::class, 'store'])->name('api.messages.store');
+    Route::post('/mark-read', [MessageController::class, 'markAsRead'])->name('api.messages.mark-read');
+    Route::get('/mentionables', [MessageController::class, 'searchMentionables'])->name('api.messages.mentionables');
+});
+        
     // Workspace user management
     Route::put('/workspaces/{workspace:uuid}/users/{user}', [WorkspaceController::class, 'updateUserRole']);
     Route::delete('/workspaces/{workspace:uuid}/users/{user}', [WorkspaceController::class, 'removeUser']);

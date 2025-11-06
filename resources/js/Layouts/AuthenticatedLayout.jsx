@@ -8,12 +8,14 @@ import Header from '@/Components/Header/Header';
 import { useThemeStore } from '@/stores/useThemeStore';
 import { useHeaderStore } from '@/stores/useHeaderStore';
 import CustomCursor from '@/Components/CustomCursor';
+import WorkspaceChat from '@/Components/Workspaces/WorkspaceChat';
 
 export default function AuthenticatedLayout({ 
   header, 
   children, 
   onThemeChange, 
-  headerProps = {} // Accept header props from pages
+  headerProps = {},
+  workspaceProps = {} // ✅ ADD workspace props
 }) {
   const user = usePage().props.auth.user;
   const currentRoute = usePage().url;
@@ -56,6 +58,9 @@ export default function AuthenticatedLayout({
         )}
         
         <main>{children}</main>
+        
+        {/* ✅ ADD THE WORKSPACE CHAT COMPONENT HERE */}
+        <WorkspaceChat {...workspaceProps} />
       </div>
     </div>
   );
