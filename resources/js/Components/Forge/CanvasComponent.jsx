@@ -616,8 +616,9 @@ useEffect(() => {
 
 
 
+// MODIFY handleDndDragStart - ADD placeholder logic
 const handleDndDragStart = useCallback((event) => {
-  if (isPreviewMode) return; 
+  if (isPreviewMode) return;
   const { active } = event;
   
   console.log('🎬 Drag started:', active.id);
@@ -632,16 +633,39 @@ const handleDndDragStart = useCallback((event) => {
   }
   active.data.current.activatorEvent = event.activatorEvent;
   
-  // 🔥 CRITICAL: Store original position for smart dropping
   if (component) {
     active.data.current.originalComponent = component;
     active.data.current.isLayoutContainer = component.isLayoutContainer;
   }
   
-  // 🔥 DON'T hide the element - let DnD handle it
-  // This allows proper collision detection
+  // 🔥 NEW: Create placeholder in original position
+  const originalElement = document.querySelector(`[data-component-id="${active.id}"]`);
+  if (originalElement) {
+    const rect = originalElement.getBoundingClientRect();
+    const parent = originalElement.parentElement;
+    
+    // Create placeholder div
+    const placeholder = document.createElement('div');
+    placeholder.setAttribute('data-placeholder-for', active.id);
+    placeholder.className = 'drag-placeholder';
+    placeholder.style.cssText = `
+      width: ${rect.width}px;
+      height: ${rect.height}px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 2px dashed rgba(59, 130, 246, 0.3);
+      border-radius: 4px;
+      transition: all 0.2s ease;
+      pointer-events: none;
+    `;
+    
+    // Insert placeholder before hiding original
+    originalElement.parentNode.insertBefore(placeholder, originalElement);
+    
+    // Hide original element (keep in DOM for layout)
+    originalElement.style.opacity = '0';
+    originalElement.style.pointerEvents = 'none';
+  }
   
-  // 🔥 Notify overlays
   window.dispatchEvent(new CustomEvent('element-drag-start', { 
     detail: { componentId: active.id } 
   }));
@@ -650,7 +674,6 @@ const handleDndDragStart = useCallback((event) => {
     navigator.vibrate(50);
   }
   
-  // 🔥 ADD visual feedback to potential drop targets
   document.querySelectorAll('[data-is-layout="true"]').forEach(el => {
     if (el.getAttribute('data-component-id') !== active.id) {
       el.style.transition = 'all 0.2s ease';
@@ -665,19 +688,12 @@ const handleDndDragStart = useCallback((event) => {
 
 
 
+// MODIFY handleDndDragOver - ADD drop ghost indicator
 const handleDndDragOver = useCallback((event) => {
   const { active, over, activatorEvent } = event;
   
-  // 🔥 CLEAR previous feedback
-  document.querySelectorAll('[data-drop-intent], .drop-indicator').forEach(el => {
-    el.removeAttribute('data-drop-intent');
-    el.classList.remove('drop-indicator');
-    el.style.borderTop = '';
-    el.style.borderBottom = '';
-    el.style.backgroundColor = '';
-    el.style.border = '';
-    el.style.boxShadow = '';
-  });
+  // Remove old drop ghost
+  document.querySelectorAll('.drop-ghost-indicator').forEach(el => el.remove());
   
   if (!over || !active) {
     setOverId(null);
@@ -689,77 +705,120 @@ const handleDndDragOver = useCallback((event) => {
   
   const isTargetLayout = targetElement.getAttribute('data-is-layout') === 'true';
   const targetRect = targetElement.getBoundingClientRect();
+  const canvasRect = canvasRef.current?.getBoundingClientRect();
   
-  // 🔥 Get mouse position
+  if (!canvasRect) return;
+  
   const mouseY = activatorEvent?.clientY || event.active.rect.current.translated?.top || 0;
   const relativeY = mouseY - targetRect.top;
   
-  // 🔥 SMART DROP ZONES (Enhanced detection)
-  const topZone = Math.min(40, targetRect.height * 0.25); // 25% or 40px max
+  const topZone = Math.min(40, targetRect.height * 0.25);
   const bottomZone = targetRect.height - Math.min(40, targetRect.height * 0.25);
   
   setOverId(over.id);
   
+  // 🔥 NEW: Create drop ghost indicator
+  const dropGhost = document.createElement('div');
+  dropGhost.className = 'drop-ghost-indicator';
+  dropGhost.style.cssText = `
+    position: fixed;
+    pointer-events: none;
+    z-index: 9998;
+    background: rgba(16, 185, 129, 0.15);
+    border: 2px solid rgba(16, 185, 129, 0.5);
+    border-radius: 6px;
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+  `;
+  
+  // Get dragged component size
+  const draggedElement = document.querySelector(`[data-component-id="${active.id}"]`);
+  const draggedRect = draggedElement?.getBoundingClientRect() || { width: 100, height: 50 };
+  
   if (isTargetLayout) {
-    // 🔥 LAYOUT CONTAINER - Show inside/before/after
+    const computedStyle = window.getComputedStyle(targetElement);
+    const display = computedStyle.display;
+    const flexDirection = computedStyle.flexDirection;
+    
     if (relativeY < topZone) {
       // DROP BEFORE
-      targetElement.style.borderTop = '4px solid #3b82f6';
-      targetElement.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
-      targetElement.setAttribute('data-drop-intent', 'before');
-      console.log('📍 Drop intent: BEFORE layout');
+      Object.assign(dropGhost.style, {
+        width: `${targetRect.width}px`,
+        height: `${draggedRect.height}px`,
+        top: `${targetRect.top - draggedRect.height - 4}px`,
+        left: `${targetRect.left}px`,
+      });
     } else if (relativeY > bottomZone) {
       // DROP AFTER
-      targetElement.style.borderBottom = '4px solid #3b82f6';
-      targetElement.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
-      targetElement.setAttribute('data-drop-intent', 'after');
-      console.log('📍 Drop intent: AFTER layout');
+      Object.assign(dropGhost.style, {
+        width: `${targetRect.width}px`,
+        height: `${draggedRect.height}px`,
+        top: `${targetRect.bottom + 4}px`,
+        left: `${targetRect.left}px`,
+      });
     } else {
       // DROP INSIDE
-      targetElement.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
-      targetElement.style.border = '4px solid #10b981';
-      targetElement.style.boxShadow = 'inset 0 0 30px rgba(16, 185, 129, 0.3)';
-      targetElement.setAttribute('data-drop-intent', 'inside');
-      console.log('📦 Drop intent: INSIDE layout');
-      
-      // 🔥 Show drop position inside container
-      const children = targetElement.querySelectorAll(':scope > [data-component-id]');
-      if (children.length === 0) {
-        // Empty container - show center drop indicator
-        const indicator = document.createElement('div');
-        indicator.className = 'drop-indicator';
-        indicator.style.cssText = `
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          padding: 20px 40px;
-          background: rgba(16, 185, 129, 0.9);
-          color: white;
-          border-radius: 12px;
-          font-weight: 600;
-          pointer-events: none;
-          z-index: 999;
-        `;
-        indicator.textContent = 'Drop here';
-        targetElement.appendChild(indicator);
+      if (display === 'flex' && flexDirection === 'row') {
+        // Horizontal flex - show vertical indicator at mouse position
+        Object.assign(dropGhost.style, {
+          width: `${draggedRect.width}px`,
+          height: `${targetRect.height - 8}px`,
+          top: `${targetRect.top + 4}px`,
+          left: `${activatorEvent?.clientX - draggedRect.width / 2}px`,
+        });
+      } else if (display === 'flex' && flexDirection === 'column') {
+        // Vertical flex - show horizontal indicator at mouse position
+        Object.assign(dropGhost.style, {
+          width: `${targetRect.width - 8}px`,
+          height: `${draggedRect.height}px`,
+          top: `${mouseY - draggedRect.height / 2}px`,
+          left: `${targetRect.left + 4}px`,
+        });
+      } else {
+        // Block layout - center in container
+        Object.assign(dropGhost.style, {
+          width: `${draggedRect.width}px`,
+          height: `${draggedRect.height}px`,
+          top: `${targetRect.top + (targetRect.height - draggedRect.height) / 2}px`,
+          left: `${targetRect.left + (targetRect.width - draggedRect.width) / 2}px`,
+        });
       }
     }
   } else {
-    // 🔥 REGULAR COMPONENT - Show before/after only
+    // Regular component - show before/after
     if (relativeY < targetRect.height / 2) {
-      targetElement.style.borderTop = '3px solid #3b82f6';
-      targetElement.setAttribute('data-drop-intent', 'before');
-      console.log('📍 Drop intent: BEFORE component');
+      Object.assign(dropGhost.style, {
+        width: `${targetRect.width}px`,
+        height: `${draggedRect.height}px`,
+        top: `${targetRect.top - draggedRect.height - 4}px`,
+        left: `${targetRect.left}px`,
+      });
     } else {
-      targetElement.style.borderBottom = '3px solid #3b82f6';
-      targetElement.setAttribute('data-drop-intent', 'after');
-      console.log('📍 Drop intent: AFTER component');
+      Object.assign(dropGhost.style, {
+        width: `${targetRect.width}px`,
+        height: `${draggedRect.height}px`,
+        top: `${targetRect.bottom + 4}px`,
+        left: `${targetRect.left}px`,
+      });
     }
   }
   
+  document.body.appendChild(dropGhost);
+  
+  // Original visual feedback (keep this)
+  document.querySelectorAll('[data-drop-intent], .drop-indicator').forEach(el => {
+    el.removeAttribute('data-drop-intent');
+    el.classList.remove('drop-indicator');
+    el.style.borderTop = '';
+    el.style.borderBottom = '';
+    el.style.backgroundColor = '';
+    el.style.border = '';
+    el.style.boxShadow = '';
+  });
+  
+  // Existing drop intent logic (keep as is)...
+  
 }, []);
-
 
 
 
@@ -783,16 +842,33 @@ const isDescendant = (parentId, childId, components) => {
 
   
 
+// MODIFY handleDndDragEnd - ADD cleanup for placeholder and drop ghost
 const handleDndDragEnd = useCallback((event) => {
   const { active, over } = event;
   
   console.log('🎯 Drag end:', { activeId: active?.id, overId: over?.id });
   
-  // 🔥 ENHANCED CLEANUP FUNCTION
+  // 🔥 ENHANCED CLEANUP
   const restoreElements = () => {
+    // Remove placeholder
+    document.querySelectorAll(`[data-placeholder-for="${activeId}"]`).forEach(el => {
+      el.style.transition = 'opacity 0.2s ease';
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 200);
+    });
+    
+    // Remove drop ghost
+    document.querySelectorAll('.drop-ghost-indicator').forEach(el => {
+      el.style.transition = 'opacity 0.15s ease';
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 150);
+    });
+    
+    // Restore original element
     if (activeId) {
       const element = document.querySelector(`[data-component-id="${activeId}"]`);
       if (element) {
+        element.style.transition = 'opacity 0.3s ease';
         element.style.opacity = '1';
         element.style.pointerEvents = '';
         element.style.visibility = 'visible';
@@ -806,10 +882,10 @@ const handleDndDragEnd = useCallback((event) => {
       }
     }
     
-    // 🔥 CLEAR ALL DROP INDICATORS
+    // Clear drop intent indicators
     document.querySelectorAll('[data-drop-intent], .drop-indicator').forEach(el => {
       el.removeAttribute('data-drop-intent');
-      el.classList.remove('drop-indicator', 'drag-over-layout', 'drop-zone-active');
+      el.classList.remove('drop-indicator');
       el.style.borderTop = '';
       el.style.borderBottom = '';
       el.style.backgroundColor = '';
@@ -819,9 +895,6 @@ const handleDndDragEnd = useCallback((event) => {
       el.style.opacity = '';
       el.style.transition = '';
       el.style.transform = '';
-      if (el.classList.contains('drop-indicator')) {
-        el.remove();
-      }
     });
     
     canvasComponents.forEach(comp => {
@@ -838,7 +911,7 @@ const handleDndDragEnd = useCallback((event) => {
     }));
   };
 
-  restoreElements(); // 🔥 Call immediately at start
+  restoreElements();
   
   setActiveId(null);
   setOverId(null);
