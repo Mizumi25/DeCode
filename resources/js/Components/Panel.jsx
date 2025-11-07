@@ -587,26 +587,28 @@ export default function Panel({
             </div>
           </div>
           
-          {/* Tab Navigation */}
-          <div className="flex border-b" style={{ borderColor: 'var(--color-border)' }}>
-            {panels.map((panel, index) => (
-              <button
-                key={panel.id}
-                onClick={() => setMergedActiveTab(position, index)}
-                className={`px-4 py-2 text-sm font-medium border-r transition-colors flex-1 ${
-                  index === activeTabIndex 
-                    ? 'text-white' 
-                    : 'text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]'
-                }`}
-                style={{ 
-                  borderColor: 'var(--color-border)',
-                  backgroundColor: index === activeTabIndex ? 'var(--color-primary)' : 'transparent'
-                }}
-              >
-                {panel.title}
-              </button>
-            ))}
-          </div>
+          {/* Tab Navigation — only show when in 'tabs' display mode */}
+          {displayMode === 'tabs' && (
+            <div className="flex border-b" style={{ borderColor: 'var(--color-border)' }}>
+              {panels.map((panel, index) => (
+                <button
+                  key={panel.id}
+                  onClick={() => setMergedActiveTab(position, index)}
+                  className={`px-4 py-2 text-sm font-medium border-r transition-colors flex-1 ${
+                    index === activeTabIndex 
+                      ? 'text-white' 
+                      : 'text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]'
+                  }`}
+                  style={{ 
+                    borderColor: 'var(--color-border)',
+                    backgroundColor: index === activeTabIndex ? 'var(--color-primary)' : 'transparent'
+                  }}
+                >
+                  {panel.title}
+                </button>
+              ))}
+            </div>
+          )}
           
           {/* Content Area */}
           <div className="flex-1 overflow-hidden" style={{ height: 'calc(100% - 96px)' }}>

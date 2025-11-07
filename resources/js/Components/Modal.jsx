@@ -132,38 +132,66 @@ export default function Modal({
         resizeInstance.current = null
       }
 
+      // Ensure header doesn't let native touch scrolling intercept drags
+      if (headerRef.current) {
+        headerRef.current.style.touchAction = 'none'
+        headerRef.current.style.webkitTouchCallout = 'none'
+        // make header show grab cursor unless maximized
+        headerRef.current.style.cursor = isMaximized ? '' : 'grab'
+      }
+
       // Initialize dragging - works in all states except maximized
       if (!isMaximized && headerRef.current) {
-        draggableInstance.current = Draggable.create(panelRef.current, {
-          trigger: headerRef.current,
-          type: "x,y",
-          edgeResistance: 0.65,
-          bounds: "body",
-          inertia: true,
-          cursor: "grab",
-          activeCursor: "grabbing",
-          onDragStart: () => {
-            setIsDragging(true)
-            gsap.to(panelRef.current, {
-              scale: 1.02,
-              duration: 0.2,
-              ease: "power2.out",
-              zIndex: 60
-            })
-          },
-          onDrag: function() {
-            setModalPosition({ x: this.x, y: this.y })
-          },
-          onDragEnd: () => {
-            setIsDragging(false)
-            gsap.to(panelRef.current, {
-              scale: 1,
-              duration: 0.3,
-              ease: "power2.out",
-              zIndex: 50
-            })
+        // Defer slightly to ensure DOM has rendered and animation cleared
+        const raf = requestAnimationFrame(() => {
+          try {
+            draggableInstance.current = Draggable.create(panelRef.current, {
+              trigger: headerRef.current,
+              type: "x,y",
+              edgeResistance: 0.65,
+              bounds: "body",
+              inertia: true,
+              cursor: "grab",
+              activeCursor: "grabbing",
+              onDragStart: () => {
+                setIsDragging(true)
+                gsap.to(panelRef.current, {
+                  scale: 1.02,
+                  duration: 0.2,
+                  ease: "power2.out",
+                  zIndex: 60
+                })
+              },
+              onDrag: function() {
+                setModalPosition({ x: this.x, y: this.y })
+              },
+              onDragEnd: () => {
+                setIsDragging(false)
+                gsap.to(panelRef.current, {
+                  scale: 1,
+                  duration: 0.3,
+                  ease: "power2.out",
+                  zIndex: 50
+                })
+              }
+            })[0]
+          } catch (err) {
+            // fail silently if Draggable cannot initialize right away
+            console.warn('Draggable init warning:', err)
           }
-        })[0]
+        })
+
+        return () => {
+          cancelAnimationFrame(raf)
+          if (draggableInstance.current) {
+            draggableInstance.current.kill()
+            draggableInstance.current = null
+          }
+          if (resizeInstance.current) {
+            resizeInstance.current.kill()
+            resizeInstance.current = null
+          }
+        }
       }
 
       // Initialize resizing - corner handle (only when not maximized)
@@ -438,7 +466,7 @@ export default function Modal({
               className={`flex justify-between items-center px-4 py-3 border-b ${
                 !isMaximized ? 'cursor-move' : ''
               } select-none bg-[var(--color-bg-muted)]/80 backdrop-blur-sm`}
-              style={{ borderColor: 'var(--color-border)' }}
+              style={{ borderColor: 'var(--color-border)', touchAction: 'none' }}
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 {!isMaximized && (
