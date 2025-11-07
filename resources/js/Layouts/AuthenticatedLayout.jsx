@@ -34,7 +34,7 @@ export default function AuthenticatedLayout({
 
   return (
     <div className="min-h-screen relative bg-[var(--color-bg)]">
- {/*   <CustomCursor />*/}
+   <CustomCursor />
       <Header 
         isAuthenticated={!!user} 
         currentRoute={currentRoute} 
