@@ -18,6 +18,7 @@ use App\Models\Frame;
 use App\Models\ProjectComponent;
 use App\Http\Controllers\ForgePageController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\AssetController;
 /*
 |--------------------------------------------------------------------------
 | API Routes - All using UUIDs for resource identification
@@ -155,7 +156,15 @@ Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasS
     Route::delete('/workspaces/{workspace:uuid}', [WorkspaceController::class, 'destroy']);
     
     
-  
+  Route::prefix('assets')->group(function () {
+        Route::get('/', [AssetController::class, 'index']);
+        Route::post('/', [AssetController::class, 'store']);
+        Route::get('/{asset:uuid}', [AssetController::class, 'show']);
+        Route::delete('/{asset:uuid}', [AssetController::class, 'destroy']);
+        Route::post('/remove-background', [AssetController::class, 'removeBackground']);
+        Route::post('/bulk-delete', [AssetController::class, 'bulkDelete']);
+        Route::get('/search', [AssetController::class, 'search']);
+    });
     
 
 // Workspace message routes - IMPORTANT: Use {workspaceId} not {workspace:uuid}

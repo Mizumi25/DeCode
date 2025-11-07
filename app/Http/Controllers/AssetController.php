@@ -8,8 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Intervention\Image\Facades\Image;
-use getID3;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Drivers\Gd\Driver;
 
 class AssetController extends Controller
 {
@@ -17,7 +17,7 @@ class AssetController extends Controller
     {
         $validated = $request->validate([
             'project_id' => 'nullable|string',
-            'type' => 'nullable|in:image,video,audio,document',
+            'type' => 'nullable|in:image,video,audio,gif',
             'search' => 'nullable|string'
         ]);
 
@@ -35,40 +35,43 @@ class AssetController extends Controller
             $query->where('name', 'like', '%' . $validated['search'] . '%');
         }
 
-        $assets = $query->latest()->get()->map(function ($asset) {
-            return [
-                'id' => $asset->id,
-                'name' => $asset->name,
-                'type' => $asset->type,
-                'url' => Storage::url($asset->file_path),
-                'thumbnail' => $asset->thumbnail_path ? Storage::url($asset->thumbnail_path) : null,
-                'size' => $asset->file_size,
-                'dimensions' => $asset->dimensions,
-                'duration' => $asset->duration,
-                'metadata' => $asset->metadata,
-                'createdAt' => $asset->created_at->toISOString()
-            ];
-        });
+        $assets = $query->latest()->get();
 
         return response()->json([
             'success' => true,
-            'data' => $assets
+            'data' => $assets->map(function ($asset) {
+                return [
+                    'id' => $asset->id,
+                    'uuid' => $asset->uuid,
+                    'name' => $asset->name,
+                    'type' => $asset->type,
+                    'url' => $asset->url,
+                    'thumbnail' => $asset->thumbnail_url,
+                    'size' => $asset->file_size,
+                    'dimensions' => $asset->dimensions,
+                    'duration' => $asset->duration,
+                    'metadata' => $asset->metadata,
+                    'tags' => $asset->tags,
+                    'created_at' => $asset->created_at->toISOString()
+                ];
+            })
         ]);
     }
 
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'file' => 'required|file|max:51200', // 50MB max
-            'type' => 'required|in:image,video,audio,document',
+            'file' => 'required|file|max:102400', // 100MB max
+            'type' => 'required|in:image,video,audio,gif',
             'project_id' => 'nullable|string'
         ]);
 
         $file = $request->file('file');
-        $type = $this->detectFileType($file);
+        $type = $validated['type'];
         
         // Generate unique filename
-        $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+        $extension = $file->getClientOriginalExtension();
+        $filename = Str::uuid() . '.' . $extension;
         $filePath = "assets/{$type}s/" . $filename;
         
         // Store file
@@ -84,9 +87,9 @@ class AssetController extends Controller
         // Get file metadata
         $metadata = $this->extractMetadata($file, $type);
         
-        // Generate thumbnail for images and videos
+        // Generate thumbnail
         $thumbnailPath = null;
-        if ($type === 'image') {
+        if ($type === 'image' || $type === 'gif') {
             $thumbnailPath = $this->generateImageThumbnail($file, $filename);
         } elseif ($type === 'video') {
             $thumbnailPath = $this->generateVideoThumbnail($filePath, $filename);
@@ -111,14 +114,44 @@ class AssetController extends Controller
             'success' => true,
             'asset' => [
                 'id' => $asset->id,
+                'uuid' => $asset->uuid,
                 'name' => $asset->name,
                 'type' => $asset->type,
-                'url' => Storage::url($asset->file_path),
-                'thumbnail' => $asset->thumbnail_path ? Storage::url($asset->thumbnail_path) : null,
+                'url' => $asset->url,
+                'thumbnail' => $asset->thumbnail_url,
                 'size' => $asset->file_size,
                 'dimensions' => $asset->dimensions,
                 'duration' => $asset->duration,
                 'metadata' => $asset->metadata
+            ]
+        ]);
+    }
+
+    public function show(Asset $asset): JsonResponse
+    {
+        // Check ownership
+        if ($asset->user_id !== auth()->id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized'
+            ], 403);
+        }
+
+        return response()->json([
+            'success' => true,
+            'asset' => [
+                'id' => $asset->id,
+                'uuid' => $asset->uuid,
+                'name' => $asset->name,
+                'type' => $asset->type,
+                'url' => $asset->url,
+                'thumbnail' => $asset->thumbnail_url,
+                'size' => $asset->file_size,
+                'dimensions' => $asset->dimensions,
+                'duration' => $asset->duration,
+                'metadata' => $asset->metadata,
+                'tags' => $asset->tags,
+                'created_at' => $asset->created_at->toISOString()
             ]
         ]);
     }
@@ -175,11 +208,15 @@ class AssetController extends Controller
         }
 
         try {
-            // Use remove.bg API or similar service
             $processedImagePath = $this->processBackgroundRemoval($asset->file_path);
             
             if (!$processedImagePath) {
                 throw new \Exception('Background removal failed');
+            }
+
+            // Delete old file
+            if (Storage::disk('public')->exists($asset->file_path)) {
+                Storage::disk('public')->delete($asset->file_path);
             }
 
             // Update asset record
@@ -198,13 +235,16 @@ class AssetController extends Controller
             );
             
             if ($thumbnailPath) {
+                if ($asset->thumbnail_path && Storage::disk('public')->exists($asset->thumbnail_path)) {
+                    Storage::disk('public')->delete($asset->thumbnail_path);
+                }
                 $asset->update(['thumbnail_path' => $thumbnailPath]);
             }
 
             return response()->json([
                 'success' => true,
-                'url' => Storage::url($asset->file_path),
-                'thumbnail' => $asset->thumbnail_path ? Storage::url($asset->thumbnail_path) : null
+                'url' => $asset->url,
+                'thumbnail' => $asset->thumbnail_url
             ]);
 
         } catch (\Exception $e) {
@@ -217,19 +257,34 @@ class AssetController extends Controller
         }
     }
 
-    private function detectFileType($file): string
+    public function bulkDelete(Request $request): JsonResponse
     {
-        $mimeType = $file->getMimeType();
-        
-        if (str_starts_with($mimeType, 'image/')) {
-            return 'image';
-        } elseif (str_starts_with($mimeType, 'video/')) {
-            return 'video';
-        } elseif (str_starts_with($mimeType, 'audio/')) {
-            return 'audio';
-        } else {
-            return 'document';
+        $validated = $request->validate([
+            'asset_ids' => 'required|array',
+            'asset_ids.*' => 'integer|exists:assets,id'
+        ]);
+
+        $assets = Asset::whereIn('id', $validated['asset_ids'])
+            ->where('user_id', auth()->id())
+            ->get();
+
+        foreach ($assets as $asset) {
+            // Delete files
+            if (Storage::disk('public')->exists($asset->file_path)) {
+                Storage::disk('public')->delete($asset->file_path);
+            }
+
+            if ($asset->thumbnail_path && Storage::disk('public')->exists($asset->thumbnail_path)) {
+                Storage::disk('public')->delete($asset->thumbnail_path);
+            }
+
+            $asset->delete();
         }
+
+        return response()->json([
+            'success' => true,
+            'message' => count($assets) . ' assets deleted successfully'
+        ]);
     }
 
     private function extractMetadata($file, $type): array
@@ -237,8 +292,11 @@ class AssetController extends Controller
         $metadata = [];
 
         try {
-            if ($type === 'image') {
-                $image = Image::make($file);
+            if ($type === 'image' || $type === 'gif') {
+                // Create ImageManager instance
+                $manager = new ImageManager(new Driver());
+                $image = $manager->read($file->getRealPath());
+                
                 $metadata['dimensions'] = [
                     'width' => $image->width(),
                     'height' => $image->height()
@@ -251,15 +309,11 @@ class AssetController extends Controller
                         'camera_make' => $exifData['Make'] ?? null,
                         'camera_model' => $exifData['Model'] ?? null,
                         'date_taken' => $exifData['DateTime'] ?? null,
-                        'gps' => isset($exifData['GPSLatitude']) ? [
-                            'latitude' => $this->getGps($exifData['GPSLatitude'], $exifData['GPSLatitudeRef']),
-                            'longitude' => $this->getGps($exifData['GPSLongitude'], $exifData['GPSLongitudeRef'])
-                        ] : null
                     ];
                 }
             } elseif (in_array($type, ['video', 'audio'])) {
                 // Use getID3 library for media metadata
-                $getID3 = new getID3();
+                $getID3 = new \getID3();
                 $fileInfo = $getID3->analyze($file->getRealPath());
                 
                 if (isset($fileInfo['video'])) {
@@ -283,13 +337,12 @@ class AssetController extends Controller
     private function generateImageThumbnail($file, $filename): ?string
     {
         try {
-            $image = Image::make($file);
+            // Create ImageManager instance
+            $manager = new ImageManager(new Driver());
+            $image = $manager->read($file);
             
-            // Create thumbnail (300x300 max, maintain aspect ratio)
-            $image->resize(300, 300, function ($constraint) {
-                $constraint->aspectRatio();
-                $constraint->upsize();
-            });
+            // Resize to 300x300 max, maintain aspect ratio
+            $image->scale(width: 300, height: 300);
 
             $thumbnailPath = 'assets/thumbnails/' . pathinfo($filename, PATHINFO_FILENAME) . '_thumb.jpg';
             $fullThumbnailPath = storage_path('app/public/' . $thumbnailPath);
@@ -300,7 +353,7 @@ class AssetController extends Controller
                 mkdir($directory, 0755, true);
             }
             
-            $image->save($fullThumbnailPath, 80); // 80% quality JPEG
+            $image->toJpeg(80)->save($fullThumbnailPath);
             
             return $thumbnailPath;
         } catch (\Exception $e) {
@@ -339,9 +392,6 @@ class AssetController extends Controller
     private function processBackgroundRemoval($imagePath): ?string
     {
         try {
-            // This is a placeholder - implement with your preferred background removal service
-            // Options: remove.bg API, local processing with rembg, etc.
-            
             $apiKey = config('services.removebg.api_key');
             if (!$apiKey) {
                 throw new \Exception('Remove.bg API key not configured');
@@ -382,26 +432,5 @@ class AssetController extends Controller
             \Log::error('Background removal failed: ' . $e->getMessage());
             return null;
         }
-    }
-
-    private function getGps($exifCoord, $hemi): ?float
-    {
-        if (!$exifCoord || !$hemi) return null;
-        
-        $degrees = count($exifCoord) > 0 ? $this->gps2Num($exifCoord[0]) : 0;
-        $minutes = count($exifCoord) > 1 ? $this->gps2Num($exifCoord[1]) : 0;
-        $seconds = count($exifCoord) > 2 ? $this->gps2Num($exifCoord[2]) : 0;
-        
-        $flip = ($hemi === 'W' || $hemi === 'S') ? -1 : 1;
-        
-        return $flip * ($degrees + $minutes / 60 + $seconds / 3600);
-    }
-
-    private function gps2Num($coordPart): float
-    {
-        $parts = explode('/', $coordPart);
-        if (count($parts) <= 0) return 0;
-        if (count($parts) == 1) return (float) $parts[0];
-        return (float) $parts[0] / (float) $parts[1];
     }
 }

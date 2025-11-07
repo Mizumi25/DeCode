@@ -35,6 +35,16 @@ const AssetsPanel = ({ onAssetDrop, onAssetSelect }) => {
   const [showPreview, setShowPreview] = useState(null);
   const [processingRemoveBg, setProcessingRemoveBg] = useState(null);
   
+
+
+  // add after useState hooks
+const filterTabs = [
+  { key: 'all', icon: Grid3X3, label: 'All' },
+  { key: 'images', icon: FileImage, label: 'Images' },
+  { key: 'videos', icon: Video, label: 'Videos' },
+  { key: 'audio', icon: Music, label: 'Audio' },
+  { key: 'documents', icon: File, label: 'Documents' },
+];
   const fileInputRef = useRef(null);
   const dragCountRef = useRef(0);
 
@@ -57,52 +67,46 @@ const AssetsPanel = ({ onAssetDrop, onAssetSelect }) => {
 
   // Upload handler
   const handleFileUpload = useCallback(async (files) => {
-    if (!files || files.length === 0) return;
+  if (!files || files.length === 0) return;
 
-    setUploading(true);
-    setUploadProgress(0);
+  setUploading(true);
+  setUploadProgress(0);
 
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', getFileType(file));
-
-        const response = await axios.post('/api/assets/upload', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-          onUploadProgress: (progressEvent) => {
-            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setUploadProgress((i / files.length) * 100 + (progress / files.length));
-          },
-        });
-
-        if (response.data.success) {
-          const newAsset = {
-            id: response.data.asset.id,
-            name: file.name,
-            type: getFileType(file),
-            url: response.data.asset.url,
-            thumbnail: response.data.asset.thumbnail,
-            size: file.size,
-            dimensions: response.data.asset.dimensions,
-            duration: response.data.asset.duration,
-            createdAt: new Date(),
-            ...response.data.asset
-          };
-
-          setAssets(prev => [newAsset, ...prev]);
-        }
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', getFileType(file));
+      
+      // Add project_id if available
+      if (window.currentProjectId) {
+        formData.append('project_id', window.currentProjectId);
       }
-    } catch (error) {
-      console.error('Upload failed:', error);
-    } finally {
-      setUploading(false);
-      setUploadProgress(0);
+
+      const response = await axios.post('/api/assets', formData, { // ← Changed from /api/assets/upload
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress((i / files.length) * 100 + (progress / files.length));
+        },
+      });
+
+      if (response.data.success) {
+        setAssets(prev => [response.data.asset, ...prev]);
+      }
     }
-  }, []);
+  } catch (error) {
+    console.error('Upload failed:', error);
+    // Add user-facing error message
+    alert('Upload failed: ' + (error.response?.data?.message || error.message));
+  } finally {
+    setUploading(false);
+    setUploadProgress(0);
+  }
+}, []);
 
   // Drag and drop handlers
   const handleDragEnter = (e) => {
@@ -212,18 +216,19 @@ const AssetsPanel = ({ onAssetDrop, onAssetSelect }) => {
     }
   };
 
-  // Delete asset
-  const handleDeleteAsset = async (assetId) => {
-    try {
-      await axios.delete(`/api/assets/${assetId}`);
-      setAssets(prev => prev.filter(a => a.id !== assetId));
-      if (selectedAsset?.id === assetId) {
-        setSelectedAsset(null);
-      }
-    } catch (error) {
-      console.error('Delete failed:', error);
+ // replace the delete handler
+const handleDeleteAsset = async (assetUuid, assetId) => {
+  try {
+    await axios.delete(`/api/assets/${assetUuid}`);
+    setAssets(prev => prev.filter(a => a.id !== assetId));
+    if (selectedAsset?.id === assetId) {
+      setSelectedAsset(null);
     }
-  };
+  } catch (error) {
+    console.error('Delete failed:', error);
+    alert(error.response?.data?.message || 'Delete failed');
+  }
+};
 
   // Filter assets
   const filteredAssets = assets.filter(asset => {
@@ -331,9 +336,10 @@ const AssetsPanel = ({ onAssetDrop, onAssetSelect }) => {
                   )}
                   
                   <button
+                    // update callers (grid)
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDeleteAsset(asset.id);
+                      handleDeleteAsset(asset.uuid, asset.id);
                     }}
                     className="w-8 h-8 bg-red-500/90 rounded-full flex items-center justify-center hover:bg-red-500 transition-colors"
                   >
@@ -465,9 +471,10 @@ const AssetsPanel = ({ onAssetDrop, onAssetSelect }) => {
                 )}
                 
                 <button
+                  // update callers (grid)
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDeleteAsset(asset.id);
+                    handleDeleteAsset(asset.uuid, asset.id);
                   }}
                   className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
                   style={{ backgroundColor: 'var(--color-bg-hover)' }}
@@ -484,201 +491,210 @@ const AssetsPanel = ({ onAssetDrop, onAssetSelect }) => {
 
   return (
     <div 
-      className="space-y-4 h-full flex flex-col"
+      className="h-full flex"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
-          <FileImage className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
-        </div>
-        <div className="flex-1">
-          <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Media Assets</h3>
-          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            {assets.length} files • Drag to canvas
-          </p>
+      {/* Left vertical icon tabs */}
+      <div className="w-12 flex-shrink-0 py-2 pr-2">
+        <div className="flex flex-col items-center gap-2">
+          {filterTabs.map(tab => {
+            const Icon = tab.icon;
+            const active = filterType === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setFilterType(tab.key)}
+                className="w-10 h-10 rounded-lg flex items-center justify-center transition-colors"
+                style={{
+                  backgroundColor: active ? 'var(--color-primary)' : 'var(--color-bg-hover)',
+                  color: active ? 'white' : 'var(--color-text-muted)',
+                  boxShadow: active ? 'var(--shadow-sm)' : 'none'
+                }}
+                title={tab.label}
+              >
+                <Icon className="w-5 h-5" />
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="space-y-3">
-        {/* Search Bar */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
-          <input
-            type="text"
-            placeholder="Search assets..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm transition-colors"
-            style={{
-              borderColor: 'var(--color-border)',
-              backgroundColor: 'var(--color-surface)',
-              color: 'var(--color-text)'
-            }}
-          />
+      {/* Right content */}
+      <div className="flex-1 min-w-0 space-y-4 flex flex-col">
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+            <FileImage className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Media Assets</h3>
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              {assets.length} files • Drag to canvas
+            </p>
+          </div>
         </div>
 
-        {/* Filter & View Controls */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="text-xs border rounded px-2 py-1"
+        {/* Controls (search + view toggles) */}
+        <div className="space-y-3">
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+            <input
+              type="text"
+              placeholder="Search assets..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm transition-colors"
               style={{
                 borderColor: 'var(--color-border)',
                 backgroundColor: 'var(--color-surface)',
                 color: 'var(--color-text)'
               }}
-            >
-              <option value="all">All Files</option>
-              <option value="images">Images</option>
-              <option value="videos">Videos</option>
-              <option value="audio">Audio</option>
-              <option value="documents">Documents</option>
-            </select>
+            />
           </div>
-          
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 rounded transition-colors ${viewMode === 'grid' ? 'bg-[var(--color-primary)] text-white' : 'hover:bg-[var(--color-bg-hover)]'}`}
-            >
-              <Grid3X3 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 rounded transition-colors ${viewMode === 'list' ? 'bg-[var(--color-primary)] text-white' : 'hover:bg-[var(--color-bg-hover)]'}`}
-            >
-              <List className="w-4 h-4" />
-            </button>
+
+          {/* View Controls */}
+          <div className="flex items-center justify-end">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-2 rounded transition-colors ${viewMode === 'grid' ? 'bg-[var(--color-primary)] text-white' : 'hover:bg-[var(--color-bg-hover)]'}`}
+              >
+                <Grid3X3 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded transition-colors ${viewMode === 'list' ? 'bg-[var(--color-primary)] text-white' : 'hover:bg-[var(--color-bg-hover)]'}`}
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Upload Area */}
-      <div className="relative">
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
-          onChange={(e) => handleFileUpload(Array.from(e.target.files))}
-          className="hidden"
-        />
-        
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="w-full py-4 px-4 border-2 border-dashed rounded-xl text-sm transition-all font-semibold flex items-center justify-center gap-2 relative overflow-hidden"
-          style={{ 
-            borderColor: uploading ? 'var(--color-primary)' : 'var(--color-border)', 
-            color: 'var(--color-primary)', 
-            backgroundColor: uploading ? 'var(--color-primary-soft)' : 'var(--color-bg)' 
-          }}
-        >
-          {uploading ? (
-            <>
-              <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-              Uploading... {uploadProgress.toFixed(0)}%
-              <div 
-                className="absolute bottom-0 left-0 h-1 transition-all duration-300"
-                style={{ 
-                  width: `${uploadProgress}%`, 
-                  backgroundColor: 'var(--color-primary)' 
-                }}
-              ></div>
-            </>
-          ) : (
-            <>
-              <Upload className="w-5 h-5" />
-              Upload New Assets
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* Assets List */}
-      <div className="flex-1 overflow-y-auto">
-        {filteredAssets.length === 0 ? (
-          <div className="text-center py-8">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
-              <FileImage className="w-8 h-8" style={{ color: 'var(--color-text-muted)' }} />
-            </div>
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-              {searchTerm || filterType !== 'all' ? 'No assets match your search' : 'No assets uploaded yet'}
-            </p>
-            <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-              {!searchTerm && filterType === 'all' && 'Upload images, videos, audio files, or documents'}
-            </p>
-          </div>
-        ) : (
-          viewMode === 'grid' ? renderAssetGrid() : renderAssetList()
-        )}
-      </div>
-
-      {/* Preview Modal */}
-      <AnimatePresence>
-        {showPreview && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowPreview(null)}
+        {/* Upload Area */}
+        <div className="relative">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+            onChange={(e) => handleFileUpload(Array.from(e.target.files))}
+            className="hidden"
+          />
+          
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="w-full py-4 px-4 border-2 border-dashed rounded-xl text-sm transition-all font-semibold flex items-center justify-center gap-2 relative overflow-hidden"
+            style={{ 
+              borderColor: uploading ? 'var(--color-primary)' : 'var(--color-border)', 
+              color: 'var(--color-primary)', 
+              backgroundColor: uploading ? 'var(--color-primary-soft)' : 'var(--color-bg)' 
+            }}
           >
+            {uploading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                Uploading... {uploadProgress.toFixed(0)}%
+                <div 
+                  className="absolute bottom-0 left-0 h-1 transition-all duration-300"
+                  style={{ 
+                    width: `${uploadProgress}%`, 
+                    backgroundColor: 'var(--color-primary)' 
+                  }}
+                ></div>
+              </>
+            ) : (
+              <>
+                <Upload className="w-5 h-5" />
+                Upload New Assets
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Assets List */}
+        <div className="flex-1 overflow-y-auto">
+          {filteredAssets.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                <FileImage className="w-8 h-8" style={{ color: 'var(--color-text-muted)' }} />
+              </div>
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                {searchTerm || filterType !== 'all' ? 'No assets match your search' : 'No assets uploaded yet'}
+              </p>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                {!searchTerm && filterType === 'all' && 'Upload images, videos, audio files, or documents'}
+              </p>
+            </div>
+          ) : (
+            viewMode === 'grid' ? renderAssetGrid() : renderAssetList()
+          )}
+        </div>
+
+        {/* Preview Modal */}
+        <AnimatePresence>
+          {showPreview && (
             <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              className="max-w-4xl max-h-full bg-white rounded-xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+              onClick={() => setShowPreview(null)}
             >
-              <div className="flex items-center justify-between p-4 border-b">
-                <div>
-                  <h3 className="font-semibold">{showPreview.name}</h3>
-                  <p className="text-sm text-gray-600">
-                    {formatFileSize(showPreview.size)} • {showPreview.type}
-                    {showPreview.dimensions && ` • ${showPreview.dimensions.width}×${showPreview.dimensions.height}`}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowPreview(null)}
-                  className="p-2 hover:bg-gray-100 rounded-full"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="p-4 max-h-96 overflow-auto">
-                {showPreview.type === 'image' && (
-                  <img 
-                    src={showPreview.url} 
-                    alt={showPreview.name}
-                    className="max-w-full h-auto rounded-lg"
-                  />
-                )}
-                {showPreview.type === 'video' && (
-                  <video 
-                    src={showPreview.url} 
-                    controls 
-                    className="max-w-full h-auto rounded-lg"
-                  />
-                )}
-                {showPreview.type === 'audio' && (
-                  <div className="flex items-center justify-center p-8">
-                    <audio src={showPreview.url} controls className="w-full max-w-md" />
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                className="max-w-4xl max-h-full bg-white rounded-xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between p-4 border-b">
+                  <div>
+                    <h3 className="font-semibold">{showPreview.name}</h3>
+                    <p className="text-sm text-gray-600">
+                      {formatFileSize(showPreview.size)} • {showPreview.type}
+                      {showPreview.dimensions && ` • ${showPreview.dimensions.width}×${showPreview.dimensions.height}`}
+                    </p>
                   </div>
-                )}
-              </div>
+                  <button
+                    onClick={() => setShowPreview(null)}
+                    className="p-2 hover:bg-gray-100 rounded-full"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <div className="p-4 max-h-96 overflow-auto">
+                  {showPreview.type === 'image' && (
+                    <img 
+                      src={showPreview.url} 
+                      alt={showPreview.name}
+                      className="max-w-full h-auto rounded-lg"
+                    />
+                  )}
+                  {showPreview.type === 'video' && (
+                    <video 
+                      src={showPreview.url} 
+                      controls 
+                      className="max-w-full h-auto rounded-lg"
+                    />
+                  )}
+                  {showPreview.type === 'audio' && (
+                    <div className="flex items-center justify-center p-8">
+                      <audio src={showPreview.url} controls className="w-full max-w-md" />
+                    </div>
+                  )}
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 };

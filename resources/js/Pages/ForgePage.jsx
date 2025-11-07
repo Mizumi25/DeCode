@@ -2236,6 +2236,7 @@ const handleCanvasClick = useCallback((e) => {
     createMockPanel('assets-panel', 'Assets',
       AssetsPanel ? (
         <AssetsPanel
+          projectId={projectId}
           onAssetDrop={handleAssetDrop}
           onAssetSelect={(asset) => console.log('Asset selected:', asset)}
         />

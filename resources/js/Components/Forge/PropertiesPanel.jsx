@@ -635,7 +635,7 @@ return (
           </div>
         </div>
     {/* Enhanced Header with Canvas Settings */}
-    <div className="sticky top-0 z-10 border-b" style={{ 
+    <div className=" z-10 border-b" style={{ 
       backgroundColor: 'var(--color-surface)',
       borderColor: 'var(--color-border)'
     }}>
@@ -795,17 +795,7 @@ return (
           borderColor: 'var(--color-border)'
         }}
       >
-        <button
-          onClick={() => onGenerateCode([selectedComponentData])}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all hover:opacity-90"
-          style={{ 
-            backgroundColor: 'var(--color-primary)',
-            color: '#ffffff'
-          }}
-        >
-          <Code className="w-4 h-4" />
-          Generate Code
-        </button>
+      
         
         {/* ✅ NEW: Quick Spacing Toggle Button */}
         <button

@@ -469,7 +469,7 @@ useEffect(() => {
             initial="closed"
             animate="open"
             exit="closed"
-            className="fixed right-0 top-1/2 -translate-y-1/2 z-50 w-96 h-[600px] max-h-[80vh] bg-[var(--color-surface)] border-l border-[var(--color-border)] shadow-2xl flex flex-col"
+            className="fixed right-0 bottom-6 z-50 w-96 h-[600px] max-h-[80vh] bg-[var(--color-surface)] border-l border-[var(--color-border)] shadow-2xl flex flex-col"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
