@@ -175,6 +175,8 @@ const {
   const [activeId, setActiveId] = useState(null);
   const [overId, setOverId] = useState(null);
   const [draggedComponent, setDraggedComponent] = useState(null);
+  const dragPointerOffsetRef = useRef({ x: 0, y: 0 });
+  const dragOriginalSizeRef = useRef({ width: 0, height: 0 });
 
   // Get responsive device info and dimensions
   const deviceInfo = getResponsiveDeviceInfo();
@@ -637,6 +639,21 @@ const handleDndDragStart = useCallback((event) => {
     active.data.current.originalComponent = component;
     active.data.current.isLayoutContainer = component.isLayoutContainer;
   }
+  // Capture pointer offset within the element to keep ghost under cursor
+  try {
+    const activator = event.activatorEvent;
+    const element = document.querySelector(`[data-component-id="${active.id}"]`);
+    if (activator && element) {
+      const rect = element.getBoundingClientRect();
+      const clientX = activator.touches?.[0]?.clientX ?? activator.clientX;
+      const clientY = activator.touches?.[0]?.clientY ?? activator.clientY;
+      dragPointerOffsetRef.current = {
+        x: Math.max(0, Math.min((clientX ?? 0) - rect.left, rect.width)),
+        y: Math.max(0, Math.min((clientY ?? 0) - rect.top, rect.height))
+      };
+      dragOriginalSizeRef.current = { width: rect.width, height: rect.height };
+    }
+  } catch {}
   
   // 🔥 REMOVED: Don't hide the original element - dnd-kit needs it for positioning
   // const originalElement = document.querySelector(`[data-component-id="${active.id}"]`);
@@ -1729,12 +1746,13 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
 
   return (
     <div 
-      className="relative w-full h-full flex items-center justify-center"
+      className="relative w-full h-full flex items-start justify-center"
       style={{ 
         backgroundColor: 'transparent',
         position: 'relative',
         zIndex: 1,
-        overflow: 'auto',
+    overflow: 'auto',
+    overflowX: 'hidden',
         minHeight: '100%',
         padding: '40px 20px', // 🔥 REDUCED padding
       }}
@@ -2291,30 +2309,22 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
       // 🔥 CUSTOM MODIFIER to position ghost at exact touch point
       ({ activatorEvent, transform }) => {
         if (!activatorEvent) return transform;
-        
-        const touchX = activatorEvent.clientX || activatorEvent.touches?.[0]?.clientX;
-        const touchY = activatorEvent.clientY || activatorEvent.touches?.[0]?.clientY;
-        
-        if (touchX && touchY) {
-          // Calculate offset from the original element's center
-          const originalElement = document.querySelector(`[data-component-id="${activeId}"]`);
-          if (originalElement) {
-            const rect = originalElement.getBoundingClientRect();
-            const elementCenterX = rect.left + rect.width / 2;
-            const elementCenterY = rect.top + rect.height / 2;
-            
-            const offsetX = touchX - elementCenterX;
-            const offsetY = touchY - elementCenterY;
-            
-            return {
-              ...transform,
-              x: transform.x + offsetX,
-              y: transform.y + offsetY,
-            };
-          }
-        }
-        
-        return transform;
+        const clientX = activatorEvent.touches?.[0]?.clientX ?? activatorEvent.clientX;
+        const clientY = activatorEvent.touches?.[0]?.clientY ?? activatorEvent.clientY;
+        if (clientX == null || clientY == null) return transform;
+
+        // Adjust the overlay so the cursor stays at the same offset inside the element
+        const { width, height } = dragOriginalSizeRef.current;
+        const { x: offX, y: offY } = dragPointerOffsetRef.current;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const adjustX = offX - centerX;
+        const adjustY = offY - centerY;
+        return {
+          ...transform,
+          x: transform.x + adjustX,
+          y: transform.y + adjustY,
+        };
       }
     ]}
     style={{ 
@@ -2325,7 +2335,6 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
     {activeId && draggedComponent ? (
       <div
         style={{
-          // 🔥 NO transform here - we'll scale the content properly
           filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.25))',
           border: '2px solid rgba(59, 130, 246, 0.5)',
           borderRadius: '8px',
@@ -2333,10 +2342,8 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
           backgroundColor: '#ffffff',
           pointerEvents: 'none',
           padding: '0px',
-          // 🔥 USE exact original dimensions
-          width: 'auto',
-          height: 'auto',
-          // 🔥 ENSURE no layout interference
+          width: dragOriginalSizeRef.current.width || 'auto',
+          height: dragOriginalSizeRef.current.height || 'auto',
           display: 'inline-block',
           lineHeight: 'normal',
         }}
@@ -2363,13 +2370,8 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
           return (
             <div 
               style={{
-                // 🔥 SCALE THE ENTIRE CONTAINER including all children
-                transform: 'scale(0.85)',
-                transformOrigin: 'center center',
-                // 🔥 PRESERVE original dimensions
                 width: `${originalRect.width}px`,
                 height: `${originalRect.height}px`,
-                // 🔥 ENSURE proper content rendering
                 display: 'flex',
                 alignItems: 'flex-start',
                 justifyContent: 'flex-start',
@@ -2377,7 +2379,6 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                 backgroundColor: '#ffffff',
                 borderRadius: '6px',
                 overflow: 'hidden',
-                // 🔥 CRITICAL: Preserve text rendering
                 fontFamily: 'inherit',
                 fontSize: 'inherit',
                 lineHeight: 'inherit',

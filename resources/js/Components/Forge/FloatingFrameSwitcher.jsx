@@ -440,16 +440,34 @@ const FloatingFrameSwitcher = ({
                                       border: isActive ? `2px solid var(--color-primary)` : `1px solid var(--color-border)`
                                     }}
                                   >
-                                    <div 
-                                      className="absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity"
-                                      style={{
-                                        background: `linear-gradient(135deg, ${statusInfo.color} 0%, var(--color-accent) 100%)`
-                                      }}
-                                    />
-                                    <div 
-                                      className="absolute inset-2 rounded opacity-80"
-                                      style={{ backgroundColor: 'var(--color-surface)' }}
-                                    />
+                                    {(() => {
+                                      const thumbPath = frame.settings?.thumbnail_path;
+                                      const thumbVer = frame.settings?.thumbnail_version || frame.settings?.thumbnail_generated_at || Date.now();
+                                      const thumbUrl = thumbPath ? `/storage/${thumbPath}?v=${thumbVer}` : null;
+                                      if (thumbUrl) {
+                                        return (
+                                          <img
+                                            src={thumbUrl}
+                                            alt={`${frame.name || frame.title || 'Frame'} thumbnail`}
+                                            className="absolute inset-0 w-full h-full object-cover"
+                                          />
+                                        );
+                                      }
+                                      return (
+                                        <>
+                                          <div 
+                                            className="absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity"
+                                            style={{
+                                              background: `linear-gradient(135deg, ${statusInfo.color} 0%, var(--color-accent) 100%)`
+                                            }}
+                                          />
+                                          <div 
+                                            className="absolute inset-2 rounded opacity-80"
+                                            style={{ backgroundColor: 'var(--color-surface)' }}
+                                          />
+                                        </>
+                                      );
+                                    })()}
                                     <div className="absolute bottom-1 right-1">
                                       <TypeIcon 
                                         className="w-2.5 h-2.5" 

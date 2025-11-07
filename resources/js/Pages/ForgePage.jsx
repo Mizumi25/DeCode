@@ -311,6 +311,52 @@ const isLayoutElement = (type) => LAYOUT_TYPES.includes(type);
     // ADD: Detect if project is GitHub import
   const [isGitHubProject, setIsGitHubProject] = useState(false);
   const [gitHubRepo, setGitHubRepo] = useState(null);
+  // Lightweight swipe handler component to pan container when touching outside canvas
+  const ScriptlessSwipeHandler = ({ canvasRef }) => {
+    const containerRef = useRef(null);
+    useEffect(() => {
+      const container = document.querySelector('[data-canvas-area]');
+      if (!container) return;
+      containerRef.current = container;
+      let isSwiping = false;
+      let startX = 0, startY = 0;
+      let lastX = 0, lastY = 0;
+      const onTouchStart = (e) => {
+        const target = e.target;
+        const canvasEl = canvasRef?.current;
+        const withinCanvas = canvasEl && canvasEl.contains(target);
+        if (withinCanvas) return; // only swipe when touching outside the canvas
+        isSwiping = true;
+        const t = e.touches[0];
+        startX = lastX = t.clientX;
+        startY = lastY = t.clientY;
+      };
+      const onTouchMove = (e) => {
+        if (!isSwiping) return;
+        const t = e.touches[0];
+        const dx = t.clientX - lastX;
+        const dy = t.clientY - lastY;
+        lastX = t.clientX;
+        lastY = t.clientY;
+        // Pan the scroll container
+        container.scrollLeft -= dx;
+        container.scrollTop -= dy;
+        e.preventDefault();
+      };
+      const onTouchEnd = () => {
+        isSwiping = false;
+      };
+      container.addEventListener('touchstart', onTouchStart, { passive: false });
+      container.addEventListener('touchmove', onTouchMove, { passive: false });
+      container.addEventListener('touchend', onTouchEnd);
+      return () => {
+        container.removeEventListener('touchstart', onTouchStart);
+        container.removeEventListener('touchmove', onTouchMove);
+        container.removeEventListener('touchend', onTouchEnd);
+      };
+    }, [canvasRef]);
+    return null;
+  };
   
   useEffect(() => {
     if (project?.settings?.imported_from_github) {
@@ -2504,6 +2550,8 @@ if (!componentsLoaded && loadingMessage) {
           data-canvas-area // 🔥 ADD: For zoom wheel targeting
 
               >
+        {/* Swipe-to-pan outside canvas */}
+        <ScriptlessSwipeHandler canvasRef={canvasRef} />
             {/* Canvas Component with Enhanced Responsive Sizing */}
             {CanvasComponent ? (
                 <div className="relative w-full flex justify-center">

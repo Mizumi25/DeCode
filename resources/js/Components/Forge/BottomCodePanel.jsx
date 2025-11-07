@@ -408,7 +408,7 @@ const BottomCodePanel = ({
             className="w-12 h-1 rounded-full transition-all duration-300 group-hover:w-16 group-hover:h-1.5 group-hover:bg-opacity-80"
             style={{ 
               backgroundColor: 'var(--color-primary)',
-              opacity: 0.5
+              opacity: 0.9
             }}
           />
         </div>
