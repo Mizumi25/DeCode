@@ -1897,12 +1897,6 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
     ${dragState.isDragging ? 'overflow-visible' : ''}
     ${selectedComponent === '__canvas_root__' ? 'ring-2 ring-blue-500' : ''}
   `}
-  onClick={(e) => {
-    // Only select canvas if clicking directly on canvas (not on a component)
-    if (e.target === e.currentTarget || e.target === canvasRef.current) {
-      handleSmartClick(e);
-    }
-  }}
   style={{
     ...getCanvasRootStyles(),
     
@@ -1934,14 +1928,18 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
   onDragOver={onCanvasDragOver}
   onDrop={onCanvasDrop}
   onClick={(e) => {
-  if (isPreviewMode) return; // 🔥 Disable selection in preview
-  if (e.target === e.currentTarget) {
-    onCanvasClick(null, e);
-    onComponentClick('__canvas_root__', e);
-  } else {
-    onCanvasClick(e);
-  }
-}}
+    // 🔥 MERGED: Combined both onClick handlers
+    if (isPreviewMode) return; // Disable selection in preview
+    
+    // Only select canvas if clicking directly on canvas (not on a component)
+    if (e.target === e.currentTarget || e.target === canvasRef.current) {
+      handleSmartClick(e);
+      onCanvasClick(null, e);
+      onComponentClick('__canvas_root__', e);
+    } else {
+      onCanvasClick(e);
+    }
+  }}
 >
     {/* 🔥 Viewport Boundary Indicator */}
   {/*  <ViewportBoundaryIndicator 

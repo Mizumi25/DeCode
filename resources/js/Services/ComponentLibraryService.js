@@ -505,6 +505,22 @@ getDeviceCanvasDimensions(responsiveMode) {
           case 'navbar':
              return this.renderNavbarComponent(mergedProps, id);
           
+          // 🔥 NEW MEDIA ELEMENTS
+          case 'image':
+            return this.renderImage(mergedProps, id);
+            
+          case 'video':
+            return this.renderVideo(mergedProps, id);
+            
+          case 'audio':
+            return this.renderAudio(mergedProps, id);
+            
+          case 'gif':
+            return this.renderGif(mergedProps, id);
+            
+          case 'icon':
+            return this.renderIconElement(mergedProps, id);
+          
           // 🔥 SMART FALLBACK
           default:
             // Try smart code rendering first if variant has preview_code
@@ -1436,6 +1452,154 @@ renderRange(props, id) {
       onChange: () => {}
     })
   ]);
+}
+
+// 🔥 MEDIA ELEMENT RENDERERS
+
+renderImage(props, id) {
+  const url = props.url || props.src || '';
+  const alt = props.alt || '';
+  const loading = props.loading || 'lazy';
+  
+  return React.createElement('img', {
+    key: id,
+    src: url || 'https://via.placeholder.com/400x300?text=Image',
+    alt: alt || 'Image',
+    loading: loading,
+    'data-component-id': id,
+    'data-component-type': 'image',
+    'data-is-layout': false,
+    style: {
+      maxWidth: '100%',
+      height: 'auto',
+      display: 'block',
+      ...props.style
+    }
+  });
+}
+
+renderVideo(props, id) {
+  const url = props.url || props.src || '';
+  
+  return React.createElement('video', {
+    key: id,
+    src: url,
+    autoPlay: props.autoplay || false,
+    controls: props.controls !== false,
+    loop: props.loop || false,
+    muted: props.muted || false,
+    'data-component-id': id,
+    'data-component-type': 'video',
+    'data-is-layout': false,
+    style: {
+      width: '100%',
+      maxWidth: '100%',
+      height: 'auto',
+      display: 'block',
+      ...props.style
+    }
+  });
+}
+
+renderAudio(props, id) {
+  const url = props.url || props.src || '';
+  
+  return React.createElement('audio', {
+    key: id,
+    src: url,
+    autoPlay: props.autoplay || false,
+    controls: props.controls !== false,
+    loop: props.loop || false,
+    'data-component-id': id,
+    'data-component-type': 'audio',
+    'data-is-layout': false,
+    style: {
+      width: '100%',
+      ...props.style
+    }
+  });
+}
+
+renderGif(props, id) {
+  const url = props.url || props.src || '';
+  const alt = props.alt || '';
+  
+  return React.createElement('img', {
+    key: id,
+    src: url || 'https://via.placeholder.com/400x300?text=GIF',
+    alt: alt || 'Animated GIF',
+    'data-component-id': id,
+    'data-component-type': 'gif',
+    'data-is-layout': false,
+    style: {
+      maxWidth: '100%',
+      height: 'auto',
+      display: 'block',
+      ...props.style
+    }
+  });
+}
+
+renderIconElement(props, id) {
+  const size = props.size || 24;
+  const url = props.url || '';
+  const svgCode = props.svgCode || '';
+  
+  // If SVG code is provided, use it
+  if (svgCode) {
+    return React.createElement('div', {
+      key: id,
+      'data-component-id': id,
+      'data-component-type': 'icon',
+      'data-is-layout': false,
+      style: {
+        width: `${size}px`,
+        height: `${size}px`,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...props.style
+      },
+      dangerouslySetInnerHTML: { __html: svgCode }
+    });
+  }
+  
+  // If URL is provided, use it
+  if (url) {
+    return React.createElement('img', {
+      key: id,
+      src: url,
+      alt: props.name || 'Icon',
+      'data-component-id': id,
+      'data-component-type': 'icon',
+      'data-is-layout': false,
+      style: {
+        width: `${size}px`,
+        height: `${size}px`,
+        display: 'block',
+        ...props.style
+      }
+    });
+  }
+  
+  // Fallback placeholder
+  return React.createElement('div', {
+    key: id,
+    'data-component-id': id,
+    'data-component-type': 'icon',
+    'data-is-layout': false,
+    style: {
+      width: `${size}px`,
+      height: `${size}px`,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(0, 0, 0, 0.1)',
+      borderRadius: '4px',
+      ...props.style
+    },
+    title: props.name || 'Icon'
+  }, '🎨');
 }
   
   

@@ -259,7 +259,7 @@ useEffect(() => {
 
 
   /**
-   * Update bounds and styles with high precision - ENHANCED FOR DRAGGING
+   * Update bounds and styles with high precision - FIXED FOR SCALING
    */
 const updateBounds = useCallback(() => {
   if (!componentId || !canvasRef.current) {
@@ -299,12 +299,10 @@ const updateBounds = useCallback(() => {
     return;
   }
 
-  // 🔥 KEY FIX: The overlay is INSIDE the scaled wrapper, so we use DIRECT positions
-  const elementRect = element.getBoundingClientRect();
-  const canvasRect = canvasRef.current.getBoundingClientRect();
+  // 🔥 FIXED: Since overlay is rendered INSIDE the canvas (which is inside scaled wrapper),
+  // we use offsetLeft/offsetTop directly - they're already in the correct coordinate space
+  // The canvas scaling is applied at the wrapper level, so elements inside are already scaled
   
-  // 🔥 Since overlay is inside canvas, just use offsetTop/Left (no scaling needed)
-  const computedStyle = window.getComputedStyle(element);
   const elementOffsetLeft = element.offsetLeft || 0;
   const elementOffsetTop = element.offsetTop || 0;
   
@@ -331,15 +329,6 @@ const updateBounds = useCallback(() => {
     position: styles.position,
     zIndex: styles.zIndex,
   };
-
-  console.log('🎯 SelectionOverlay bounds:', {
-    componentId,
-    bounds: newBounds,
-    offsetLeft: elementOffsetLeft,
-    offsetTop: elementOffsetTop,
-    offsetWidth: element.offsetWidth,
-    offsetHeight: element.offsetHeight
-  });
 
   setBounds(newBounds);
   setComputedStyles(newStyles);
