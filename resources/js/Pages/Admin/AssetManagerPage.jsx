@@ -16,7 +16,7 @@ import {
   Check,
   AlertCircle
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function AssetManagerPage() {
   const [viewMode, setViewMode] = useState('grid');
@@ -26,54 +26,35 @@ export default function AssetManagerPage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // Mock asset data
-  const [assets, setAssets] = useState([
-    {
-      id: 1,
-      name: 'logo.png',
-      type: 'image',
-      size: '45 KB',
-      url: '/assets/logo.png',
-      uploadDate: '2024-08-01',
-      dimensions: '512x512'
-    },
-    {
-      id: 2,
-      name: 'hero-banner.jpg',
-      type: 'image',
-      size: '180 KB',
-      url: '/assets/hero-banner.jpg',
-      uploadDate: '2024-08-02',
-      dimensions: '1920x1080'
-    },
-    {
-      id: 3,
-      name: 'product-guide.pdf',
-      type: 'document',
-      size: '2.4 MB',
-      url: '/assets/product-guide.pdf',
-      uploadDate: '2024-08-03',
-      dimensions: null
-    },
-    {
-      id: 4,
-      name: 'brand-assets.zip',
-      type: 'archive',
-      size: '15.8 MB',
-      url: '/assets/brand-assets.zip',
-      uploadDate: '2024-08-04',
-      dimensions: null
-    },
-    {
-      id: 5,
-      name: 'testimonial-bg.png',
-      type: 'image',
-      size: '95 KB',
-      url: '/assets/testimonial-bg.png',
-      uploadDate: '2024-08-05',
-      dimensions: '1200x800'
+  // New: dynamic assets and loading
+  const [assets, setAssets] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchAssets = async (q = '', type = 'all') => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (q) params.append('q', q);
+      if (type && type !== 'all') params.append('type', type);
+      const res = await fetch(`/admin/assets?${params.toString()}`, { credentials: 'same-origin' });
+      const json = await res.json();
+      if (json?.data) setAssets(json.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    fetchAssets();
+  }, []);
+
+  useEffect(() => {
+    // apply client-side filtering/search for quick UX (server search also supported)
+    const t = setTimeout(() => fetchAssets(searchQuery, filterType), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery, filterType]);
 
   const getFileIcon = (type) => {
     switch (type) {
@@ -97,24 +78,32 @@ export default function AssetManagerPage() {
     );
   };
 
-  const handleDeleteSelected = () => {
-    setAssets(prev => prev.filter(asset => !selectedAssets.includes(asset.id)));
-    setSelectedAssets([]);
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragOver(false);
+  const handleDeleteSelected = async () => {
+    if (!selectedAssets.length) return;
+    if (!confirm(`Delete ${selectedAssets.length} assets?`)) return;
+    try {
+      const res = await fetch('/admin/assets/bulk-delete', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ asset_ids: selectedAssets })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setAssets(prev => prev.filter(a => !selectedAssets.includes(a.id)));
+        setSelectedAssets([]);
+      } else {
+        console.error('Bulk delete failed', json);
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragOver(false);
-    // Handle file drop logic here
+    // Handle file drop logic here - keep stub for now
     console.log('Files dropped:', e.dataTransfer.files);
   };
 
@@ -213,7 +202,9 @@ export default function AssetManagerPage() {
 
       {/* Assets Grid/List */}
       <div className="bg-[var(--color-surface)] rounded-[var(--radius-md)] shadow-sm p-6">
-        {filteredAssets.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-16">Loading assets...</div>
+        ) : filteredAssets.length === 0 ? (
           <div className="text-center py-16">
             <Image size={48} className="mx-auto text-[var(--color-text-muted)] mb-4" />
             <h3 className="text-[var(--fs-lg)] font-medium mb-2">No assets found</h3>
@@ -255,15 +246,11 @@ export default function AssetManagerPage() {
 
                   {/* Asset Preview */}
                   <div className="aspect-square bg-[var(--color-bg-muted)] rounded-[var(--radius-sm)] mb-3 flex items-center justify-center overflow-hidden">
-                    {asset.type === 'image' ? (
+                    {asset.type === 'image' && asset.url ? (
                       <img 
                         src={asset.url} 
                         alt={asset.name}
                         className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                          e.target.nextSibling.style.display = 'flex';
-                        }}
                       />
                     ) : null}
                     <div className={`flex items-center justify-center ${asset.type === 'image' ? 'hidden' : ''}`}>
@@ -277,23 +264,23 @@ export default function AssetManagerPage() {
                       {asset.name}
                     </h4>
                     <p className="text-[var(--color-text-muted)] text-xs">
-                      {asset.size}
+                      {asset.formatted_size ?? asset.size}
                     </p>
                     {asset.dimensions && (
                       <p className="text-[var(--color-text-muted)] text-xs">
-                        {asset.dimensions}
+                        {asset.dimensions.width}x{asset.dimensions.height}
                       </p>
                     )}
                   </div>
 
                   {/* Action Buttons */}
                   <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-[var(--transition)]">
-                    <button className="w-7 h-7 bg-[var(--color-surface)] border border-[var(--color-border)] rounded flex items-center justify-center hover:bg-[var(--color-bg-muted)] transition-colors">
+                    <a href={asset.url} target="_blank" rel="noreferrer" className="w-7 h-7 bg-[var(--color-surface)] border border-[var(--color-border)] rounded flex items-center justify-center hover:bg-[var(--color-bg-muted)] transition-colors">
                       <Eye size={12} />
-                    </button>
-                    <button className="w-7 h-7 bg-[var(--color-surface)] border border-[var(--color-border)] rounded flex items-center justify-center hover:bg-[var(--color-bg-muted)] transition-colors">
+                    </a>
+                    <a href={asset.url} download className="w-7 h-7 bg-[var(--color-surface)] border border-[var(--color-border)] rounded flex items-center justify-center hover:bg-[var(--color-bg-muted)] transition-colors">
                       <Download size={12} />
-                    </button>
+                    </a>
                   </div>
                 </div>
               ) : (
@@ -318,15 +305,11 @@ export default function AssetManagerPage() {
 
                   {/* Asset Icon/Preview */}
                   <div className="w-12 h-12 bg-[var(--color-bg-muted)] rounded-[var(--radius-sm)] flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {asset.type === 'image' ? (
+                    {asset.type === 'image' && asset.url ? (
                       <img 
                         src={asset.url} 
                         alt={asset.name}
                         className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                          e.target.nextSibling.style.display = 'flex';
-                        }}
                       />
                     ) : null}
                     <div className={`flex items-center justify-center ${asset.type === 'image' ? 'hidden' : ''}`}>
@@ -338,20 +321,20 @@ export default function AssetManagerPage() {
                   <div className="flex-1 min-w-0">
                     <h4 className="font-medium truncate">{asset.name}</h4>
                     <div className="flex items-center gap-4 text-[var(--color-text-muted)] text-[var(--fs-sm)] mt-1">
-                      <span>{asset.size}</span>
-                      {asset.dimensions && <span>{asset.dimensions}</span>}
-                      <span>Uploaded {asset.uploadDate}</span>
+                      <span>{asset.formatted_size ?? asset.size}</span>
+                      {asset.dimensions && <span>{asset.dimensions.width}x{asset.dimensions.height}</span>}
+                      <span>Uploaded {asset.uploadDate ?? (asset.created_at ? new Date(asset.created_at).toLocaleDateString() : '-')}</span>
                     </div>
                   </div>
 
                   {/* Actions */}
                   <div className="flex items-center gap-2">
-                    <button className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-muted)] rounded transition-all">
+                    <a href={asset.url} target="_blank" rel="noreferrer" className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-muted)] rounded transition-all">
                       <Eye size={16} />
-                    </button>
-                    <button className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-muted)] rounded transition-all">
+                    </a>
+                    <a href={asset.url} download className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-muted)] rounded transition-all">
                       <Download size={16} />
-                    </button>
+                    </a>
                     <button className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-muted)] rounded transition-all">
                       <Edit3 size={16} />
                     </button>
@@ -384,8 +367,8 @@ export default function AssetManagerPage() {
                   ? 'border-[var(--color-primary)] bg-[var(--color-primary-soft)]'
                   : 'border-[var(--color-border)] hover:border-[var(--color-primary)]'
               }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
+              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+              onDragLeave={() => setIsDragOver(false)}
               onDrop={handleDrop}
             >
               <Upload size={32} className="mx-auto mb-4 text-[var(--color-text-muted)]" />

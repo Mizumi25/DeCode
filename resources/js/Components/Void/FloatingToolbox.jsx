@@ -4,23 +4,24 @@ import { useEditorStore } from '@/stores/useEditorStore'
 
 export default function FloatingToolbox({ tools }) {
   const floatingToolsRef = useRef(null)
-  
+  // map index -> label element for GSAP control
+  const labelRefs = useRef(new Map())
+
   // Subscribe to the store to trigger re-renders when panel states change
   const panelStates = useEditorStore(state => state.panelStates)
   const isPanelOpen = useEditorStore(state => state.isPanelOpen)
 
-  // Floating tools entrance animation
+  // Floating tools entrance animation + hover typing animation setup
   useEffect(() => {
     const toolElements = floatingToolsRef.current?.children
     if (toolElements) {
-      // Set initial state
+      // Existing entrance animation (kept)
       gsap.set(toolElements, { 
         x: -100, 
         opacity: 0,
         scale: 0.8
       })
       
-      // Animate entrance
       gsap.to(toolElements, {
         x: 0,
         opacity: 1,
@@ -31,7 +32,7 @@ export default function FloatingToolbox({ tools }) {
         delay: 0.5
       })
       
-      // Add floating animation
+      // Floating animation (kept)
       Array.from(toolElements).forEach((tool, i) => {
         gsap.to(tool, {
           y: Math.sin(i) * 2,
@@ -41,6 +42,50 @@ export default function FloatingToolbox({ tools }) {
           ease: "sine.inOut",
           delay: i * 0.2
         })
+      })
+
+      // Add hover listeners to animate the label "typing" to the right.
+      Array.from(toolElements).forEach((wrapper) => {
+        const idx = wrapper.getAttribute('data-tool-index')
+        const labelEl = labelRefs.current.get(idx)
+        if (!labelEl) return
+
+        const onEnter = () => {
+          // kill any running tweens
+          gsap.killTweensOf(labelEl)
+          // measure full width needed
+          const full = labelEl.scrollWidth
+          // prepare
+          gsap.set(labelEl, { width: 0, opacity: 1 })
+          // animate typing (width from 0 -> full)
+          gsap.to(labelEl, { width: full, duration: 0.45, ease: 'power2.out' })
+          // add blinking cursor class (CSS handles blink)
+          labelEl.classList.add('ftb-cursor')
+        }
+
+        const onLeave = () => {
+          gsap.killTweensOf(labelEl)
+          // collapse
+          gsap.to(labelEl, { width: 0, duration: 0.28, ease: 'power2.in', onComplete: () => {
+            // hide visually but keep accessible attributes
+            gsap.set(labelEl, { opacity: 0 })
+            labelEl.classList.remove('ftb-cursor')
+          }})
+        }
+
+        wrapper.addEventListener('mouseenter', onEnter)
+        wrapper.addEventListener('mouseleave', onLeave)
+        // touch fallback to show on touchstart, hide on touchend
+        wrapper.addEventListener('touchstart', onEnter, { passive: true })
+        wrapper.addEventListener('touchend', onLeave)
+
+        // cleanup listeners on unmount
+        return () => {
+          wrapper.removeEventListener('mouseenter', onEnter)
+          wrapper.removeEventListener('mouseleave', onLeave)
+          wrapper.removeEventListener('touchstart', onEnter)
+          wrapper.removeEventListener('touchend', onLeave)
+        }
       })
     }
   }, [])
@@ -96,8 +141,9 @@ export default function FloatingToolbox({ tools }) {
           }
           
           return (
-            <div key={index} className="flex flex-col items-center group">
-              {/* Floating Circle with enhanced active state support */}
+            // wrapper now carries data-tool-index so the effect can hook it
+            <div key={index} className="relative group" data-tool-index={String(index)}>
+              {/* Floating Circle with enhanced active state support (unchanged) */}
               <button
                 onClick={(e) => handleToolClick(tool, e)}
                 className={`
@@ -134,7 +180,7 @@ export default function FloatingToolbox({ tools }) {
                 aria-label={tool.label}
                 aria-pressed={isActive}
               >
-                {/* Badge for notifications (e.g., pending requests) */}
+                {/* Badge for notifications (unchanged) */}
                 {tool.badge && (
                   <div className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 rounded-full flex items-center justify-center">
                     <span className="text-[10px] font-bold text-white px-1">
@@ -143,7 +189,7 @@ export default function FloatingToolbox({ tools }) {
                   </div>
                 )}
 
-                {/* Active state indicator */}
+                {/* Active state indicator (unchanged) */}
                 {isActive && !tool.isPrimary && (
                   <div 
                     className="absolute inset-0 rounded-full animate-pulse"
@@ -153,7 +199,7 @@ export default function FloatingToolbox({ tools }) {
                   />
                 )}
                 
-                {/* Icon with enhanced styling */}
+                {/* Icon with enhanced styling (unchanged) */}
                 <Icon 
                   className={`
                     tool-icon w-3.5 h-3.5 transition-all duration-300 relative z-10
@@ -166,29 +212,54 @@ export default function FloatingToolbox({ tools }) {
                 />
               </button>
               
-              {/* Floating Label with active state indicator */}
-              <span 
-                className={`
-                  mt-1 text-xs font-medium transition-all duration-300 text-center max-w-[60px]
-                  ${isActive ? 'opacity-90 font-semibold' : 'opacity-60 group-hover:opacity-100'}
-                `}
+              {/* MOVED: label is now an absolutely-positioned element to the right */}
+              <div
+                className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 rounded text-xs font-medium bg-black text-white pointer-events-none"
                 style={{
-                  color: isActive ? 'var(--color-primary)' : 'var(--color-text)',
-                  fontSize: '9px'
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  width: 0,
+                  opacity: 0,
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                  transition: 'opacity 0.12s linear'
                 }}
               >
-                {tool.label}
-                {isActive && (
-                  <div 
-                    className="w-1 h-1 rounded-full mx-auto mt-0.5 bg-blue-400 animate-pulse"
-                    style={{ backgroundColor: 'var(--color-primary)' }}
-                  />
-                )}
-              </span>
+                <span
+                  ref={(el) => {
+                    if (!el) return
+                    labelRefs.current.set(String(index), el)
+                  }}
+                  className="ftb-label"
+                  style={{
+                    display: 'inline-block',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    verticalAlign: 'middle',
+                    // width animated via GSAP; keep border for cursor effect but hidden by default
+                    borderRight: '2px solid rgba(255,255,255,0)',
+                    boxSizing: 'content-box',
+                  }}
+                >
+                  {tool.label}
+                </span>
+              </div>
+
+              {/* ...existing helper markers removed: no label under the button anymore... */}
             </div>
           )
         })}
       </div>
+
+      {/* CSS for blinking cursor and small utility (kept inside component for minimal footprint) */}
+      <style>{`
+        .ftb-label.ftb-cursor {
+          border-right-color: rgba(255,255,255,0.95); /* visible cursor while active */
+          animation: ftb-blink 0.8s steps(1,start) infinite;
+        }
+        @keyframes ftb-blink {
+          50% { border-right-color: transparent; }
+        }
+      `}</style>
     </div>
   )
 }

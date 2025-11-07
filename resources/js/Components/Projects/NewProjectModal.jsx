@@ -64,34 +64,6 @@ const PROJECT_TYPES = [
     description: 'Multi-page website with navigation',
     icon: Globe,
     gradient: 'from-blue-500 to-cyan-400'
-  },
-  {
-    id: 'landing_page',
-    name: 'Landing Page',
-    description: 'Single page marketing experience',
-    icon: FileText,
-    gradient: 'from-emerald-500 to-green-400'
-  },
-  {
-    id: 'component_library',
-    name: 'Design System',
-    description: 'Reusable component collection',
-    icon: Layers,
-    gradient: 'from-purple-500 to-violet-400'
-  },
-  {
-    id: 'dashboard',
-    name: 'Dashboard',
-    description: 'Data-driven interface',
-    icon: BarChart3,
-    gradient: 'from-indigo-500 to-blue-400'
-  },
-  {
-    id: 'email_template',
-    name: 'Email',
-    description: 'Responsive email template',
-    icon: Mail,
-    gradient: 'from-rose-500 to-pink-400'
   }
 ];
 
@@ -112,11 +84,7 @@ const CSS_FRAMEWORKS = [
   }
 ];
 
-const VIEWPORT_PRESETS = [
-  { name: 'Desktop', width: 1440, height: 900, icon: Monitor },
-  { name: 'Tablet', width: 768, height: 1024, icon: Tablet },
-  { name: 'Mobile', width: 375, height: 812, icon: Smartphone },
-];
+
 
 export default function NewProjectModal({ show, onClose }) {
   const [activeTab, setActiveTab] = useState(0);
@@ -538,68 +506,7 @@ export default function NewProjectModal({ show, onClose }) {
           </div>
         </div>
 
-        {/* Default Canvas Size */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-medium text-[var(--color-text)]">Default Canvas Size</h3>
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            {VIEWPORT_PRESETS.map((preset) => {
-              const IconComponent = preset.icon;
-              const isSelected = data.viewport_width === preset.width && data.viewport_height === preset.height;
-              return (
-                <motion.button
-                  key={preset.name}
-                  type="button"
-                  onClick={() => selectViewportPreset(preset)}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className={`p-3 rounded-xl border-2 transition-all text-center ${
-                    isSelected
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
-                      : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/30'
-                  }`}
-                >
-                  <IconComponent className={`w-6 h-6 mx-auto mb-2 ${
-                    isSelected ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)]'
-                  }`} />
-                  <div className="text-xs font-medium text-[var(--color-text)]">{preset.name}</div>
-                  <div className="text-xs text-[var(--color-text-muted)]">
-                    {preset.width}×{preset.height}
-                  </div>
-                </motion.button>
-              );
-            })}
-          </div>
-          
-          {/* Custom Dimensions */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
-                Width
-              </label>
-              <input
-                type="number"
-                value={data.viewport_width}
-                onChange={(e) => setData('viewport_width', parseInt(e.target.value) || 1440)}
-                min="320"
-                max="3840"
-                className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
-                Height
-              </label>
-              <input
-                type="number"
-                value={data.viewport_height}
-                onChange={(e) => setData('viewport_height', parseInt(e.target.value) || 900)}
-                min="240"
-                max="2160"
-                className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent"
-              />
-            </div>
-          </div>
-        </div>
+       
       </div>
 
       {/* Privacy Toggle */}

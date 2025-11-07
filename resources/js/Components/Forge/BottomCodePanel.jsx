@@ -259,7 +259,8 @@ const BottomCodePanel = ({
     if (!isDragging) return;
     const deltaY = dragStartY - clientY;
     const vh = window.innerHeight;
-    const maxHeight = vh * 0.7;
+    // allow the panel to grow almost to full viewport height (leave small margin)
+    const maxHeight = Math.max(200, vh - 48); // previously vh * 0.7 (too small)
     const newHeight = Math.max(200, Math.min(maxHeight, dragStartHeight + deltaY));
     setCodePanelHeight(newHeight);
   };
@@ -370,29 +371,31 @@ const BottomCodePanel = ({
     const isMobileDevice = isMobile || window.innerWidth < 768;
     
     if (codePanelMinimized) return '60px';
-    if (isMobileDevice) return `${Math.min(codePanelHeight, vh * 0.7)}px`;
-    return `${Math.min(codePanelHeight, vh * 0.6)}px`;
+    // allow up to nearly full screen on both mobile/desktop (previously 0.7 / 0.6)
+    const limit = Math.max(200, vh - 48); // leave ~48px margin so we don't overlay status bars
+    return `${Math.min(codePanelHeight, limit)}px`;
   };
 
   return (
     <motion.div
-      ref={panelRef}
-      initial={{ y: '100%' }}
-      animate={{ y: 0 }}
-      exit={{ y: '100%' }}
-      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      className="fixed bottom-4 left-0 transform  z-50 flex flex-col rounded-2xl backdrop-blur-lg border shadow-2xl"
-      style={{
-        height: getResponsiveHeight(),
-        minHeight: codePanelMinimized ? 'auto' : '200px',
-        maxHeight: codePanelMinimized ? 'auto' : '80vh',
-        backgroundColor: 'rgba(var(--color-surface-rgb), 0.9)',
-        
-        width: '80%',
-        backdropFilter: 'blur(20px)',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1)'
-      }}
-    >
+        ref={panelRef}
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        className="fixed bottom-4 left-0 transform  z-50 flex flex-col rounded-2xl backdrop-blur-lg border shadow-2xl"
+        style={{
+          height: getResponsiveHeight(),
+          minHeight: codePanelMinimized ? 'auto' : '200px',
+          maxHeight: codePanelMinimized ? 'auto' : '100vh',
+          // use a solid fallback color so panel isn't transparent when CSS vars are missing
+          backgroundColor: 'var(--color-bg-surface)',
+          
+          width: '80%',
+          backdropFilter: 'blur(20px)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1)'
+        }}
+      >
       {/* Modern Glass Morphism Resize Handle */}
       {!codePanelMinimized && (
         <div
