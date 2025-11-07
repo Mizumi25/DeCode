@@ -75,20 +75,22 @@ class VoidController extends Controller
     public function index(Request $request): JsonResponse
     {
         $projectId = $request->get('project_id');
-        
         $query = Frame::query();
-        
         if ($projectId) {
             $query->where('project_id', $projectId);
         }
-        
+
         $frames = $query->with('project')
-                       ->orderBy('created_at', 'desc')
-                       ->get();
+                        ->orderBy('created_at', 'desc')
+                        ->get();
+
+        $payload = $frames->map(function ($f) {
+            return $this->normalizeFrameForApi($f);
+        })->values();
 
         return response()->json([
-            'frames' => $frames,
-            'total' => $frames->count()
+            'frames' => $payload,
+            'total' => $payload->count()
         ]);
     }
 
@@ -100,7 +102,7 @@ class VoidController extends Controller
       {
           // Add debugging
           Log::info('Frame creation request:', $request->all());
-      
+          
           try {
               $validated = $request->validate([
                   'project_id' => 'required|exists:projects,id',
@@ -253,10 +255,10 @@ class VoidController extends Controller
               if ($request->expectsJson()) {
                   return response()->json([
                       'message' => 'Frame created successfully',
-                      'frame' => $frame
+                      'frame' => $this->normalizeFrameForApi($frame)
                   ], 201);
               }
-      
+              
               // For web requests, redirect back to void page
               return redirect()->route('void.index', ['project' => $project->uuid])
                              ->with('success', 'Frame created successfully');
@@ -284,31 +286,24 @@ class VoidController extends Controller
     {
         $user = Auth::user();
         $project = $frame->project;
-        
-        // Enhanced access control: Check ownership OR workspace access
+        // Enhanced access control (unchanged)
         $hasAccess = false;
-        
         if ($project->user_id === $user->id) {
-            // User owns the project
             $hasAccess = true;
         } elseif ($project->is_public) {
-            // Project is public
             $hasAccess = true;
         } elseif ($project->workspace) {
-            // Check workspace access
             $hasAccess = $project->workspace->hasUser($user->id);
         }
-        
         if (!$hasAccess) {
             return response()->json([
                 'success' => false,
                 'message' => 'Access denied to this project'
             ], 403);
         }
-    
+
         $frame->load('project');
-    
-        return response()->json(['frame' => $frame]);
+        return response()->json(['frame' => $this->normalizeFrameForApi($frame)]);
     }
     
     /**
@@ -317,39 +312,37 @@ class VoidController extends Controller
     public function getByProject(string $projectUuid): JsonResponse
     {
         $user = Auth::user();
-        
         $project = Project::where('uuid', $projectUuid)
-                         ->with('workspace')
-                         ->firstOrFail();
-        
-        // Enhanced access control: Check ownership OR workspace access
+                          ->with('workspace')
+                          ->firstOrFail();
+
+        // Enhanced access control (unchanged)
         $hasAccess = false;
-        
         if ($project->user_id === $user->id) {
-            // User owns the project
             $hasAccess = true;
         } elseif ($project->is_public) {
-            // Project is public
             $hasAccess = true;
         } elseif ($project->workspace) {
-            // Check workspace access
             $hasAccess = $project->workspace->hasUser($user->id);
         }
-        
         if (!$hasAccess) {
             return response()->json([
                 'success' => false,
                 'message' => 'Access denied to this project'
             ], 403);
         }
-    
+
         $frames = Frame::where('project_id', $project->id)
-                      ->orderBy('created_at', 'desc')
-                      ->get();
-    
+                       ->orderBy('created_at', 'desc')
+                       ->get();
+
+        $payload = $frames->map(function ($f) {
+            return $this->normalizeFrameForApi($f);
+        })->values();
+
         return response()->json([
-            'frames' => $frames,
-            'total' => $frames->count(),
+            'frames' => $payload,
+            'total' => $payload->count(),
             'canEdit' => $project->user_id === $user->id || ($project->workspace && $project->workspace->canUserEdit($user->id))
         ]);
     }
@@ -1463,213 +1456,35 @@ public function updateCanvasStyles(Request $request, Frame $frame): JsonResponse
       return false;
   }
   
-  
-
     /**
-     * Generate SVG thumbnail based on frame content.
+     * Normalize a Frame model into a stable payload for the frontend
      */
-    private function generateStaticSvgThumbnail(Frame $frame): string
+    private function normalizeFrameForApi(Frame $frame): array
     {
-        $type = $frame->type;
-        $elements = $frame->canvas_data['elements'] ?? [];
-        
-        if ($type === 'page') {
-            return $this->generatePageThumbnail($frame, $elements);
-        } else {
-            return $this->generateComponentThumbnail($frame, $elements);
-        }
-    }
+        $settings = $frame->settings ?? [];
+        // prefer settings thumbnail_path, fallback to model attribute if present
+        $thumbnailPath = $settings['thumbnail_path'] ?? ($frame->thumbnail_path ?? null);
+        $thumbnailUrl = $thumbnailPath ? asset('storage/' . ltrim($thumbnailPath, '/')) : null;
 
-      /**
-   * Generate enhanced page thumbnail SVG
-   */
-  private function generatePageThumbnailSVG($frame, $components, $bg, $primary, $secondary, $accent): string
-  {
-      $componentCount = count($components);
-      $hasComponents = $componentCount > 0;
-      
-      return '<?xml version="1.0" encoding="UTF-8"?>
-      <svg width="320" height="224" viewBox="0 0 320 224" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-              <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style="stop-color:' . $bg . ';stop-opacity:1" />
-                  <stop offset="100%" style="stop-color:' . $this->darkenColor($bg, 0.05) . ';stop-opacity:1" />
-              </linearGradient>
-              <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,0.1)"/>
-              </filter>
-          </defs>
-          
-          <!-- Background -->
-          <rect width="320" height="224" fill="url(#bgGrad)" rx="8"/>
-          
-          <!-- Browser Chrome -->
-          <rect x="0" y="0" width="320" height="32" fill="#f8fafc" stroke="#e2e8f0" rx="8" stroke-width="1"/>
-          
-          <!-- Traffic lights -->
-          <circle cx="16" cy="16" r="4" fill="#ef4444"/>
-          <circle cx="32" cy="16" r="4" fill="#f59e0b"/>
-          <circle cx="48" cy="16" r="4" fill="#10b981"/>
-          
-          <!-- URL bar -->
-          <rect x="70" y="10" width="180" height="12" rx="6" fill="white" stroke="#e2e8f0"/>
-          <rect x="75" y="13" width="8" height="6" rx="2" fill="#9ca3af"/>
-          <rect x="88" y="13" width="120" height="6" rx="2" fill="#e5e7eb"/>
-          
-            <!-- Page Content -->' . 
-          ($hasComponents ? $this->generateComponentsPreview($components, $primary, $secondary, $accent) : 
-           $this->generateEmptyPagePreview($primary)) . '
-          
-          <!-- Frame info -->
-          <text x="16" y="210" font-family="Arial, sans-serif" font-size="10" fill="#6b7280">
-              ' . htmlspecialchars($frame->name) . ' (' . $componentCount . ' components)
-          </text>
-          
-          <!-- Frame type indicator -->
-          <rect x="280" y="190" width="32" height="16" rx="8" fill="' . $primary . '" opacity="0.8"/>
-          <text x="296" y="200" font-family="Arial, sans-serif" font-size="8" fill="white" text-anchor="middle">PAGE</text>
-      </svg>';
-  }
-
-      /**
-   * Generate component thumbnail SVG
-   */
-  private function generateComponentThumbnailSVG($frame, $components, $bg, $primary, $secondary, $accent): string
-  {
-      $componentCount = count($components);
-      
-      return '<?xml version="1.0" encoding="UTF-8"?>
-      <svg width="320" height="224" viewBox="0 0 320 224" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-              <linearGradient id="compBg" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style="stop-color:' . $bg . ';stop-opacity:1" />
-                  <stop offset="100%" style="stop-color:' . $this->darkenColor($bg, 0.03) . ';stop-opacity:1" />
-              </linearGradient>
-              <filter id="compShadow" x="-10%" y="-10%" width="120%" height="120%">
-                  <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="rgba(0,0,0,0.15)"/>
-              </filter>
-          </defs>
-          
-          <!-- Background -->
-          <rect width="320" height="224" fill="url(#compBg)" rx="12"/>
-          
-          <!-- Component border -->
-          <rect x="8" y="8" width="304" height="208" fill="none" stroke="' . $primary . '" stroke-width="2" stroke-dasharray="8,4" rx="8" opacity="0.6"/>
-          
-          <!-- Component header -->
-          <rect x="24" y="24" width="272" height="40" rx="8" fill="white" filter="url(#compShadow)"/>
-          <circle cx="44" cy="44" r="8" fill="' . $primary . '"/>
-          <rect x="60" y="38" width="120" height="8" rx="4" fill="#1f2937"/>
-          <rect x="60" y="50" width="80" height="6" rx="3" fill="#6b7280"/>
-          
-              <!-- Component content -->
-            ' . ($componentCount > 0 ? '
-            <rect x="24" y="80" width="272" height="100" rx="8" fill="white" filter="url(#compShadow)" opacity="0.9"/>
-            <rect x="40" y="96" width="60" height="20" rx="4" fill="' . $secondary . '" opacity="0.8"/>
-            <rect x="120" y="96" width="80" height="20" rx="4" fill="' . $accent . '" opacity="0.8"/>
-            <rect x="40" y="128" width="200" height="8" rx="4" fill="#e5e7eb"/>
-            <rect x="40" y="144" width="160" height="8" rx="4" fill="#e5e7eb"/>
-            <rect x="40" y="160" width="120" height="8" rx="4" fill="#e5e7eb"/>
-            ' : '
-            <rect x="24" y="80" width="272" height="100" rx="8" fill="none" stroke="#e5e7eb" stroke-width="2" stroke-dasharray="4,4"/>
-            <text x="160" y="135" font-family="Arial, sans-serif" font-size="12" fill="#9ca3af" text-anchor="middle">Empty Component</text>
-            ') . '
-            
-            <!-- Component footer -->
-            <text x="24" y="205" font-family="Arial, sans-serif" font-size="10" fill="#6b7280">
-                ' . htmlspecialchars($frame->name) . ' (' . $componentCount . ' elements)
-            </text>
-            
-            <!-- Component type indicator -->
-            <rect x="260" y="190" width="52" height="16" rx="8" fill="' . $secondary . '" opacity="0.8"/>
-            <text x="286" y="200" font-family="Arial, sans-serif" font-size="8" fill="white" text-anchor="middle">COMPONENT</text>
-        </svg>';
+        return [
+            // frontend expects an `id` key (used as React key) — use uuid to avoid numeric/id confusion
+            'id' => $frame->uuid,
+            'uuid' => $frame->uuid,
+            'numeric_id' => $frame->id,
+            'title' => $frame->name ?? '',
+            'name' => $frame->name ?? '',
+            'fileName' => $frame->file_name ?? $frame->fileName ?? ($frame->name ?? ''),
+            'thumbnail' => $thumbnailUrl,
+            'type' => $frame->type ?? 'page',
+            'canvas_data' => $frame->canvas_data ?? [],
+            'canvas_style' => $frame->canvas_style ?? [],
+            'canvas_props' => $frame->canvas_props ?? [],
+            'settings' => $settings,
+            'is_locked' => (bool) ($frame->is_locked ?? false),
+            // keep raw model for internal usage if needed (not heavy because it's not serialized here)
+            //'raw' => $frame,
+        ];
     }
-    
-      /**
-   * Generate preview of actual components
-   */
-  private function generateComponentsPreview($components, $primary, $secondary, $accent): string
-  {
-      $preview = '<!-- Content Area -->
-      <rect x="8" y="40" width="304" height="140" fill="white" rx="8" opacity="0.95" filter="url(#shadow)"/>';
-      
-      // Simulate different component types
-      $y = 55;
-      $componentTypes = array_slice(array_column($components, 'type'), 0, 4); // Show max 4 components
-      
-      foreach ($componentTypes as $index => $type) {
-          $color = $index % 3 === 0 ? $primary : ($index % 3 === 1 ? $secondary : $accent);
-          $height = $this->getComponentHeight($type);
-          $width = $this->getComponentWidth($type, $index);
-          
-          $preview .= '<rect x="20" y="' . $y . '" width="' . $width . '" height="' . $height . '" rx="4" fill="' . $color . '" opacity="0.7"/>';
-          
-          // Add component label
-          if ($height >= 16) {
-              $preview .= '<text x="' . (20 + $width/2) . '" y="' . ($y + $height/2 + 3) . '" font-family="Arial, sans-serif" font-size="8" fill="white" text-anchor="middle">' . strtoupper($type) . '</text>';
-          }
-          
-          $y += $height + 8;
-          if ($y > 160) break; // Don't overflow
-      }
-      
-      return $preview;
-  }
-  
-    /**
-   * Generate empty page preview
-   */
-  private function generateEmptyPagePreview($primary): string
-  {
-      return '<!-- Empty State -->
-      <rect x="8" y="40" width="304" height="140" fill="none" stroke="#e5e7eb" stroke-width="2" stroke-dasharray="8,8" rx="8"/>
-      <circle cx="160" cy="110" r="20" fill="' . $primary . '" opacity="0.1"/>
-      <rect x="140" y="130" width="40" height="8" rx="4" fill="#d1d5db"/>
-      <rect x="130" y="145" width="60" height="6" rx="3" fill="#e5e7eb"/>
-      <text x="160" y="165" font-family="Arial, sans-serif" font-size="10" fill="#9ca3af" text-anchor="middle">Drop components here</text>';
-  }
-  
-    /**
-   * Helper methods for component preview
-   */
-  private function getComponentHeight($type): int
-  {
-      $heights = [
-          'header' => 32, 'nav' => 24, 'section' => 48, 'div' => 32,
-          'button' => 20, 'input' => 20, 'card' => 40, 'modal' => 36,
-          'h1' => 16, 'h2' => 14, 'h3' => 12, 'p' => 10
-      ];
-      return $heights[$type] ?? 24;
-  }
-  
-  private function getComponentWidth($type, $index): int
-  {
-      $baseWidths = [
-          'header' => 280, 'nav' => 280, 'section' => 280, 'div' => 200,
-          'button' => 80, 'input' => 120, 'card' => 140, 'modal' => 200,
-          'h1' => 180, 'h2' => 160, 'h3' => 140, 'p' => 220
-      ];
-      $base = $baseWidths[$type] ?? 160;
-      return $base - ($index * 20); // Vary width slightly
-  }
-  
-      /**
-   * Darken hex color
-   */
-  private function darkenColor(string $hex, float $percent): string
-  {
-      $hex = str_replace('#', '', $hex);
-      $r = hexdec(substr($hex, 0, 2));
-      $g = hexdec(substr($hex, 2, 2));
-      $b = hexdec(substr($hex, 4, 2));
-      
-      $r = max(0, min(255, $r * (1 - $percent)));
-      $g = max(0, min(255, $g * (1 - $percent)));
-      $b = max(0, min(255, $b * (1 - $percent)));
-      
-      return sprintf("#%02x%02x%02x", $r, $g, $b);
-  }
 
     /**
      * Get thumbnail URL for a frame.
@@ -1684,7 +1499,7 @@ public function updateCanvasStyles(Request $request, Frame $frame): JsonResponse
         return asset('storage/' . $settings['thumbnail_path']);
     }
 
-      /**
+   /**
    * Delete thumbnail file for a frame.
    */
   private function deleteThumbnail(Frame $frame): void

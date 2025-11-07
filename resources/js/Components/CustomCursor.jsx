@@ -120,7 +120,7 @@ const CustomCursor = () => {
         .custom-cursor-ring { transition: width 220ms ease, height 220ms ease, transform 220ms ease; }
       `}</style>
 
-      {/* Instant small filled dot (no delay) */}
+      {/* Instant small filled dot (no delay) - Visible on white canvas */}
       <motion.div
         className="fixed pointer-events-none z-[99999] rounded-full"
         style={{
@@ -131,11 +131,14 @@ const CustomCursor = () => {
           width: DOT_SIZE,
           height: DOT_SIZE,
           background: 'var(--color-text)',
-          pointerEvents: 'none'
+          pointerEvents: 'none',
+          // 🔥 FIX: Add shadow/outline for visibility on white
+          boxShadow: '0 0 0 1px rgba(255,255,255,0.8), 0 0 4px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.2)',
+          filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.5))'
         }}
       />
 
-      {/* Chasing thin-ring (delayed) */}
+      {/* Chasing thin-ring (delayed) - Visible on white canvas */}
       <motion.div
         className="fixed pointer-events-none z-[99998] rounded-full custom-cursor-ring"
         style={{
@@ -148,7 +151,9 @@ const CustomCursor = () => {
           borderRadius: '50%',
           border: `${RING_BORDER}px solid var(--color-primary)`,
           background: 'transparent',
-          boxShadow: '0 6px 18px rgba(0,0,0,0.06)'
+          // 🔥 FIX: Add stronger shadow for visibility on white
+          boxShadow: '0 0 0 1px rgba(255,255,255,0.9), 0 6px 18px rgba(0,0,0,0.15), 0 0 12px rgba(59, 130, 246, 0.3)',
+          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
         }}
       />
     </>
