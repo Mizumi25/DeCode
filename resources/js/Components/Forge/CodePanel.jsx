@@ -124,7 +124,16 @@ const CodePanel = ({
     }
   };
 
-  // Handle editor mount with mobile optimizations
+  // 🔥 NEW: Typing effect state
+  const [isTyping, setIsTyping] = useState(false);
+  const [displayedCode, setDisplayedCode] = useState('');
+  const typingTimeoutRef = useRef(null);
+
+  // 🔥 NEW: Error detection state
+  const [syntaxErrors, setSyntaxErrors] = useState([]);
+  const errorMarkersRef = useRef([]);
+
+  // Handle editor mount with mobile optimizations - ENHANCED
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
     setEditorMounted(true);
@@ -156,6 +165,58 @@ const CodePanel = ({
     // Set theme based on device
     const theme = isMobile ? 'mobile-dark' : editorTheme;
     monaco.editor.setTheme(theme);
+
+    // 🔥 NEW: Set up error detection
+    editor.onDidChangeMarkers(() => {
+      const model = editor.getModel();
+      if (model) {
+        const markers = monaco.editor.getModelMarkers({ resource: model.uri });
+        setSyntaxErrors(markers);
+        
+        // 🔥 Dispatch error event for canvas error boxes
+        window.dispatchEvent(new CustomEvent('code-syntax-errors', {
+          detail: { errors: markers, code: model.getValue() }
+        }));
+      }
+    });
+
+    // 🔥 NEW: Highlight selected component in code
+    const highlightSelectedComponent = (componentId) => {
+      if (!componentId || !editor) return;
+      
+      const model = editor.getModel();
+      if (!model) return;
+      
+      const code = model.getValue();
+      const componentName = componentId.replace(/[^a-zA-Z0-9]/g, '');
+      
+      // Find component in code (simple regex search)
+      const regex = new RegExp(`(?:id|className|data-component-id)=["']${componentId}["']`, 'g');
+      const matches = [...code.matchAll(regex)];
+      
+      if (matches.length > 0) {
+        const decorations = matches.map(match => ({
+          range: new monaco.Range(
+            code.substring(0, match.index).split('\n').length,
+            1,
+            code.substring(0, match.index).split('\n').length,
+            1000
+          ),
+          options: {
+            isWholeLine: true,
+            className: 'selected-component-line',
+            glyphMarginClassName: 'selected-component-glyph'
+          }
+        }));
+        
+        editor.deltaDecorations([], decorations);
+      }
+    };
+    
+    // Listen for component selection changes
+    window.addEventListener('component-selected', (e) => {
+      highlightSelectedComponent(e.detail.componentId);
+    });
 
     // Mobile-specific editor configuration
     if (isMobile) {
@@ -194,12 +255,65 @@ const CodePanel = ({
     }, 100);
   };
 
-  // Handle editor change
+  // 🔥 ENHANCED: Handle editor change with typing effect and two-way binding
   const handleEditorChange = useCallback((value) => {
-    if (handleCodeEdit && value !== undefined) {
+    if (value === undefined) return;
+    
+    // 🔥 Typing effect: Update displayed code with animation
+    setIsTyping(true);
+    setDisplayedCode(value);
+    
+    // Clear previous timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    
+    // Set typing state to false after a delay
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsTyping(false);
+    }, 300);
+    
+    // 🔥 Two-way binding: Update canvas if code is valid
+    if (handleCodeEdit) {
       handleCodeEdit(value, activeCodeTab);
     }
+    
+    // 🔥 Dispatch code change event for canvas rendering
+    window.dispatchEvent(new CustomEvent('code-panel-change', {
+      detail: { code: value, tab: activeCodeTab }
+    }));
   }, [handleCodeEdit, activeCodeTab]);
+  
+  // 🔥 NEW: Add imports to code based on style
+  const addImportsToCode = useCallback((code, tab) => {
+    if (!code) return code;
+    
+    // Check if imports already exist
+    if (code.includes('import React') || code.includes('import react')) {
+      return code;
+    }
+    
+    let imports = '';
+    
+    if (tab === 'react' || tab === 'html') {
+      if (codeStyle === 'react-tailwind' || codeStyle === 'react-css') {
+        imports = "import React from 'react';\n\n";
+      } else if (codeStyle === 'html-tailwind' || codeStyle === 'html-css') {
+        imports = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generated Component</title>
+    ${codeStyle === 'html-tailwind' ? '<script src="https://cdn.tailwindcss.com"></script>' : '<link rel="stylesheet" href="styles.css">'}
+</head>
+<body>
+`;
+      }
+    }
+    
+    return imports + code;
+  }, [codeStyle]);
 
   // Copy to clipboard with notification
   const handleCopy = async () => {
@@ -568,7 +682,7 @@ const CodePanel = ({
                 height="100%"
                 width="100%"
                 language={getLanguage(activeCodeTab)}
-                value={generatedCode[activeCodeTab] || ''}
+                value={addImportsToCode(generatedCode[activeCodeTab] || '', activeCodeTab)}
                 theme={isMobile ? 'mobile-dark' : editorTheme}
                 options={editorOptions}
                 onMount={handleEditorDidMount}
@@ -614,7 +728,7 @@ const CodePanel = ({
         </>
       )}
 
-      {/* Custom CSS for copied notification */}
+      {/* Custom CSS for copied notification and selected component highlighting */}
       <style jsx>{`
         .copied-notification::after {
           content: '✓ Copied!';
@@ -635,6 +749,26 @@ const CodePanel = ({
           20% { opacity: 1; transform: translateY(0); }
           80% { opacity: 1; transform: translateY(0); }
           100% { opacity: 0; transform: translateY(-10px); }
+        }
+
+        /* 🔥 NEW: Selected component highlighting in code panel */
+        .selected-component-line {
+          background: rgba(59, 130, 246, 0.2) !important;
+          border-left: 3px solid rgba(59, 130, 246, 0.8) !important;
+        }
+
+        .selected-component-glyph {
+          background: rgba(59, 130, 246, 0.8) !important;
+        }
+
+        /* Typing effect animation */
+        .typing-effect {
+          animation: typingPulse 0.3s ease-in-out;
+        }
+
+        @keyframes typingPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.8; }
         }
 
         /* Mobile optimizations */

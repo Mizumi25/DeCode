@@ -47,15 +47,29 @@ const CustomCursor = () => {
     return () => window.removeEventListener('resize', checkTouch);
   }, []);
 
-  // Update cursor position (instant for dot)
+  // Update cursor position (instant for dot) - Also listen to drag events
   useEffect(() => {
     if (isTouch) return;
     const handleMove = (e) => {
       cursorX.set(e.clientX);
       cursorY.set(e.clientY);
     };
+    
+    // 🔥 FIX: Listen to pointermove during drag (not just mousemove)
+    const handlePointerMove = (e) => {
+      cursorX.set(e.clientX);
+      cursorY.set(e.clientY);
+    };
+    
     window.addEventListener('mousemove', handleMove);
-    return () => window.removeEventListener('mousemove', handleMove);
+    window.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointermove', handlePointerMove); // During drag
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointermove', handlePointerMove);
+    };
   }, [isTouch, cursorX, cursorY]);
 
   // Basic element-based cursor state detection (preserves previous behavior)
@@ -77,14 +91,14 @@ const CustomCursor = () => {
     }
   };
 
-  // Track hover / down events to detect grabbing
+  // Track hover / down events to detect grabbing - Also listen to drag events
   useEffect(() => {
     if (isTouch) return;
 
     const handleOver = (e) => updateCursorStateForElement(e.target);
     const handleDown = (e) => {
       const target = e.target;
-      if (target.matches('[draggable="true"], .cursor-grab')) {
+      if (target.matches('[draggable="true"], .cursor-grab, [data-component-id]')) {
         setCursorState('grabbing');
       }
     };
@@ -93,14 +107,32 @@ const CustomCursor = () => {
       const el = document.elementFromPoint(cursorX.get(), cursorY.get());
       updateCursorStateForElement(el);
     };
+    
+    // 🔥 FIX: Listen to drag events to keep cursor state
+    const handleDragStart = () => {
+      setCursorState('grabbing');
+    };
+    const handleDragEnd = () => {
+      const el = document.elementFromPoint(cursorX.get(), cursorY.get());
+      updateCursorStateForElement(el);
+    };
 
     document.addEventListener('mouseover', handleOver);
     document.addEventListener('mousedown', handleDown);
     document.addEventListener('mouseup', handleUp);
+    document.addEventListener('pointerdown', handleDown);
+    document.addEventListener('pointerup', handleUp);
+    window.addEventListener('element-drag-start', handleDragStart);
+    window.addEventListener('element-drag-end', handleDragEnd);
+    
     return () => {
       document.removeEventListener('mouseover', handleOver);
       document.removeEventListener('mousedown', handleDown);
       document.removeEventListener('mouseup', handleUp);
+      document.removeEventListener('pointerdown', handleDown);
+      document.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('element-drag-start', handleDragStart);
+      window.removeEventListener('element-drag-end', handleDragEnd);
     };
   }, [isTouch, cursorX, cursorY]);
 

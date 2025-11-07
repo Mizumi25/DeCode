@@ -725,6 +725,10 @@ const handleSmartClick = useCallback((e) => {
     const textNodeId = textNode.getAttribute('data-component-id');
     console.log('✅ Text node clicked:', textNodeId);
     onComponentClick(textNodeId, e);
+    // 🔥 NEW: Dispatch event for code panel highlighting
+    window.dispatchEvent(new CustomEvent('component-selected', {
+      detail: { componentId: textNodeId }
+    }));
     return;
   }
   
@@ -736,6 +740,10 @@ const handleSmartClick = useCallback((e) => {
     console.log('🎯 Canvas click - selecting canvas root');
     onComponentClick('__canvas_root__', e);
     setIsCanvasSelected(true);
+    // 🔥 NEW: Dispatch event for code panel highlighting
+    window.dispatchEvent(new CustomEvent('component-selected', {
+      detail: { componentId: '__canvas_root__' }
+    }));
     return;
   }
   
@@ -745,6 +753,10 @@ const handleSmartClick = useCallback((e) => {
   
   console.log('✅ Component selected:', componentId);
   onComponentClick(componentId, e);
+  // 🔥 NEW: Dispatch event for code panel highlighting
+  window.dispatchEvent(new CustomEvent('component-selected', {
+    detail: { componentId }
+  }));
 }, [onComponentClick]);
   
   
@@ -910,38 +922,56 @@ if (isLayout) {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* 🔥 NEW: Custom drag handle - Only active on drag area, not blocking clicks */}
+        {/* 🔥 FIXED: Entire area is both draggable AND clickable */}
+        <div
+          className="absolute inset-0"
+          style={{ 
+            zIndex: 1, 
+            pointerEvents: 'auto',
+            cursor: isDragging ? 'grabbing' : 'grab'
+          }}
+          {...dragHandlers}
+          onMouseDown={(e) => {
+            // 🔥 CRITICAL: Check if this is a drag or click
+            const startX = e.clientX;
+            const startY = e.clientY;
+            let hasMoved = false;
+            
+            const handleMove = (moveEvent) => {
+              const deltaX = Math.abs(moveEvent.clientX - startX);
+              const deltaY = Math.abs(moveEvent.clientY - startY);
+              if (deltaX > 5 || deltaY > 5) {
+                hasMoved = true;
+              }
+            };
+            
+            const handleUp = (upEvent) => {
+              document.removeEventListener('mousemove', handleMove);
+              document.removeEventListener('mouseup', handleUp);
+              
+              // If didn't move much, treat as click
+              if (!hasMoved) {
+                e.stopPropagation();
+                handleSmartClick(e);
+              }
+            };
+            
+            document.addEventListener('mousemove', handleMove);
+            document.addEventListener('mouseup', handleUp);
+          }}
+        />
+        
+        {/* Drag handle indicator (visual only) */}
         <div 
           className={`
-            absolute top-0 right-0 w-8 h-8 cursor-grab active:cursor-grabbing
+            absolute top-0 right-0 w-8 h-8 pointer-events-none
             ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
             transition-opacity duration-200
           `}
           style={{
-            touchAction: 'none',
-            userSelect: 'none',
-            WebkitUserSelect: 'none',
-            zIndex: 10,
-            pointerEvents: 'auto',
+            zIndex: 2,
             backgroundColor: 'rgba(59, 130, 246, 0.1)',
             borderBottomLeftRadius: '4px',
-          }}
-          {...dragHandlers}
-          onMouseDown={(e) => {
-            e.stopPropagation();
-            // Don't prevent default - let the drag handler handle it
-          }}
-        />
-        
-        {/* 🔥 FIX: Click handler for selection - separate from drag */}
-        <div
-          className="absolute inset-0"
-          style={{ zIndex: 0, pointerEvents: 'auto' }}
-          onClick={(e) => {
-            // Only handle click if not dragging
-            if (!isDragging && !activeDragId) {
-              handleSmartClick(e);
-            }
           }}
         />
         
@@ -1040,36 +1070,54 @@ return (
    >
    
    
-      {/* 🔥 NEW: Custom drag handle - Only in corner, not blocking clicks */}
-      <div 
-        className="absolute top-0 right-0 w-8 h-8 cursor-grab active:cursor-grabbing"
-        style={{
-          touchAction: 'none',
-          userSelect: 'none',
-          WebkitUserSelect: 'none',
-          zIndex: 10,
+      {/* 🔥 FIXED: Entire area is both draggable AND clickable */}
+      <div
+        className="absolute inset-0"
+        style={{ 
+          zIndex: 1, 
           pointerEvents: 'auto',
+          cursor: isDragging ? 'grabbing' : 'grab'
+        }}
+        {...dragHandlers}
+        onMouseDown={(e) => {
+          // 🔥 CRITICAL: Check if this is a drag or click
+          const startX = e.clientX;
+          const startY = e.clientY;
+          let hasMoved = false;
+          
+          const handleMove = (moveEvent) => {
+            const deltaX = Math.abs(moveEvent.clientX - startX);
+            const deltaY = Math.abs(moveEvent.clientY - startY);
+            if (deltaX > 5 || deltaY > 5) {
+              hasMoved = true;
+            }
+          };
+          
+          const handleUp = (upEvent) => {
+            document.removeEventListener('mousemove', handleMove);
+            document.removeEventListener('mouseup', handleUp);
+            
+            // If didn't move much, treat as click
+            if (!hasMoved) {
+              e.stopPropagation();
+              handleSmartClick(e);
+            }
+          };
+          
+          document.addEventListener('mousemove', handleMove);
+          document.addEventListener('mouseup', handleUp);
+        }}
+      />
+      
+      {/* Drag handle indicator (visual only) */}
+      <div 
+        className="absolute top-0 right-0 w-8 h-8 pointer-events-none"
+        style={{
+          zIndex: 2,
           opacity: isDragging ? 0.3 : (isHovered ? 0.8 : 0),
           backgroundColor: 'rgba(59, 130, 246, 0.2)',
           borderBottomLeftRadius: '4px',
           transition: 'all 0.2s ease',
-        }}
-        {...dragHandlers}
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          console.log('Non-layout drag started:', component.id);
-        }}
-      />
-      
-      {/* 🔥 FIX: Click handler for selection - separate from drag */}
-      <div
-        className="absolute inset-0"
-        style={{ zIndex: 0, pointerEvents: 'auto' }}
-        onClick={(e) => {
-          // Only handle click if not dragging
-          if (!isDragging && !activeDragId) {
-            handleSmartClick(e);
-          }
         }}
       />
       
@@ -1862,12 +1910,21 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
 
 <div 
   ref={canvasRef}
+  data-component-id="__canvas_root__"
+  data-component-type="canvas"
   className={`
     relative transition-all duration-500
     ${canvasClasses}
     ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
     ${dragState.isDragging ? 'overflow-visible' : ''}
+    ${selectedComponent === '__canvas_root__' ? 'ring-2 ring-blue-500' : ''}
   `}
+  onClick={(e) => {
+    // Only select canvas if clicking directly on canvas (not on a component)
+    if (e.target === e.currentTarget || e.target === canvasRef.current) {
+      handleSmartClick(e);
+    }
+  }}
   style={{
     ...getCanvasRootStyles(),
     
