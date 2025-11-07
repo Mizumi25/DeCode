@@ -18,7 +18,7 @@ class TextPseudoElementSeeder extends Seeder
                 'component_type' => 'element',
                 'category' => 'typography',
                 'alphabet_group' => 'T',
-                'description' => '⚠️ PSEUDO ELEMENT: Pure text content without any HTML wrapper',
+                'description' => 'Text Node no wrapper',
                 'icon' => 'Type',
                 'default_props' => [
                     'content' => 'Text',

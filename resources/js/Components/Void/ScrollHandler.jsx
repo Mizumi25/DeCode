@@ -23,6 +23,34 @@ export function useScrollHandler({
     isZooming: false
   })
 
+  // Target ignore helper
+  const shouldIgnoreTarget = (target) => {
+    if (!target) return false
+
+    // Broadened set of selectors to ensure panel DOM elements (and drag previews) are ignored
+    const selectors = [
+      '.preview-frame',
+      '.lock-button',
+      '.more-button',
+      '.avatar',
+      '.frame-header',
+      '.floating-toolbox',
+      '.floating-tool',
+      '[data-panel]',
+      '.panel-container',
+      '.panel-stack',
+      '.dragged-panel',
+      '.dragging-panel',
+      '.dock-left',
+      '.dock-right',
+      '.dock-left-snapped',
+      '.dock-right-snapped',
+      '.delete-button'
+    ]
+
+    return selectors.some(sel => !!target.closest(sel))
+  }
+
   // Optimized pointer down handler
   const handlePointerDown = useCallback((e) => {
     if (shouldIgnoreTarget(e.target)) return
@@ -48,6 +76,9 @@ export function useScrollHandler({
 
   // Smooth pointer move with requestAnimationFrame
   const handlePointerMove = useCallback((e) => {
+    // If the move event started over a panel (or moved over one), ignore it.
+    if (shouldIgnoreTarget(e.target)) return
+
     // Handle pinch zoom first - PRIORITY
     if (e.touches?.length === 2 && onPinchZoom) {
       onPinchZoom(e)
@@ -140,25 +171,6 @@ export function useScrollHandler({
     e.preventDefault()
     e.stopPropagation()
   }, [zoom, onZoom, scrollBounds, setScrollPosition, canvasRef])
-
-  // Target ignore helper
-  const shouldIgnoreTarget = (target) => {
-    return target.closest('.preview-frame') || 
-           target.closest('.lock-button') || 
-           target.closest('.more-button') || 
-           target.closest('.avatar') ||
-           target.closest('.frame-header') ||
-           target.closest('.floating-toolbox') ||
-           target.closest('.floating-tool') ||
-           target.closest('[data-panel]') ||
-           target.closest('.modal') ||
-           target.closest('button') ||
-           target.closest('input') ||
-           target.closest('select') ||
-           target.closest('textarea') ||
-           target.closest('[role="button"]') ||
-           target.closest('.delete-button')
-  }
 
   // Setup event listeners with proper touch handling
   useEffect(() => {

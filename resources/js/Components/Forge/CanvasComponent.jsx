@@ -684,11 +684,10 @@ const handleDndDragStart = useCallback((event) => {
 
 
 
-// MODIFY handleDndDragOver - ADD drop ghost indicator
+// 🔥 FIXED: Add drop intent detection back to handleDndDragOver
 const handleDndDragOver = useCallback((event) => {
   const { active, over, activatorEvent } = event;
   
- 
   if (!over || !active) {
     setOverId(null);
     return;
@@ -703,18 +702,17 @@ const handleDndDragOver = useCallback((event) => {
   
   if (!canvasRect) return;
   
+  // 🔥 CRITICAL: Get mouse position for drop zone calculation
   const mouseY = activatorEvent?.clientY || event.active.rect.current.translated?.top || 0;
   const relativeY = mouseY - targetRect.top;
   
+  // 🔥 CRITICAL: Define drop zones (top 25%, bottom 25%, middle 50%)
   const topZone = Math.min(40, targetRect.height * 0.25);
   const bottomZone = targetRect.height - Math.min(40, targetRect.height * 0.25);
   
   setOverId(over.id);
   
-
- 
-  
-  // Original visual feedback (keep this)
+  // 🔥 CLEAR previous drop indicators
   document.querySelectorAll('[data-drop-intent], .drop-indicator').forEach(el => {
     el.removeAttribute('data-drop-intent');
     el.classList.remove('drop-indicator');
@@ -725,9 +723,50 @@ const handleDndDragOver = useCallback((event) => {
     el.style.boxShadow = '';
   });
   
-  // Existing drop intent logic (keep as is)...
+  // 🔥 SET DROP INTENT based on position and target type
+  if (isTargetLayout) {
+    // Layout containers can nest
+    if (relativeY < topZone) {
+      // Drop BEFORE this container
+      targetElement.setAttribute('data-drop-intent', 'before');
+      targetElement.style.borderTop = '3px solid #3b82f6';
+      targetElement.style.boxShadow = 'inset 0 4px 8px rgba(59, 130, 246, 0.1)';
+    } else if (relativeY > bottomZone) {
+      // Drop AFTER this container
+      targetElement.setAttribute('data-drop-intent', 'after');
+      targetElement.style.borderBottom = '3px solid #3b82f6';
+      targetElement.style.boxShadow = 'inset 0 -4px 8px rgba(59, 130, 246, 0.1)';
+    } else {
+      // Drop INSIDE this container (NESTING)
+      targetElement.setAttribute('data-drop-intent', 'inside');
+      targetElement.style.backgroundColor = 'rgba(59, 130, 246, 0.08)';
+      targetElement.style.border = '2px dashed #3b82f6';
+      targetElement.style.boxShadow = 'inset 0 0 20px rgba(59, 130, 246, 0.15)';
+      
+      console.log('🎯 NEST MODE: Will drop INSIDE', over.id);
+    }
+  } else {
+    // Non-layout components - only before/after
+    if (relativeY < targetRect.height / 2) {
+      targetElement.setAttribute('data-drop-intent', 'before');
+      targetElement.style.borderTop = '3px solid #3b82f6';
+    } else {
+      targetElement.setAttribute('data-drop-intent', 'after');
+      targetElement.style.borderBottom = '3px solid #3b82f6';
+    }
+  }
   
-}, []);
+  console.log('📍 Drop intent set:', {
+    target: over.id,
+    isLayout: isTargetLayout,
+    intent: targetElement.getAttribute('data-drop-intent'),
+    mouseY,
+    relativeY,
+    topZone,
+    bottomZone
+  });
+  
+}, [canvasRef]);
 
 
 

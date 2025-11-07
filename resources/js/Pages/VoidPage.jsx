@@ -40,6 +40,7 @@ import {
   DragOverlay
 } from '@dnd-kit/core'
 import { restrictToParentElement } from '@dnd-kit/modifiers'
+import gsap from 'gsap'
 
 
 export default function VoidPage() {
@@ -523,6 +524,74 @@ useEffect(() => {
     console.log('Maximizing panel:', panelId)
   }
 
+  // CENTER / NAVIGATE to a frame and animate scroll
+  const handleSelectFrame = useCallback((frame) => {
+    if (!frame || !canvasRef.current) return
+
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const currentZoom = zoom || 1
+
+    // Compute target scroll so the frame's center becomes viewport center
+    const targetX = Math.max(
+      0,
+      Math.min(
+        scrollBounds.width - vw / currentZoom,
+        frame.x - (vw / (2 * currentZoom)) + (frameWidth / 2)
+      )
+    )
+
+    const targetY = Math.max(
+      0,
+      Math.min(
+        scrollBounds.height - vh / currentZoom,
+        frame.y - (vh / (2 * currentZoom)) + (frameHeight / 2)
+      )
+    )
+
+    // Animate scrollPosition to target using gsap for a smooth auto-scroll "camera" effect
+    gsap.killTweensOf(scrollPosition) // ensure no duplicates
+    gsap.to(scrollPosition, {
+      x: targetX,
+      y: targetY,
+      duration: 0.6,
+      ease: 'power2.out',
+      onUpdate: () => {
+        // Use setter so React state updates and UI re-renders with latest values
+        setScrollPosition({ x: scrollPosition.x, y: scrollPosition.y })
+      },
+      onComplete: () => {
+        setScrollPosition({ x: targetX, y: targetY })
+      }
+    })
+  }, [scrollBounds, frameWidth, frameHeight, setScrollPosition, zoom, scrollPosition])
+
+  // Immediate delete (called from FramesPanel)
+  const handleImmediateDeleteFrame = useCallback(async (frame) => {
+    if (!frame) return
+    if (!confirm(`Delete frame "${frame.title}"? This cannot be undone.`)) return
+
+    try {
+      const response = await fetch(`/api/frames/${frame.uuid}`, {
+        method: 'DELETE',
+        headers: {
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        }
+      })
+
+      if (response.ok) {
+        setFrames(prev => prev.filter(f => f.id !== frame.id))
+      } else {
+        console.error('Failed to delete frame')
+        alert('Failed to delete frame')
+      }
+    } catch (err) {
+      console.error('Error deleting frame:', err)
+      alert('Error deleting frame')
+    }
+  }, [])
+
   // Enhanced tool actions with panel toggling
   const handleToolAction = useCallback((toolLabel) => {
     switch (toolLabel) {
@@ -687,7 +756,16 @@ useEffect(() => {
       panels.push({
         id: 'frames-panel',
         title: 'Frames',
-        content: <FramesPanel />,
+        // pass frames and handlers so panel can center, create and delete frames
+        content: (
+          <FramesPanel 
+            frames={frames}
+            onSelectFrame={handleSelectFrame}
+            onDeleteFrame={handleImmediateDeleteFrame}
+            onAddFrame={() => setShowFrameCreator(true)}
+            zoom={zoom}
+          />
+        ),
         closable: true
       })
     }

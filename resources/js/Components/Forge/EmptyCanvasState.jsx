@@ -69,7 +69,7 @@ const EmptyCanvasState = ({
           }}
         >
           <Layers className="w-3 h-3 inline mr-1" />
-          Section (Root)
+          (Root)
         </div>
 
         {/* Drop Instructions */}
@@ -83,7 +83,7 @@ const EmptyCanvasState = ({
             </div>
             
             <div>
-              <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>
+              <h2 className="text-2xl font-bold mb-2" style={{ color: 'black' }}>
                 Drop elements here to start
               </h2>
               <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
@@ -129,7 +129,7 @@ const EmptyCanvasState = ({
                     key={item.name}
                     className="p-3 rounded-lg border text-center"
                     style={{ 
-                      backgroundColor: 'var(--color-bg-muted)',
+                      backgroundColor: 'white',
                       borderColor: item.color + '30'
                     }}
                   >
