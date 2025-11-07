@@ -210,96 +210,57 @@ const SidebarCodePanel = ({
   }, [editorMounted]);
 
   return (
-    <div className="h-full flex flex-col space-y-4 p-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
-            <Code className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
-          </div>
-          <div>
-            <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>Live Code</h3>
-            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Monaco Editor with real-time generation</p>
-          </div>
-        </div>
+    <div className="h-full flex flex-col space-y-3 p-3">
+      {/* Simplified Header */}
+      <div className="flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
-          {/* Tooltips Toggle */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>Tips</label>
-            <button
-              onClick={() => setShowTooltips(!showTooltips)}
-              className="relative w-10 h-6 rounded-full transition-colors"
-              style={{
-                backgroundColor: showTooltips ? 'var(--color-primary)' : 'var(--color-border)'
-              }}
-            >
-              <div 
-                className="absolute top-1 w-4 h-4 rounded-full transition-transform"
-                style={{
-                  backgroundColor: 'var(--color-surface)',
-                  transform: showTooltips ? 'translateX(20px)' : 'translateX(4px)'
-                }}
-              />
-              {showTooltips ? (
-                <Eye className="absolute top-1.5 left-1.5 w-3 h-3" style={{ color: 'var(--color-surface)' }} />
-              ) : (
-                <EyeOff className="absolute top-1.5 right-1.5 w-3 h-3" style={{ color: 'var(--color-text-muted)' }} />
-              )}
-            </button>
+          <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+            <Code className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
           </div>
-
-          {/* Settings */}
+          <h3 className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>Code</h3>
+        </div>
+        <div className="flex items-center gap-1">
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="p-2 rounded-lg transition-colors"
+            className="p-1.5 rounded transition-colors"
             style={{ 
               color: 'var(--color-text-muted)',
               backgroundColor: showSettings ? 'var(--color-primary-soft)' : 'transparent'
             }}
-            title="Editor Settings"
+            title="Settings"
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-3.5 h-3.5" />
           </button>
-
-          {/* Move to Bottom */}
           <button
             onClick={() => setCodePanelPosition('bottom')}
-            className="px-3 py-2 text-xs rounded-lg transition-colors text-white flex items-center gap-2"
-            style={{ backgroundColor: 'var(--color-primary)' }}
+            className="p-1.5 rounded transition-colors"
+            style={{ 
+              color: 'var(--color-text-muted)',
+              backgroundColor: 'transparent'
+            }}
+            title="Move to Bottom"
           >
-            <Move className="w-4 h-4" />
-            <span>Move to Bottom</span>
-          </button>
-
-          {/* Close */}
-          <button
-            onClick={() => setShowCodePanel(false)}
-            className="p-2 rounded-lg transition-colors hover:bg-red-50 text-red-500 hover:text-red-600"
-            title="Close Panel"
-          >
-            <X className="w-4 h-4" />
+            <Move className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Settings Panel */}
+      {/* Collapsible Settings */}
       {showSettings && (
         <div 
-          className="p-4 rounded-lg border flex-shrink-0" 
+          className="p-2 rounded-lg border flex-shrink-0 mb-2" 
           style={{ 
             backgroundColor: 'var(--color-bg-muted)', 
             borderColor: 'var(--color-border)' 
           }}
         >
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text)' }}>
-                Theme
-              </label>
+              <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text)' }}>Theme</label>
               <select
                 value={editorTheme}
                 onChange={(e) => setEditorTheme(e.target.value)}
-                className="w-full px-3 py-2 rounded border text-sm"
+                className="w-full px-2 py-1 rounded border text-xs"
                 style={{ 
                   backgroundColor: 'var(--color-surface)', 
                   borderColor: 'var(--color-border)',
@@ -310,21 +271,18 @@ const SidebarCodePanel = ({
                 <option value="vs">Light</option>
               </select>
             </div>
-
             <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text)' }}>
-                Font Size
-              </label>
+              <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text)' }}>Font</label>
               <input
                 type="range"
                 min="10"
-                max="20"
+                max="18"
                 value={fontSize}
                 onChange={(e) => setFontSize(parseInt(e.target.value))}
                 className="w-full"
                 style={{ accentColor: 'var(--color-primary)' }}
               />
-              <div className="text-xs text-center mt-1" style={{ color: 'var(--color-text-muted)' }}>
+              <div className="text-xs text-center" style={{ color: 'var(--color-text-muted)' }}>
                 {fontSize}px
               </div>
             </div>
@@ -332,15 +290,14 @@ const SidebarCodePanel = ({
         </div>
       )}
       
-      {/* Code Style Selector */}
-      <div className="space-y-3">
-        <label className="block text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Code Style</label>
-        <div className="grid grid-cols-2 gap-2">
+      {/* Compact Code Style Selector */}
+      <div className="flex-shrink-0">
+        <div className="grid grid-cols-2 gap-1.5">
           {[
-            { value: 'react-tailwind', label: 'React + Tailwind', desc: 'Modern JSX with utility classes' },
-            { value: 'react-css', label: 'React + CSS', desc: 'JSX with traditional stylesheets' },
-            { value: 'html-css', label: 'HTML + CSS', desc: 'Vanilla HTML with CSS files' },
-            { value: 'html-tailwind', label: 'HTML + Tailwind', desc: 'HTML with utility classes' }
+            { value: 'react-tailwind', label: 'R+T' },
+            { value: 'react-css', label: 'R+C' },
+            { value: 'html-css', label: 'H+C' },
+            { value: 'html-tailwind', label: 'H+T' }
           ].map(option => (
             <button
               key={option.value}
@@ -348,30 +305,30 @@ const SidebarCodePanel = ({
                 setCodeStyle(option.value);
                 generateCode(canvasComponents);
               }}
-              className="p-3 rounded-lg text-left transition-all border-2"
+              className="px-2 py-1.5 rounded text-xs font-medium transition-all"
               style={{
                 backgroundColor: codeStyle === option.value ? 'var(--color-primary-soft)' : 'var(--color-bg-muted)',
-                borderColor: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-border)',
-                color: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text)'
+                color: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                boxShadow: codeStyle === option.value ? 'var(--shadow-sm)' : 'none'
               }}
+              title={option.value}
             >
-              <div className="font-semibold text-sm">{option.label}</div>
-              <div className="text-xs opacity-80">{option.desc}</div>
+              {option.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Code tabs */}
+      {/* Compact Code tabs */}
       <div 
-        className="flex gap-1 p-1 rounded-lg flex-shrink-0"
-        style={{ backgroundColor: 'var(--color-bg-muted)' }}
+        className="flex gap-0.5 flex-shrink-0"
+        style={{ backgroundColor: 'var(--color-bg-muted)', padding: '2px', borderRadius: '6px' }}
       >
         {getAvailableTabs().map(tab => (
           <button
             key={tab}
             onClick={() => setActiveCodeTab(tab)}
-            className="px-3 py-2 rounded-md text-sm font-medium transition-all flex-1 relative"
+            className="px-2 py-1 rounded text-xs font-medium transition-all flex-1 relative"
             style={{
               backgroundColor: activeCodeTab === tab ? 'var(--color-surface)' : 'transparent',
               color: activeCodeTab === tab ? 'var(--color-text)' : 'var(--color-text-muted)',
@@ -379,12 +336,6 @@ const SidebarCodePanel = ({
             }}
           >
             {tab.toUpperCase()}
-            {activeCodeTab === tab && (
-              <div 
-                className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" 
-                style={{ backgroundColor: 'var(--color-primary)' }} 
-              />
-            )}
           </button>
         ))}
       </div>
@@ -395,32 +346,30 @@ const SidebarCodePanel = ({
         className="flex-1 min-h-0 relative"
         style={{ minHeight: '300px' }}
       >
-        {/* Toolbar */}
+        {/* Compact Toolbar */}
         <div 
-          className="absolute top-2 right-2 z-10 flex gap-1 rounded-lg p-1"
-          style={{ backgroundColor: 'var(--color-surface-overlay)' }}
+          className="absolute top-2 right-2 z-10 flex gap-0.5 rounded-lg p-1"
+          style={{ 
+            backgroundColor: 'var(--color-surface)',
+            boxShadow: 'var(--shadow-md)',
+            border: '1px solid var(--color-border)'
+          }}
         >
           <button
             onClick={formatCode}
-            className="p-2 rounded transition-all"
-            style={{ 
-              color: 'var(--color-text)',
-              backgroundColor: 'transparent'
-            }}
-            title="Format Code"
+            className="p-1.5 rounded transition-all hover:bg-[var(--color-primary-soft)]"
+            style={{ color: 'var(--color-text)' }}
+            title="Format"
           >
-            <Sparkles className="w-4 h-4" />
+            <Sparkles className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={handleCopy}
-            className="p-2 rounded transition-all"
-            style={{ 
-              color: 'var(--color-text)',
-              backgroundColor: 'transparent'
-            }}
+            className="p-1.5 rounded transition-all hover:bg-[var(--color-primary-soft)]"
+            style={{ color: 'var(--color-text)' }}
             title="Copy"
           >
-            <Copy className="w-4 h-4" />
+            <Copy className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => downloadCode(
@@ -428,25 +377,11 @@ const SidebarCodePanel = ({
               `component.${getFileExtension(activeCodeTab)}`, 
               activeCodeTab
             )}
-            className="p-2 rounded transition-all"
-            style={{ 
-              color: 'var(--color-text)',
-              backgroundColor: 'transparent'
-            }}
+            className="p-1.5 rounded transition-all hover:bg-[var(--color-primary-soft)]"
+            style={{ color: 'var(--color-text)' }}
             title="Download"
           >
-            <Download className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => generateCode(canvasComponents)}
-            className="p-2 rounded transition-all"
-            style={{ 
-              color: 'var(--color-text)',
-              backgroundColor: 'transparent'
-            }}
-            title="Regenerate"
-          >
-            <RefreshCw className="w-4 h-4" />
+            <Download className="w-3.5 h-3.5" />
           </button>
         </div>
 
@@ -485,21 +420,6 @@ const SidebarCodePanel = ({
         </div>
       </div>
       
-      {/* Pro Tip */}
-      <div 
-        className="text-xs p-3 rounded-lg border flex items-center gap-2 flex-shrink-0" 
-        style={{ 
-          color: 'var(--color-text-muted)', 
-          backgroundColor: 'var(--color-primary-soft)', 
-          borderColor: 'var(--color-primary)' 
-        }}
-      >
-        <Sparkles className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
-        <span>
-          <strong>Pro Tips:</strong> Use Shift+Alt+F to format, Alt+Z to toggle word wrap, 
-          Ctrl+/ for comments. {showTooltips ? 'Hover over code for explanations.' : ''}
-        </span>
-      </div>
 
       {/* Custom CSS for copied notification */}
       <style jsx>{`

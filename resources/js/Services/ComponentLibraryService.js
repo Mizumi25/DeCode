@@ -129,53 +129,77 @@ class ComponentLibraryService {
 calculateResponsiveStyles(component, responsiveMode, canvasDimensions, parentStyles = {}) {
   const baseStyles = { ...component.style };
   
-  // Device-specific scaling factors
-  const deviceScales = {
-    desktop: 1.0,
-    tablet: 1.0,  // 🔥 FIXED: No scaling for tablet
-    mobile: 1.0   // 🔥 FIXED: No scaling for mobile
-  };
-  
-  const scale = deviceScales[responsiveMode] || 1.0;
-  
-  // 🔥 CRITICAL FIX: NEVER apply nested scaling
-  // Scaling happens ONLY at the layout/positioning level, NOT on individual elements
   const isLayoutContainer = component.isLayoutContainer || 
                             ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
   
-  const scaledStyles = {};
+  const responsiveStyles = { ...baseStyles };
   
-  Object.keys(baseStyles).forEach(key => {
-    const value = baseStyles[key];
-    
-    // 🔥 CRITICAL: Direct copy - NO scaling on values
-    // Responsive behavior is handled by CSS media queries, not runtime scaling
-    scaledStyles[key] = value;
-  });
-  
-  // Ensure minimum touch targets for mobile
+  // 🔥 ACTUAL RESPONSIVE TRANSFORMATIONS based on device mode
   if (responsiveMode === 'mobile') {
+    // Mobile-specific adjustments
     if (['button', 'input', 'select', 'textarea'].includes(component.type)) {
-      if (!scaledStyles.minHeight) scaledStyles.minHeight = '44px';
-      if (!scaledStyles.minWidth) scaledStyles.minWidth = '44px';
-      if (component.type === 'button' && !scaledStyles.fontSize) {
-        scaledStyles.fontSize = '16px';
+      if (!responsiveStyles.minHeight) responsiveStyles.minHeight = '44px';
+      if (!responsiveStyles.minWidth) responsiveStyles.minWidth = '44px';
+      if (component.type === 'button' && !responsiveStyles.fontSize) {
+        responsiveStyles.fontSize = '16px';
       }
     }
-  }
-  
-  // Add responsive layout adjustments (NOT scaling)
-  if (responsiveMode === 'mobile') {
-    if (scaledStyles.flexDirection === 'row' && isLayoutContainer) {
-      scaledStyles.flexDirection = 'column';
+    
+    // Scale down font sizes for mobile (if not explicitly set)
+    if (!responsiveStyles.fontSize && baseStyles.fontSize) {
+      const fontSize = parseFloat(baseStyles.fontSize);
+      if (!isNaN(fontSize)) {
+        responsiveStyles.fontSize = `${Math.max(12, fontSize * 0.9)}px`;
+      }
     }
     
-    if (isLayoutContainer && (!scaledStyles.width || scaledStyles.width === 'auto')) {
-      scaledStyles.width = '100%';
+    // Scale down padding/margins for mobile
+    ['padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+     'margin', 'marginTop', 'marginRight', 'marginBottom', 'marginLeft'].forEach(prop => {
+      if (baseStyles[prop] && !responsiveStyles[prop]) {
+        const value = baseStyles[prop];
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+          responsiveStyles[prop] = `${Math.max(4, numValue * 0.8)}px`;
+        }
+      }
+    });
+    
+    // Layout adjustments for mobile
+    if (isLayoutContainer) {
+      if (responsiveStyles.flexDirection === 'row') {
+        responsiveStyles.flexDirection = 'column';
+      }
+      if (!responsiveStyles.width || responsiveStyles.width === 'auto') {
+        responsiveStyles.width = '100%';
+      }
     }
+  } else if (responsiveMode === 'tablet') {
+    // Tablet-specific adjustments (slight scaling)
+    if (!responsiveStyles.fontSize && baseStyles.fontSize) {
+      const fontSize = parseFloat(baseStyles.fontSize);
+      if (!isNaN(fontSize)) {
+        responsiveStyles.fontSize = `${fontSize * 0.95}px`;
+      }
+    }
+    
+    // Slightly reduce spacing for tablet
+    ['padding', 'margin'].forEach(prop => {
+      if (baseStyles[prop] && !responsiveStyles[prop]) {
+        const value = baseStyles[prop];
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+          responsiveStyles[prop] = `${numValue * 0.9}px`;
+        }
+      }
+    });
   }
+  // Desktop: no changes, use original styles
   
-  return scaledStyles;
+  // 🔥 Store responsive mode for debugging
+  responsiveStyles._responsiveMode = responsiveMode;
+  
+  return responsiveStyles;
 }
 
 /**

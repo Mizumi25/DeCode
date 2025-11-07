@@ -987,19 +987,19 @@ const calculateDropIntent = (rect, mouseX, mouseY, isLayout) => {
     return mouseY < middleY ? 'before' : 'after';
   }
   
-  // Layout elements: Use smart zones
+  // Layout elements: Use smart zones with better thresholds
   const width = rect.width;
   const height = rect.height;
   
-  // Define zones (percentages from edge)
-  const EDGE_THRESHOLD = 0.25; // 25% from edge = sibling zone
-  const CENTER_THRESHOLD = 0.4; // 40% center = nest zone
+  // 🔥 IMPROVED: Larger center zone for easier nesting
+  const EDGE_THRESHOLD = 0.2; // 20% from edge = sibling zone (reduced from 25%)
+  const CENTER_THRESHOLD = 0.5; // 50% center = nest zone (increased from 40%)
   
   // Calculate normalized positions (0 to 1)
   const normalizedX = (mouseX - rect.left) / width;
   const normalizedY = (mouseY - rect.top) / height;
   
-  // Check if in center "nest zone" (40% center area)
+  // Check if in center "nest zone" (50% center area)
   const centerMinX = (1 - CENTER_THRESHOLD) / 2;
   const centerMaxX = 1 - centerMinX;
   const centerMinY = (1 - CENTER_THRESHOLD) / 2;
@@ -1016,8 +1016,6 @@ const calculateDropIntent = (rect, mouseX, mouseY, isLayout) => {
   // Check edge zones for sibling placement
   const isTopEdge = normalizedY < EDGE_THRESHOLD;
   const isBottomEdge = normalizedY > (1 - EDGE_THRESHOLD);
-  const isLeftEdge = normalizedX < EDGE_THRESHOLD;
-  const isRightEdge = normalizedX > (1 - EDGE_THRESHOLD);
   
   // Prioritize vertical placement
   if (isTopEdge) {
@@ -1029,24 +1027,41 @@ const calculateDropIntent = (rect, mouseX, mouseY, isLayout) => {
     return 'after';
   }
   
-  // If closer to left/right but not top/bottom, still use vertical middle
-  const middleY = rect.top + (height / 2);
+  // 🔥 FIXED: Use actual mouseY vs rect middle for fallback
+  const middleY = rect.top + (rect.height / 2);
   return mouseY < middleY ? 'before' : 'after';
 };
 
 
 
 
-// 🔥 ENHANCED: Better drop target detection with visual feedback
+// 🔥 ENHANCED: Better drop target detection with recursive search
 const findDropTarget = useCallback((components, dropX, dropY, canvasRect) => {
   console.log('🎯 Smart drop detection at:', { dropX, dropY });
   
-  // Sort by z-index (highest first) and prioritize layouts
-  const sorted = [...components].sort((a, b) => {
+  // 🔥 RECURSIVE: Flatten all components (including nested) for search
+  const flattenComponents = (comps, depth = 0) => {
+    const flat = [];
+    comps.forEach(comp => {
+      flat.push({ ...comp, depth });
+      if (comp.children && comp.children.length > 0) {
+        flat.push(...flattenComponents(comp.children, depth + 1));
+      }
+    });
+    return flat;
+  };
+  
+  const allComponents = flattenComponents(components);
+  
+  // Sort by depth (deepest first) and z-index (highest first), prioritize layouts
+  const sorted = allComponents.sort((a, b) => {
+    // Deepest components first (most specific)
+    if (a.depth !== b.depth) return b.depth - a.depth;
+    
     const aIsLayout = a.isLayoutContainer;
     const bIsLayout = b.isLayoutContainer;
     
-    // Layouts first
+    // Layouts first at same depth
     if (aIsLayout && !bIsLayout) return -1;
     if (!aIsLayout && bIsLayout) return 1;
     
@@ -1054,28 +1069,31 @@ const findDropTarget = useCallback((components, dropX, dropY, canvasRect) => {
     return (b.zIndex || 0) - (a.zIndex || 0);
   });
 
+  // 🔥 FIXED: Use actual mouse coordinates (not relative)
+  const mouseX = dropX + canvasRect.left;
+  const mouseY = dropY + canvasRect.top;
+
   for (const comp of sorted) {
     const element = document.querySelector(`[data-component-id="${comp.id}"]`);
     if (!element) continue;
     
     const rect = element.getBoundingClientRect();
-    const relativeX = dropX + canvasRect.left;
-    const relativeY = dropY + canvasRect.top;
     
-    // Check if cursor is within element bounds
+    // 🔥 FIXED: Check if cursor is within element bounds using actual coordinates
     const isInBounds = 
-      relativeX >= rect.left && relativeX <= rect.right &&
-      relativeY >= rect.top && relativeY <= rect.bottom;
+      mouseX >= rect.left && mouseX <= rect.right &&
+      mouseY >= rect.top && mouseY <= rect.bottom;
     
     if (!isInBounds) continue;
     
     // ✅ SMART INTENT DETECTION
-    const intent = calculateDropIntent(rect, relativeX, relativeY, comp.isLayoutContainer);
+    const intent = calculateDropIntent(rect, mouseX, mouseY, comp.isLayoutContainer);
     
     console.log('✅ Found target:', {
       name: comp.name,
       isLayout: comp.isLayoutContainer,
-      intent: intent
+      intent: intent,
+      depth: comp.depth
     });
     
     // Return target with intent metadata

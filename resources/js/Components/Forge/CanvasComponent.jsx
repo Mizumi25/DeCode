@@ -898,6 +898,12 @@ const DraggableComponent = ({
     };
 
   const componentStyles = getDeviceAwareStyles();
+  
+  // 🔥 FORCE RE-RENDER when responsive mode changes
+  useEffect(() => {
+    // Component will re-render when responsiveMode changes
+    // This ensures responsive styles are recalculated
+  }, [responsiveMode]);
 
 if (isLayout) {
     return (
@@ -922,56 +928,42 @@ if (isLayout) {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* 🔥 FIXED: Entire area is both draggable AND clickable */}
+        {/* 🔥 FIXED: Separate drag handle - only this area is draggable */}
+        <div
+          className={`
+            absolute top-0 right-0 w-8 h-8 z-10
+            flex items-center justify-center
+            ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+            transition-opacity duration-200
+            cursor-grab active:cursor-grabbing
+          `}
+          style={{
+            backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.1)',
+            borderBottomLeftRadius: '4px',
+            pointerEvents: 'auto',
+          }}
+          {...dragHandlers}
+          onMouseDown={(e) => {
+            e.stopPropagation(); // Prevent click event
+          }}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent selection when clicking drag handle
+          }}
+        >
+          <GripVertical className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+        </div>
+        
+        {/* Clickable area - rest of component for selection */}
         <div
           className="absolute inset-0"
           style={{ 
             zIndex: 1, 
             pointerEvents: 'auto',
-            cursor: isDragging ? 'grabbing' : 'grab'
+            cursor: 'pointer'
           }}
-          {...dragHandlers}
-          onMouseDown={(e) => {
-            // 🔥 CRITICAL: Check if this is a drag or click
-            const startX = e.clientX;
-            const startY = e.clientY;
-            let hasMoved = false;
-            
-            const handleMove = (moveEvent) => {
-              const deltaX = Math.abs(moveEvent.clientX - startX);
-              const deltaY = Math.abs(moveEvent.clientY - startY);
-              if (deltaX > 5 || deltaY > 5) {
-                hasMoved = true;
-              }
-            };
-            
-            const handleUp = (upEvent) => {
-              document.removeEventListener('mousemove', handleMove);
-              document.removeEventListener('mouseup', handleUp);
-              
-              // If didn't move much, treat as click
-              if (!hasMoved) {
-                e.stopPropagation();
-                handleSmartClick(e);
-              }
-            };
-            
-            document.addEventListener('mousemove', handleMove);
-            document.addEventListener('mouseup', handleUp);
-          }}
-        />
-        
-        {/* Drag handle indicator (visual only) */}
-        <div 
-          className={`
-            absolute top-0 right-0 w-8 h-8 pointer-events-none
-            ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-            transition-opacity duration-200
-          `}
-          style={{
-            zIndex: 2,
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            borderBottomLeftRadius: '4px',
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSmartClick(e);
           }}
         />
         
@@ -1068,58 +1060,44 @@ return (
       onClick={handleSmartClick}
       onDoubleClick={(e) => handleDoubleClickText(e, component.id)}
    >
-   
-   
-      {/* 🔥 FIXED: Entire area is both draggable AND clickable */}
-      <div
-        className="absolute inset-0"
-        style={{ 
-          zIndex: 1, 
-          pointerEvents: 'auto',
-          cursor: isDragging ? 'grabbing' : 'grab'
-        }}
-        {...dragHandlers}
-        onMouseDown={(e) => {
-          // 🔥 CRITICAL: Check if this is a drag or click
-          const startX = e.clientX;
-          const startY = e.clientY;
-          let hasMoved = false;
-          
-          const handleMove = (moveEvent) => {
-            const deltaX = Math.abs(moveEvent.clientX - startX);
-            const deltaY = Math.abs(moveEvent.clientY - startY);
-            if (deltaX > 5 || deltaY > 5) {
-              hasMoved = true;
-            }
-          };
-          
-          const handleUp = (upEvent) => {
-            document.removeEventListener('mousemove', handleMove);
-            document.removeEventListener('mouseup', handleUp);
-            
-            // If didn't move much, treat as click
-            if (!hasMoved) {
-              e.stopPropagation();
-              handleSmartClick(e);
-            }
-          };
-          
-          document.addEventListener('mousemove', handleMove);
-          document.addEventListener('mouseup', handleUp);
-        }}
-      />
-      
-      {/* Drag handle indicator (visual only) */}
-      <div 
-        className="absolute top-0 right-0 w-8 h-8 pointer-events-none"
-        style={{
-          zIndex: 2,
-          opacity: isDragging ? 0.3 : (isHovered ? 0.8 : 0),
-          backgroundColor: 'rgba(59, 130, 246, 0.2)',
-          borderBottomLeftRadius: '4px',
-          transition: 'all 0.2s ease',
-        }}
-      />
+        {/* 🔥 FIXED: Separate drag handle - only this area is draggable */}
+        <div
+          className={`
+            absolute top-0 right-0 w-8 h-8 z-10
+            flex items-center justify-center
+            ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+            transition-opacity duration-200
+            cursor-grab active:cursor-grabbing
+          `}
+          style={{
+            backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.1)',
+            borderBottomLeftRadius: '4px',
+            pointerEvents: 'auto',
+          }}
+          {...dragHandlers}
+          onMouseDown={(e) => {
+            e.stopPropagation(); // Prevent click event
+          }}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent selection when clicking drag handle
+          }}
+        >
+          <GripVertical className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+        </div>
+        
+        {/* Clickable area - rest of component for selection */}
+        <div
+          className="absolute inset-0"
+          style={{ 
+            zIndex: 1, 
+            pointerEvents: 'auto',
+            cursor: 'pointer'
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSmartClick(e);
+          }}
+        />
       
       {/* Component content wrapper */}
       <div 

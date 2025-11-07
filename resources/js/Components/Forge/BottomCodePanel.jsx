@@ -383,16 +383,14 @@ const BottomCodePanel = ({
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed bottom-4 left-0 transform  z-50 flex flex-col rounded-2xl backdrop-blur-lg border shadow-2xl"
+        className="fixed bottom-4 left-0 transform  z-50 flex flex-col rounded-2xl border shadow-2xl"
         style={{
           height: getResponsiveHeight(),
           minHeight: codePanelMinimized ? 'auto' : '200px',
           maxHeight: codePanelMinimized ? 'auto' : '100vh',
-          // use a solid fallback color so panel isn't transparent when CSS vars are missing
-          backgroundColor: 'var(--color-bg-surface)',
-          
+          // Solid opaque background - no blur
+          backgroundColor: 'var(--color-surface)',
           width: '80%',
-          backdropFilter: 'blur(20px)',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1)'
         }}
       >
@@ -417,19 +415,18 @@ const BottomCodePanel = ({
         </div>
       )}
       
-      {/* GLASS MORPHISM HEADER */}
+      {/* SOLID HEADER */}
       <div className="flex items-center justify-between p-4 border-b flex-shrink-0"
         style={{ 
-          background: 'linear-gradient(135deg, rgba(var(--color-surface-rgb), 0.8) 0%, rgba(var(--color-bg-muted-rgb), 0.6) 100%)',
-          
+          backgroundColor: 'var(--color-surface)',
           minHeight: '56px',
-          backdropFilter: 'blur(10px)'
+          borderColor: 'var(--color-border)'
         }}
       >
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="p-2 rounded-xl backdrop-blur-md" style={{ 
-            background: 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.2) 0%, rgba(var(--color-primary-rgb), 0.1) 100%)',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
+          <div className="p-2 rounded-xl" style={{ 
+            backgroundColor: 'var(--color-primary-soft)',
+            boxShadow: 'var(--shadow-sm)'
           }}>
             <Code2 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
           </div>
@@ -450,20 +447,18 @@ const BottomCodePanel = ({
             <div className="flex items-center gap-2 mr-2">
               <button
                 onClick={() => setShowTooltips(!showTooltips)}
-                className="relative w-10 h-6 rounded-full transition-all backdrop-blur-md"
+                className="relative w-10 h-6 rounded-full transition-all"
                 style={{
-                  background: showTooltips 
-                    ? 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.8) 0%, rgba(var(--color-primary-rgb), 0.6) 100%)'
-                    : 'linear-gradient(135deg, rgba(var(--color-border-rgb), 0.4) 0%, rgba(var(--color-border-rgb), 0.2) 100%)',
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+                  backgroundColor: showTooltips ? 'var(--color-primary)' : 'var(--color-border)',
+                  boxShadow: 'var(--shadow-sm)'
                 }}
               >
                 <div 
-                  className="absolute top-1 w-4 h-4 rounded-full transition-transform backdrop-blur-md"
+                  className="absolute top-1 w-4 h-4 rounded-full transition-transform"
                   style={{
-                    background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%)',
+                    backgroundColor: 'var(--color-surface)',
                     transform: showTooltips ? 'translateX(20px)' : 'translateX(4px)',
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+                    boxShadow: 'var(--shadow-sm)'
                   }}
                 />
               </button>
@@ -474,15 +469,11 @@ const BottomCodePanel = ({
           {!isMobile && (
             <button
               onClick={() => setShowSettings(!showSettings)}
-              className="p-2 rounded-xl transition-all backdrop-blur-md"
+              className="p-2 rounded-xl transition-all"
               style={{ 
-                background: showSettings 
-                  ? 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.2) 0%, rgba(var(--color-primary-rgb), 0.1) 100%)'
-                  : 'linear-gradient(135deg, rgba(var(--color-surface-rgb), 0.6) 0%, rgba(var(--color-bg-muted-rgb), 0.4) 100%)',
+                backgroundColor: showSettings ? 'var(--color-primary-soft)' : 'var(--color-bg-muted)',
                 color: 'var(--color-text-muted)',
-                boxShadow: showSettings 
-                  ? '0 4px 12px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
-                  : '0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+                boxShadow: 'var(--shadow-sm)'
               }}
               title="Editor Settings"
             >
@@ -494,11 +485,11 @@ const BottomCodePanel = ({
           {moveCodePanelToRightSidebar && (
             <button
               onClick={moveCodePanelToRightSidebar}
-              className="hidden sm:flex px-3 py-2 text-xs rounded-xl transition-all backdrop-blur-md items-center gap-2"
+              className="hidden sm:flex px-3 py-2 text-xs rounded-xl transition-all items-center gap-2"
               style={{ 
-                background: 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.8) 0%, rgba(var(--color-primary-rgb), 0.6) 100%)',
-                color: 'var(--color-text)',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
+                backgroundColor: 'var(--color-primary)',
+                color: 'white',
+                boxShadow: 'var(--shadow-md)'
               }}
             >
               <Move className="w-4 h-4" />
@@ -509,11 +500,11 @@ const BottomCodePanel = ({
           {/* Minimize/Expand */}
           <button
             onClick={() => setCodePanelMinimized(!codePanelMinimized)}
-            className="p-2 rounded-xl transition-all backdrop-blur-md"
+            className="p-2 rounded-xl transition-all"
             style={{ 
-              background: 'linear-gradient(135deg, rgba(var(--color-surface-rgb), 0.6) 0%, rgba(var(--color-bg-muted-rgb), 0.4) 100%)',
+              backgroundColor: 'var(--color-bg-muted)',
               color: 'var(--color-text-muted)',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+              boxShadow: 'var(--shadow-sm)'
             }}
             title={codePanelMinimized ? 'Expand' : 'Minimize'}
           >
@@ -523,11 +514,11 @@ const BottomCodePanel = ({
           {/* Close */}
           <button
             onClick={handleClosePanel}
-            className="p-2 rounded-xl transition-all backdrop-blur-md"
+            className="p-2 rounded-xl transition-all"
             style={{ 
-              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%)',
+              backgroundColor: '#fee2e2',
               color: '#ef4444',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+              boxShadow: 'var(--shadow-sm)'
             }}
             title="Close Panel"
           >
@@ -542,10 +533,10 @@ const BottomCodePanel = ({
           {/* Settings Panel */}
           {showSettings && !isMobile && (
             <div 
-              className="p-4 rounded-lg border-b flex-shrink-0 backdrop-blur-md" 
+              className="p-4 rounded-lg border-b flex-shrink-0" 
               style={{ 
-                background: 'linear-gradient(135deg, rgba(var(--color-bg-muted-rgb), 0.8) 0%, rgba(var(--color-surface-rgb), 0.6) 100%)',
-                borderColor: 'rgba(var(--color-border-rgb), 0.2)'
+                backgroundColor: 'var(--color-bg-muted)',
+                borderColor: 'var(--color-border)'
               }}
             >
               <div className="grid grid-cols-2 gap-4">
@@ -556,9 +547,10 @@ const BottomCodePanel = ({
                   <select
                     value={editorTheme}
                     onChange={(e) => setEditorTheme(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border text-sm backdrop-blur-md"
+                    className="w-full px-3 py-2 rounded-xl border text-sm"
                     style={{ 
-                      background: 'rgba(var(--color-surface-rgb), 0.8)',
+                      backgroundColor: 'var(--color-surface)',
+                      borderColor: 'var(--color-border)',
                       color: 'var(--color-text)'
                     }}
                   >
@@ -609,15 +601,14 @@ const BottomCodePanel = ({
                     setCodeStyle(option.value);
                     generateCode(canvasComponents);
                   }}
-                  className="p-3 rounded-xl text-left transition-all border-2 backdrop-blur-md"
+                  className="p-3 rounded-xl text-left transition-all border-2"
                   style={{
-                    background: codeStyle === option.value 
-                      ? 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.15) 0%, rgba(var(--color-primary-rgb), 0.05) 100%)'
-                      : 'linear-gradient(135deg, rgba(var(--color-bg-muted-rgb), 0.6) 0%, rgba(var(--color-surface-rgb), 0.4) 100%)',
+                    backgroundColor: codeStyle === option.value 
+                      ? 'var(--color-primary-soft)'
+                      : 'var(--color-bg-muted)',
+                    borderColor: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-border)',
                     color: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text)',
-                    boxShadow: codeStyle === option.value 
-                      ? '0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
-                      : '0 2px 8px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+                    boxShadow: codeStyle === option.value ? 'var(--shadow-md)' : 'var(--shadow-sm)'
                   }}
                 >
                   <div className="font-semibold text-sm">{option.label}</div>
@@ -629,9 +620,9 @@ const BottomCodePanel = ({
       
           {/* ENHANCED CODE TABS WITH ICONS */}
           <div 
-            className="flex gap-1 p-2 flex-shrink-0 backdrop-blur-md"
+            className="flex gap-1 p-2 flex-shrink-0"
             style={{ 
-              background: 'linear-gradient(135deg, rgba(var(--color-bg-muted-rgb), 0.8) 0%, rgba(var(--color-surface-rgb), 0.6) 100%)'
+              backgroundColor: 'var(--color-bg-muted)'
             }}
           >
             {getAvailableTabs().map(tab => (
@@ -646,15 +637,13 @@ const BottomCodePanel = ({
                     }, 50);
                   }
                 }}
-                className="px-3 py-2 rounded-lg text-xs font-medium transition-all flex-1 relative flex items-center justify-center gap-2 backdrop-blur-md"
+                className="px-3 py-2 rounded-lg text-xs font-medium transition-all flex-1 relative flex items-center justify-center gap-2"
                 style={{
-                  background: activeCodeTab === tab 
-                    ? 'linear-gradient(135deg, rgba(var(--color-surface-rgb), 0.9) 0%, rgba(var(--color-surface-rgb), 0.7) 100%)'
+                  backgroundColor: activeCodeTab === tab 
+                    ? 'var(--color-surface)'
                     : 'transparent',
                   color: activeCodeTab === tab ? 'var(--color-text)' : 'var(--color-text-muted)',
-                  boxShadow: activeCodeTab === tab 
-                    ? '0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
-                    : 'none'
+                  boxShadow: activeCodeTab === tab ? 'var(--shadow-sm)' : 'none'
                 }}
               >
                 {tabIcons[tab]}
@@ -677,11 +666,11 @@ const BottomCodePanel = ({
           >
             {/* Mobile-optimized toolbar */}
             <div 
-              className="absolute top-3 right-3 z-10 flex gap-2 rounded-xl p-2 backdrop-blur-md"
+              className="absolute top-3 right-3 z-10 flex gap-2 rounded-xl p-2"
               style={{ 
-                background: 'linear-gradient(135deg, rgba(var(--color-surface-rgb), 0.9) 0%, rgba(var(--color-surface-rgb), 0.7) 100%)',
-                boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15), 0 1px 0 rgba(255, 255, 255, 0.1)',
-                
+                backgroundColor: 'var(--color-surface)',
+                boxShadow: 'var(--shadow-lg)',
+                border: '1px solid var(--color-border)'
               }}
             >
               <button
@@ -689,7 +678,7 @@ const BottomCodePanel = ({
                 className="p-2 rounded-lg transition-all hover:scale-110"
                 style={{ 
                   color: 'var(--color-text)',
-                  background: 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.1) 0%, rgba(var(--color-primary-rgb), 0.05) 100%)'
+                  backgroundColor: 'var(--color-primary-soft)'
                 }}
                 title="Format Code"
               >
@@ -700,7 +689,7 @@ const BottomCodePanel = ({
                 className="p-2 rounded-lg transition-all hover:scale-110"
                 style={{ 
                   color: 'var(--color-text)',
-                  background: 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.1) 0%, rgba(var(--color-primary-rgb), 0.05) 100%)'
+                  backgroundColor: 'var(--color-primary-soft)'
                 }}
                 title="Copy"
               >
@@ -715,7 +704,7 @@ const BottomCodePanel = ({
                 className="p-2 rounded-lg transition-all hover:scale-110"
                 style={{ 
                   color: 'var(--color-text)',
-                  background: 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.1) 0%, rgba(var(--color-primary-rgb), 0.05) 100%)'
+                  backgroundColor: 'var(--color-primary-soft)'
                 }}
                 title="Download"
               >
@@ -726,7 +715,7 @@ const BottomCodePanel = ({
                 className="p-2 rounded-lg transition-all hover:scale-110"
                 style={{ 
                   color: 'var(--color-text)',
-                  background: 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.1) 0%, rgba(var(--color-primary-rgb), 0.05) 100%)'
+                  backgroundColor: 'var(--color-primary-soft)'
                 }}
                 title="Regenerate"
               >
@@ -777,11 +766,11 @@ const BottomCodePanel = ({
           {/* Pro Tip - Hidden on mobile to save space */}
           {!isMobile && (
             <div 
-              className="text-xs p-3 rounded-lg border mx-2 mb-2 flex items-center gap-2 flex-shrink-0 backdrop-blur-md" 
+              className="text-xs p-3 rounded-lg border mx-2 mb-2 flex items-center gap-2 flex-shrink-0" 
               style={{ 
                 color: 'var(--color-text-muted)', 
-                background: 'linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.15) 0%, rgba(var(--color-primary-rgb), 0.05) 100%)',
-                borderColor: 'rgba(var(--color-primary-rgb), 0.3)'
+                backgroundColor: 'var(--color-primary-soft)',
+                borderColor: 'var(--color-primary)'
               }}
             >
               <Sparkles className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
