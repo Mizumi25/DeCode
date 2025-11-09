@@ -180,86 +180,101 @@ export const useCustomDrag = ({
   /**
    * Detect drop target and intent using bounding boxes
    */
-  const detectDropTarget = useCallback((pointerX, pointerY) => {
-    if (!canvasRef?.current) return null;
+  /**
+ * Detect drop target and intent using bounding boxes
+ * 🔥 ENHANCED: Better nested container detection
+ */
+const detectDropTarget = useCallback((pointerX, pointerY) => {
+  if (!canvasRef?.current) return null;
 
-    const canvasRect = canvasRef.current.getBoundingClientRect();
-    const relativeX = pointerX - canvasRect.left;
-    const relativeY = pointerY - canvasRect.top;
+  const canvasRect = canvasRef.current.getBoundingClientRect();
+  const relativeX = pointerX - canvasRect.left;
+  const relativeY = pointerY - canvasRect.top;
 
-    // Get all potential drop targets
-    const allElements = canvasRef.current.querySelectorAll('[data-component-id]');
-    let bestTarget = null;
-    let bestIntent = null;
-    let minDistance = Infinity;
-
-    allElements.forEach(element => {
-      const targetId = element.getAttribute('data-component-id');
-      if (targetId === componentId) return; // Skip self
-
+  // 🔥 NEW: Get all potential drop targets, prioritize deepest (most nested)
+  const allElements = Array.from(
+    canvasRef.current.querySelectorAll('[data-component-id]')
+  ).filter(el => el.getAttribute('data-component-id') !== componentId);
+  
+  // Sort by nesting depth (deepest first) and then by size (smallest first)
+  const sortedElements = allElements
+    .map(element => {
+      const depth = parseInt(element.getAttribute('data-depth') || '0');
       const rect = element.getBoundingClientRect();
-      const elementRect = {
-        left: rect.left - canvasRect.left,
-        right: rect.right - canvasRect.left,
-        top: rect.top - canvasRect.top,
-        bottom: rect.bottom - canvasRect.top,
-        width: rect.width,
-        height: rect.height,
-      };
-
-      // Check if pointer is inside element bounds
-      const isInside = 
-        relativeX >= elementRect.left &&
-        relativeX <= elementRect.right &&
-        relativeY >= elementRect.top &&
-        relativeY <= elementRect.bottom;
-
-      if (isInside) {
-        const isLayout = element.getAttribute('data-is-layout') === 'true';
-        const centerY = elementRect.top + elementRect.height / 2;
-        const centerX = elementRect.left + elementRect.width / 2;
-
-        // Determine drop intent
-        let intent = null;
-        
-        if (isLayout) {
-          // Layout containers: can nest inside
-          const topZone = elementRect.top + Math.min(40, elementRect.height * 0.25);
-          const bottomZone = elementRect.bottom - Math.min(40, elementRect.height * 0.25);
-
-          if (relativeY < topZone) {
-            intent = 'before';
-          } else if (relativeY > bottomZone) {
-            intent = 'after';
-          } else {
-            intent = 'inside'; // Nest inside
-          }
-        } else {
-          // Non-layout: only before/after
-          intent = relativeY < centerY ? 'before' : 'after';
-        }
-
-        // Calculate distance to center for priority
-        const distance = Math.hypot(
-          relativeX - (elementRect.left + elementRect.width / 2),
-          relativeY - (elementRect.top + elementRect.height / 2)
-        );
-
-        if (distance < minDistance) {
-          minDistance = distance;
-          bestTarget = {
-            id: targetId,
-            element,
-            bounds: elementRect,
-            isLayout,
-          };
-          bestIntent = intent;
-        }
-      }
+      return { element, depth, rect, area: rect.width * rect.height };
+    })
+    .sort((a, b) => {
+      // Prioritize depth first
+      if (b.depth !== a.depth) return b.depth - a.depth;
+      // Then prioritize smaller elements (more specific targets)
+      return a.area - b.area;
     });
 
-    return bestTarget ? { target: bestTarget, intent: bestIntent } : null;
-  }, [componentId, canvasRef]);
+  let bestTarget = null;
+  let bestIntent = null;
+
+  for (const { element, depth, rect } of sortedElements) {
+    const targetId = element.getAttribute('data-component-id');
+    
+    const elementRect = {
+      left: rect.left - canvasRect.left,
+      right: rect.right - canvasRect.left,
+      top: rect.top - canvasRect.top,
+      bottom: rect.bottom - canvasRect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+
+    // Check if pointer is inside element bounds
+    const isInside = 
+      relativeX >= elementRect.left &&
+      relativeX <= elementRect.right &&
+      relativeY >= elementRect.top &&
+      relativeY <= elementRect.bottom;
+
+    if (isInside) {
+      const isLayout = element.getAttribute('data-is-layout') === 'true';
+
+      // Determine drop intent
+      let intent = null;
+      
+      if (isLayout) {
+        // 🔥 ENHANCED: Layout containers with better zone detection
+        const edgeThreshold = Math.min(30, elementRect.height * 0.15); // 15% or 30px max
+        
+        const topZone = elementRect.top + edgeThreshold;
+        const bottomZone = elementRect.bottom - edgeThreshold;
+
+        if (relativeY < topZone) {
+          intent = 'before';
+        } else if (relativeY > bottomZone) {
+          intent = 'after';
+        } else {
+          // Check if there are children - if yes, prefer nesting deeper
+          const hasChildren = element.children.length > 0;
+          intent = 'inside'; // Always allow nesting in the middle zone
+        }
+      } else {
+        // Non-layout: only before/after
+        const centerY = elementRect.top + elementRect.height / 2;
+        intent = relativeY < centerY ? 'before' : 'after';
+      }
+
+      // Found the deepest matching target
+      bestTarget = {
+        id: targetId,
+        element,
+        bounds: elementRect,
+        isLayout,
+        depth,
+      };
+      bestIntent = intent;
+      break; // Stop at first (deepest) match
+    }
+  }
+
+  return bestTarget ? { target: bestTarget, intent: bestIntent } : null;
+}, [componentId, canvasRef]);
 
   /**
    * Cleanup drag state - Defined early so it can be referenced by other handlers

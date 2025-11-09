@@ -517,33 +517,38 @@ const componentDefinition = componentLibraryService?.getComponentDefinition?.(se
 
 return (
   <div className="space-y-0 max-h-full overflow-y-auto" style={{ backgroundColor: 'var(--color-bg)' }}>
-      {/* 🔥 DYNAMIC DEBUG PANEL - GLASS MORPHISM STYLE */}
-        <div className="p-4 mb-10 rounded-xl backdrop-blur-md" style={{
-          background: 'rgba(255, 255, 255, 0.8)',
+     {/*🔥 DYNAMIC DEBUG PANEL - USING SAME VARIABLES AS PROPERTIES PANEL*/}
+        <div className="p-4 mb-6 rounded-xl" style={{
+          background: 'var(--color-surface)',
           boxShadow: '0 8px 25px var(--color-primary-soft)',
-          border: '1px solid rgba(255, 255, 255, 0.3)'
+          border: '1px solid var(--color-border)'
         }}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               {(!selectedComponent || selectedComponent === '__canvas_root__') ? (
-                <div className="p-2 rounded-lg bg-blue-100">
-                  <Layout className="w-4 h-4 text-blue-600" />
+                <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+                  <Layout className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
                 </div>
               ) : (
-                <div className="p-2 rounded-lg bg-purple-100">
-                  <Square className="w-4 h-4 text-purple-600" />
+                <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+                  <Square className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
                 </div>
               )}
               <div>
-                <h4 className="font-semibold text-gray-800">
+                <h4 className="font-semibold" style={{ color: 'var(--color-text)' }}>
                   {(!selectedComponent || selectedComponent === '__canvas_root__') ? 'Canvas Root' : 'Selected Element'}
                 </h4>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                   {(!selectedComponent || selectedComponent === '__canvas_root__') ? 'Frame styles & properties' : `${selectedComponentData?.type} component`}
                 </p>
               </div>
             </div>
-            <span className="text-xs px-2 py-1 bg-white/60 rounded-full text-gray-600 font-medium">
+            <span className="text-xs px-2 py-1 rounded-full font-medium"
+              style={{ 
+                backgroundColor: 'var(--color-bg-muted)',
+                color: 'var(--color-text-muted)'
+              }}
+            >
               {new Date().toLocaleTimeString()}
             </span>
           </div>
@@ -552,67 +557,92 @@ return (
             {(!selectedComponent || selectedComponent === '__canvas_root__') ? (
               <>
                 <div className="grid grid-cols-3 gap-3 text-sm">
-                  <div className="text-center p-2 bg-white/50 rounded-lg">
-                    <div className="text-cyan-600 font-semibold">{Object.keys(frame?.canvas_style || {}).length}</div>
-                    <div className="text-xs text-gray-500">Styles</div>
+                  <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                    <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+                      {frame?.canvas_style ? Object.keys(frame.canvas_style).length : 0}
+                    </div>
+                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Canvas Styles</div>
                   </div>
-                  <div className="text-center p-2 bg-white/50 rounded-lg">
-                    <div className="text-cyan-600 font-semibold">{Object.keys(frame?.canvas_props || {}).length}</div>
-                    <div className="text-xs text-gray-500">Props</div>
+                  <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                    <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+                      {frame?.canvas_props ? Object.keys(frame.canvas_props).length : 0}
+                    </div>
+                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Canvas Props</div>
                   </div>
-                  <div className="text-center p-2 bg-white/50 rounded-lg">
-                    <div className="text-cyan-600 font-semibold">{frame?.uuid?.slice(0, 6)}</div>
-                    <div className="text-xs text-gray-500">Frame ID</div>
+                  <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                    <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>
+                      {frame?.uuid ? frame.uuid.slice(0, 6) : 'N/A'}
+                    </div>
+                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Frame ID</div>
                   </div>
                 </div>
                 
-                {/* Scrollable Styles */}
-                {frame?.canvas_style && Object.keys(frame.canvas_style).length > 0 && (
-                  <div className="bg-white/60 rounded-xl p-3 max-h-32 overflow-y-auto border border-white/40">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 mb-2">
-                      <Code className="w-3 h-3" />
-                      Live Styles
+                {/* Show canvas styles */}
+                {frame?.canvas_style && Object.keys(frame.canvas_style).length > 0 ? (
+                  <div className="rounded-xl p-3 max-h-32 overflow-y-auto border" 
+                    style={{ 
+                      backgroundColor: 'var(--color-bg-muted)',
+                      borderColor: 'var(--color-border)'
+                    }}>
+                    <div className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: 'var(--color-text)' }}>
+                      <Layout className="w-3 h-3" />
+                      Canvas Body Styles
                     </div>
                     <div className="space-y-2 font-mono text-xs">
                       {Object.entries(frame.canvas_style).map(([key, value]) => (
                         <div key={key} className="flex items-start gap-2">
-                          <span className="text-cyan-600 font-semibold flex-shrink-0">{key}:</span>
-                          <span className="text-pink-600 flex-1 break-all">{String(value)}</span>
+                          <span className="font-semibold flex-shrink-0" style={{ color: 'var(--color-primary)' }}>{key}:</span>
+                          <span className="flex-1 break-all" style={{ color: 'var(--color-accent)' }}>{String(value)}</span>
                         </div>
                       ))}
                     </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-sm rounded-lg border" 
+                    style={{ 
+                      backgroundColor: 'var(--color-primary-soft)',
+                      borderColor: 'var(--color-primary)',
+                      color: 'var(--color-primary)'
+                    }}>
+                    <Layout className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <div>No canvas styles applied yet</div>
+                    <div className="text-xs mt-1">Set background color in properties panel below</div>
                   </div>
                 )}
               </>
             ) : selectedComponentData ? (
               <>
                 <div className="grid grid-cols-3 gap-3 text-sm">
-                  <div className="text-center p-2 bg-white/50 rounded-lg">
-                    <div className="text-cyan-600 font-semibold">{Object.keys(selectedComponentData?.style || {}).length}</div>
-                    <div className="text-xs text-gray-500">Styles</div>
+                  <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                    <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>{Object.keys(selectedComponentData?.style || {}).length}</div>
+                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Styles</div>
                   </div>
-                  <div className="text-center p-2 bg-white/50 rounded-lg">
-                    <div className="text-cyan-600 font-semibold">{Object.keys(selectedComponentData?.props || {}).length}</div>
-                    <div className="text-xs text-gray-500">Props</div>
+                  <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                    <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>{Object.keys(selectedComponentData?.props || {}).length}</div>
+                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Props</div>
                   </div>
-                  <div className="text-center p-2 bg-white/50 rounded-lg">
-                    <div className="text-cyan-600 font-semibold">{selectedComponentData?.type}</div>
-                    <div className="text-xs text-gray-500">Type</div>
+                  <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                    <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>{selectedComponentData?.type}</div>
+                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Type</div>
                   </div>
                 </div>
                 
                 {/* Scrollable Styles */}
                 {selectedComponentData?.style && Object.keys(selectedComponentData.style).length > 0 && (
-                  <div className="bg-white/60 rounded-xl p-3 max-h-32 overflow-y-auto border border-white/40">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 mb-2">
+                  <div className="rounded-xl p-3 max-h-32 overflow-y-auto border"
+                    style={{ 
+                      backgroundColor: 'var(--color-bg-muted)',
+                      borderColor: 'var(--color-border)'
+                    }}>
+                    <div className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: 'var(--color-text)' }}>
                       <Code className="w-3 h-3" />
                       Live Styles
                     </div>
                     <div className="space-y-2 font-mono text-xs">
                       {Object.entries(selectedComponentData.style).map(([key, value]) => (
                         <div key={key} className="flex items-start gap-2">
-                          <span className="text-cyan-600 font-semibold flex-shrink-0">{key}:</span>
-                          <span className="text-pink-600 flex-1 break-all">{String(value)}</span>
+                          <span className="font-semibold flex-shrink-0" style={{ color: 'var(--color-primary)' }}>{key}:</span>
+                          <span className="flex-1 break-all" style={{ color: 'var(--color-accent)' }}>{String(value)}</span>
                         </div>
                       ))}
                     </div>
@@ -620,14 +650,14 @@ return (
                 )}
                 
                 {(!selectedComponentData?.style || Object.keys(selectedComponentData.style).length === 0) && (
-                  <div className="text-center py-4 text-gray-400 text-sm">
+                  <div className="text-center py-4 text-sm" style={{ color: 'var(--color-text-muted)' }}>
                     <Code className="w-8 h-8 mx-auto mb-2 opacity-50" />
                     <div>No styles applied yet</div>
                   </div>
                 )}
               </>
             ) : (
-              <div className="text-center py-4 text-gray-400">
+              <div className="text-center py-4" style={{ color: 'var(--color-text-muted)' }}>
                 <Square className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <div>No element selected</div>
               </div>

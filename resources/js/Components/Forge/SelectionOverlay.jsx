@@ -325,20 +325,29 @@ const updateBounds = useCallback(() => {
     return;
   }
 
-  // 🔥 FIXED: Since overlay is rendered INSIDE the canvas (which is inside scaled wrapper),
-  // we use offsetLeft/offsetTop directly - they're already in the correct coordinate space
-  // The canvas scaling is applied at the wrapper level, so elements inside are already scaled
+  // 🔥 CRITICAL FIX: Account for canvas scaling
+  // The canvas is scaled, but SelectionOverlay renders INSIDE the canvas
+  // So we need to use element's position relative to canvas parent (offsetParent)
   
-  const elementOffsetLeft = element.offsetLeft || 0;
-  const elementOffsetTop = element.offsetTop || 0;
+  // Get the canvas's actual parent (the one being scaled)
+  let offsetParent = element.offsetParent;
+  let offsetLeft = element.offsetLeft;
+  let offsetTop = element.offsetTop;
+  
+  // Walk up the tree until we find the canvas
+  while (offsetParent && offsetParent !== canvasRef.current) {
+    offsetLeft += offsetParent.offsetLeft;
+    offsetTop += offsetParent.offsetTop;
+    offsetParent = offsetParent.offsetParent;
+  }
   
   const newBounds = {
-    top: elementOffsetTop,
-    left: elementOffsetLeft,
+    top: offsetTop,
+    left: offsetLeft,
     width: element.offsetWidth,
     height: element.offsetHeight,
-    right: elementOffsetLeft + element.offsetWidth,
-    bottom: elementOffsetTop + element.offsetHeight,
+    right: offsetLeft + element.offsetWidth,
+    bottom: offsetTop + element.offsetHeight,
   };
 
   const styles = window.getComputedStyle(element);
@@ -354,6 +363,8 @@ const updateBounds = useCallback(() => {
     display: styles.display,
     position: styles.position,
     zIndex: styles.zIndex,
+    transform: styles.transform,
+    opacity: parseFloat(styles.opacity) || 1,
   };
 
   setBounds(newBounds);

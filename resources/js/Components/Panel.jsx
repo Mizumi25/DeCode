@@ -21,9 +21,9 @@ export default function Panel({
   onSearch = null,
   searchPlaceholder = "Search...",
   isMobile = false,
-  defaultWidth = 320,
-  minWidth = 280,
-  maxWidth = 400,
+  defaultWidth = 200,
+  minWidth = 180,
+  maxWidth = 350,
   // NEW: Default merge configurations
   defaultDockPosition = {}
 }) {
