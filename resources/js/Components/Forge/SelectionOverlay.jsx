@@ -53,7 +53,6 @@ const SelectionOverlay = ({
   const [ancestorHighlights, setAncestorHighlights] = useState([]);
   const [childrenHighlights, setChildrenHighlights] = useState([]);
 
-  
   const { 
     responsiveMode, 
     getResponsiveScaleFactor,
@@ -66,8 +65,11 @@ const SelectionOverlay = ({
   const resizeStartPos = useRef(null);
   const initialBounds = useRef(null);
   const rafId = useRef(null);
-  
 
+  // NEW: refs to avoid unnecessary state updates / infinite loops
+  const lastHoveredRef = useRef(null);
+  const prevAncestorIdsRef = useRef([]);
+  const prevChildrenIdsRef = useRef([]);
 
   // Configuration
   const CONFIG = useMemo(() => ({
@@ -139,11 +141,61 @@ const SelectionOverlay = ({
   
   
   
- // ENHANCE this useEffect (around line 145)
+ // REPLACE the useEffect for hoveredComponent (around line 120)
+useEffect(() => {
+  const handleGlobalHover = (e) => {
+    // 🔥 CRITICAL: Work on both touch and mouse
+    const isTouchEvent = e.type.startsWith('touch');
+    const clientX = isTouchEvent ? e.touches?.[0]?.clientX : e.clientX;
+    const clientY = isTouchEvent ? e.touches?.[0]?.clientY : e.clientY;
+    
+    if (!clientX || !clientY) {
+      if (lastHoveredRef.current !== null) {
+        lastHoveredRef.current = null;
+        setHoveredComponent(null);
+      }
+      return;
+    }
+    
+    // Get element at touch/mouse position
+    const elementAtPoint = document.elementFromPoint(clientX, clientY);
+    const target = elementAtPoint?.closest('[data-component-id]');
+    
+    const newId = target ? target.getAttribute('data-component-id') : null;
+    // Only update hoveredComponent when it actually changes
+    if (newId !== lastHoveredRef.current) {
+      lastHoveredRef.current = newId;
+      setHoveredComponent(newId);
+      // optional debug - keep minimal
+      // console.debug('Hovered component changed to:', newId);
+    }
+  };
+  
+  const canvas = canvasRef.current;
+  if (canvas) {
+    // 🔥 Listen to both mouse and touch events
+    canvas.addEventListener('mousemove', handleGlobalHover);
+    canvas.addEventListener('touchmove', handleGlobalHover, { passive: true });
+    canvas.addEventListener('touchstart', handleGlobalHover, { passive: true });
+    
+    return () => {
+      canvas.removeEventListener('mousemove', handleGlobalHover);
+      canvas.removeEventListener('touchmove', handleGlobalHover);
+      canvas.removeEventListener('touchstart', handleGlobalHover);
+    };
+  }
+}, [canvasRef]);
+
+// ENHANCE this useEffect (around line 145)
 useEffect(() => {
   if (!hoveredComponent || !canvasComponents.length) {
-    setAncestorHighlights([]);
-    setChildrenHighlights([]);
+    // Only clear if there was something before
+    if (prevAncestorIdsRef.current.length || prevChildrenIdsRef.current.length) {
+      prevAncestorIdsRef.current = [];
+      prevChildrenIdsRef.current = [];
+      setAncestorHighlights([]);
+      setChildrenHighlights([]);
+    }
     return;
   }
   
@@ -209,54 +261,28 @@ useEffect(() => {
     return descendants;
   };
   
-  setAncestorHighlights(ancestors);
-  setChildrenHighlights(findAllDescendants(current));
-}, [hoveredComponent, canvasComponents]);
+  const newAncestors = ancestors;
+  const newChildren = findAllDescendants(current);
 
+  // Compare by id lists and only update when different to avoid infinite loops
+  const newAncestorIds = newAncestors.map(a => a.id);
+  const newChildrenIds = newChildren.map(c => c.id);
 
+  const prevAncestorIds = prevAncestorIdsRef.current || [];
+  const prevChildrenIds = prevChildrenIdsRef.current || [];
 
-// REPLACE the useEffect for hoveredComponent (around line 120)
-useEffect(() => {
-  const handleGlobalHover = (e) => {
-    // 🔥 CRITICAL: Work on both touch and mouse
-    const isTouchEvent = e.type.startsWith('touch');
-    const clientX = isTouchEvent ? e.touches?.[0]?.clientX : e.clientX;
-    const clientY = isTouchEvent ? e.touches?.[0]?.clientY : e.clientY;
-    
-    if (!clientX || !clientY) {
-      setHoveredComponent(null);
-      return;
-    }
-    
-    // Get element at touch/mouse position
-    const elementAtPoint = document.elementFromPoint(clientX, clientY);
-    const target = elementAtPoint?.closest('[data-component-id]');
-    
-    if (target) {
-      const id = target.getAttribute('data-component-id');
-      console.log('🎯 Hovered component:', id);
-      setHoveredComponent(id);
-    } else {
-      setHoveredComponent(null);
-    }
-  };
-  
-  const canvas = canvasRef.current;
-  if (canvas) {
-    // 🔥 Listen to both mouse and touch events
-    canvas.addEventListener('mousemove', handleGlobalHover);
-    canvas.addEventListener('touchmove', handleGlobalHover, { passive: true });
-    canvas.addEventListener('touchstart', handleGlobalHover, { passive: true });
-    
-    return () => {
-      canvas.removeEventListener('mousemove', handleGlobalHover);
-      canvas.removeEventListener('touchmove', handleGlobalHover);
-      canvas.removeEventListener('touchstart', handleGlobalHover);
-    };
+  const idsEqual = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+
+  if (!idsEqual(newAncestorIds, prevAncestorIds)) {
+    prevAncestorIdsRef.current = newAncestorIds;
+    setAncestorHighlights(newAncestors);
   }
-}, [canvasRef]);
 
-
+  if (!idsEqual(newChildrenIds, prevChildrenIds)) {
+    prevChildrenIdsRef.current = newChildrenIds;
+    setChildrenHighlights(newChildren);
+  }
+}, [hoveredComponent, canvasComponents]);
 
   /**
    * Update bounds and styles with high precision - FIXED FOR SCALING

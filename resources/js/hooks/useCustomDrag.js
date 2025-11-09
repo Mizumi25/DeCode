@@ -9,6 +9,7 @@ import { useRef, useState, useCallback, useEffect } from 'react';
  * - Nesting validation
  * - GPU-accelerated transforms
  */
+// Find this at the top of the hook (around line 10-20)
 export const useCustomDrag = ({
   componentId,
   component,
@@ -20,6 +21,7 @@ export const useCustomDrag = ({
   canvasRef,
   getDropTarget,
   validateDrop,
+  threshold = 3, // 🔥 ADD THIS LINE
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragState, setDragState] = useState(null);
@@ -36,6 +38,12 @@ export const useCustomDrag = ({
   const rafId = useRef(null);
   const lastPointerPos = useRef({ x: 0, y: 0 });
   const isDraggingRef = useRef(false); // 🔥 Use ref to avoid stale closures
+  const interactionStateRef = useRef({
+    isWatching: false,
+    startX: 0,
+    startY: 0,
+    hasCrossedThreshold: false,
+  });
 
   /**
    * Create ghost clone element
@@ -312,14 +320,19 @@ export const useCustomDrag = ({
     setDropIntent(null);
     dragStartPos.current = null;
     dragOffset.current = { x: 0, y: 0 };
+    interactionStateRef.current = {
+      isWatching: false,
+      startX: 0,
+      startY: 0,
+      hasCrossedThreshold: false,
+    };
   }, []);
 
   /**
    * Handle pointer move (during drag) - Fixed closure issues
    */
   const handlePointerMove = useCallback((e) => {
-    // Check dragging state from ref to avoid stale closure
-    if (!isDraggingRef.current || !ghostElementRef.current) return;
+    if (!interactionStateRef.current.isWatching) return;
 
     e.preventDefault();
     e.stopPropagation();
@@ -329,82 +342,128 @@ export const useCustomDrag = ({
 
     lastPointerPos.current = { x: pointerX, y: pointerY };
 
-    // Update ghost position (smooth with RAF)
-    updateGhostPosition(pointerX, pointerY);
+    // 🔥 THRESHOLD CHECK: Has user moved beyond wiggle room?
+    if (!interactionStateRef.current.hasCrossedThreshold) {
+      const deltaX = Math.abs(pointerX - interactionStateRef.current.startX);
+      const deltaY = Math.abs(pointerY - interactionStateRef.current.startY);
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-    // Detect drop target
-    const dropInfo = detectDropTarget(pointerX, pointerY);
-    if (dropInfo) {
-      setDropTarget(dropInfo.target);
-      setDropIntent(dropInfo.intent);
+      if (distance < threshold) {
+        return; // Still within threshold - ignore movement
+      }
 
-      // 🔥 FIXED: Update placeholder position using DOM flow (not absolute)
-      if (placeholderElementRef.current) {
-        const targetElement = dropInfo.target.element;
-        const placeholder = placeholderElementRef.current;
-        
-        if (dropInfo.intent === 'before') {
-          // Move placeholder before target element
-          if (targetElement.parentNode && placeholder.parentNode !== targetElement.parentNode) {
-            targetElement.parentNode.insertBefore(placeholder, targetElement);
-          } else if (placeholder.nextSibling !== targetElement) {
-            targetElement.parentNode.insertBefore(placeholder, targetElement);
-          }
-        } else if (dropInfo.intent === 'after') {
-          // Move placeholder after target element
-          if (targetElement.parentNode) {
-            if (targetElement.nextSibling !== placeholder) {
+      // 🔥 THRESHOLD CROSSED - Initialize drag
+      console.log('🎯 Threshold crossed, starting drag...');
+      interactionStateRef.current.hasCrossedThreshold = true;
+      
+      if (originalElementRef.current) {
+        const ghost = createGhostClone(originalElementRef.current);
+        ghostElementRef.current = ghost;
+
+        const placeholder = createPlaceholder(originalElementRef.current);
+        placeholderElementRef.current = placeholder;
+
+        originalElementRef.current.style.opacity = '0.3';
+        originalElementRef.current.style.pointerEvents = 'none';
+
+        isDraggingRef.current = true;
+        setIsDragging(true);
+        setDragState({
+          componentId,
+          component,
+          startPosition: { x: pointerX, y: pointerY },
+        });
+
+        onDragStart?.({
+          componentId,
+          component,
+          position: { x: pointerX, y: pointerY },
+        });
+      }
+    }
+
+    // If drag has started, update ghost position
+    if (isDraggingRef.current && ghostElementRef.current) {
+      updateGhostPosition(pointerX, pointerY);
+
+      const dropInfo = detectDropTarget(pointerX, pointerY);
+      if (dropInfo) {
+        setDropTarget(dropInfo.target);
+        setDropIntent(dropInfo.intent);
+
+        if (placeholderElementRef.current) {
+          const targetElement = dropInfo.target.element;
+          const placeholder = placeholderElementRef.current;
+          
+          if (dropInfo.intent === 'before') {
+            if (targetElement.parentNode && placeholder.parentNode !== targetElement.parentNode) {
+              targetElement.parentNode.insertBefore(placeholder, targetElement);
+            } else if (placeholder.nextSibling !== targetElement) {
+              targetElement.parentNode.insertBefore(placeholder, targetElement);
+            }
+          } else if (dropInfo.intent === 'after') {
+            if (targetElement.parentNode) {
+              if (targetElement.nextSibling !== placeholder) {
+                if (placeholder.parentNode) {
+                  placeholder.parentNode.removeChild(placeholder);
+                }
+                if (targetElement.nextSibling) {
+                  targetElement.parentNode.insertBefore(placeholder, targetElement.nextSibling);
+                } else {
+                  targetElement.parentNode.appendChild(placeholder);
+                }
+              }
+            }
+          } else if (dropInfo.intent === 'inside') {
+            if (targetElement !== placeholder.parentNode) {
               if (placeholder.parentNode) {
                 placeholder.parentNode.removeChild(placeholder);
               }
-              if (targetElement.nextSibling) {
-                targetElement.parentNode.insertBefore(placeholder, targetElement.nextSibling);
+              if (targetElement.firstChild) {
+                targetElement.insertBefore(placeholder, targetElement.firstChild);
               } else {
-                targetElement.parentNode.appendChild(placeholder);
+                targetElement.appendChild(placeholder);
               }
             }
           }
-        } else if (dropInfo.intent === 'inside') {
-          // Move placeholder inside target (as first child)
-          if (targetElement !== placeholder.parentNode) {
-            if (placeholder.parentNode) {
-              placeholder.parentNode.removeChild(placeholder);
-            }
-            if (targetElement.firstChild) {
-              targetElement.insertBefore(placeholder, targetElement.firstChild);
-            } else {
-              targetElement.appendChild(placeholder);
-            }
-          }
         }
+      } else {
+        setDropTarget(null);
+        setDropIntent(null);
       }
-    } else {
-      setDropTarget(null);
-      setDropIntent(null);
-    }
 
-    // Call onDragMove callback
-    onDragMove?.({
-      componentId,
-      position: { x: pointerX, y: pointerY },
-      dropTarget: dropInfo?.target,
-      dropIntent: dropInfo?.intent,
-    });
-  }, [updateGhostPosition, detectDropTarget, componentId, canvasRef, onDragMove]);
+      onDragMove?.({
+        componentId,
+        position: { x: pointerX, y: pointerY },
+        dropTarget: dropInfo?.target,
+        dropIntent: dropInfo?.intent,
+      });
+    }
+  }, [updateGhostPosition, detectDropTarget, componentId, component, canvasRef, onDragMove, onDragStart, threshold, createGhostClone, createPlaceholder]);
 
   /**
    * Handle pointer up (end drag)
    */
   const handlePointerUp = useCallback((e) => {
-    if (!isDraggingRef.current) return;
+    if (!interactionStateRef.current.isWatching) return;
 
     const pointerX = e.touches?.[0]?.clientX ?? e.changedTouches?.[0]?.clientX ?? e.clientX;
     const pointerY = e.touches?.[0]?.clientY ?? e.changedTouches?.[0]?.clientY ?? e.clientY;
 
-    // Get final drop target
+    // 🔥 CRITICAL: Check if drag was ever started
+    if (!interactionStateRef.current.hasCrossedThreshold) {
+      console.log('✅ Click detected (within threshold)');
+      
+      interactionStateRef.current.isWatching = false;
+      interactionStateRef.current.hasCrossedThreshold = false;
+      
+      cleanup();
+      return;
+    }
+
+    // Drag occurred - handle drop
     const dropInfo = detectDropTarget(pointerX, pointerY);
     
-    // Validate drop
     const isValid = validateDrop?.({
       componentId,
       dropTarget: dropInfo?.target,
@@ -412,7 +471,6 @@ export const useCustomDrag = ({
     }) ?? true;
 
     if (isValid && dropInfo) {
-      // Call onDragEnd with drop info
       onDragEnd?.({
         componentId,
         component,
@@ -421,14 +479,15 @@ export const useCustomDrag = ({
         position: { x: pointerX, y: pointerY },
       });
     } else {
-      // Cancel drag
       onDragCancel?.({
         componentId,
         component,
       });
     }
 
-    // Cleanup
+    interactionStateRef.current.isWatching = false;
+    interactionStateRef.current.hasCrossedThreshold = false;
+
     cleanup();
   }, [detectDropTarget, validateDrop, componentId, component, onDragEnd, onDragCancel, cleanup]);
 
@@ -441,13 +500,12 @@ export const useCustomDrag = ({
     e.preventDefault();
     e.stopPropagation();
 
-    // 🔥 CRITICAL: Find the actual component element, not the drag handle
     const dragHandle = e.currentTarget;
     const componentElement = dragHandle.closest('[data-component-id]') || 
                              document.querySelector(`[data-component-id="${componentId}"]`);
     
     if (!componentElement) {
-      console.warn('⚠️ Could not find component element for drag');
+      console.warn('⚠️ Could not find component element');
       return;
     }
 
@@ -457,50 +515,29 @@ export const useCustomDrag = ({
     const pointerX = e.touches?.[0]?.clientX ?? e.clientX;
     const pointerY = e.touches?.[0]?.clientY ?? e.clientY;
 
-    // Calculate offset from pointer to element top-left
     dragOffset.current = {
       x: pointerX - rect.left,
       y: pointerY - rect.top,
     };
 
+    // 🔥 NEW: Start watching (don't create ghost yet)
+    interactionStateRef.current = {
+      isWatching: true,
+      startX: pointerX,
+      startY: pointerY,
+      hasCrossedThreshold: false,
+    };
+
     dragStartPos.current = { x: pointerX, y: pointerY };
     lastPointerPos.current = { x: pointerX, y: pointerY };
 
-    // Create ghost clone from the actual component element
-    const ghost = createGhostClone(componentElement);
-    ghostElementRef.current = ghost;
-
-    // Create placeholder from the actual component element
-    const placeholder = createPlaceholder(componentElement);
-    placeholderElementRef.current = placeholder;
-
-    // Hide original element (but keep space)
-    componentElement.style.opacity = '0.3';
-    componentElement.style.pointerEvents = 'none';
-
-    isDraggingRef.current = true; // 🔥 Set ref first
-    setIsDragging(true);
-    setDragState({
-      componentId,
-      component,
-      startPosition: { x: pointerX, y: pointerY },
-    });
-
-    // Call onDragStart callback
-    onDragStart?.({
-      componentId,
-      component,
-      position: { x: pointerX, y: pointerY },
-    });
-
-    // Add global listeners - handlers are now defined above
     const moveHandler = (moveEvent) => {
-      if (!isDraggingRef.current) return; // 🔥 Check ref, not state
+      if (!interactionStateRef.current.isWatching) return;
       handlePointerMove(moveEvent);
     };
     
     const upHandler = (upEvent) => {
-      if (!isDraggingRef.current) return; // 🔥 Check ref, not state
+      if (!interactionStateRef.current.isWatching) return;
       handlePointerUp(upEvent);
     };
 
@@ -509,14 +546,12 @@ export const useCustomDrag = ({
     document.addEventListener('touchmove', moveHandler, { passive: false });
     document.addEventListener('touchend', upHandler);
 
-    // Store handlers for cleanup
     dragStartPos.current.moveHandler = moveHandler;
     dragStartPos.current.upHandler = upHandler;
 
-    // Prevent scrolling during drag
     document.body.style.overflow = 'hidden';
     document.body.style.userSelect = 'none';
-  }, [enabled, componentId, component, createGhostClone, createPlaceholder, onDragStart, handlePointerMove, handlePointerUp]);
+  }, [enabled, componentId, component, handlePointerMove, handlePointerUp]);
 
   // Cleanup on unmount
   useEffect(() => {

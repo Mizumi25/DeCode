@@ -20,8 +20,8 @@ const CustomCursor = () => {
   // Sizes
   const DOT_SIZE = 8; // px, desktop
   const DOT_SIZE_TOUCH = 12;
-  const RING_SIZE = 56;
-  const RING_SIZE_COMPACT = 30;
+  const RING_SIZE = 30;
+  const RING_SIZE_COMPACT = 20;
   const RING_BORDER = 2;
 
   // Detect touch devices

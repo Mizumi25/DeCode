@@ -1,7 +1,7 @@
 // @/Components/Forge/CanvasComponent.jsx - Enhanced for True Responsive Canvas Sizing
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Square, Sparkles, Monitor, Tablet, Smartphone, Move, RotateCcw, Layers, GripVertical } from 'lucide-react';
+import { Square, Sparkles, Monitor, Edit3, Tablet, Smartphone, Move, RotateCcw, Layers, GripVertical } from 'lucide-react';
 
 import SectionDropZone from './SectionDropZone';
 import EmptyCanvasState from './EmptyCanvasState';
@@ -923,52 +923,13 @@ if (isLayout) {
           transition-opacity duration-150
           responsive-${responsiveMode}
         `}
+        {...dragHandlers}
         onClick={handleSmartClick}
         onDoubleClick={(e) => handleDoubleClickText(e, component.id)}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* 🔥 FIXED: Separate drag handle - only this area is draggable */}
-        <div
-          className={`
-            absolute top-0 right-0 w-8 h-8 z-10
-            flex items-center justify-center
-            ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-            transition-opacity duration-200
-            cursor-grab active:cursor-grabbing
-          `}
-          style={{
-            backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.1)',
-            borderBottomLeftRadius: '4px',
-            pointerEvents: 'auto',
-          }}
-          {...dragHandlers}
-          onMouseDown={(e) => {
-            e.stopPropagation(); // Prevent click event
-          }}
-          onClick={(e) => {
-            e.stopPropagation(); // Prevent selection when clicking drag handle
-          }}
-        >
-          <GripVertical className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
-        </div>
-        
-        {/* Clickable area - rest of component for selection */}
-        <div
-          className="absolute inset-0"
-          style={{ 
-            zIndex: 1, 
-            pointerEvents: 'auto',
-            cursor: 'pointer'
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleSmartClick(e);
-          }}
-        />
-        
-    
-        
+        {/* 🔥 REMOVED: Separate drag handle - entire layout is now draggable */}
         
         {/* Nested components */}
        {component.children && component.children.length > 0 ? (
@@ -1044,7 +1005,7 @@ if (isLayout) {
 return (
   <div
     key={component.id}
-    style={{...wrapperStyles, ...style}} // 🔥 Wrapper has NO padding
+    style={{...wrapperStyles, ...style}}
     data-component-id={component.id}
     data-depth={depth}
     data-is-layout="false"
@@ -1057,48 +1018,10 @@ return (
         transition-opacity duration-150
         responsive-${responsiveMode}
       `}
+      {...dragHandlers}
       onClick={handleSmartClick}
       onDoubleClick={(e) => handleDoubleClickText(e, component.id)}
    >
-        {/* 🔥 FIXED: Separate drag handle - only this area is draggable */}
-        <div
-          className={`
-            absolute top-0 right-0 w-8 h-8 z-10
-            flex items-center justify-center
-            ${isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-            transition-opacity duration-200
-            cursor-grab active:cursor-grabbing
-          `}
-          style={{
-            backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.1)',
-            borderBottomLeftRadius: '4px',
-            pointerEvents: 'auto',
-          }}
-          {...dragHandlers}
-          onMouseDown={(e) => {
-            e.stopPropagation(); // Prevent click event
-          }}
-          onClick={(e) => {
-            e.stopPropagation(); // Prevent selection when clicking drag handle
-          }}
-        >
-          <GripVertical className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
-        </div>
-        
-        {/* Clickable area - rest of component for selection */}
-        <div
-          className="absolute inset-0"
-          style={{ 
-            zIndex: 1, 
-            pointerEvents: 'auto',
-            cursor: 'pointer'
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleSmartClick(e);
-          }}
-        />
-      
       {/* Component content wrapper */}
       <div 
         style={{ 
@@ -1106,7 +1029,7 @@ return (
           zIndex: 2,
           pointerEvents: 'none',
           display: 'inline-block',
-          padding: '0', // 🔥 NO wrapper padding
+          padding: '0',
         }}
       >
         {renderedContent}

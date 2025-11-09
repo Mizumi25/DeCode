@@ -77,6 +77,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/cleanup', [FrameLockController::class, 'cleanupExpiredWeb'])->name('lock-requests.cleanup');
     });
     
+    // Asset upload via web (CSRF protected)
+    Route::post('/assets/upload', [AssetController::class, 'upload'])->name('assets.upload')->middleware('auth');
+
+    // Publish route (Inertia post)
+    Route::post('/project/publish', [ProjectController::class, 'publish'])->name('project.publish')->middleware('auth');
+    
     Broadcast::routes();
 });
 
