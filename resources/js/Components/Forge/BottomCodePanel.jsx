@@ -416,10 +416,10 @@ const BottomCodePanel = ({
       )}
       
       {/* SOLID HEADER */}
-      <div className="flex items-center justify-between p-4 border-b flex-shrink-0"
+      <div className="flex items-center justify-between p-1 border-b flex-shrink-0"
         style={{ 
           backgroundColor: 'var(--color-surface)',
-          minHeight: '56px',
+          minHeight: '26px',
           borderColor: 'var(--color-border)'
         }}
       >
@@ -432,11 +432,8 @@ const BottomCodePanel = ({
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="font-semibold text-sm truncate" style={{ color: 'var(--color-text)' }}>
-              Live Code Generator
+              Live Code
             </h3>
-            <p className="text-xs hidden sm:block" style={{ color: 'var(--color-text-muted)' }}>
-              {codePanelMinimized ? 'Click to expand' : 'Monaco Editor with real-time generation'}
-            </p>
           </div>
         </div>
 
@@ -588,7 +585,7 @@ const BottomCodePanel = ({
             <label className="block text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
               Code Style
             </label>
-            <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2'} gap-2`}>
+            <div className={`grid ${isMobile ? 'grid-cols-2' : 'grid-cols-4'} gap-2`}>
               {[
                 { value: 'react-tailwind', label: 'React + Tailwind', desc: 'Modern JSX with utility classes' },
                 { value: 'react-css', label: 'React + CSS', desc: 'JSX with traditional stylesheets' },
@@ -605,7 +602,7 @@ const BottomCodePanel = ({
                   style={{
                     backgroundColor: codeStyle === option.value 
                       ? 'var(--color-primary-soft)'
-                      : 'var(--color-bg-muted)',
+                      : 'var(--color-bg)',
                     borderColor: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-border)',
                     color: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text)',
                     boxShadow: codeStyle === option.value ? 'var(--shadow-md)' : 'var(--shadow-sm)'
@@ -622,7 +619,7 @@ const BottomCodePanel = ({
           <div 
             className="flex gap-1 p-2 flex-shrink-0"
             style={{ 
-              backgroundColor: 'var(--color-bg-muted)'
+              backgroundColor: 'var(--color-bg)'
             }}
           >
             {getAvailableTabs().map(tab => (

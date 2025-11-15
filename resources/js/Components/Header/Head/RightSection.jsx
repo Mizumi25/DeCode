@@ -10,6 +10,7 @@ import RealTimeStackingAvatars from './RealTimeStackingAvatars'
 import BinaryToggle from './BinaryToggle'
 
 import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore'
+import { useEditorStore } from '@/stores/useEditorStore'
 
 const fadeIn = {
   hidden: { opacity: 0, y: -10 },
@@ -136,6 +137,10 @@ const RightSection = ({
     setForceInviteMode(false)
   }
 
+  // Comment mode from global editor store (use separate selectors to avoid new object each render)
+  const commentMode = useEditorStore((s) => s.commentMode)
+  const toggleCommentMode = useEditorStore((s) => s.toggleCommentMode)
+
   // Enhanced Save Button Component
   const SaveButton = () => {
   if (!(onForgePage || onSourcePage) || !currentFrame) return null
@@ -253,13 +258,25 @@ const RightSection = ({
             {/* Unified Save Button */}
             <SaveButton />
 
-            {/* Comments - Only on Void Page */}
-            {onVoidPage && (
+            {/* Comments - Void and Forge Pages */}
+            {(onVoidPage || onForgePage) && (
               <div className="flex flex-col items-center gap-0.5">
-                <button className="p-0.5 hover:bg-[var(--color-bg-muted)] rounded transition-colors">
-                  <MessageCircle className="w-2.5 h-2.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)]" />
+                <button
+                  onClick={toggleCommentMode}
+                  className={`p-0.5 rounded transition-colors ${
+                    commentMode
+                      ? 'bg-[var(--color-primary)]/20'
+                      : 'hover:bg-[var(--color-bg-muted)]'
+                  }`}
+                  title={commentMode ? 'Exit comment mode' : 'Enter comment mode'}
+                >
+                  <MessageCircle className={`w-2.5 h-2.5 ${
+                    commentMode
+                      ? 'text-[var(--color-primary)]'
+                      : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                  }`} />
                 </button>
-                <span className="text-[7px] text-[var(--color-text-muted)]">Comments</span>
+                <span className={`text-[7px] ${commentMode ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)]'}`}>Comments</span>
               </div>
             )}
 
@@ -328,16 +345,18 @@ const RightSection = ({
           setDropdownOpen={setProfileDropdownOpen}
         />
 
-        {/* === Preview Button (always present) === */}
-        <button 
-          onClick={() => {
-            const { toggleForgePanel } = useForgeStore.getState();
-            toggleForgePanel('preview-panel');
-          }}
-          className="bg-[var(--color-primary)] text-white px-2 py-1 rounded-lg flex items-center justify-center shadow-md hover:bg-[var(--color-primary-hover)] transition-colors"
-        >
-          <Play className="w-3 h-3" />
-        </button>
+        {(onForgePage || onSourcePage || onVoidPage) && (
+          <button 
+            onClick={() => {
+              const { toggleForgePanel } = useForgeStore.getState();
+              toggleForgePanel('preview-panel');
+            }}
+            className="bg-[var(--color-primary)] text-white px-2 py-1 rounded-lg flex items-center justify-center shadow-md hover:bg-[var(--color-primary-hover)] transition-colors"
+          >
+            <Play className="w-3 h-3" />
+          </button>
+        )}
+
       </motion.div>
 
       {/* Invite Modal */}

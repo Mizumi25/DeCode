@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Layers, Code, Search, ChevronDown, ChevronRight, Square, User, Tag, 
   Layout, Menu, Zap, Move, Palette, Sparkles, MousePointer, Image, Play,
-  Type // 🔥 ADD THIS
+  Type, X, ChevronLeft 
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -52,13 +52,297 @@ const CATEGORIES = {
   }
 };
 
+
+
+// 🔥 NEW: VARIANT SLIDE PANEL COMPONENT
+const VariantSlidePanel = ({ 
+  isOpen, 
+  component, 
+  dockPosition = 'left', 
+  onClose,
+  onVariantDragStart,
+  onVariantDragEnd 
+}) => {
+  const [hoveredVariant, setHoveredVariant] = useState(null);
+  const panelRef = useRef(null);
+  const dragImageRef = useRef(null);
+  
+  const slideDirection = dockPosition === 'left' ? 1 : -1;
+  const slideX = slideDirection * 100;
+  
+  const panelPosition = dockPosition === 'left' 
+    ? { left: '320px', right: 'auto' } 
+    : { right: '320px', left: 'auto' };
+
+  const handleDragStart = (e, variant) => {
+  const dragData = {
+    componentType: component.type,
+    variant,
+    component: {
+      id: component.id,
+      name: component.name,
+      type: component.type,
+      description: component.description,
+      default_props: component.default_props,
+      prop_definitions: component.prop_definitions,
+      category: component.category,
+      icon: component.icon
+    }
+  };
+
+  try {
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
+  } catch {}
+
+  // 🔥 FIXED: Create drag image from VARIANT PREVIEW ONLY (no card wrapper)
+  try {
+    const dragImg = document.createElement('div');
+    dragImg.style.cssText = `
+      position: absolute;
+      top: -10000px;
+      left: -10000px;
+      background: transparent;
+      pointer-events: none;
+    `;
+
+    // 🔥 CRITICAL: Get ONLY the preview element, not the card
+    const previewHTML = variant?.preview_code || '<div style="width:40px;height:40px;background:#e5e7eb;border-radius:4px;"></div>';
+    dragImg.innerHTML = previewHTML.replace(/className=/g, 'class=');
+
+    document.body.appendChild(dragImg);
+    dragImageRef.current = dragImg;
+
+    requestAnimationFrame(() => {
+      try {
+        const rect = dragImg.getBoundingClientRect();
+        
+        // Use actual rendered size, no scaling needed
+        const offsetX = Math.round(rect.width / 2);
+        const offsetY = Math.round(rect.height / 2);
+        
+        e.dataTransfer.setDragImage(dragImg, offsetX, offsetY);
+      } catch {}
+    });
+  } catch {}
+
+  onVariantDragStart?.(e, component.type, variant, dragData);
+};
+
+
+  const handleDragEnd = (e) => {
+    // Cleanup drag image
+    try {
+      if (dragImageRef.current && dragImageRef.current.parentNode) {
+        dragImageRef.current.parentNode.removeChild(dragImageRef.current);
+      }
+      dragImageRef.current = null;
+    } catch {}
+
+    onVariantDragEnd?.(e);
+  };
+
+  if (!component || !component.variants || component.variants.length === 0) {
+    return null;
+  }
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed z-[5]"
+            onClick={onClose}
+          />
+          
+          <motion.div
+            ref={panelRef}
+            initial={{ x: slideX, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: slideX, opacity: 0 }}
+            transition={{ 
+              type: "spring", 
+              damping: 25, 
+              stiffness: 300 
+            }}
+            className="fixed top-10 bottom-0 w-[200px] z-[10] overflow-hidden"
+            style={{
+              ...panelPosition,
+              backgroundColor: 'var(--color-surface)',
+              borderLeft: dockPosition === 'right' ? '1px solid var(--color-border)' : 'none',
+              borderRight: dockPosition === 'left' ? '1px solid var(--color-border)' : 'none',
+              boxShadow: dockPosition === 'left' 
+                ? '4px 0 24px rgba(0,0,0,0.1)' 
+                : '-4px 0 24px rgba(0,0,0,0.1)'
+            }}
+          >
+            <div 
+              className="flex items-center justify-between p-4 border-b"
+              style={{ 
+                backgroundColor: 'var(--color-bg)',
+                borderColor: 'var(--color-border)' 
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={onClose}
+                  className="p-1 rounded-lg transition-colors hover:bg-black/5"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  {dockPosition === 'left' ? (
+                    <ChevronLeft className="w-5 h-5" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5" />
+                  )}
+                </button>
+                
+                <div>
+                  <h3 
+                    className="font-semibold text-base"
+                    style={{ color: 'var(--color-text)' }}
+                  >
+                    {component.name}
+                  </h3>
+                  <p 
+                    className="text-xs mt-0.5"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
+                    {component.variants.length} variant{component.variants.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              </div>
+              
+              
+            </div>
+            
+            <div className="overflow-y-auto h-[calc(100%-73px)] p-4">
+              <div className="grid grid-cols-1 gap-3">
+                {component.variants.map((variant, index) => (
+                  <motion.div
+                    key={`${component.id}-${variant.name || index}`}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="relative group cursor-grab active:cursor-grabbing"
+                    onMouseEnter={() => setHoveredVariant(index)}
+                    onMouseLeave={() => setHoveredVariant(null)}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, variant)}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <div
+                      className="relative overflow-hidden rounded-xl border-2 transition-all duration-200"
+                      style={{
+                        backgroundColor: 'var(--color-bg)',
+                        borderColor: hoveredVariant === index 
+                          ? 'var(--color-primary)' 
+                          : 'var(--color-border)',
+                        aspectRatio: '1',
+                        boxShadow: hoveredVariant === index 
+                          ? '0 8px 24px rgba(0,0,0,0.12)' 
+                          : '0 2px 8px rgba(0,0,0,0.06)'
+                      }}
+                      data-variant-card
+                    >
+                      <div 
+                        className="absolute inset-0 flex items-center justify-center p-4"
+                        style={{
+                          background: 'linear-gradient(135deg, var(--color-bg-muted), var(--color-surface))'
+                        }}
+                      >
+                        {variant.preview_code ? (
+                          <div 
+                            className="w-full h-full flex items-center justify-center"
+                            style={{ fontSize: '14px' }}
+                            data-variant-preview
+                            dangerouslySetInnerHTML={{ 
+                              __html: variant.preview_code.replace(/className=/g, 'class=') 
+                            }}
+                          />
+                        ) : (
+                          <div data-variant-preview>
+                            <Sparkles 
+                              className="w-12 h-12"
+                              style={{ color: 'var(--color-primary)' }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      
+                      <motion.div
+                        initial={{ y: 100, opacity: 0 }}
+                        animate={{ 
+                          y: hoveredVariant === index ? 0 : 100,
+                          opacity: hoveredVariant === index ? 1 : 0
+                        }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute inset-x-0 bottom-0 p-3"
+                        style={{
+                          background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
+                          backdropFilter: 'blur(8px)'
+                        }}
+                      >
+                        <h4 className="font-semibold text-sm text-white truncate">
+                          {variant.name || `Variant ${index + 1}`}
+                        </h4>
+                        {variant.description && (
+                          <p className="text-xs text-white/80 truncate mt-0.5">
+                            {variant.description}
+                          </p>
+                        )}
+                      </motion.div>
+                      
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ 
+                          opacity: hoveredVariant === index ? 1 : 0 
+                        }}
+                        className="absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-semibold"
+                        style={{
+                          backgroundColor: 'var(--color-primary)',
+                          color: 'white'
+                        }}
+                      >
+                        Drag
+                      </motion.div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+              
+              {component.variants.length === 0 && (
+                <div className="text-center py-12">
+                  <Sparkles 
+                    className="w-12 h-12 mx-auto mb-3"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  />
+                  <p style={{ color: 'var(--color-text-muted)' }}>
+                    No variants available
+                  </p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+};
+
+
+
 const ComponentsPanel = ({ 
   onComponentDragStart, 
   onComponentDragEnd,
   activeTab = 'elements',
   searchTerm = '',
   onTabChange,
-  onSearch
+  onSearch,
+  dockPosition = 'left' // 🔥 ADD THIS LINE
 }) => {
   const [components, setComponents] = useState({});
   const [loading, setLoading] = useState(true);
@@ -275,91 +559,25 @@ const ComponentsPanel = ({
     }
   };
 
-  const handleVariantDragStart = (e, component, variant) => {
-    e.stopPropagation();
-    
-    const dragData = {
-      componentType: component.type,
-      variant: variant,
-      component: {
-        id: component.id,
-        name: component.name,
-        type: component.type,
-        description: component.description,
-        default_props: component.default_props,
-        prop_definitions: component.prop_definitions,
-        category: component.category,
-        icon: component.icon
-      }
-    };
-    
-    e.dataTransfer.effectAllowed = 'copy';
-    e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
-    e.dataTransfer.setData('application/json', JSON.stringify(dragData));
-    
-    // Create drag preview
-    const dragPreview = document.createElement('div');
-    dragPreview.style.cssText = `
-      position: absolute;
-      top: -1000px;
-      left: -1000px;
-      z-index: 9999;
-      padding: 8px;
-      background: var(--color-surface);
-      border-radius: 8px;
-      font-size: 12px;
-      font-weight: 600;
-      pointer-events: none;
-      box-shadow: var(--shadow-lg);
-      border: 2px solid var(--color-border);
-      max-width: 120px;
-      max-height: 60px;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    `;
-    
-    if (variant.preview_code) {
-      dragPreview.innerHTML = `
-        <div style="transform: scale(0.8); transform-origin: center;">
-          ${variant.preview_code.replace(/className=/g, 'class=')}
-        </div>
-      `;
-    } else {
-      dragPreview.innerHTML = `
-        <div style="padding: 4px 8px; background: var(--color-bg-muted); border-radius: 4px; font-size: 10px; color: var(--color-text);">
-          ${variant.name || component.name}
-        </div>
-      `;
-    }
-    
-    document.body.appendChild(dragPreview);
-    e.dataTransfer.setDragImage(dragPreview, 60, 30);
-    
-    setTimeout(() => {
-      if (document.body.contains(dragPreview)) {
-        document.body.removeChild(dragPreview);
-      }
-    }, 100);
-    
-    if (onComponentDragStart) {
-      onComponentDragStart(e, component.type, variant, dragData);
-    }
-  };
+ 
 
-  const handleVariantDragEnd = (e) => {
-    if (onComponentDragEnd) {
-      onComponentDragEnd(e);
-    }
-  };
+ 
 
-  // FIXED: Back button with better reset
-  const handleBackClick = () => {
-    console.log('ComponentsPanel: Back button clicked, returning to category view');
-    setShowVariants(false);
-    setSelectedComponent(null);
-  };
+ // 🔥 ADD: Variant drag handlers for slide panel
+const handleVariantDragStart = (e, componentType, variant, dragData) => {
+  console.log('🎬 Variant drag started:', variant.name);
+  if (onComponentDragStart) {
+    onComponentDragStart(e, componentType, variant, dragData);
+  }
+};
+
+const handleVariantDragEnd = (e) => {
+  console.log('🎯 Variant drag ended');
+  setShowVariants(false); // Close slide panel after drop
+  if (onComponentDragEnd) {
+    onComponentDragEnd(e);
+  }
+};
 
   if (loading) {
     return (
@@ -393,14 +611,15 @@ const ComponentsPanel = ({
     );
   }
 
-  return (
+
+    return (
+  <>
     <div className="h-full flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
-  
 
       {/* Main Content with improved transitions */}
       <div className="flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
-          {!showVariants ? (
+          {!showVariants && (
             <motion.div
               key="category-list"
               initial={{ opacity: 0, x: -20 }}
@@ -568,7 +787,7 @@ const ComponentsPanel = ({
                                         </div>
                                         {variantCount > 0 && (
                                           <div className="mt-1 text-xs" style={{ color: categoryInfo.color }}>
-                                            {variantCount} variant{variantCount !== 1 ? 's' : ''}
+                                            {variantCount} variant{variantCount !== 1 ? 's' : ''} →
                                           </div>
                                         )}
                                       </div>
@@ -602,153 +821,23 @@ const ComponentsPanel = ({
                 )}
               </div>
             </motion.div>
-          ) : (
-            <motion.div
-              key={`variants-${selectedComponent?.id || 'none'}`}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.2 }}
-              className="h-full overflow-hidden"
-            >
-              {/* Back Button */}
-              <div className="p-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
-                <motion.button
-                  onClick={handleBackClick}
-                  className="flex items-center space-x-2 transition-colors hover:opacity-80"
-                  style={{ color: 'var(--color-text-muted)' }}
-                  whileHover={{ x: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <ChevronRight className="w-4 h-4 rotate-180" />
-                  <span className="text-sm">Back to {currentActiveTab}</span>
-                </motion.button>
-                
-                <div className="mt-2">
-                  <h3 className="font-semibold text-base" style={{ color: 'var(--color-text)' }}>
-                    {selectedComponent?.name}
-                  </h3>
-                  <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                    {selectedComponent?.description}
-                  </p>
-                </div>
-              </div>
-
-              {/* Variants Grid */}
-              <div className="flex-1 overflow-y-auto p-3">
-                <motion.div
-                  className="rounded-xl p-3"
-                  style={{ backgroundColor: 'var(--color-bg-muted)' }}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.1 }}
-                >
-                  <div className="grid grid-cols-1 gap-2">
-                    {selectedComponent?.variants?.map((variant, index) => (
-                      <motion.div
-                        key={`${selectedComponent.id}-${variant.name || index}`}
-                        className="group relative"
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.03 }}
-                        draggable
-                        onDragStart={(e) => handleVariantDragStart(e, selectedComponent, variant)}
-                        onDragEnd={handleVariantDragEnd}
-                      >
-                        <div 
-                          className="rounded-lg p-3 border transition-all duration-300 shadow-sm hover:shadow-lg relative overflow-hidden backdrop-blur-sm cursor-grab active:cursor-grabbing"
-                          style={{ 
-                            backgroundColor: 'var(--color-surface)',
-                            borderColor: 'var(--color-border)'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--color-primary)';
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--color-border)';
-                            e.currentTarget.style.transform = 'translateY(0px)';
-                          }}
-                        >
-                          <div className="flex items-start gap-3 w-full min-w-0 relative z-10">
-                            {/* Variant Preview */}
-                            <div 
-                              className="flex-shrink-0 rounded-lg overflow-hidden flex items-center justify-center border cursor-grab active:cursor-grabbing"
-                              style={{ 
-                                background: `linear-gradient(135deg, var(--color-bg-muted), var(--color-surface))`,
-                                width: '56px',
-                                height: '40px',
-                                borderColor: 'var(--color-border)'
-                              }}
-                              draggable
-                              onDragStart={(e) => handleVariantDragStart(e, selectedComponent, variant)}
-                              onDragEnd={handleVariantDragEnd}
-                              title="Drag this component to canvas"
-                            >
-                              {variant.preview_code && (
-                                <div 
-                                  className="transform scale-[0.4] origin-center w-full h-full flex items-center justify-center"
-                                  style={{ fontSize: '10px' }}
-                                  dangerouslySetInnerHTML={{ 
-                                    __html: variant.preview_code.replace(/className=/g, 'class=') 
-                                  }}
-                                />
-                              )}
-                              {!variant.preview_code && (
-                                <Sparkles 
-                                  className="w-4 h-4"
-                                  style={{ color: 'var(--color-primary)' }}
-                                />
-                              )}
-                              
-                              <div className="absolute top-0 right-0 opacity-0 hover:opacity-100 transition-all duration-300">
-                                <div 
-                                  className="p-1 rounded-full"
-                                  style={{ backgroundColor: 'var(--color-primary)' }}
-                                >
-                                  <Move className="w-2 h-2 text-white" />
-                                </div>
-                              </div>
-                            </div>
-                            
-                            {/* Variant Info */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between mb-1">
-                                <h4 
-                                  className="font-semibold text-sm group-hover:opacity-90 transition-colors truncate"
-                                  style={{ color: 'var(--color-text)' }}
-                                  title={variant.name || `Variant ${index + 1}`}
-                                >
-                                  {variant.name || `Variant ${index + 1}`}
-                                </h4>
-                              </div>
-                              
-                              {variant.description && (
-                                <p className="text-xs mb-2 truncate" style={{ color: 'var(--color-text-muted)' }}>
-                                  {variant.description}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                  
-                  {(!selectedComponent?.variants || selectedComponent.variants.length === 0) && (
-                    <div className="text-center py-8">
-                      <div style={{ color: 'var(--color-text-muted)' }}>
-                        No variants available for this component
-                      </div>
-                    </div>
-                  )}
-                </motion.div>
-              </div>
-            </motion.div>
+          
+         
           )}
         </AnimatePresence>
       </div>
     </div>
+
+    {/* 🔥 ADD: Variant Slide Panel */}
+    <VariantSlidePanel
+      isOpen={showVariants}
+      component={selectedComponent}
+      dockPosition={dockPosition}
+      onClose={() => setShowVariants(false)}
+      onVariantDragStart={handleVariantDragStart}
+      onVariantDragEnd={handleVariantDragEnd}
+    />
+    </>
   );
 };
 

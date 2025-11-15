@@ -8,6 +8,7 @@ import Header from '@/Components/Header/Header';
 import { useThemeStore } from '@/stores/useThemeStore';
 import { useHeaderStore } from '@/stores/useHeaderStore';
 import CustomCursor from '@/Components/CustomCursor';
+import DecodeLoading from '@/Components/DecodeLoading';
 import WorkspaceChat from '@/Components/Workspaces/WorkspaceChat';
 
 export default function AuthenticatedLayout({ 
@@ -34,6 +35,7 @@ export default function AuthenticatedLayout({
 
   return (
     <div className="min-h-screen relative bg-[var(--color-bg)]">
+      <DecodeLoading />
    <CustomCursor />
       <Header 
         isAuthenticated={!!user} 

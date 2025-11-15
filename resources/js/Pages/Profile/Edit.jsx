@@ -149,7 +149,7 @@ export default function Edit({ mustVerifyEmail, status }) {
 
                     <div className="flex gap-8">
                         {/* Enhanced Sidebar */}
-                        <div ref={sidebarRef} className="w-80 flex-shrink-0">
+                        <div ref={sidebarRef} className="w-72 flex-shrink-0">
                             <div 
                                 className="sticky top-8 bg-white dark:bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4"
                                 style={{ 

@@ -1,7 +1,7 @@
 // Enhanced ForgePage.jsx - Frame Switching with Smooth Transitions
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Panel from '@/Components/Panel';
 import { 
@@ -107,7 +107,12 @@ export default function ForgePage({
     getResponsiveCanvasClasses,
     getResponsiveGridBackground,
     gridVisible,
-    zoomLevel
+    zoomLevel,
+    commentMode,
+    commentContextKey,
+    commentsByContext,
+    setCommentContext,
+    addComment
   } = useEditorStore();
   
   const {
@@ -159,7 +164,7 @@ const [isCanvasSelected, setIsCanvasSelected] = useState(true) // ✅ Track canv
     return initialFrameData;
 });
   
-  
+  const [panelDockPosition, setPanelDockPosition] = useState('left');
   
   
   const [generatedCode, setGeneratedCode] = useState({ html: '', css: '', react: '', tailwind: '' })
@@ -212,6 +217,14 @@ const [isCanvasSelected, setIsCanvasSelected] = useState(true) // ✅ Track canv
 
   const canvasRef = useRef(null)
   const codePanelRef = useRef(null)
+  const [commentChannelJoined, setCommentChannelJoined] = useState(false)
+  const [overlayRect, setOverlayRect] = useState(null)
+  const [commentModalOpen, setCommentModalOpen] = useState(false)
+  const [activeComment, setActiveComment] = useState(null)
+  const [replyText, setReplyText] = useState('')
+  const [modalPos, setModalPos] = useState({ left: 0, top: 0 })
+  const { auth } = usePage().props
+  const currentUser = auth?.user
   
   const [currentFrame, setCurrentFrame] = useState(() => {
       const frameIdToUse = frameId || frame?.uuid;
@@ -240,6 +253,87 @@ const getNestedComponentIds = useCallback((componentId, components) => {
   findNested(componentId, components);
   return nested;
 }, []);
+
+// Replies whisper listener
+useEffect(() => {
+  if (!frame?.uuid || !window.Echo) return
+  try {
+    const ch = `frame.${frame.uuid}`
+    const presence = window.Echo.join(ch)
+    presence.listenForWhisper('comment.replied', (payload) => {
+      const { contextKey, parentId, reply } = payload || {}
+      if (!contextKey || !parentId || !reply) return
+      setActiveComment(prev => prev && prev.id === parentId ? { ...prev, replies: [...(prev.replies || []), reply] } : prev)
+    })
+  } catch {}
+}, [frame?.uuid])
+
+const openCommentModal = useCallback((c) => {
+  if (!overlayRect) return
+  setActiveComment(c)
+  setReplyText('')
+  setCommentModalOpen(true)
+  setModalPos({ left: overlayRect.left + c.x + 12, top: overlayRect.top + c.y - 12 })
+}, [overlayRect])
+
+const navigateMention = useCallback((type, projectId, frameId) => {
+  if (type === 'project' && projectId) {
+    router.visit(`/void/${projectId}`)
+  } else if (type === 'frame') {
+    const proj = projectId || project?.uuid
+    if (proj && (frameId || frame?.uuid)) {
+      const targetFrame = frameId || frame?.uuid
+      router.visit(`/void/${proj}/frame=${targetFrame}/modeForge`)
+    }
+  }
+}, [project?.uuid, frame?.uuid])
+
+const renderContentWithLinks = useCallback((text) => {
+  const parts = []
+  let lastIndex = 0
+  const regex = /(#[Pp]roject:([a-f0-9-]{8,}))|(#[Ff]rame:([a-f0-9-]{8,})(?:\/?([a-f0-9-]{8,}))?)/g
+  let m
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > lastIndex) parts.push(text.slice(lastIndex, m.index))
+    if (m[1]) {
+      const projId = m[2]
+      parts.push(
+        <span key={`p-${m.index}`} className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded cursor-pointer hover:underline" onClick={() => navigateMention('project', projId)}>
+          #{`project:${projId}`}
+        </span>
+      )
+    } else if (m[3]) {
+      const projId = m[4]
+      const frameId = m[5]
+      parts.push(
+        <span key={`f-${m.index}`} className="px-1 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded cursor-pointer hover:underline" onClick={() => navigateMention('frame', projId, frameId)}>
+          #{`frame:${projId}${frameId ? '/' + frameId : ''}`}
+        </span>
+      )
+    }
+    lastIndex = regex.lastIndex
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex))
+  return <>{parts}</>
+}, [navigateMention])
+
+const handleSendReply = useCallback(() => {
+  const trimmed = replyText.trim()
+  if (!activeComment || !trimmed) return
+  const reply = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+    text: trimmed,
+    ts: Date.now(),
+    user: { id: currentUser?.id, name: currentUser?.name, avatar: currentUser?.avatar || null }
+  }
+  setActiveComment(prev => prev ? { ...prev, replies: [...(prev.replies || []), reply] } : prev)
+  try {
+    const ctx = `forge:${frame?.uuid}`
+    const ch = `frame.${frame?.uuid}`
+    window.Echo?.join(ch)?.whisper('comment.replied', { contextKey: ctx, parentId: activeComment.id, reply })
+  } catch {}
+  setReplyText('')
+}, [replyText, activeComment, currentUser?.id, frame?.uuid])
   
   
   
@@ -425,6 +519,46 @@ useEffect(() => {
     }
   };
 }, [frame?.uuid]);
+
+// Comments: setup context and realtime whispers
+useEffect(() => {
+  if (!frame?.uuid) return;
+  setCommentContext(`forge:${frame.uuid}`);
+}, [frame?.uuid, setCommentContext]);
+
+useEffect(() => {
+  if (!frame?.uuid || !window.Echo || commentChannelJoined) return;
+  try {
+    const presence = window.Echo.join(`frame.${frame.uuid}`);
+    presence.listenForWhisper('comment.created', (payload) => {
+      if (!payload || !payload.contextKey || !payload.comment) return;
+      addComment(payload.contextKey, payload.comment);
+    });
+    setCommentChannelJoined(true);
+    return () => {
+      try { window.Echo.leave(`frame.${frame.uuid}`) } catch {}
+      setCommentChannelJoined(false);
+    };
+  } catch (e) {
+    console.warn('Comments: failed to join presence channel', e);
+  }
+}, [frame?.uuid, commentChannelJoined, addComment]);
+
+const currentComments = useMemo(() => {
+  const key = `forge:${frame?.uuid}`;
+  return (commentsByContext && key && commentsByContext[key]) ? commentsByContext[key] : []
+}, [commentsByContext, frame?.uuid]);
+
+useEffect(() => {
+  const updateRect = () => {
+    if (canvasRef.current) {
+      setOverlayRect(canvasRef.current.getBoundingClientRect());
+    }
+  };
+  updateRect();
+  window.addEventListener('resize', updateRect);
+  return () => window.removeEventListener('resize', updateRect);
+}, [canvasRef, currentComments.length]);
 
 
 
@@ -2102,6 +2236,33 @@ const handleComponentClick = useCallback((componentId, e) => {
 
 // 🔥 ENHANCED: Smart canvas click handler
 const handleCanvasClick = useCallback((e) => {
+  // Comment mode: place a pin within the framed canvas only
+  if (commentMode && canvasRef.current) {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height) {
+      const text = window.prompt('Add a comment');
+      if (text && text.trim()) {
+        const comment = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+          text: text.trim(),
+          x, y,
+          ts: Date.now(),
+          user: { id: currentUser?.id, name: currentUser?.name, avatar: currentUser?.avatar || null },
+          replies: []
+        };
+        const ctx = `forge:${frame?.uuid}`;
+        addComment(ctx, comment);
+        try {
+          const ch = window.Echo?.connector?.channels?.[`presence-frame.${frame?.uuid}`] ? `frame.${frame?.uuid}` : `frame.${frame?.uuid}`;
+          window.Echo?.join(ch)?.whisper('comment.created', { contextKey: ctx, comment });
+        } catch {}
+      }
+      // Do not change selection when commenting
+      return;
+    }
+  }
   if (!e) {
     setSelectedComponent('__canvas_root__');
     setIsCanvasSelected(true);
@@ -2260,15 +2421,17 @@ const handleCanvasClick = useCallback((e) => {
 
   // Memoize default panels
   const defaultPanels = useMemo(() => [
+    // In your Panel component's panels array:
     createMockPanel('components-panel', 'Components', 
       ComponentsPanel ? (
         <ComponentsPanel
           activeTab={activeComponentTab}
           searchTerm={componentSearchTerm}
-          onTabChange={handleComponentTabChange}  // ADD THIS
-          onSearch={handleComponentSearch}         // ADD THIS
+          onTabChange={handleComponentTabChange}
+          onSearch={handleComponentSearch}
           onComponentDragStart={handleComponentDragStart}
           onComponentDragEnd={handleComponentDragEnd}
+          dockPosition={panelDockPosition} // 🔥 ADD THIS - track which side panel is on
         />
       ) : null
     ),
@@ -2640,6 +2803,67 @@ if (!componentsLoaded && loadingMessage) {
             )}
         </div>
         
+        {overlayRect && currentComments && currentComments.map((c) => (
+          <div
+            key={c.id}
+            style={{ position: 'fixed', left: overlayRect.left + c.x, top: overlayRect.top + c.y, transform: 'translate(-50%, -100%)', zIndex: 60 }}
+            className="pointer-events-auto cursor-pointer"
+            title={new Date(c.ts).toLocaleString()}
+            onClick={() => openCommentModal(c)}
+          >
+            <div className="w-4 h-4 rounded-full bg-[var(--color-primary)] shadow flex items-center justify-center text-[8px] text-white">
+              {c.user?.name?.charAt(0)?.toUpperCase() || 'C'}
+            </div>
+          </div>
+        ))}
+
+        {commentModalOpen && activeComment && (
+          <div
+            className="fixed z-70 w-80 max-w-[85vw] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-2xl"
+            style={{ left: Math.min(modalPos.left, window.innerWidth - 340), top: Math.min(modalPos.top, window.innerHeight - 300) }}
+          >
+            <div className="flex items-center justify-between p-2 border-b border-[var(--color-border)]">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-[var(--color-primary)] text-white flex items-center justify-center text-[10px]">
+                  {activeComment.user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-[var(--color-text)]">{activeComment.user?.name || 'User'}</div>
+                  <div className="text-[10px] text-[var(--color-text-muted)]">{new Date(activeComment.ts).toLocaleString()}</div>
+                </div>
+              </div>
+              <button className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] px-2" onClick={() => setCommentModalOpen(false)}>×</button>
+            </div>
+            <div className="p-2 space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+              <div className="text-sm text-[var(--color-text)] break-words">{renderContentWithLinks(activeComment.text)}</div>
+              {activeComment.replies && activeComment.replies.map(r => (
+                <div key={r.id} className="flex gap-2 items-start">
+                  <div className="w-5 h-5 rounded-full bg-[var(--color-bg-muted)] text-[10px] flex items-center justify-center text-[var(--color-text)]">
+                    {r.user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-[11px] text-[var(--color-text)]">{renderContentWithLinks(r.text)}</div>
+                    <div className="text-[9px] text-[var(--color-text-muted)]">{new Date(r.ts).toLocaleTimeString()}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-2 border-t border-[var(--color-border)]">
+              <div className="relative">
+                <textarea
+                  rows={2}
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendReply(); } }}
+                  placeholder="Reply... use #project:<uuid> or #frame:<uuid>"
+                  className="w-full px-2 py-1 pr-8 border border-[var(--color-border)] rounded bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent resize-none"
+                />
+                <button className="absolute right-1 bottom-1 px-2 py-0.5 bg-[var(--color-primary)] text-white rounded text-[11px]" onClick={handleSendReply} disabled={!replyText.trim()}>Send</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Fixed Code Generation Panel - Bottom (Mobile Optimized) */}
         {BottomCodePanel && (
           <BottomCodePanel
@@ -2840,7 +3064,7 @@ if (!componentsLoaded && loadingMessage) {
           
           <button
             onClick={handleOpenWindowPanel}
-            className={`p-3 rounded-full shadow-lg transition-all duration-200 hover:scale-110 ${
+            className={`absolute bottom-5 right-5 p-3 rounded-full shadow-lg transition-all duration-200 hover:scale-110 ${
               isFrameSwitching ? 'opacity-50 cursor-not-allowed' : ''
             }`}
             style={{ 
@@ -2934,7 +3158,7 @@ if (!componentsLoaded && loadingMessage) {
             opacity: 1;
             transform: scale(1) translateY(0);
           }
-          
+          2
           .frame-transition-exit-active {
             opacity: 0;
             transform: scale(0.95) translateY(-10px);

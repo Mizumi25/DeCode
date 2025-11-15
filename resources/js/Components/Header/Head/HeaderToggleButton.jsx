@@ -12,8 +12,8 @@ const HeaderToggleButton = () => {
         onClick={toggleHeaderVisibility}
         className={`fixed right-20 z-[60] p-2 rounded-full transition-all duration-300 ${
           isHeaderVisible 
-            ? 'bg-[var(--color-bg)] text-[var(--color-primary)] shadow-md hover:bg-[var(--color-border)] top-10' 
-            : 'bg-black/40 text-[var(--color-primary)] backdrop-blur-sm hover:bg-black/30 hover:text-white/80 top-0'
+            ? 'bg-[var(--color-bg)] text-[var(--color-primary)] shadow-md hover:bg-[var(--color-border)] top-12' 
+            : 'bg-black/40 text-[var(--color-primary)] backdrop-blur-sm hover:bg-black/30 hover:text-white/80 top-2'
         }`}
         initial={{ opacity: 0, y: -20 }}
         animate={{ 

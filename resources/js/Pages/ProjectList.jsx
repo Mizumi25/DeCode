@@ -9,6 +9,7 @@ import { useSearchStore } from '@/stores/useSearchStore';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
+import TypewriterWebGLHeader from '@/Components/Projects/TypeWriterWebGLHeader'
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -652,13 +653,7 @@ export default function ProjectList({
 
   return (
     <AuthenticatedLayout
-      header={
-        <div className="w-full flex justify-center items-center">
-          <h2 className="text-xl font-semibold text-[var(--color-primary)] text-center">
-            Bridging the gap between Designing and Coding
-          </h2>
-        </div>
-      }
+       header={<TypewriterWebGLHeader />}
       workspaceProps={workspaceProps}
     >
       <Head title="Projects" />

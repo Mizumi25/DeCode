@@ -1,10 +1,12 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Search, X, Filter } from 'lucide-react'
 import { useSearchStore } from '@/stores/useSearchStore'
+import { motion, AnimatePresence } from 'framer-motion'
 
 const SearchBar = ({ placeholder = "Search projects...", mobile = false, autoFocus = false }) => {
+
   const inputRef = useRef(null)
-  
+
   const {
     searchQuery,
     isSearching,
@@ -13,111 +15,112 @@ const SearchBar = ({ placeholder = "Search projects...", mobile = false, autoFoc
     clearSearch,
     setSearchFilter
   } = useSearchStore()
-  
-  const [showFilters, setShowFilters] = React.useState(false)
-  
-  // Auto focus when requested
+
+  const [showFilters, setShowFilters] = useState(false)
+  const [focused, setFocused] = useState(false)
+
   useEffect(() => {
     if (autoFocus && inputRef.current) {
       inputRef.current.focus()
+      setFocused(true)
     }
   }, [autoFocus])
-  
-  const handleInputChange = (e) => {
-    setSearchQuery(e.target.value)
-  }
-  
+
+  const handleInputChange = (e) => setSearchQuery(e.target.value)
+
   const handleClear = () => {
     clearSearch()
-    if (inputRef.current) {
-      inputRef.current.focus()
-    }
+    if (inputRef.current) inputRef.current.focus()
   }
-  
+
   const handleKeyDown = (e) => {
-    if (e.key === 'Escape') {
-      handleClear()
-    }
+    if (e.key === 'Escape') handleClear()
   }
-  
-  const filterOptions = {
-    filter: [
-      { value: 'all', label: 'All Projects' },
-      { value: 'recent', label: 'Recent' },
-      { value: 'draft', label: 'Draft' },
-      { value: 'published', label: 'Published' },
-      { value: 'archived', label: 'Archived' }
-    ],
-    type: [
-      { value: 'all', label: 'All Types' },
-      { value: 'website', label: 'Website' },
-      { value: 'landing_page', label: 'Landing Page' },
-      { value: 'component_library', label: 'Component Library' },
-      { value: 'prototype', label: 'Prototype' },
-      { value: 'email_template', label: 'Email Template' },
-      { value: 'dashboard', label: 'Dashboard' }
-    ],
-    sort: [
-      { value: 'updated_at', label: 'Last Updated' },
-      { value: 'created_at', label: 'Date Created' },
-      { value: 'name', label: 'Name' }
-    ]
-  }
-  
+
   return (
-    <div className={`relative ${mobile ? 'w-full' : 'w-full max-w-xl mx-auto'}`}>
-      {/* Main Search Input */}
-      <div className="relative bg-[var(--color-bg-muted)] rounded-full shadow-sm border border-[var(--color-border)] hover:border-[var(--color-primary)] transition-colors">
-        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 z-10">
-          <Search className={`w-4 h-4 transition-colors ${
-            isSearching 
-              ? 'text-[var(--color-primary)] animate-pulse' 
-              : 'text-[var(--color-text-muted)]'
-          }`} />
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      className={`relative ${mobile ? 'w-full' : 'w-full max-w-xl mx-auto'}`}
+    >
+      {/* SEARCH INPUT WRAPPER */}
+      <motion.div
+        initial={{ borderColor: "var(--color-border)" }}
+        animate={{
+          borderColor: focused ? "var(--color-primary)" : "var(--color-border)"
+        }}
+        transition={{ duration: 0.3 }}
+        className="relative rounded-full border bg-[var(--color-bg)] shadow-sm"
+      >
+        {/* ICON LEFT */}
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10">
+          <Search
+            className={`w-4 h-4 transition-colors ${
+              isSearching
+                ? "text-[var(--color-primary)] animate-pulse"
+                : "text-[var(--color-text-muted)]"
+            }`}
+          />
         </div>
-        
-        <input
+
+        {/* INPUT FIELD */}
+        <motion.input
           ref={inputRef}
           type="text"
           value={searchQuery}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          className="bg-transparent focus:outline-none outline-none border-none text-sm text-[var(--color-text)] w-full pl-10 pr-20 py-2 rounded-full placeholder:text-[var(--color-text-muted)]"
+          onFocus={() => setFocused(true)}
+          onBlur={() => !searchQuery && setFocused(false)}
           placeholder={placeholder}
+          className={`search-placeholder bg-transparent w-full py-2 pl-10 pr-20 text-sm text-[var(--color-text)] rounded-full placeholder:text-[var(--color-text-muted)] outline-none
+            ${focused || searchQuery ? 'search-active' : ''}
+          `}
+          animate={{
+            paddingLeft: focused || searchQuery ? "2.5rem" : "12rem",
+            textAlign: focused || searchQuery ? "left" : "center"
+          }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
         />
-        
-        {/* Right side controls */}
-        <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
-          {/* Clear button */}
+
+        {/* RIGHT CONTROLS */}
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {searchQuery && (
             <button
               onClick={handleClear}
-              className="p-1 hover:bg-[var(--color-bg)] rounded-full transition-colors"
-              title="Clear search"
+              className="p-1 hover:bg-[var(--color-bg-muted)] rounded-full transition-colors"
             >
               <X className="w-3 h-3 text-[var(--color-text-muted)]" />
             </button>
           )}
-          
-          {/* Filter button */}
+
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`p-1 rounded-full transition-colors ${
-              showFilters || searchFilters.filter !== 'all' || searchFilters.type !== 'all'
-                ? 'bg-[var(--color-primary)] text-white'
-                : 'hover:bg-[var(--color-bg)] text-[var(--color-text-muted)]'
+              showFilters ||
+              searchFilters.filter !== "all" ||
+              searchFilters.type !== "all"
+                ? "bg-[var(--color-primary)] text-white"
+                : "hover:bg-[var(--color-bg-muted)] text-[var(--color-text-muted)]"
             }`}
-            title="Search filters"
           >
             <Filter className="w-3 h-3" />
           </button>
         </div>
-      </div>
-      
-      {/* Advanced Filters Dropdown */}
-      {showFilters && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg p-3 z-50">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      </motion.div>
+
+      {/* FILTER DROPDOWN */}
+      <AnimatePresence>
+        {showFilters && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.2 }}
+            className="absolute top-full left-0 right-0 mt-2 p-3 rounded-lg shadow-lg bg-[var(--color-surface)] border border-[var(--color-border)]"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {/* Status Filter */}
             <div>
               <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">
@@ -188,18 +191,17 @@ const SearchBar = ({ placeholder = "Search projects...", mobile = false, autoFoc
               </button>
             </div>
           )}
-        </div>
-      )}
-      
-      {/* Search loading indicator */}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* SEARCHING INDICATOR */}
       {isSearching && (
-        <div className="absolute top-full left-0 right-0 mt-1">
-          <div className="text-xs text-[var(--color-text-muted)] text-center py-1">
-            Searching...
-          </div>
+        <div className="text-xs text-[var(--color-text-muted)] text-center py-1">
+          Searching...
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }
 

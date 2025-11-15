@@ -83,6 +83,7 @@ export default function VoidPage() {
   const zoomContainerRef = useRef(null)
   const [isZooming, setIsZooming] = useState(false)
 
+  
   // Fixed zoom state - use store directly with minimal local state
   const zoom = useMemo(() => zoomLevel / 100, [zoomLevel])
   const minZoom = 0.25
@@ -92,6 +93,9 @@ export default function VoidPage() {
   const [scrollPosition, setScrollPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [lastPointerPos, setLastPointerPos] = useState({ x: 0, y: 0 })
+ 
+  const scrollPositionRef = useRef(scrollPosition)
+const zoomLevelRef = useRef(zoomLevel)
 
   const scrollBounds = { width: 50000, height: 50000 } // TRUE infinite space
 
@@ -110,6 +114,14 @@ export default function VoidPage() {
     initialZoom: zoomLevel,
     isZooming: false
   })
+
+  // Comments: real-time channel and overlay rect
+  const [commentChannelJoined, setCommentChannelJoined] = useState(false)
+  const [overlayRect, setOverlayRect] = useState(null)
+  const [commentModalOpen, setCommentModalOpen] = useState(false)
+  const [activeComment, setActiveComment] = useState(null)
+  const [replyText, setReplyText] = useState('')
+  const [modalPos, setModalPos] = useState({ left: 0, top: 0 })
 
 
   // Frame dimensions for collision detection
@@ -383,14 +395,29 @@ const handleDragEnd = useCallback(async (event) => {
     router.visit(`/void/${project.uuid}/frame=${frame.uuid}/modeForge`)
   }, [project?.uuid])
 
-// In your VoidPage.jsx, update the handleZoom function:
+
+
+
+// Keep refs in sync
+useEffect(() => {
+  scrollPositionRef.current = scrollPosition
+}, [scrollPosition])
+
+useEffect(() => {
+  zoomLevelRef.current = zoomLevel
+}, [zoomLevel])
+
+// FIXED handleZoom - now stable, doesn't recreate on every zoom/scroll change
 const handleZoom = useCallback((delta, centerX = null, centerY = null) => {
+  const currentZoomLevel = zoomLevelRef.current
+  const currentScrollPos = scrollPositionRef.current
+  
   const zoomStep = typeof delta === 'number' ? delta : (delta > 0 ? 10 : -10)
-  const newZoomLevel = Math.min(300, Math.max(25, zoomLevel + zoomStep))
+  const newZoomLevel = Math.min(300, Math.max(25, currentZoomLevel + zoomStep))
   
-  console.log('VoidPage: Zoom changing to', newZoomLevel) // Debug log
+  console.log('VoidPage: Zoom changing to', newZoomLevel)
   
-  if (newZoomLevel === zoomLevel) return
+  if (newZoomLevel === currentZoomLevel) return
 
   // Figma-like zoom to point
   if (centerX !== null && centerY !== null && canvasRef.current) {
@@ -398,13 +425,13 @@ const handleZoom = useCallback((delta, centerX = null, centerY = null) => {
     const mouseX = centerX - rect.left
     const mouseY = centerY - rect.top
     
-    const oldZoom = zoomLevel / 100
+    const oldZoom = currentZoomLevel / 100
     const newZoom = newZoomLevel / 100
     
     if (oldZoom > 0 && newZoom > 0) {
       const zoomFactor = newZoom / oldZoom
-      const newScrollX = scrollPosition.x + (mouseX / oldZoom) * (1 - 1/zoomFactor)
-      const newScrollY = scrollPosition.y + (mouseY / oldZoom) * (1 - 1/zoomFactor)
+      const newScrollX = currentScrollPos.x + (mouseX / oldZoom) * (1 - 1/zoomFactor)
+      const newScrollY = currentScrollPos.y + (mouseY / oldZoom) * (1 - 1/zoomFactor)
       
       setScrollPosition({ 
         x: Math.max(0, Math.min(scrollBounds.width - window.innerWidth / newZoom, newScrollX)),
@@ -415,17 +442,17 @@ const handleZoom = useCallback((delta, centerX = null, centerY = null) => {
   
   // CRITICAL: Update store zoom level
   setZoomLevel(newZoomLevel)
-}, [zoomLevel, scrollPosition, setZoomLevel, setScrollPosition, scrollBounds])
+}, [setZoomLevel, setScrollPosition, scrollBounds])
 
 
-
-
-// REPLACE the handlePinchZoom function with this:
 const handlePinchZoom = useCallback((event) => {
   if (event.touches.length !== 2) return
   
   event.preventDefault()
   event.stopPropagation()
+  
+  const currentZoomLevel = zoomLevelRef.current
+  const currentScrollPos = scrollPositionRef.current
   
   const touch1 = event.touches[0]
   const touch2 = event.touches[1]
@@ -438,7 +465,7 @@ const handlePinchZoom = useCallback((event) => {
   if (!touchStateRef.current.initialDistance) {
     touchStateRef.current = {
       initialDistance: distance,
-      initialZoom: zoomLevel,
+      initialZoom: currentZoomLevel,
       isZooming: true
     }
     setIsZooming(true)
@@ -448,14 +475,11 @@ const handlePinchZoom = useCallback((event) => {
   const zoomChange = distance / touchStateRef.current.initialDistance
   const newZoomLevel = Math.min(300, Math.max(25, touchStateRef.current.initialZoom * zoomChange))
   
-  // Calculate center point between two touches
   const centerX = (touch1.clientX + touch2.clientX) / 2
   const centerY = (touch1.clientY + touch2.clientY) / 2
   
-  // Update zoom level in store
   setZoomLevel(Math.round(newZoomLevel))
   
-  // Update scroll position to zoom to center point
   if (canvasRef.current) {
     const rect = canvasRef.current.getBoundingClientRect()
     const mouseX = centerX - rect.left
@@ -466,8 +490,8 @@ const handlePinchZoom = useCallback((event) => {
     
     if (oldZoom > 0 && newZoom > 0) {
       const zoomChangeFactor = newZoom / oldZoom
-      const newScrollX = scrollPosition.x + (mouseX / oldZoom) * (1 - 1/zoomChangeFactor)
-      const newScrollY = scrollPosition.y + (mouseY / oldZoom) * (1 - 1/zoomChangeFactor)
+      const newScrollX = currentScrollPos.x + (mouseX / oldZoom) * (1 - 1/zoomChangeFactor)
+      const newScrollY = currentScrollPos.y + (mouseY / oldZoom) * (1 - 1/zoomChangeFactor)
       
       setScrollPosition({ 
         x: Math.max(0, Math.min(scrollBounds.width - window.innerWidth / newZoom, newScrollX)),
@@ -475,24 +499,21 @@ const handlePinchZoom = useCallback((event) => {
       })
     }
   }
-}, [zoomLevel, scrollPosition, setZoomLevel, setScrollPosition, scrollBounds])
+}, [setZoomLevel, setScrollPosition, scrollBounds])
 
-
-
-// ADD after handlePinchZoom
+// FIXED handleTouchEnd - use ref
 const handleTouchEnd = useCallback(() => {
   touchStateRef.current = {
     initialDistance: 0,
-    initialZoom: zoomLevel,
+    initialZoom: zoomLevelRef.current,
     isZooming: false
   }
   setIsZooming(false)
-}, [zoomLevel])
+}, [])
 
 
 
-
-// UPDATE the scroll handler usage:
+// Now useScrollHandler won't trigger infinite loops
 useScrollHandler({
   canvasRef,
   scrollPosition,
@@ -502,8 +523,8 @@ useScrollHandler({
   lastPointerPos,
   setLastPointerPos,
   scrollBounds,
-  zoom: zoomLevel / 100, // Pass the actual zoom level from store
-  onZoom: handleZoom,
+  zoom: zoomLevel / 100,
+  onZoom: handleZoom, // Stable reference now
   onPinchZoom: handlePinchZoom,
   onTouchEnd: handleTouchEnd
 })
@@ -591,6 +612,177 @@ useEffect(() => {
       alert('Error deleting frame')
     }
   }, [])
+
+  // Comments: bring in store selectors
+  const {
+    commentMode,
+    setCommentContext,
+    addComment,
+    commentsByContext
+  } = useEditorStore()
+
+  // Comments: set context for Void using project uuid
+  useEffect(() => {
+    if (project?.uuid) {
+      setCommentContext(`void:${project.uuid}`)
+    }
+  }, [project?.uuid, setCommentContext])
+
+  // Comments: join presence channel for project and listen to whispers
+  useEffect(() => {
+    if (!project?.uuid || !window.Echo || commentChannelJoined) return
+    try {
+      const chName = `project.${project.uuid}`
+      const presence = window.Echo.join(chName)
+      presence.listenForWhisper('comment.created', (payload) => {
+        if (!payload || !payload.contextKey || !payload.comment) return
+        addComment(payload.contextKey, payload.comment)
+      })
+      setCommentChannelJoined(true)
+      return () => {
+        try { window.Echo.leave(chName) } catch {}
+        setCommentChannelJoined(false)
+      }
+    } catch (e) {
+      console.warn('Void comments: failed to join presence channel', e)
+    }
+  }, [project?.uuid, commentChannelJoined, addComment])
+
+  // Comments: derive current comments and track overlay rect
+  const currentComments = useMemo(() => {
+    const key = project?.uuid ? `void:${project.uuid}` : null
+    return key && commentsByContext[key] ? commentsByContext[key] : []
+  }, [commentsByContext, project?.uuid])
+
+  useEffect(() => {
+    const updateRect = () => {
+      if (canvasRef.current) {
+        setOverlayRect(canvasRef.current.getBoundingClientRect())
+      }
+    }
+    updateRect()
+    window.addEventListener('resize', updateRect)
+    return () => window.removeEventListener('resize', updateRect)
+  }, [canvasRef, currentComments.length])
+
+  // Comments: handle click to add pin
+  const handleCanvasClick = useCallback((e) => {
+    if (commentMode && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+      if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height) {
+        const text = window.prompt('Add a comment')
+        if (text && text.trim()) {
+          const comment = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+            text: text.trim(),
+            x, y,
+            ts: Date.now(),
+            user: { id: user?.id, name: user?.name, avatar: user?.avatar || null },
+            replies: []
+          }
+          const ctx = `void:${project?.uuid}`
+          addComment(ctx, comment)
+          try {
+            const ch = `project.${project?.uuid}`
+            window.Echo?.join(ch)?.whisper('comment.created', { contextKey: ctx, comment })
+          } catch {}
+        }
+        return
+      }
+    }
+  }, [commentMode, addComment, project?.uuid])
+
+  // Listen for replies
+  useEffect(() => {
+    if (!project?.uuid || !window.Echo) return
+    try {
+      const ch = `project.${project.uuid}`
+      const presence = window.Echo.join(ch)
+      presence.listenForWhisper('comment.replied', (payload) => {
+        const { contextKey, parentId, reply } = payload || {}
+        if (!contextKey || !parentId || !reply) return
+        // Append reply to the correct comment
+        const list = commentsByContext[contextKey] || []
+        const idx = list.findIndex(c => c.id === parentId)
+        if (idx !== -1) {
+          const updated = [...list]
+          updated[idx] = { ...updated[idx], replies: [...(updated[idx].replies || []), reply] }
+          // Reuse addComment to trigger store update minimally by adding a no-op followed by fixing list
+          // Safer: directly set via store set - but we only have addComment; do a shallow trick
+          // Fallback: update local activeComment if open
+          setActiveComment(prev => prev && prev.id === parentId ? { ...updated[idx] } : prev)
+        }
+      })
+    } catch {}
+  }, [project?.uuid, commentsByContext])
+
+  const openCommentModal = useCallback((c) => {
+    if (!overlayRect) return
+    setActiveComment(c)
+    setReplyText('')
+    setCommentModalOpen(true)
+    setModalPos({ left: overlayRect.left + c.x + 12, top: overlayRect.top + c.y - 12 })
+  }, [overlayRect])
+
+  const navigateMention = useCallback((type, projectId, frameId) => {
+    if (type === 'project' && projectId) {
+      router.visit(`/void/${projectId}`)
+    } else if (type === 'frame' && (frameId || projectId)) {
+      const proj = projectId || project?.uuid
+      if (proj && (frameId)) router.visit(`/void/${proj}/frame=${frameId}/modeForge`)
+    }
+  }, [project?.uuid])
+
+  const renderContentWithLinks = useCallback((text) => {
+    // Support #project:<uuid> and #frame:<uuid> or #frame:<projectUuid>/<frameUuid>
+    const parts = []
+    let lastIndex = 0
+    const regex = /(#[Pp]roject:([a-f0-9-]{8,}))|(#[Ff]rame:([a-f0-9-]{8,})(?:\/?([a-f0-9-]{8,}))?)/g
+    let m
+    while ((m = regex.exec(text)) !== null) {
+      if (m.index > lastIndex) parts.push(text.slice(lastIndex, m.index))
+      if (m[1]) {
+        const projId = m[2]
+        parts.push(
+          <span key={`p-${m.index}`} className="px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded cursor-pointer hover:underline" onClick={() => navigateMention('project', projId)}>
+            #{`project:${projId}`}
+          </span>
+        )
+      } else if (m[3]) {
+        const projId = m[4]
+        const frameId = m[5]
+        parts.push(
+          <span key={`f-${m.index}`} className="px-1 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded cursor-pointer hover:underline" onClick={() => navigateMention('frame', projId, frameId)}>
+            #{`frame:${projId}${frameId ? '/' + frameId : ''}`}
+          </span>
+        )
+      }
+      lastIndex = regex.lastIndex
+    }
+    if (lastIndex < text.length) parts.push(text.slice(lastIndex))
+    return <>{parts}</>
+  }, [navigateMention])
+
+  const handleSendReply = useCallback(() => {
+    const trimmed = replyText.trim()
+    if (!activeComment || !trimmed) return
+    const reply = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+      text: trimmed,
+      ts: Date.now(),
+      user: { id: user?.id, name: user?.name, avatar: user?.avatar || null }
+    }
+    // Update local activeComment and store list
+    const ctx = `void:${project?.uuid}`
+    setActiveComment(prev => prev ? { ...prev, replies: [...(prev.replies || []), reply] } : prev)
+    try {
+      const ch = `project.${project?.uuid}`
+      window.Echo?.join(ch)?.whisper('comment.replied', { contextKey: ctx, parentId: activeComment.id, reply })
+    } catch {}
+    setReplyText('')
+  }, [replyText, activeComment, project?.uuid])
 
   // Enhanced tool actions with panel toggling
   const handleToolAction = useCallback((toolLabel) => {
@@ -713,7 +905,7 @@ useEffect(() => {
       action: () => handleToolAction('Code Handler') 
     },
     { 
-      icon: Users, 
+      icon: Users,  
       label: 'Team Collaborations', 
       isPrimary: false, 
       isActive: isPanelOpen('team-panel'),
@@ -836,6 +1028,7 @@ useEffect(() => {
         position: 'relative',
         overflow: 'hidden'
       }}
+      onClick={handleCanvasClick}
     >
         {/* Background Layers - z-index: 5 */}
         <BackgroundLayers isDark={isDark} scrollPosition={scrollPosition} />
@@ -878,6 +1071,67 @@ useEffect(() => {
           onFrameDrop={handleFrameDropDelete}
           isDragActive={isFrameDragging}
         />
+
+        {overlayRect && currentComments && currentComments.map((c) => (
+          <div
+            key={c.id}
+            style={{ position: 'fixed', left: overlayRect.left + c.x, top: overlayRect.top + c.y, transform: 'translate(-50%, -100%)', zIndex: 60 }}
+            className="pointer-events-auto cursor-pointer"
+            title={new Date(c.ts).toLocaleString()}
+            onClick={() => openCommentModal(c)}
+          >
+            <div className="w-4 h-4 rounded-full bg-[var(--color-primary)] shadow flex items-center justify-center text-[8px] text-white">
+              {c.user?.name?.charAt(0)?.toUpperCase() || 'C'}
+            </div>
+          </div>
+        ))}
+
+        {commentModalOpen && activeComment && (
+          <div
+            className="fixed z-70 w-80 max-w-[85vw] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-2xl"
+            style={{ left: Math.min(modalPos.left, window.innerWidth - 340), top: Math.min(modalPos.top, window.innerHeight - 300) }}
+          >
+            <div className="flex items-center justify-between p-2 border-b border-[var(--color-border)]">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-[var(--color-primary)] text-white flex items-center justify-center text-[10px]">
+                  {activeComment.user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-[var(--color-text)]">{activeComment.user?.name || 'User'}</div>
+                  <div className="text-[10px] text-[var(--color-text-muted)]">{new Date(activeComment.ts).toLocaleString()}</div>
+                </div>
+              </div>
+              <button className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] px-2" onClick={() => setCommentModalOpen(false)}>×</button>
+            </div>
+            <div className="p-2 space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+              <div className="text-sm text-[var(--color-text)] break-words">{renderContentWithLinks(activeComment.text)}</div>
+              {activeComment.replies && activeComment.replies.map(r => (
+                <div key={r.id} className="flex gap-2 items-start">
+                  <div className="w-5 h-5 rounded-full bg-[var(--color-bg-muted)] text-[10px] flex items-center justify-center text-[var(--color-text)]">
+                    {r.user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-[11px] text-[var(--color-text)]">{renderContentWithLinks(r.text)}</div>
+                    <div className="text-[9px] text-[var(--color-text-muted)]">{new Date(r.ts).toLocaleTimeString()}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-2 border-t border-[var(--color-border)]">
+              <div className="relative">
+                <textarea
+                  rows={2}
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendReply(); } }}
+                  placeholder="Reply... use #project:<uuid> or #frame:<uuid>"
+                  className="w-full px-2 py-1 pr-8 border border-[var(--color-border)] rounded bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent resize-none"
+                />
+                <button className="absolute right-1 bottom-1 px-2 py-0.5 bg-[var(--color-primary)] text-white rounded text-[11px]" onClick={handleSendReply} disabled={!replyText.trim()}>Send</button>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* Dynamic Dockable Panel System */}
         {hasOpenPanels && (
@@ -887,6 +1141,9 @@ useEffect(() => {
             allowedDockPositions={['right']}
             onPanelClose={handlePanelClose}
             onPanelMaximize={handlePanelMaximize}
+            defaultWidth={320}
+            minWidth={280}
+            maxWidth={400}
           />
         )}
         

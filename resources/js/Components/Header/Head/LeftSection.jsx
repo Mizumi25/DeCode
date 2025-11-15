@@ -149,7 +149,7 @@ const LeftSection = ({
             `
           }}
         >
-          <AnimatedBlackHoleLogo size={20} /> {/* Reduced size */}
+          <AnimatedBlackHoleLogo size={30} /> {/* Reduced size */}
         </div>
         <span className="text-[var(--color-text)] text-xs font-semibold leading-none">DeCode</span> {/* Smaller text */}
       </button>

@@ -221,7 +221,7 @@ const WorkspaceDropdown = ({
   return (
     <>
       <div
-        className="flex items-center gap-2 cursor-pointer relative bg-[var(--color-bg-muted)] hover:bg-[var(--color-bg-hover)] rounded-lg px-3 py-2 transition-colors"
+        className="flex items-center gap-2 cursor-pointer relative bg-[var(--color-bg)] hover:bg-[var(--color-bg-hover)] rounded-lg px-3 py-2 transition-colors"
         onClick={() => setDropdownOpen(!dropdownOpen)}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">

@@ -12,6 +12,10 @@ const useEditorStore = create(
       editMode: 'edit',
       inspectMode: false,
       gridVisible: false,
+      // Comments
+      commentMode: false,
+      commentContextKey: null, // e.g., `forge:<frameUuid>` or `void:<projectUuid>`
+      commentsByContext: {}, // { [contextKey]: [{ id, userId, userName, text, x, y, ts }] }
       
       // Navigation state for Forge/Source
       activeNav: 'Forge',
@@ -217,6 +221,19 @@ const useEditorStore = create(
         console.log(`EditorStore: Toggling grid visibility to ${newVisible}`);
         return { gridVisible: newVisible };
       }),
+
+      // Comments actions
+      toggleCommentMode: () => set((state) => ({ commentMode: !state.commentMode })),
+      setCommentContext: (contextKey) => set({ commentContextKey: contextKey }),
+      addComment: (contextKey, comment) => set((state) => {
+        const list = state.commentsByContext[contextKey] || []
+        return { commentsByContext: { ...state.commentsByContext, [contextKey]: [...list, comment] } }
+      }),
+      clearComments: (contextKey) => set((state) => {
+        const clone = { ...state.commentsByContext }
+        delete clone[contextKey]
+        return { commentsByContext: clone }
+      }),
       
       // Open specific panel and close others (exclusive mode)
       openPanelExclusive: (panelId) => set((state) => ({
@@ -311,7 +328,11 @@ const useEditorStore = create(
         zoomLevel: state.zoomLevel, // Make sure this is included
         gridVisible: state.gridVisible,
         interactionMode: state.interactionMode,
-        canvasDimensions: state.canvasDimensions
+        canvasDimensions: state.canvasDimensions,
+        // Persist comment preferences lightly
+        commentMode: state.commentMode,
+        commentsByContext: state.commentsByContext,
+        commentContextKey: state.commentContextKey
       }),
       // Handle version migration
       migrate: (persistedState, version) => {

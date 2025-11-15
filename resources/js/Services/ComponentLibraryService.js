@@ -2568,7 +2568,6 @@ generateModernCSS(allComponents) {
   width: 100%;
   min-height: 100vh;
   padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }`;
   }
 
@@ -2580,7 +2579,6 @@ generateModernCSS(allComponents) {
   width: 100%;
   min-height: 100vh;
   padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }`);
 
   // Generate CSS for each component recursively
@@ -2862,7 +2860,6 @@ buildHTMLAttributes(comp) {
   width: 100%;
   height: 100%;
   min-height: 400px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 12px;
 }
 
@@ -2884,7 +2881,6 @@ buildHTMLAttributes(comp) {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4);
 }

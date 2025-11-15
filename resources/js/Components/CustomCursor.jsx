@@ -4,6 +4,7 @@ import { motion, useMotionValue, useSpring } from 'framer-motion';
 const CustomCursor = () => {
   // Reimplemented custom cursor:
   const [isTouch, setIsTouch] = useState(false);
+  const [ripples, setRipples] = useState([]);
   const [cursorState, setCursorState] = useState('default'); // pointer, text, grab, grabbing, move, etc.
   const cursorX = useMotionValue(-100);
   const cursorY = useMotionValue(-100);
@@ -136,6 +137,29 @@ const CustomCursor = () => {
     };
   }, [isTouch, cursorX, cursorY]);
 
+
+  useEffect(() => {
+  if (isTouch) return;
+
+  const addRipple = (e) => {
+    const id = Date.now();
+    const x = cursorX.get();
+    const y = cursorY.get();
+
+    setRipples((prev) => [...prev, { id, x, y }]);
+
+    // auto-remove ripple
+    setTimeout(() => {
+      setRipples((prev) => prev.filter((r) => r.id !== id));
+    }, 500); // must match animation duration
+  };
+
+  window.addEventListener("mousedown", addRipple);
+
+  return () => window.removeEventListener("mousedown", addRipple);
+}, [cursorX, cursorY, isTouch]);
+
+
   // Compact ring condition: hovering (pointer), typing (text) or dragging (grabbing)
   const isRingCompact = ['pointer', 'text', 'grabbing'].includes(cursorState);
 
@@ -188,6 +212,34 @@ const CustomCursor = () => {
           filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
         }}
       />
+
+      {ripples.map((ripple) => (
+  <motion.div
+    key={ripple.id}
+    className="fixed pointer-events-none z-[99997] rounded-full"
+    initial={{
+      left: ripple.x,
+      top: ripple.y,
+      translateX: "-50%",
+      translateY: "-50%",
+      width: 0,
+      height: 0,
+      opacity: 0.5,
+      backgroundColor: "var(--color-primary)",
+      borderRadius: "50%"
+    }}
+    animate={{
+      width: 120,
+      height: 120,
+      opacity: 0,
+    }}
+    transition={{
+      duration: 0.5,
+      ease: "easeOut"
+    }}
+  />
+))}
+
     </>
   );
 };

@@ -16,6 +16,7 @@ import {
 import { motion } from 'framer-motion'
 import { router, usePage } from '@inertiajs/react'
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore'
+import HoverUnderline from '@/Components/HoverUnderline'
 import Modal from '@/Components/Modal'
 import Edit from '@/Pages/Profile/Edit'
 import FeedbackReportPage from '@/Pages/Admin/FeedbackReportPage'
@@ -174,9 +175,9 @@ const Sidebar = ({ isOpen, onClose }) => {
               <div className="border-b border-[var(--color-border)] pb-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Building className="w-4 h-4 text-[var(--color-text-muted)]" />
-                  <span className="font-medium text-[var(--color-text)] truncate">
+                  <HoverUnderline className="font-medium text-[var(--color-text)] truncate">
                     {currentWorkspace.name}
-                  </span>
+                  </HoverUnderline>
                   {currentWorkspace.type === 'personal' && (
                     <span className="text-xs bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] px-2 py-0.5 rounded">
                       Personal
@@ -205,7 +206,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                   className="flex items-center gap-3 text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors"
                 >
                   {item.icon}
-                  <span>{item.label}</span>
+                  <HoverUnderline>{item.label}</HoverUnderline>
                 </button>
               ))}
             </div>
@@ -222,7 +223,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                   className="flex items-center gap-3 text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors"
                 >
                   {item.icon}
-                  <span>{item.label}</span>
+                  <HoverUnderline>{item.label}</HoverUnderline>
                 </button>
               ))}
             </div>
@@ -240,7 +241,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                     className="flex items-center gap-3 text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors"
                   >
                     {item.icon}
-                    <span>{item.label}</span>
+                    <HoverUnderline>{item.label}</HoverUnderline>
                   </button>
                 ))}
               </div>

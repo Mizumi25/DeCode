@@ -13,7 +13,7 @@
   --color-surface: #ffffff;
   --color-border: #e5e7eb;
   --color-text: #111827;
-  --color-text-muted: #6b7280;
+  --color-text-muted: #c6cad2;
   --color-accent: #facc15;
 
   /* === Utility === */
@@ -55,17 +55,76 @@
   --color-surface: #161625;
   --color-border: #2a2a40;
   --color-text: #f4f4f5;
-  --color-text-muted: #a1a1aa;
+   --color-text-muted: #c6cad2;
   --color-primary-soft: #321755;
 }
 
 
-#nprogress .bar {
-  background: linear-gradient(to right, #a855f7, #7c3aed, #c084fc);
-  height: 7px;
-  backdrop-filter: blur(6px);
-  box-shadow: 0 0 10px #a855f7, 0 0 20px #a855f7;
+
+/* Only animate when body has .decode-loading */
+body.decode-loading #nprogress .bar {
+  animation: patreon-slide 1.4s linear infinite;
 }
+
+
+
+/* GLOBAL blinking text cursor (input caret) */
+input, textarea {
+  caret-color: var(--color-primary);
+}
+
+
+/* ======= NEON PATREON-STYLE LOADING BAR ======= */
+
+#nprogress .bar {
+  background: none !important;
+  height: 8px !important;
+  width: 150px !important;
+  position: fixed;
+  top: 0;
+  left: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  animation: patreon-slide 1.4s infinite linear;
+
+  /* NEON OUTER GLOW */
+  box-shadow:
+    0 0 20px var(--color-primary),
+    0 0 40px var(--color-primary),
+    0 0 60px var(--color-primary),
+    0 0 80px var(--color-primary);
+}
+
+/* INNER BAR — full neon beam */
+#nprogress .bar::after {
+  content: "";
+  display: block;
+  height: 100%;
+  width: 100%;
+
+  /* SUPER BRIGHT CENTER */
+  background: var(--color-primary);
+
+  /* NEON CORE + halo */
+  box-shadow:
+    0 0 12px var(--color-primary),
+    0 0 24px var(--color-primary),
+    0 0 40px var(--color-primary),
+    0 0 60px var(--color-primary);
+
+  /* Smooth laser-like shape */
+  filter: blur(1px);
+  border-radius: 12px;
+}
+
+/* Slide animation */
+@keyframes patreon-slide {
+  0% { left: -180px; }
+  50% { left: 50%; transform: translateX(-50%); }
+  100% { left: 100%; }
+}
+
+
 
 .react-grid-placeholder {
   background: var(--color-primary) !important;
@@ -208,6 +267,20 @@ main, .main-content {
   width: 10px;
 }
 
+
+
+
+/* Center placeholder by default */
+.search-placeholder::placeholder {
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+/* When searching or focused → shift left */
+.search-placeholder.search-active::placeholder {
+  text-align: left;
+  opacity: 0.6;
+}
 
 
 
