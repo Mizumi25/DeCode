@@ -45,6 +45,8 @@ import { formatCode, highlightCode, parseCodeAndUpdateComponents } from '@/Compo
 
 
 
+import { useCollaboration } from '@/hooks/useCollaboration';
+import CollaborationOverlay from '@/Components/Forge/CollaborationOverlay';
 
 
 
@@ -132,6 +134,29 @@ export default function ForgePage({
     setCodeStyle: setSyncedCodeStyle,
     updateSyncedCode 
   } = useCodeSyncStore();
+  
+  const [currentFrame, setCurrentFrame] = useState(() => {
+      const frameIdToUse = frameId || frame?.uuid;
+      console.log('ForgePage: Initial frame ID:', frameIdToUse);
+      return frameIdToUse;
+  });
+  
+  const { auth } = usePage().props
+  const currentUser = auth?.user
+  
+  const {
+  activeCursors,
+  draggedElements,
+  selectedElements,
+  updateCursor,
+  broadcastDragStart,
+  broadcastDragMove,
+  broadcastDragEnd,
+  broadcastSelection,
+  broadcastDeselection,
+  sessionId,
+} = useCollaboration(currentFrame, currentUser?.id);
+
 
   // Frame switching state
   const [isFrameSwitching, setIsFrameSwitching] = useState(false)
@@ -223,14 +248,9 @@ const [isCanvasSelected, setIsCanvasSelected] = useState(true) // ✅ Track canv
   const [activeComment, setActiveComment] = useState(null)
   const [replyText, setReplyText] = useState('')
   const [modalPos, setModalPos] = useState({ left: 0, top: 0 })
-  const { auth } = usePage().props
-  const currentUser = auth?.user
   
-  const [currentFrame, setCurrentFrame] = useState(() => {
-      const frameIdToUse = frameId || frame?.uuid;
-      console.log('ForgePage: Initial frame ID:', frameIdToUse);
-      return frameIdToUse;
-  });
+  
+  
   
   
   /**
@@ -1075,6 +1095,8 @@ const handleComponentDragStart = useCallback((e, componentType, variant = null, 
     };
   }
 
+
+
   setDragState({
     isDragging: true,
     draggedComponent: {
@@ -1088,13 +1110,36 @@ const handleComponentDragStart = useCallback((e, componentType, variant = null, 
 
   e.dataTransfer.effectAllowed = 'copy';
   e.dataTransfer.setData('text/plain', JSON.stringify({ componentType, variant, ghostBounds }));
-}, [responsiveMode]);
+  
+  // 🔥 ADD: Broadcast to others (only if dragging existing component)
+  if (dragData && dragData.componentId) {
+    const component = canvasComponents.find(c => c.id === dragData.componentId);
+    if (component) {
+      const element = e.target.closest('[data-component-id]');
+      if (element) {
+        const rect = element.getBoundingClientRect();
+        const canvasRect = canvasRef.current?.getBoundingClientRect();
+        
+        if (canvasRect) {
+          const relativeX = rect.left - canvasRect.left;
+          const relativeY = rect.top - canvasRect.top;
+          
+          broadcastDragStart(dragData.componentId, component.name || component.type, {
+            x: relativeX,
+            y: relativeY,
+            width: rect.width,
+            height: rect.height,
+          });
+        }
+      }
+    }
+  }
+}, [responsiveMode, broadcastDragStart, canvasComponents]);
 
+// 2. handleComponentDrag is already correct, just make sure it exists
 
-
-
-
-const handleComponentDragEnd = useCallback(() => {
+// 3. Update handleComponentDragEnd
+const handleComponentDragEnd = useCallback((componentId) => {
   // Clean up visual feedback
   document.querySelectorAll('.layout-container').forEach(el => {
     el.classList.remove('drop-zone-active', 'drop-zone-hover');
@@ -1103,13 +1148,49 @@ const handleComponentDragEnd = useCallback(() => {
   if (dragState.dragPreview) {
     document.body.removeChild(dragState.dragPreview)
   }
+  
   setDragState({
     isDragging: false,
     draggedComponent: null,
     variant: null,
     dragPreview: null
   })
-}, [dragState.dragPreview])
+  
+  // 🔥 ADD: Broadcast drag end (only if componentId exists)
+  if (componentId) {
+    broadcastDragEnd(componentId);
+  }
+}, [dragState.dragPreview, broadcastDragEnd])
+
+
+
+
+const handleComponentDrag = useCallback((e, componentId) => {
+    if (!canvasRef.current) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Broadcast drag move
+    const component = canvasComponents.find(c => c.id === componentId);
+    if (component) {
+      const element = document.querySelector(`[data-component-id="${componentId}"]`);
+      if (element) {
+        const elemRect = element.getBoundingClientRect();
+        broadcastDragMove(componentId, x, y, {
+          x,
+          y,
+          width: elemRect.width,
+          height: elemRect.height,
+        });
+      }
+    }
+  }, [broadcastDragMove, canvasComponents]);
+  
+  
+
+
 
 
 
@@ -1243,7 +1324,18 @@ const findDropTarget = useCallback((components, dropX, dropY, canvasRect) => {
 }, []);
 
 
-
+const handleCanvasMouseMove = useCallback((e) => {
+  if (!canvasRef.current) return;
+  
+  const rect = canvasRef.current.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  
+  // Update cursor position for collaboration
+  updateCursor(x, y, responsiveMode, {
+    isMoving: true,
+  });
+}, [updateCursor, responsiveMode]);
 
 
 const handleCanvasDragOver = useCallback((e) => {
@@ -2223,16 +2315,22 @@ const handleComponentClick = useCallback((componentId, e) => {
   console.log('🎯 Component clicked:', componentId);
   
   if (componentId === null) {
-    // Canvas click - deselect everything
     setSelectedComponent(null);
     setIsCanvasSelected(true);
+    broadcastDeselection(); // 🔥 Broadcast deselection
     return;
   }
   
-  // Component click - select the component
+  const component = canvasComponents.find(c => c.id === componentId);
   setSelectedComponent(componentId);
   setIsCanvasSelected(false);
-}, []);
+  
+  // 🔥 Broadcast selection
+  if (component) {
+    broadcastSelection(componentId, component.name || component.type);
+  }
+}, [canvasComponents, broadcastSelection, broadcastDeselection]);
+
 
 // 🔥 ENHANCED: Smart canvas click handler
 const handleCanvasClick = useCallback((e) => {
@@ -2785,6 +2883,12 @@ if (!componentsLoaded && loadingMessage) {
                           frame={frame}
                         />
                     )}
+                    
+                    
+                    
+       
+                    
+                    
                 </div>
             ) : (
                 <div 

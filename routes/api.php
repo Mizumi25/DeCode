@@ -19,6 +19,8 @@ use App\Models\ProjectComponent;
 use App\Http\Controllers\ForgePageController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\AssetController;
+use App\Http\Controllers\CollaborationController;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes - All using UUIDs for resource identification
@@ -235,6 +237,28 @@ Route::prefix('workspaces/{workspaceId}/messages')->group(function () {
     });
     
     
+    
+    
+    Route::prefix('frames/{frame:uuid}/collaboration')->group(function () {
+        // Cursor management
+        Route::post('/cursor', [CollaborationController::class, 'updateCursor']);
+        Route::get('/cursors', [CollaborationController::class, 'getActiveCursors']);
+        Route::post('/remove-cursor', [CollaborationController::class, 'removeCursor']);
+        
+        // Element dragging
+        Route::post('/drag-start', [CollaborationController::class, 'dragStart']);
+        Route::post('/drag-move', [CollaborationController::class, 'dragMove']);
+        Route::post('/drag-end', [CollaborationController::class, 'dragEnd']);
+    });
+    
+    // Cleanup endpoint (can be scheduled)
+    Route::post('/collaboration/cleanup', [CollaborationController::class, 'cleanup']);
+    
+    
+    
+    
+    
+    
     // Frame thumbnail routes
     Route::prefix('frames/{frame:uuid}')->group(function () {
         // Generate thumbnail from frame data
@@ -249,6 +273,7 @@ Route::prefix('workspaces/{workspaceId}/messages')->group(function () {
         Route::get('/thumbnail/status', [VoidController::class, 'getThumbnailStatus'])
             ->name('frames.thumbnail-status');
     });
+    
     
     // Batch thumbnail operations
     Route::prefix('thumbnails')->group(function () {
