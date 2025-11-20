@@ -111,7 +111,6 @@ const CanvasComponent = ({
   canvasComponents,
   selectedComponent,
   dragState,
-  // 🔥 REMOVED: dragPosition prop - now using internal state
   isCanvasSelected,
   componentLibraryService,
   onCanvasDragOver,
@@ -128,7 +127,9 @@ const CanvasComponent = ({
   gridVisible,
   projectId,
   setFrameCanvasComponents,
-  frame,  // 🔥 ADD THIS
+  frame,
+  broadcastDragMove, // 🔥 ADD THIS
+  updateCursor,      // 🔥 ADD THIS
 }) => {
   // Get responsive state from EditorStore
   const {
@@ -340,72 +341,7 @@ const ViewportBoundaryIndicator = ({ responsiveMode, canvasRef }) => {
   // Absolute positioned components (those that need precise positioning)
   const absoluteComponents = ['button', 'badge', 'avatar', 'input', 'searchbar'];
   
-  // Handle component direct manipulation (drag, resize)
-  const handleComponentMouseDown = useCallback((e, componentId) => {
-    e.stopPropagation();
-    
-    const component = canvasComponents.find(c => c.id === componentId);
-    if (!component) return;
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    const canvasRect = canvasRef.current.getBoundingClientRect();
-    
-    setIsDraggingComponent(componentId);
-    setDragOffset({
-      x: e.clientX - (component.position.x + canvasRect.left),
-      y: e.clientY - (component.position.y + canvasRect.top)
-    });
-
-    // Select component
-    onComponentClick(componentId, e);
-
-    let hasMoved = false;
-    const initialPosition = { ...component.position };
-    
-    const handleMouseMove = (moveEvent) => {
-      const newX = moveEvent.clientX - canvasRect.left - dragOffset.x;
-      const newY = moveEvent.clientY - canvasRect.top - dragOffset.y;
-      
-      // Constrain to canvas bounds - use actual canvas size for responsive modes
-      const maxWidth = responsiveMode === 'desktop' ? canvasRect.width - 100 : canvasSize.width - 100;
-      const maxHeight = responsiveMode === 'desktop' ? canvasRect.height - 50 : 600; // Reasonable constraint for mobile/tablet
-      
-      const constrainedX = Math.max(0, Math.min(newX, maxWidth));
-      const constrainedY = Math.max(0, Math.min(newY, maxHeight));
-      
-      // Check if actually moved significantly
-      const deltaX = Math.abs(constrainedX - initialPosition.x);
-      const deltaY = Math.abs(constrainedY - initialPosition.y);
-      
-      if (deltaX > 1 || deltaY > 1) {
-        hasMoved = true;
-      }
-      
-      onPropertyUpdate(componentId, 'position', { x: constrainedX, y: constrainedY });
-    };
-    
-    const handleMouseUp = () => {
-      setIsDraggingComponent(false);
-      
-      if (hasMoved && currentFrame && pushHistory && actionTypes) {
-        const finalPosition = canvasComponents.find(c => c.id === componentId)?.position;
-        if (finalPosition) {
-          pushHistory(currentFrame, canvasComponents, actionTypes.MOVE, {
-            componentName: component.name || component.type,
-            componentId,
-            initialPosition,
-            finalPosition
-          });
-        }
-      }
-      
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [canvasComponents, dragOffset, onPropertyUpdate, onComponentClick, responsiveMode, canvasSize, currentFrame, pushHistory, actionTypes]);
+ 
   
   
   
@@ -785,83 +721,120 @@ const DraggableComponent = ({
                    ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
 
   // 🔥 NEW: Use custom drag hook
-  const {
-    isDragging,
-    dragState,
-    dropTarget,
-    dropIntent,
-    dragHandlers,
-  } = useCustomDrag({
-    componentId: component.id,
-    component,
-    canvasRef,
-    enabled: !isPreviewMode,
-    onDragStart: ({ componentId, component: comp }) => {
-      onDragStateChange?.({ activeId: componentId, position: { x: 0, y: 0 } });
-      console.log('🎬 Custom drag started:', componentId);
+const {
+  isDragging,
+  dragState,
+  dropTarget,
+  dropIntent,
+  dragHandlers,
+} = useCustomDrag({
+  componentId: component.id,
+  component,
+  canvasRef,
+  enabled: !isPreviewMode,
+  onDragStart: ({ componentId, component: comp }) => {
+    onDragStateChange?.({ activeId: componentId, position: { x: 0, y: 0 } });
+    console.log('🎬 Custom drag started:', componentId);
+    
+    window.dispatchEvent(new CustomEvent('element-drag-start', { 
+      detail: { componentId } 
+    }));
+    
+    if ('vibrate' in navigator) {
+      navigator.vibrate(50);
+    }
+    
+    // 🔥 NEW: Broadcast drag start
+    const element = document.querySelector(`[data-component-id="${componentId}"]`);
+    if (element && broadcastDragStart) {
+      const rect = element.getBoundingClientRect();
+      const canvasRect = canvasRef.current?.getBoundingClientRect();
       
-      // Dispatch event for other components
-      window.dispatchEvent(new CustomEvent('element-drag-start', { 
-        detail: { componentId } 
-      }));
-      
-      if ('vibrate' in navigator) {
-        navigator.vibrate(50);
-      }
-    },
-    onDragMove: ({ position, dropTarget: target, dropIntent: intent }) => {
-      onDragStateChange?.({ activeId: component.id, position });
-      if (target) {
-        console.log('📍 Drag over:', target.id, intent);
-      }
-    },
-    onDragEnd: ({ componentId, dropTarget: target, dropIntent: intent }) => {
-      console.log('🎯 Custom drag end:', componentId, 'to', target?.id, intent);
-      if (target && handleComponentDragEnd) {
-        handleComponentDragEnd({
-          componentId,
-          targetId: target.id,
-          intent,
+      if (canvasRect) {
+        broadcastDragStart(componentId, comp.name || comp.type, {
+          x: rect.left - canvasRect.left,
+          y: rect.top - canvasRect.top,
+          width: rect.width,
+          height: rect.height,
         });
       }
-      onDragStateChange?.({ activeId: null, position: null });
+    }
+  },
+  onDragMove: ({ position, dropTarget: target, dropIntent: intent, componentId }) => {
+    onDragStateChange?.({ activeId: component.id, position });
+    
+    if (target) {
+      console.log('📍 Drag over:', target.id, intent);
+    }
+    
+    // 🔥 NEW: Broadcast drag move in real-time
+    if (canvasRef.current && broadcastDragMove) {
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      const relativeX = position.x;
+      const relativeY = position.y;
       
-      // Dispatch event for other components
-      window.dispatchEvent(new CustomEvent('element-drag-end', { 
-        detail: { componentId } 
-      }));
-    },
-    onDragCancel: () => {
-      onDragStateChange?.({ activeId: null, position: null });
-      
-      // Dispatch event for other components
-      window.dispatchEvent(new CustomEvent('element-drag-end', { 
-        detail: { componentId: null } 
-      }));
-    },
-    validateDrop: ({ componentId, dropTarget: target, dropIntent: intent }) => {
-      if (!target) return false;
-      
-      // Use canvasComponents directly (it's already the current frame's components)
-      const currentComponents = canvasComponents;
-      const flatArray = flattenForReorder ? flattenForReorder(currentComponents) : [];
-      
-      // Prevent circular references
-      if (wouldCreateCircularRef(componentId, target.id, currentComponents)) {
-        console.warn('⚠️ Cannot drop: circular reference');
-        return false;
+      const element = document.querySelector(`[data-component-id="${componentId}"]`);
+      if (element) {
+        const elemRect = element.getBoundingClientRect();
+        
+        broadcastDragMove(componentId, relativeX, relativeY, {
+          x: relativeX,
+          y: relativeY,
+          width: elemRect.width,
+          height: elemRect.height,
+        });
       }
-      
-      // Validate nesting
-      const targetComp = flatArray.find(c => c.id === target.id);
-      if (intent === 'inside' && targetComp && !canAcceptChildren(targetComp)) {
-        console.warn('⚠️ Cannot nest: target does not accept children');
-        return false;
-      }
-      
-      return true;
-    },
-  });
+    }
+  },
+  onDragEnd: ({ componentId, dropTarget: target, dropIntent: intent }) => {
+    console.log('🎯 Custom drag end:', componentId, 'to', target?.id, intent);
+    
+    if (target && handleComponentDragEnd) {
+      handleComponentDragEnd({
+        componentId,
+        targetId: target.id,
+        intent,
+      });
+    }
+    
+    onDragStateChange?.({ activeId: null, position: null });
+    
+    // 🔥 NEW: Broadcast drag end
+    if (broadcastDragEnd) {
+      broadcastDragEnd(componentId);
+    }
+    
+    window.dispatchEvent(new CustomEvent('element-drag-end', { 
+      detail: { componentId } 
+    }));
+  },
+  onDragCancel: () => {
+    onDragStateChange?.({ activeId: null, position: null });
+    
+    window.dispatchEvent(new CustomEvent('element-drag-end', { 
+      detail: { componentId: null } 
+    }));
+  },
+  validateDrop: ({ componentId, dropTarget: target, dropIntent: intent }) => {
+    if (!target) return false;
+    
+    const currentComponents = canvasComponents;
+    const flatArray = flattenForReorder ? flattenForReorder(currentComponents) : [];
+    
+    if (wouldCreateCircularRef(componentId, target.id, currentComponents)) {
+      console.warn('⚠️ Cannot drop: circular reference');
+      return false;
+    }
+    
+    const targetComp = flatArray.find(c => c.id === target.id);
+    if (intent === 'inside' && targetComp && !canAcceptChildren(targetComp)) {
+      console.warn('⚠️ Cannot nest: target does not accept children');
+      return false;
+    }
+    
+    return true;
+  },
+});
 
   const style = {
     opacity: isDragging ? 0.3 : 1,

@@ -154,6 +154,7 @@ export default function ForgePage({
   broadcastDragEnd,
   broadcastSelection,
   broadcastDeselection,
+  broadcastComponentUpdate, // 🔥 ADD THIS
   sessionId,
 } = useCollaboration(currentFrame, currentUser?.id);
 
@@ -512,33 +513,52 @@ useEffect(() => {
   
   
   
-
-// 🔥 NEW: Listen for canvas style updates via Echo
+// 🔥 ENHANCED: Listen for ANY frame update and reload
 useEffect(() => {
   if (!frame?.uuid || !window.Echo) return;
   
-  const channelName = `frame-updates.${frame.uuid}`;
+  const channelName = `frame.${frame.uuid}`;
+  
+  console.log('📡 Subscribing to frame updates:', channelName);
   
   const channel = window.Echo.private(channelName)
     .listen('FrameUpdated', (event) => {
-      console.log('🔄 Canvas styles updated remotely:', event);
+      console.log('🔄 Frame updated remotely:', event);
       
-      if (event.frame?.canvas_style) {
-        // Force re-render by updating frame reference
-        setCurrentFrame(prev => prev); // Trigger re-render
-      }
+      // 🔥 FIX: Reload on ANY update, not just bulk_update
+      console.log('⚡ Reloading frame components from backend...');
+      
+      // Fetch fresh data from backend
+      axios.get(`/api/frames/${frame.uuid}/components`)
+        .then(response => {
+          if (response.data.success) {
+            console.log('✅ Loaded', response.data.data.length, 'components from backend');
+            
+            setFrameCanvasComponents(prev => ({
+              ...prev,
+              [currentFrame]: response.data.data
+            }));
+            
+            // Regenerate code with fresh data
+            generateCode(response.data.data);
+          }
+        })
+        .catch(error => {
+          console.error('❌ Failed to reload components:', error);
+        });
     });
   
   return () => {
     try {
-      if (window.Echo.connector?.channels?.[channelName]) {
-        window.Echo.leave(channelName);
-      }
+      window.Echo.leave(channelName);
     } catch (e) {
       console.warn('Failed to leave channel:', e);
     }
   };
-}, [frame?.uuid]);
+}, [frame?.uuid, currentFrame, setFrameCanvasComponents, generateCode]);
+
+
+
 
 // Comments: setup context and realtime whispers
 useEffect(() => {
@@ -1166,27 +1186,32 @@ const handleComponentDragEnd = useCallback((componentId) => {
 
 
 const handleComponentDrag = useCallback((e, componentId) => {
-    if (!canvasRef.current) return;
-    
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    // Broadcast drag move
-    const component = canvasComponents.find(c => c.id === componentId);
-    if (component) {
-      const element = document.querySelector(`[data-component-id="${componentId}"]`);
-      if (element) {
-        const elemRect = element.getBoundingClientRect();
-        broadcastDragMove(componentId, x, y, {
-          x,
-          y,
-          width: elemRect.width,
-          height: elemRect.height,
-        });
-      }
+  if (!canvasRef.current) return;
+  
+  const rect = canvasRef.current.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  
+  // Update local position immediately
+  onPropertyUpdate(componentId, 'position', { x, y });
+  
+  // 🔥 CRITICAL: Broadcast immediately (no debounce)
+  const component = canvasComponents.find(c => c.id === componentId);
+  if (component && broadcastDragMove) {
+    const element = document.querySelector(`[data-component-id="${componentId}"]`);
+    if (element) {
+      const elemRect = element.getBoundingClientRect();
+      
+      // Broadcast with full position data
+      broadcastDragMove(componentId, x, y, {
+        x,
+        y,
+        width: elemRect.width,
+        height: elemRect.height,
+      });
     }
-  }, [broadcastDragMove, canvasComponents]);
+  }
+}, [broadcastDragMove, canvasComponents, canvasRef]);
   
   
 
@@ -1324,18 +1349,37 @@ const findDropTarget = useCallback((components, dropX, dropY, canvasRect) => {
 }, []);
 
 
-const handleCanvasMouseMove = useCallback((e) => {
-  if (!canvasRef.current) return;
+const handleMouseMove = (moveEvent) => {
+  const newX = moveEvent.clientX - canvasRect.left - dragOffset.x;
+  const newY = moveEvent.clientY - canvasRect.top - dragOffset.y;
   
-  const rect = canvasRef.current.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  // Constrain to canvas bounds
+  const maxWidth = responsiveMode === 'desktop' ? canvasRect.width - 100 : canvasSize.width - 100;
+  const maxHeight = responsiveMode === 'desktop' ? canvasRect.height - 50 : 600;
   
-  // Update cursor position for collaboration
-  updateCursor(x, y, responsiveMode, {
-    isMoving: true,
-  });
-}, [updateCursor, responsiveMode]);
+  const constrainedX = Math.max(0, Math.min(newX, maxWidth));
+  const constrainedY = Math.max(0, Math.min(newY, maxHeight));
+  
+  // Check if actually moved significantly
+  const deltaX = Math.abs(constrainedX - initialPosition.x);
+  const deltaY = Math.abs(constrainedY - initialPosition.y);
+  
+  if (deltaX > 1 || deltaY > 1) {
+    hasMoved = true;
+  }
+  
+  onPropertyUpdate(componentId, 'position', { x: constrainedX, y: constrainedY });
+  
+  // 🔥 BROADCAST POSITION UPDATE IN REAL-TIME
+  if (broadcastDragMove) {
+    broadcastDragMove(componentId, constrainedX, constrainedY, {
+      x: constrainedX,
+      y: constrainedY,
+      width: rect.width,
+      height: rect.height,
+    });
+  }
+};
 
 
 const handleCanvasDragOver = useCallback((e) => {
@@ -1981,6 +2025,34 @@ const handlePropertyUpdate = useCallback((componentId, propName, value) => {
     scheduleThumbnailUpdate(updatedComponents, canvasSettings);
   }
   
+  
+  
+  if (broadcastComponentUpdate) {
+    let updateType = 'style';
+    let updates = {};
+    
+    if (propName === 'position') {
+      updateType = 'position';
+      updates = value;
+    } else if (propName === 'style') {
+      updateType = 'style';
+      updates = value;
+    } else if (propName === 'props' || propName === 'content' || propName === 'text') {
+      updateType = 'props';
+      updates = { [propName]: value };
+    }
+    
+    console.log('📡 Broadcasting component update:', {
+      componentId,
+      updateType,
+      updates
+    });
+    
+    broadcastComponentUpdate(componentId, updates, updateType);
+  }
+  
+  
+  
   // Auto-save with longer delay to prevent conflicts
   setTimeout(() => {
     if (componentLibraryService?.saveProjectComponents) {
@@ -1990,7 +2062,7 @@ const handlePropertyUpdate = useCallback((componentId, propName, value) => {
   
   generateCode(updatedComponents);
 }, [canvasComponents, currentFrame, projectId, pushHistory, actionTypes, componentLibraryService, generateCode, 
-    scheduleThumbnailUpdate, getCurrentCanvasDimensions, responsiveMode, zoomLevel, gridVisible, frame?.settings]);
+    scheduleThumbnailUpdate, getCurrentCanvasDimensions, responsiveMode, zoomLevel, gridVisible, frame?.settings, broadcastComponentUpdate]);
 
   
 
@@ -2265,6 +2337,63 @@ useEffect(() => {
     return () => clearTimeout(timer);
   }
 }, [selectedComponent, canvasComponents, generateCode]);
+
+
+
+
+// 🔥 NEW: Listen for remote component updates
+useEffect(() => {
+  const handleRemoteUpdate = (event) => {
+    const { componentId, updates, updateType } = event.detail;
+    
+    console.log('📡 Received remote component update:', {
+      componentId,
+      updateType,
+      updates,
+    });
+    
+    // Apply update to local state
+    setFrameCanvasComponents(prev => {
+      const currentComponents = prev[currentFrame] || [];
+      
+      const updateComponentRecursive = (components) => {
+        return components.map(comp => {
+          if (comp.id === componentId) {
+            if (updateType === 'style') {
+              return { ...comp, style: { ...comp.style, ...updates } };
+            } else if (updateType === 'position') {
+              return { ...comp, position: updates };
+            } else if (updateType === 'props') {
+              return { ...comp, props: { ...comp.props, ...updates } };
+            }
+          }
+          
+          if (comp.children?.length > 0) {
+            return {
+              ...comp,
+              children: updateComponentRecursive(comp.children)
+            };
+          }
+          
+          return comp;
+        });
+      };
+      
+      const updatedComponents = updateComponentRecursive(currentComponents);
+      
+      return {
+        ...prev,
+        [currentFrame]: updatedComponents
+      };
+    });
+  };
+  
+  window.addEventListener('remote-component-updated', handleRemoteUpdate);
+  
+  return () => {
+    window.removeEventListener('remote-component-updated', handleRemoteUpdate);
+  };
+}, [currentFrame]);
 
 
   
@@ -2858,30 +2987,32 @@ if (!componentsLoaded && loadingMessage) {
                     
                     {/* Regular Canvas - only show if we have components or frame is component type */}
                     {(canvasComponents.length > 0 || frame?.type === 'component') && (
-                       <CanvasComponent
-                          canvasRef={canvasRef}
-                          canvasComponents={canvasComponents}
-                          selectedComponent={selectedComponent}
-                          dragState={dragState}
-                          dragPosition={dragPosition}
-                          isCanvasSelected={isCanvasSelected}
-                          componentLibraryService={componentLibraryService}
-                          onCanvasDragOver={handleCanvasDragOver}
-                          onCanvasDrop={handleCanvasDrop}
-                          onCanvasClick={handleCanvasClick}
-                          onComponentClick={handleComponentClick} // 🔥 ADD THIS
-                          onPropertyUpdate={handlePropertyUpdate}
-                          isMobile={isMobile}
-                          currentFrame={currentFrame}
-                          isFrameSwitching={isFrameSwitching}
-                          frameType={frame?.type || 'page'}
-                          responsiveMode={responsiveMode}
-                          zoomLevel={zoomLevel}
-                          gridVisible={gridVisible}
-                          projectId={projectId}
-                          setFrameCanvasComponents={setFrameCanvasComponents}
-                          frame={frame}
-                        />
+                   <CanvasComponent
+  canvasRef={canvasRef}
+  canvasComponents={canvasComponents}
+  selectedComponent={selectedComponent}
+  dragState={dragState}
+  isCanvasSelected={isCanvasSelected}
+  componentLibraryService={componentLibraryService}
+  onCanvasDragOver={handleCanvasDragOver}
+  onCanvasDrop={handleCanvasDrop}
+  onCanvasClick={handleCanvasClick}
+  onComponentClick={handleComponentClick}
+  onPropertyUpdate={handlePropertyUpdate}
+  isMobile={isMobile}
+  currentFrame={currentFrame}
+  isFrameSwitching={isFrameSwitching}
+  frameType={frame?.type || 'page'}
+  responsiveMode={responsiveMode}
+  zoomLevel={zoomLevel}
+  gridVisible={gridVisible}
+  projectId={projectId}
+  setFrameCanvasComponents={setFrameCanvasComponents}
+  frame={frame}
+  broadcastDragMove={broadcastDragMove}
+  broadcastComponentUpdate={broadcastComponentUpdate} // 🔥 ADD THIS
+  updateCursor={updateCursor}
+/>
                     )}
                     
                     

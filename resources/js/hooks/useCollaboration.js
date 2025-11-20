@@ -22,63 +22,76 @@ export const useCollaboration = (frameUuid, currentUserId) => {
   }, []);
 
   // Initialize Echo connection
-  useEffect(() => {
-    if (!frameUuid || !window.Echo) return;
+useEffect(() => {
+  if (!frameUuid || !window.Echo) return;
 
-    console.log('🔗 Joining collaboration channel:', frameUuid);
+  console.log('🔗 Joining collaboration channel:', frameUuid);
 
-    channel.current = window.Echo.join(`frame.${frameUuid}`)
-      .here((users) => {
-        console.log('👥 Users here:', users);
-      })
-      .joining((user) => {
-        console.log('👋 User joining:', user.name);
-      })
-      .leaving((user) => {
-        console.log('👋 User leaving:', user.name);
-        // Remove all cursors/selections from this user
-        setActiveCursors(prev => {
-          const next = new Map(prev);
-          for (const [key, cursor] of next.entries()) {
-            if (cursor.userId === user.id) {
-              next.delete(key);
-            }
+  channel.current = window.Echo.join(`frame.${frameUuid}`)
+    .here((users) => {
+      console.log('👥 Users here:', users);
+    })
+    .joining((user) => {
+      console.log('👋 User joining:', user.name);
+    })
+    .leaving((user) => {
+      console.log('👋 User leaving:', user.name);
+      // Remove all cursors/selections from this user
+      setActiveCursors(prev => {
+        const next = new Map(prev);
+        for (const [key, cursor] of next.entries()) {
+          if (cursor.userId === user.id) {
+            next.delete(key);
           }
-          return next;
-        });
-        setSelectedElements(prev => {
-          const next = new Map(prev);
-          for (const [key, selection] of next.entries()) {
-            if (selection.userId === user.id) {
-              next.delete(key);
-            }
+        }
+        return next;
+      });
+      setSelectedElements(prev => {
+        const next = new Map(prev);
+        for (const [key, selection] of next.entries()) {
+          if (selection.userId === user.id) {
+            next.delete(key);
           }
-          return next;
-        });
-      })
-      // Cursor events
-      .listen('.cursor.moved', handleCursorMoved)
-      .listenForWhisper('cursor.moved', handleCursorMoved)
-      
-      // Drag events
-      .listen('.element.drag.started', handleDragStarted)
-      .listen('.element.drag.moving', handleDragMove)
-      .listen('.element.drag.ended', handleDragEnd)
-      
-      // 🔥 NEW: Selection events
-      .listen('.element.selected', handleElementSelected)
-      .listen('.element.deselected', handleElementDeselected);
+        }
+        return next;
+      });
+    })
+    // 🔥 CRITICAL: Listen for both .listen and .listenForWhisper
+    .listen('.element.drag.started', (data) => {
+      console.log('🎬 Received drag started:', data);
+      handleDragStarted(data);
+    })
+    .listen('.element.drag.moving', (data) => {
+      console.log('🎯 Received drag move:', data);
+      handleDragMove(data);
+    })
+    .listen('.element.drag.ended', (data) => {
+      console.log('🏁 Received drag ended:', data);
+      handleDragEnd(data);
+    })
+    // Cursor events
+    .listen('.cursor.moved', handleCursorMoved)
+    .listenForWhisper('cursor.moved', handleCursorMoved)
+    // Selection events
+    .listen('.element.selected', handleElementSelected)
+    .listen('.element.deselected', handleElementDeselected)
+    
+    // ADD THIS - Listen for component updates
+.listen('.component.updated', (data) => {
+  console.log('🔄 Component updated remotely:', data);
+  handleComponentUpdated(data);
+});
 
-    fetchActiveCursors();
+  fetchActiveCursors();
 
-    return () => {
-      if (channel.current) {
-        removeCursor();
-        window.Echo.leave(`frame.${frameUuid}`);
-        channel.current = null;
-      }
-    };
-  }, [frameUuid]);
+  return () => {
+    if (channel.current) {
+      removeCursor();
+      window.Echo.leave(`frame.${frameUuid}`);
+      channel.current = null;
+    }
+  };
+}, [frameUuid]);
 
   // Fetch existing cursors
   const fetchActiveCursors = async () => {
@@ -186,6 +199,56 @@ export const useCollaboration = (frameUuid, currentUserId) => {
       return next;
     });
   }, [currentUserId, sessionId]);
+  
+  
+  
+  
+  // 🔥 NEW: Handle component updates from other users
+const handleComponentUpdated = useCallback((data) => {
+  if (data.userId === currentUserId && data.sessionId === sessionId) {
+    return; // Ignore own updates
+  }
+
+  console.log('✅ Applying remote component update:', {
+    componentId: data.componentId,
+    updateType: data.updateType,
+    updates: data.updates,
+  });
+
+  // Dispatch custom event for ForgePage to handle
+  window.dispatchEvent(new CustomEvent('remote-component-updated', {
+    detail: {
+      componentId: data.componentId,
+      updates: data.updates,
+      updateType: data.updateType,
+      userId: data.userId,
+    }
+  }));
+}, [currentUserId, sessionId]);
+
+
+
+
+// 🔥 NEW: Broadcast component updates
+const broadcastComponentUpdate = useCallback(async (componentId, updates, updateType) => {
+  try {
+    await axios.post(`/api/frames/${frameUuid}/collaboration/component-update`, {
+      component_id: componentId,
+      session_id: sessionId,
+      updates,
+      update_type: updateType,
+    });
+  } catch (error) {
+    console.error('Failed to broadcast component update:', error);
+  }
+}, [frameUuid, sessionId]);
+
+
+
+
+  
+  
+  
 
   // Handle drag events
   const handleDragStarted = useCallback((data) => {
@@ -287,25 +350,20 @@ export const useCollaboration = (frameUuid, currentUserId) => {
     }
   }, [frameUuid, sessionId]);
 
-  const broadcastDragMove = useCallback((componentId, x, y, bounds) => {
-    if (dragThrottle.current) {
-      clearTimeout(dragThrottle.current);
-    }
-
-    dragThrottle.current = setTimeout(async () => {
-      try {
-        await axios.post(`/api/frames/${frameUuid}/collaboration/drag-move`, {
-          component_id: componentId,
-          session_id: sessionId,
-          x,
-          y,
-          bounds,
-        });
-      } catch (error) {
-        console.error('Failed to broadcast drag move:', error);
-      }
-    }, 50);
-  }, [frameUuid, sessionId]);
+const broadcastDragMove = useCallback((componentId, x, y, bounds) => {
+  // 🔥 REMOVED THROTTLE for real-time updates
+  try {
+    axios.post(`/api/frames/${frameUuid}/collaboration/drag-move`, {
+      component_id: componentId,
+      session_id: sessionId,
+      x,
+      y,
+      bounds,
+    });
+  } catch (error) {
+    console.error('Failed to broadcast drag move:', error);
+  }
+}, [frameUuid, sessionId]);
 
   const broadcastDragEnd = useCallback(async (componentId) => {
     try {
@@ -360,17 +418,18 @@ export const useCollaboration = (frameUuid, currentUserId) => {
   }, [frameUuid, sessionId]);
 
   return {
-    activeCursors: Array.from(activeCursors.values()),
-    draggedElements: Array.from(draggedElements.values()),
-    selectedElements: Array.from(selectedElements.values()),
-    updateCursor,
-    broadcastDragStart,
-    broadcastDragMove,
-    broadcastDragEnd,
-    broadcastSelection,
-    broadcastDeselection,
-    sessionId,
-  };
+  activeCursors: Array.from(activeCursors.values()),
+  draggedElements: Array.from(draggedElements.values()),
+  selectedElements: Array.from(selectedElements.values()),
+  updateCursor,
+  broadcastDragStart,
+  broadcastDragMove,
+  broadcastDragEnd,
+  broadcastSelection,
+  broadcastDeselection,
+  broadcastComponentUpdate, // 🔥 ADD THIS
+  sessionId,
+};
 };
 
 // Generate unique session ID

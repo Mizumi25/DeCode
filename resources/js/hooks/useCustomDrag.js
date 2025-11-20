@@ -347,114 +347,114 @@ const detectDropTarget = useCallback((pointerX, pointerY) => {
    * Handle pointer move (during drag) - Fixed closure issues
    */
   const handlePointerMove = useCallback((e) => {
-    if (!interactionStateRef.current.isWatching) return;
+  if (!interactionStateRef.current.isWatching) return;
 
-    e.preventDefault();
-    e.stopPropagation();
+  e.preventDefault();
+  e.stopPropagation();
 
-    const pointerX = e.touches?.[0]?.clientX ?? e.clientX;
-    const pointerY = e.touches?.[0]?.clientY ?? e.clientY;
+  const pointerX = e.touches?.[0]?.clientX ?? e.clientX;
+  const pointerY = e.touches?.[0]?.clientY ?? e.clientY;
 
-    lastPointerPos.current = { x: pointerX, y: pointerY };
+  lastPointerPos.current = { x: pointerX, y: pointerY };
 
-    // 🔥 THRESHOLD CHECK: Has user moved beyond wiggle room?
-    if (!interactionStateRef.current.hasCrossedThreshold) {
-      const deltaX = Math.abs(pointerX - interactionStateRef.current.startX);
-      const deltaY = Math.abs(pointerY - interactionStateRef.current.startY);
-      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+  // 🔥 THRESHOLD CHECK
+  if (!interactionStateRef.current.hasCrossedThreshold) {
+    const deltaX = Math.abs(pointerX - interactionStateRef.current.startX);
+    const deltaY = Math.abs(pointerY - interactionStateRef.current.startY);
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-      if (distance < threshold) {
-        return; // Still within threshold - ignore movement
-      }
-
-      // 🔥 THRESHOLD CROSSED - Initialize drag
-      console.log('🎯 Threshold crossed, starting drag...');
-      interactionStateRef.current.hasCrossedThreshold = true;
-      
-      if (originalElementRef.current) {
-        const ghost = createGhostClone(originalElementRef.current);
-        ghostElementRef.current = ghost;
-
-        const placeholder = createPlaceholder(originalElementRef.current);
-        placeholderElementRef.current = placeholder;
-
-        originalElementRef.current.style.opacity = '0.3';
-        originalElementRef.current.style.pointerEvents = 'none';
-
-        isDraggingRef.current = true;
-        setIsDragging(true);
-        setDragState({
-          componentId,
-          component,
-          startPosition: { x: pointerX, y: pointerY },
-        });
-
-        onDragStart?.({
-          componentId,
-          component,
-          position: { x: pointerX, y: pointerY },
-        });
-      }
+    if (distance < threshold) {
+      return;
     }
 
-    // If drag has started, update ghost position
-    if (isDraggingRef.current && ghostElementRef.current) {
-      updateGhostPosition(pointerX, pointerY);
+    console.log('🎯 Threshold crossed, starting drag...');
+    interactionStateRef.current.hasCrossedThreshold = true;
+    
+    if (originalElementRef.current) {
+      const ghost = createGhostClone(originalElementRef.current);
+      ghostElementRef.current = ghost;
 
-      const dropInfo = detectDropTarget(pointerX, pointerY);
-      if (dropInfo) {
-        setDropTarget(dropInfo.target);
-        setDropIntent(dropInfo.intent);
+      const placeholder = createPlaceholder(originalElementRef.current);
+      placeholderElementRef.current = placeholder;
 
-        if (placeholderElementRef.current) {
-          const targetElement = dropInfo.target.element;
-          const placeholder = placeholderElementRef.current;
-          
-          if (dropInfo.intent === 'before') {
-            if (targetElement.parentNode && placeholder.parentNode !== targetElement.parentNode) {
-              targetElement.parentNode.insertBefore(placeholder, targetElement);
-            } else if (placeholder.nextSibling !== targetElement) {
-              targetElement.parentNode.insertBefore(placeholder, targetElement);
-            }
-          } else if (dropInfo.intent === 'after') {
-            if (targetElement.parentNode) {
-              if (targetElement.nextSibling !== placeholder) {
-                if (placeholder.parentNode) {
-                  placeholder.parentNode.removeChild(placeholder);
-                }
-                if (targetElement.nextSibling) {
-                  targetElement.parentNode.insertBefore(placeholder, targetElement.nextSibling);
-                } else {
-                  targetElement.parentNode.appendChild(placeholder);
-                }
-              }
-            }
-          } else if (dropInfo.intent === 'inside') {
-            if (targetElement !== placeholder.parentNode) {
+      originalElementRef.current.style.opacity = '0.3';
+      originalElementRef.current.style.pointerEvents = 'none';
+
+      isDraggingRef.current = true;
+      setIsDragging(true);
+      setDragState({
+        componentId,
+        component,
+        startPosition: { x: pointerX, y: pointerY },
+      });
+
+      onDragStart?.({
+        componentId,
+        component,
+        position: { x: pointerX, y: pointerY },
+      });
+    }
+  }
+
+  // 🔥 ADD THIS: Broadcast drag movement in real-time
+  if (isDraggingRef.current && ghostElementRef.current) {
+    updateGhostPosition(pointerX, pointerY);
+
+    const dropInfo = detectDropTarget(pointerX, pointerY);
+    if (dropInfo) {
+      setDropTarget(dropInfo.target);
+      setDropIntent(dropInfo.intent);
+
+      if (placeholderElementRef.current) {
+        const targetElement = dropInfo.target.element;
+        const placeholder = placeholderElementRef.current;
+        
+        if (dropInfo.intent === 'before') {
+          if (targetElement.parentNode && placeholder.parentNode !== targetElement.parentNode) {
+            targetElement.parentNode.insertBefore(placeholder, targetElement);
+          } else if (placeholder.nextSibling !== targetElement) {
+            targetElement.parentNode.insertBefore(placeholder, targetElement);
+          }
+        } else if (dropInfo.intent === 'after') {
+          if (targetElement.parentNode) {
+            if (targetElement.nextSibling !== placeholder) {
               if (placeholder.parentNode) {
                 placeholder.parentNode.removeChild(placeholder);
               }
-              if (targetElement.firstChild) {
-                targetElement.insertBefore(placeholder, targetElement.firstChild);
+              if (targetElement.nextSibling) {
+                targetElement.parentNode.insertBefore(placeholder, targetElement.nextSibling);
               } else {
-                targetElement.appendChild(placeholder);
+                targetElement.parentNode.appendChild(placeholder);
               }
             }
           }
+        } else if (dropInfo.intent === 'inside') {
+          if (targetElement !== placeholder.parentNode) {
+            if (placeholder.parentNode) {
+              placeholder.parentNode.removeChild(placeholder);
+            }
+            if (targetElement.firstChild) {
+              targetElement.insertBefore(placeholder, targetElement.firstChild);
+            } else {
+              targetElement.appendChild(placeholder);
+            }
+          }
         }
-      } else {
-        setDropTarget(null);
-        setDropIntent(null);
       }
-
-      onDragMove?.({
-        componentId,
-        position: { x: pointerX, y: pointerY },
-        dropTarget: dropInfo?.target,
-        dropIntent: dropInfo?.intent,
-      });
+    } else {
+      setDropTarget(null);
+      setDropIntent(null);
     }
-  }, [updateGhostPosition, detectDropTarget, componentId, component, canvasRef, onDragMove, onDragStart, threshold, createGhostClone, createPlaceholder]);
+
+    // 🔥 NEW: Call onDragMove to broadcast position
+    onDragMove?.({
+      componentId,
+      position: { x: pointerX, y: pointerY },
+      dropTarget: dropInfo?.target,
+      dropIntent: dropInfo?.intent,
+    });
+  }
+}, [updateGhostPosition, detectDropTarget, componentId, component, canvasRef, onDragMove, onDragStart, threshold, createGhostClone, createPlaceholder]);
 
   /**
    * Handle pointer up (end drag)

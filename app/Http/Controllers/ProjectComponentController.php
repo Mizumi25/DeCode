@@ -351,11 +351,21 @@ private function normalizeStyleData($componentData)
     
             DB::commit();
     
-            return response()->json([
-                'success' => true,
-                'message' => 'Components saved successfully',
-                'saved_count' => count($savedComponentIds)
-            ]);
+            event(new \App\Events\FrameUpdated(
+              $frame->uuid,
+              auth()->id(),
+              [
+                  'action' => 'bulk_update',
+                  'component_count' => count($savedComponentIds),
+                  'updated_at' => now()->toISOString(),
+              ]
+          ));
+          
+          return response()->json([
+              'success' => true,
+              'message' => 'Components saved successfully',
+              'saved_count' => count($savedComponentIds)
+          ]);
     
         } catch (\Exception $e) {
             DB::rollback();

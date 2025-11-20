@@ -74,6 +74,42 @@ class CollaborationController extends Controller
             ],
         ]);
     }
+    
+    
+    
+    /**
+ * Broadcast component property update
+ */
+public function updateComponent(Request $request, Frame $frame): JsonResponse
+{
+    $validated = $request->validate([
+        'component_id' => 'required|string',
+        'session_id' => 'required|string',
+        'updates' => 'required|array',
+        'update_type' => 'required|in:style,position,props,nest,reorder,delete',
+    ]);
+
+    $user = Auth::user();
+
+    \Log::info('Broadcasting component update:', [
+        'frame' => $frame->uuid,
+        'user' => $user->id,
+        'component' => $validated['component_id'],
+        'type' => $validated['update_type'],
+        'updates' => $validated['updates'],
+    ]);
+
+    broadcast(new \App\Events\ComponentUpdated(
+        frameUuid: $frame->uuid,
+        userId: $user->id,
+        sessionId: $validated['session_id'],
+        componentId: $validated['component_id'],
+        updates: $validated['updates'],
+        updateType: $validated['update_type'],
+    ))->toOthers();
+
+    return response()->json(['success' => true]);
+}
 
     /**
      * Get all active cursors for a frame
@@ -131,30 +167,42 @@ class CollaborationController extends Controller
     /**
      * Broadcast element dragging
      */
-    public function dragMove(Request $request, Frame $frame): JsonResponse
-    {
-        $validated = $request->validate([
-            'component_id' => 'required|string',
-            'session_id' => 'required|string',
-            'x' => 'required|numeric',
-            'y' => 'required|numeric',
-            'bounds' => 'required|array',
-        ]);
+  public function dragMove(Request $request, Frame $frame): JsonResponse
+{
+    $validated = $request->validate([
+        'component_id' => 'required|string',
+        'session_id' => 'required|string',
+        'x' => 'required|numeric',
+        'y' => 'required|numeric',
+        'bounds' => 'required|array',
+    ]);
 
-        $user = Auth::user();
+    $user = Auth::user();
 
-        broadcast(new ElementDragging(
-            frameUuid: $frame->uuid,
-            userId: $user->id,
-            sessionId: $validated['session_id'],
-            componentId: $validated['component_id'],
-            x: $validated['x'],
-            y: $validated['y'],
-            bounds: $validated['bounds'],
-        ))->toOthers();
+    // 🔥 ADD DEBUG LOGGING
+    \Log::info('Broadcasting drag move:', [
+        'frame' => $frame->uuid,
+        'user' => $user->id,
+        'component' => $validated['component_id'],
+        'x' => $validated['x'],
+        'y' => $validated['y'],
+    ]);
 
-        return response()->json(['success' => true]);
-    }
+    broadcast(new ElementDragging(
+        frameUuid: $frame->uuid,
+        userId: $user->id,
+        sessionId: $validated['session_id'],
+        componentId: $validated['component_id'],
+        x: $validated['x'],
+        y: $validated['y'],
+        bounds: $validated['bounds'],
+    ))->toOthers();
+
+    // 🔥 ADD CONFIRMATION LOG
+    \Log::info('Drag move broadcast sent');
+
+    return response()->json(['success' => true]);
+}
 
     /**
      * Broadcast element drag end

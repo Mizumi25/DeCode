@@ -249,7 +249,9 @@ Route::prefix('workspaces/{workspaceId}/messages')->group(function () {
         Route::post('/drag-start', [CollaborationController::class, 'dragStart']);
         Route::post('/drag-move', [CollaborationController::class, 'dragMove']);
         Route::post('/drag-end', [CollaborationController::class, 'dragEnd']);
-    });
+// 🔥 ADD THIS NEW ROUTE
+    Route::post('/component-update', [CollaborationController::class, 'updateComponent']);
+});
     
     // Cleanup endpoint (can be scheduled)
     Route::post('/collaboration/cleanup', [CollaborationController::class, 'cleanup']);

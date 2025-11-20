@@ -1,4 +1,6 @@
 <?php
+// app/Events/ElementDragging.php
+
 namespace App\Events;
 
 use Illuminate\Broadcasting\Channel;
@@ -8,14 +10,18 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class FrameUpdated implements ShouldBroadcastNow
+class ElementDragging implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public function __construct(
         public string $frameUuid,
         public int $userId,
-        public array $data,
+        public string $sessionId,
+        public string $componentId,
+        public float $x,
+        public float $y,
+        public array $bounds,
     ) {}
 
     public function broadcastOn(): array
@@ -27,14 +33,18 @@ class FrameUpdated implements ShouldBroadcastNow
 
     public function broadcastAs(): string
     {
-        return 'frame.updated';
+        return 'element.drag.moving';
     }
 
     public function broadcastWith(): array
     {
         return [
             'userId' => $this->userId,
-            'data' => $this->data,
+            'sessionId' => $this->sessionId,
+            'componentId' => $this->componentId,
+            'x' => $this->x,
+            'y' => $this->y,
+            'bounds' => $this->bounds,
             'timestamp' => now()->toISOString(),
         ];
     }
