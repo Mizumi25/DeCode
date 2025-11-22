@@ -16,8 +16,7 @@ export class ThumbnailService {
         return this.pendingGenerations.get(frameUuid);
       }
 
-      console.log(`[ThumbnailService] Starting generation for frame: ${frameUuid}`);
-
+      
       const request = axios.post(`/api/frames/${frameUuid}/thumbnail`, {
         generate_thumbnail: true
       });
@@ -29,7 +28,7 @@ export class ThumbnailService {
       // Clear pending request
       this.pendingGenerations.delete(frameUuid);
       
-      console.log(`[ThumbnailService] Generation response:`, response.data);
+      
       
       if (response.data.success) {
         const thumbnailData = {
@@ -62,11 +61,11 @@ export class ThumbnailService {
    */
   static async getThumbnailStatus(frameUuid) {
     try {
-      console.log(`[ThumbnailService] Getting status for frame: ${frameUuid}`);
+      
       
       const response = await axios.get(`/api/frames/${frameUuid}/thumbnail/status`);
       
-      console.log(`[ThumbnailService] Status response:`, response.data);
+      
       
       if (response.data.success) {
         // Update cache
@@ -95,11 +94,11 @@ export class ThumbnailService {
    * Get cached thumbnail URL or fetch status - IMPROVED
    */
   static async getThumbnailUrl(frameUuid, useCache = true) {
-    console.log(`[ThumbnailService] Getting thumbnail URL for ${frameUuid}, useCache: ${useCache}`);
+    
     
     if (useCache && this.cache.has(frameUuid)) {
       const cached = this.cache.get(frameUuid);
-      console.log(`[ThumbnailService] Found cached URL:`, cached.url);
+      
       
       // Apply cache busting
       if (cached.url) {
@@ -111,11 +110,11 @@ export class ThumbnailService {
       return cached.url;
     }
 
-    console.log(`[ThumbnailService] No cache, fetching status...`);
+    
     const status = await this.getThumbnailStatus(frameUuid);
     const url = status?.thumbnail_url || null;
     
-    console.log(`[ThumbnailService] Status fetch result:`, url);
+    
     return url;
   }
 
@@ -125,7 +124,7 @@ export class ThumbnailService {
   static isValidThumbnail(url) {
     if (!url) return false;
     
-    console.log(`[ThumbnailService] Validating URL: ${url}`);
+    
     
     // Check for placeholder patterns
     const placeholderPatterns = [
@@ -139,7 +138,7 @@ export class ThumbnailService {
     // Return false if URL contains any placeholder patterns
     for (const pattern of placeholderPatterns) {
       if (url.includes(pattern)) {
-        console.log(`[ThumbnailService] URL contains placeholder pattern: ${pattern}`);
+        
         return false;
       }
     }
@@ -156,7 +155,6 @@ export class ThumbnailService {
     
     // Return true if URL contains any valid thumbnail patterns
     const isValid = validThumbnailPatterns.some(pattern => url.includes(pattern));
-    console.log(`[ThumbnailService] URL validation result: ${isValid} for ${url}`);
     
     return isValid;
   }
@@ -166,7 +164,6 @@ export class ThumbnailService {
    */
   static async getThumbnailUrlWithFallback(frameUuid, frameType = 'page') {
     try {
-      console.log(`[ThumbnailService] Getting thumbnail with fallback for ${frameUuid}`);
       
       const url = await this.getThumbnailUrl(frameUuid);
       
@@ -174,7 +171,7 @@ export class ThumbnailService {
         // For SVG files, we don't need to verify accessibility via HEAD request
         // as some servers might not support it properly
         if (url.endsWith('.svg') || url.includes('.svg')) {
-          console.log(`[ThumbnailService] SVG thumbnail found: ${url}`);
+          
           return url;
         }
         
@@ -182,7 +179,7 @@ export class ThumbnailService {
         try {
           const response = await fetch(url, { method: 'HEAD' });
           if (response.ok) {
-            console.log(`[ThumbnailService] Valid thumbnail verified: ${url}`);
+            
             return url;
           } else {
             console.warn(`[ThumbnailService] Thumbnail URL not accessible: ${response.status}`);
@@ -190,12 +187,12 @@ export class ThumbnailService {
         } catch (fetchError) {
           console.warn(`[ThumbnailService] Failed to verify accessibility: ${fetchError.message}`);
           // Don't fail completely - still return the URL as it might work
-          console.log(`[ThumbnailService] Returning unverified URL: ${url}`);
+          
           return url;
         }
       }
       
-      console.log(`[ThumbnailService] Using placeholder for ${frameUuid}`);
+      
       return this.getPlaceholderUrl(frameType);
       
     } catch (error) {
@@ -219,7 +216,7 @@ export class ThumbnailService {
               // Check if content type is SVG
               const contentType = response.headers.get('content-type');
               if (contentType && contentType.includes('image/svg')) {
-                console.log(`[ThumbnailService] SVG preloaded successfully: ${url}`);
+                
                 resolve(url);
               } else {
                 // Try as regular image if it's not actually an SVG
@@ -244,7 +241,7 @@ export class ThumbnailService {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
-        console.log(`[ThumbnailService] Image preloaded successfully: ${url}`);
+        
         resolve(url);
       };
       img.onerror = () => {
@@ -275,7 +272,6 @@ export class ThumbnailService {
    * Subscribe to thumbnail updates
    */
   static subscribeThumbnailUpdates(frameUuid, callback) {
-    console.log(`[ThumbnailService] Subscribing to updates for frame: ${frameUuid}`);
     
     if (!this.listeners.has(frameUuid)) {
       this.listeners.set(frameUuid, new Set());
@@ -292,7 +288,7 @@ export class ThumbnailService {
           this.listeners.delete(frameUuid);
         }
       }
-      console.log(`[ThumbnailService] Unsubscribed from updates for frame: ${frameUuid}`);
+      
     };
   }
 
@@ -300,7 +296,7 @@ export class ThumbnailService {
    * Notify all listeners of thumbnail updates
    */
   static notifyListeners(frameUuid, data) {
-    console.log(`[ThumbnailService] Notifying listeners for frame: ${frameUuid}`, data);
+    
     
     const frameListeners = this.listeners.get(frameUuid);
     if (frameListeners) {
@@ -321,7 +317,7 @@ export class ThumbnailService {
     if (data.type === 'thumbnail_generated' && data.frame_uuid) {
       const frameUuid = data.frame_uuid;
       
-      console.log(`[ThumbnailService] Handling broadcast update for frame: ${frameUuid}`, data);
+      
       
       // Update cache
       this.cache.set(frameUuid, {
@@ -346,7 +342,7 @@ export class ThumbnailService {
    */
   static clearCache(frameUuid) {
     this.cache.delete(frameUuid);
-    console.log(`[ThumbnailService] Cache cleared for frame: ${frameUuid}`);
+    
   }
 
   /**
@@ -354,7 +350,7 @@ export class ThumbnailService {
    */
   static clearAllCaches() {
     this.cache.clear();
-    console.log(`[ThumbnailService] All caches cleared`);
+    
   }
 
   /**
@@ -408,7 +404,7 @@ export class ThumbnailService {
    * Force refresh thumbnail by clearing cache and regenerating
    */
   static async forceRefresh(frameUuid) {
-    console.log(`[ThumbnailService] Force refreshing thumbnail for: ${frameUuid}`);
+    
     
     // Clear cache first
     this.clearCache(frameUuid);
@@ -441,7 +437,7 @@ export class ThumbnailService {
    */
   static async generateThumbnailFromCanvas(frameUuid, canvasComponents, canvasSettings = {}) {
     try {
-      console.log(`[ThumbnailService] Generating from canvas for ${frameUuid}:`, canvasComponents.length, 'components');
+      
       
       const payload = {
         canvas_components: canvasComponents,
@@ -489,11 +485,11 @@ export class ThumbnailService {
   static scheduleCanvasThumbnailUpdate(frameUuid, canvasComponents, canvasSettings = {}) {
     // Don't generate if no components
     if (!canvasComponents || canvasComponents.length === 0) {
-      console.log(`[ThumbnailService] Skipping thumbnail update - no components`);
+      
       return;
     }
 
-    console.log(`[ThumbnailService] Scheduling canvas update for ${frameUuid}`);
+    
     
     // Use debounced generation to prevent too many requests
     return this.debouncedGenerateFromCanvas(frameUuid, canvasComponents, canvasSettings);

@@ -296,6 +296,7 @@ private function normalizeStyleData($componentData)
             'project_id' => 'required|string',
             'frame_id' => 'required|string',
             'components' => 'required|array',
+            'silent' => 'boolean',
             'components.*.id' => 'required|string',
             'components.*.type' => 'required|string',
             'components.*.props' => 'nullable|array',
@@ -310,79 +311,79 @@ private function normalizeStyleData($componentData)
             'create_revision' => 'boolean'
         ]);
     
-        DB::beginTransaction();
+
+    DB::beginTransaction();
+    
+    try {
+        $frame = Frame::where('uuid', $validated['frame_id'])->first();
+        $project = Project::where('uuid', $validated['project_id'])->first();
         
-        try {
-            $frame = Frame::where('uuid', $validated['frame_id'])->first();
-            $project = Project::where('uuid', $validated['project_id'])->first();
-            
-            if (!$frame || !$project) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Frame or project not found'
-                ], 404);
-            }
-    
-            // CRITICAL FIX: Delete existing components FIRST
-            ProjectComponent::where('project_id', $project->id)
-                           ->where('frame_id', $frame->id)
-                           ->delete();
-    
-            // CRITICAL FIX: Track saved component IDs to prevent duplicates
-            $savedComponentIds = [];
-            
-            // Save components recursively (only root-level components)
-            foreach ($validated['components'] as $componentData) {
-                // CRITICAL: Skip if already saved (prevents duplicates)
-                if (in_array($componentData['id'], $savedComponentIds)) {
-                    \Log::warning('Skipping duplicate component:', ['id' => $componentData['id']]);
-                    continue;
-                }
-                
-                $this->saveComponentTreeWithTracking(
-                    $componentData, 
-                    $project->id, 
-                    $frame->id,
-                    null, // no parent for root components
-                    0,    // depth 0
-                    $savedComponentIds
-                );
-            }
-    
-            DB::commit();
-    
-            event(new \App\Events\FrameUpdated(
-              $frame->uuid,
-              auth()->id(),
-              [
-                  'action' => 'bulk_update',
-                  'component_count' => count($savedComponentIds),
-                  'updated_at' => now()->toISOString(),
-              ]
-          ));
-          
-          return response()->json([
-              'success' => true,
-              'message' => 'Components saved successfully',
-              'saved_count' => count($savedComponentIds)
-          ]);
-    
-        } catch (\Exception $e) {
-            DB::rollback();
-            
-            \Log::error('BulkUpdate failed:', [
-                'error' => $e->getMessage(),
-                'line' => $e->getLine(),
-                'file' => $e->getFile()
-            ]);
-            
+        if (!$frame || !$project) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to save: ' . $e->getMessage()
-            ], 500);
+                'message' => 'Frame or project not found'
+            ], 404);
         }
+
+        // Delete existing components
+        ProjectComponent::where('project_id', $project->id)
+                       ->where('frame_id', $frame->id)
+                       ->delete();
+
+        $savedComponentIds = [];
+        
+        foreach ($validated['components'] as $componentData) {
+            if (in_array($componentData['id'], $savedComponentIds)) {
+                continue;
+            }
+            
+            $this->saveComponentTreeWithTracking(
+                $componentData, 
+                $project->id, 
+                $frame->id,
+                null,
+                0,
+                $savedComponentIds
+            );
+        }
+
+        DB::commit();
+
+        // 🔥 MODIFIED: Only broadcast if NOT silent
+        if (!($validated['silent'] ?? false)) {
+            event(new \App\Events\FrameUpdated(
+                $frame->uuid,
+                auth()->id(),
+                [
+                    'action' => 'bulk_update',
+                    'component_count' => count($savedComponentIds),
+                    'updated_at' => now()->toISOString(),
+                ],
+                'bulk_update' // 🔥 NEW: Specify update type
+            ));
+        }
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Components saved successfully',
+            'saved_count' => count($savedComponentIds),
+            'silent' => $validated['silent'] ?? false
+        ]);
+
+    } catch (\Exception $e) {
+        DB::rollback();
+        
+        \Log::error('BulkUpdate failed:', [
+            'error' => $e->getMessage(),
+            'line' => $e->getLine(),
+        ]);
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to save: ' . $e->getMessage()
+        ], 500);
     }
-    
+}
 
 
 

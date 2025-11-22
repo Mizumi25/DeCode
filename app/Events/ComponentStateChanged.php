@@ -1,21 +1,17 @@
 <?php
-// app/Events/FrameUpdated.php - FIXED
 namespace App\Events;
 
 use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
-use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Queue\SerializesModels;
 
-class FrameUpdated implements ShouldBroadcastNow
+class ComponentStateChanged implements ShouldBroadcastNow
 {
-    use Dispatchable, SerializesModels;
-
     public function __construct(
         public string $frameUuid,
         public int $userId,
-        public array $data,
-        public string $updateType = 'generic', // 🔥 NEW: Specify update type
+        public string $componentId,
+        public array $finalState, // Full component state
+        public string $operation, // 'moved', 'nested', 'styled', 'deleted'
     ) {}
 
     public function broadcastOn(): array
@@ -25,15 +21,16 @@ class FrameUpdated implements ShouldBroadcastNow
 
     public function broadcastAs(): string
     {
-        return 'frame.state.updated'; // 🔥 CHANGED: More specific name
+        return 'component.state.changed';
     }
 
     public function broadcastWith(): array
     {
         return [
             'userId' => $this->userId,
-            'data' => $this->data,
-            'updateType' => $this->updateType,
+            'componentId' => $this->componentId,
+            'finalState' => $this->finalState,
+            'operation' => $this->operation,
             'timestamp' => now()->toISOString(),
         ];
     }

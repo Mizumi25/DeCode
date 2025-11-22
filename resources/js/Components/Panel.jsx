@@ -41,9 +41,28 @@ export default function Panel({
   // NEW: Default merge configurations
   defaultDockPosition = EMPTY_DEFAULT_DOCK
 }) {
+  
+
+  
+  
   const panelsToUse = useMemo(() => {
     return initialPanels.length > 0 ? initialPanels : panels
   }, [initialPanels, panels])
+  
+  
+  
+    
+  // 🔥 FIXED: Memoize the panels array
+const memoizedPanels = useMemo(() => {
+  return panelsToUse.map(panel => ({
+    ...panel,
+    content: React.isValidElement(panel.content) 
+      ? React.cloneElement(panel.content, { key: panel.id })
+      : panel.content
+  }));
+}, [panelsToUse]);
+
+// Use memoizedPanels instead of panelsToUse in your effects
 
   // Tab and search state
   const [activeTab, setActiveTab] = useState(tabConfig?.defaultTab || 'tab1')

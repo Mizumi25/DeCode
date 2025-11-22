@@ -18,30 +18,25 @@ class ComponentLibraryService {
   
   async loadComponents() {
       try {
-          console.log('=== LOADING COMPONENTS FROM DATABASE ===');
+          
           
           const response = await axios.get('/api/components');
           if (response.data.success) {
               const componentsByCategory = response.data.data;
-              console.log('Raw API response:', componentsByCategory);
+              
               
               let totalLoaded = 0;
               
               // Process both elements and components
               Object.entries(componentsByCategory).forEach(([categoryType, letterGroups]) => {
-                  console.log(`Processing category: ${categoryType}`);
+                  
                   
                   Object.entries(letterGroups).forEach(([letter, componentList]) => {
-                      console.log(`Processing letter group: ${letter}, count: ${componentList.length}`);
+                      
                       
                       if (Array.isArray(componentList)) {
                           componentList.forEach(component => {
-                              console.log('Processing component:', {
-                                  name: component.name,
-                                  type: component.type,
-                                  hasDefaults: !!component.default_props,
-                                  defaults: component.default_props
-                              });
+                              
                               
                               // Ensure variants are properly parsed
                               let variants = component.variants;
@@ -77,11 +72,7 @@ class ComponentLibraryService {
                                   variants: variants
                               };
   
-                              console.log('Storing component definition:', component.type, {
-                                  name: processedComponent.name,
-                                  default_props: processedComponent.default_props,
-                                  variants_count: processedComponent.variants.length
-                              });
+                              
   
                               this.componentDefinitions.set(component.type, processedComponent);
                               this.components.set(component.type, this.createComponentRenderer(processedComponent));
@@ -91,20 +82,13 @@ class ComponentLibraryService {
                   });
               });
               
-              console.log('=== COMPONENT LOADING COMPLETE ===');
-              console.log('Total components loaded:', totalLoaded);
-              console.log('Component definitions map size:', this.componentDefinitions.size);
-              console.log('Components map size:', this.components.size);
+              
               
               // Debug specific components
               ['button', 'card', 'badge', 'input'].forEach(type => {
                   const def = this.componentDefinitions.get(type);
                   if (def) {
-                      console.log(`${type} definition loaded:`, {
-                          name: def.name,
-                          default_props: def.default_props,
-                          variants: def.variants?.length || 0
-                      });
+                      
                   } else {
                       console.warn(`${type} definition NOT found!`);
                   }
@@ -291,11 +275,7 @@ getDeviceCanvasDimensions(responsiveMode) {
       zIndex: props.zIndex || 0
   };
 
-  console.log('✅ Created layout element:', {
-    id: layoutElement.id,
-    type: layoutElement.type,
-    isLayoutContainer: layoutElement.isLayoutContainer
-  });
+  
 
   return layoutElement;
 }
@@ -303,10 +283,7 @@ getDeviceCanvasDimensions(responsiveMode) {
 
     // ALSO fix the createComponentRenderer method to ensure proper defaults:
   createComponentRenderer(componentDef) {
-      console.log('Creating renderer for:', componentDef.type, {
-          hasDefaults: !!componentDef.default_props,
-          defaults: componentDef.default_props
-      });
+      
       
       return {
           id: componentDef.type,
@@ -369,7 +346,7 @@ getDeviceCanvasDimensions(responsiveMode) {
         
         // Step 2: Variant styles (if variant exists)
         if (props.variant && props.variant.style) {
-            console.log('🎨 Applying variant styles:', props.variant.name);
+            
             finalStyle = {
                 ...finalStyle,
                 ...props.variant.style
@@ -378,7 +355,7 @@ getDeviceCanvasDimensions(responsiveMode) {
         
         // Step 3: Instance styles (HIGHEST PRIORITY - overwrites everything)
         if (props.style) {
-            console.log('⚡ Applying instance styles (highest priority):', Object.keys(props.style));
+            
             finalStyle = {
                 ...finalStyle,
                 ...props.style  // ✅ Instance styles ALWAYS win
@@ -392,13 +369,7 @@ getDeviceCanvasDimensions(responsiveMode) {
             style: finalStyle,  // ✅ Final merged styles
         };
         
-        console.log('🔧 Merged props for', componentDef.type, ':', {
-            hasVariant: !!props.variant,
-            variantName: props.variant?.name,
-            instanceStyleKeys: Object.keys(props.style || {}),
-            finalStyleKeys: Object.keys(finalStyle),
-            display: finalStyle.display
-        });
+        
         
         // Check if this is a layout container
         const isLayoutContainer = props.isLayoutContainer || 
@@ -408,8 +379,7 @@ getDeviceCanvasDimensions(responsiveMode) {
             return this.renderLayoutContainer(componentDef, mergedProps, id, props.children || []);
         }
    
-        
-        console.log('Rendering component:', componentDef.type, 'with merged props:', mergedProps);
+
         
         // Check if there's a variant being used
         if (props.variant && componentDef.variants) {
@@ -549,7 +519,7 @@ renderCanvasRoot(frame, canvasRef) {
     canvas.style[key] = value;
   });
   
-  console.log('🎨 Canvas styles applied in real-time:', Object.keys(canvasStyle));
+  
 }
     
     
@@ -570,12 +540,7 @@ renderLayoutContainer(componentDef, props, id, children) {
         ...props.style,
     };
 
-    console.log('🎨 renderLayoutContainer FINAL style:', {
-        type: componentDef.type,
-        flexDirection: containerStyle.flexDirection,
-        display: containerStyle.display,
-        allKeys: Object.keys(containerStyle)
-    });
+    
     
     return React.createElement('div', {
         key: id,
@@ -635,12 +600,7 @@ renderButton(props, id, layoutStyles = {}) {
         outline: 'none',
     };
     
-    console.log('🔘 Rendering button with style:', {
-        id,
-        styleKeys: Object.keys(buttonStyle),
-        hasBackground: !!buttonStyle.background,
-        hasPadding: !!buttonStyle.padding
-    });
+    
     
     // 🔥 Text node wrapper for independent selection
     const textNodeId = `${id}-text`;
@@ -662,7 +622,7 @@ renderButton(props, id, layoutStyles = {}) {
       },
       onClick: (e) => {
         e.stopPropagation();
-        console.log('🎯 Text node clicked:', textNodeId);
+        
         if (window.forgeSelectComponent) {
           window.forgeSelectComponent(textNodeId);
         }
@@ -1939,7 +1899,8 @@ getCardClasses(props) {
   // Client-side code generation with enhanced variant support
   // Around line 500 in ComponentLibraryService.js
     clientSideCodeGeneration(allComponents, style) {
-        console.log('Generating code for', allComponents.length, 'components with style:', style);
+        
+        
         
         const codeMap = {
           'react-tailwind': () => this.generateReactTailwindCode(allComponents),
@@ -3205,7 +3166,7 @@ normalizeComponentStyles(component) {
   // 🔥 Move ALL style props from props to style
   styleProps.forEach(prop => {
     if (normalized.props[prop] !== undefined) {
-      console.log(`⚠️ Moving ${prop} from props to style:`, normalized.props[prop]);
+      
       normalized.style[prop] = normalized.props[prop];
       delete normalized.props[prop];
     }
@@ -3213,8 +3174,7 @@ normalizeComponentStyles(component) {
   
   // 🔥 ALSO check for Tailwind class strings that should be converted
   if (normalized.props.className) {
-    console.log('⚠️ Converting className to inline styles');
-    // You can add Tailwind-to-CSS conversion here if needed
+    
     // For now, just move it
     normalized.style.className = normalized.props.className;
     delete normalized.props.className;
@@ -3227,8 +3187,7 @@ normalizeComponentStyles(component) {
 // MODIFY: saveProjectComponents method (around line 750)
 async saveProjectComponents(projectId, frameId, components) {
     try {
-        console.log('=== SAVING TO DATABASE ===');
-        console.log('Components to save:', components.length);
+        
         
         const seenIds = new Set();
         
@@ -3239,8 +3198,7 @@ async saveProjectComponents(projectId, frameId, components) {
         
         const flattenedComponents = this.flattenComponentTree(normalizedComponents, seenIds);
         
-        console.log('Flattened components:', flattenedComponents.length);
-        console.log('Duplicate IDs removed:', components.length - flattenedComponents.length);
+        
         
         const response = await axios.post('/api/project-components/bulk-update', {
             project_id: projectId,
@@ -3263,7 +3221,7 @@ async saveProjectComponents(projectId, frameId, components) {
         });
         
         if (response.data.success) {
-            console.log('✅ Successfully saved to database');
+            
             return true;
         }
         
@@ -3352,7 +3310,6 @@ rebuildComponentTree(flatComponents) {
     // ENHANCED: Load with tree reconstruction
   async loadProjectComponents(projectId, frameId) {
       try {
-          console.log('Loading project components for:', { projectId, frameId });
           
           const response = await axios.get('/api/project-components', {
               params: { project_id: projectId, frame_id: frameId }
@@ -3360,13 +3317,10 @@ rebuildComponentTree(flatComponents) {
           
           if (response.data.success) {
               const flatComponents = response.data.data;
-              console.log('Loaded', flatComponents.length, 'components from backend');
               
               // CRITICAL: Rebuild tree structure
               const treeComponents = this.rebuildComponentTree(flatComponents);
-              
-              console.log('Rebuilt tree with', treeComponents.length, 'root components');
-              
+
               return treeComponents;
           }
           

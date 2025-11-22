@@ -1,18 +1,17 @@
 <?php
-// app/Http/Controllers/CollaborationController.php
+// app/Http/Controllers/CollaborationController.php - FIXED
 
 namespace App\Http\Controllers;
 
 use App\Models\Frame;
 use App\Models\FrameCursor;
 use App\Events\CursorMoved;
-use App\Events\ElementDragStarted;
-use App\Events\ElementDragging;
-use App\Events\ElementDragEnded;
+use App\Events\ComponentRealTimeUpdate;
+use App\Events\ComponentStateChanged;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 
 class CollaborationController extends Controller
 {
@@ -32,8 +31,7 @@ class CollaborationController extends Controller
         $user = Auth::user();
         $color = $this->getUserColor($user->id);
 
-        // Update or create cursor position
-        $cursor = FrameCursor::updateOrCreate(
+        FrameCursor::updateOrCreate(
             [
                 'frame_id' => $frame->id,
                 'user_id' => $user->id,
@@ -49,7 +47,6 @@ class CollaborationController extends Controller
             ]
         );
 
-        // Broadcast cursor movement (others will see it)
         broadcast(new CursorMoved(
             frameUuid: $frame->uuid,
             userId: $user->id,
@@ -63,62 +60,15 @@ class CollaborationController extends Controller
             meta: $validated['meta'] ?? null,
         ))->toOthers();
 
-        return response()->json([
-            'success' => true,
-            'cursor' => [
-                'userId' => $user->id,
-                'sessionId' => $validated['session_id'],
-                'x' => $validated['x'],
-                'y' => $validated['y'],
-                'color' => $color,
-            ],
-        ]);
+        return response()->json(['success' => true]);
     }
-    
-    
-    
-    /**
- * Broadcast component property update
- */
-public function updateComponent(Request $request, Frame $frame): JsonResponse
-{
-    $validated = $request->validate([
-        'component_id' => 'required|string',
-        'session_id' => 'required|string',
-        'updates' => 'required|array',
-        'update_type' => 'required|in:style,position,props,nest,reorder,delete',
-    ]);
-
-    $user = Auth::user();
-
-    \Log::info('Broadcasting component update:', [
-        'frame' => $frame->uuid,
-        'user' => $user->id,
-        'component' => $validated['component_id'],
-        'type' => $validated['update_type'],
-        'updates' => $validated['updates'],
-    ]);
-
-    broadcast(new \App\Events\ComponentUpdated(
-        frameUuid: $frame->uuid,
-        userId: $user->id,
-        sessionId: $validated['session_id'],
-        componentId: $validated['component_id'],
-        updates: $validated['updates'],
-        updateType: $validated['update_type'],
-    ))->toOthers();
-
-    return response()->json(['success' => true]);
-}
 
     /**
-     * Get all active cursors for a frame
+     * Get all active cursors
      */
     public function getActiveCursors(Frame $frame): JsonResponse
     {
         $cursors = FrameCursor::getActiveCursors($frame->id);
-
-        // Filter out current user's cursor
         $currentUserId = Auth::id();
         $currentSessionId = request()->input('session_id');
         
@@ -133,94 +83,59 @@ public function updateComponent(Request $request, Frame $frame): JsonResponse
     }
 
     /**
-     * Broadcast element drag start
+     * 🔥 NEW: Broadcast real-time component update (dragging, live edits)
      */
-    public function dragStart(Request $request, Frame $frame): JsonResponse
+    public function realtimeUpdate(Request $request, Frame $frame): JsonResponse
     {
         $validated = $request->validate([
             'component_id' => 'required|string',
-            'component_name' => 'required|string',
             'session_id' => 'required|string',
-            'bounds' => 'required|array',
-            'bounds.x' => 'required|numeric',
-            'bounds.y' => 'required|numeric',
-            'bounds.width' => 'required|numeric',
-            'bounds.height' => 'required|numeric',
+            'update_type' => 'required|in:drag_move,style,prop',
+            'data' => 'required|array',
         ]);
 
         $user = Auth::user();
-        $color = $this->getUserColor($user->id);
 
-        broadcast(new ElementDragStarted(
+        // Throttle updates (max 20/sec per component)
+        $cacheKey = "realtime:{$frame->id}:{$user->id}:{$validated['component_id']}";
+        
+        if (Cache::has($cacheKey)) {
+            return response()->json(['success' => true, 'throttled' => true]);
+        }
+
+        Cache::put($cacheKey, true, now()->addMilliseconds(50));
+
+        broadcast(new ComponentRealTimeUpdate(
             frameUuid: $frame->uuid,
             userId: $user->id,
             sessionId: $validated['session_id'],
             componentId: $validated['component_id'],
-            componentName: $validated['component_name'],
-            bounds: $validated['bounds'],
-            color: $color,
+            updateType: $validated['update_type'],
+            data: $validated['data'],
         ))->toOthers();
 
         return response()->json(['success' => true]);
     }
 
     /**
-     * Broadcast element dragging
+     * 🔥 NEW: Broadcast final state change (drop, save, delete)
      */
-  public function dragMove(Request $request, Frame $frame): JsonResponse
-{
-    $validated = $request->validate([
-        'component_id' => 'required|string',
-        'session_id' => 'required|string',
-        'x' => 'required|numeric',
-        'y' => 'required|numeric',
-        'bounds' => 'required|array',
-    ]);
-
-    $user = Auth::user();
-
-    // 🔥 ADD DEBUG LOGGING
-    \Log::info('Broadcasting drag move:', [
-        'frame' => $frame->uuid,
-        'user' => $user->id,
-        'component' => $validated['component_id'],
-        'x' => $validated['x'],
-        'y' => $validated['y'],
-    ]);
-
-    broadcast(new ElementDragging(
-        frameUuid: $frame->uuid,
-        userId: $user->id,
-        sessionId: $validated['session_id'],
-        componentId: $validated['component_id'],
-        x: $validated['x'],
-        y: $validated['y'],
-        bounds: $validated['bounds'],
-    ))->toOthers();
-
-    // 🔥 ADD CONFIRMATION LOG
-    \Log::info('Drag move broadcast sent');
-
-    return response()->json(['success' => true]);
-}
-
-    /**
-     * Broadcast element drag end
-     */
-    public function dragEnd(Request $request, Frame $frame): JsonResponse
+    public function stateChanged(Request $request, Frame $frame): JsonResponse
     {
         $validated = $request->validate([
             'component_id' => 'required|string',
-            'session_id' => 'required|string',
+            'operation' => 'required|in:moved,nested,styled,deleted',
+            'final_state' => 'required|array',
         ]);
 
         $user = Auth::user();
 
-        broadcast(new ElementDragEnded(
+        broadcast(new ComponentStateChanged(
             frameUuid: $frame->uuid,
             userId: $user->id,
-            sessionId: $validated['session_id'],
             componentId: $validated['component_id'],
+            finalState: $validated['final_state'],
+            operation: $validated['operation'],
         ))->toOthers();
 
         return response()->json(['success' => true]);
@@ -249,11 +164,7 @@ public function updateComponent(Request $request, Frame $frame): JsonResponse
     public function cleanup(): JsonResponse
     {
         $deletedCount = FrameCursor::cleanupStale();
-
-        return response()->json([
-            'success' => true,
-            'deleted' => $deletedCount,
-        ]);
+        return response()->json(['success' => true, 'deleted' => $deletedCount]);
     }
 
     /**
@@ -262,18 +173,9 @@ public function updateComponent(Request $request, Frame $frame): JsonResponse
     private function getUserColor(int $userId): string
     {
         $colors = [
-            '#3b82f6', // blue
-            '#10b981', // green
-            '#f59e0b', // amber
-            '#ef4444', // red
-            '#8b5cf6', // purple
-            '#ec4899', // pink
-            '#06b6d4', // cyan
-            '#f97316', // orange
-            '#84cc16', // lime
-            '#6366f1', // indigo
+            '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+            '#ec4899', '#06b6d4', '#f97316', '#84cc16', '#6366f1',
         ];
-
         return $colors[$userId % count($colors)];
     }
 }

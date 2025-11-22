@@ -41,7 +41,7 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
 
   // Handle panel toggle based on page type with enhanced logging
   const handlePanelToggle = (panelId) => {
-    console.log(`MiddlePanelControls: Toggle requested for ${panelId} on ${onForgePage ? 'Forge' : onSourcePage ? 'Source' : 'Other'} page`);
+    
     
     if (onForgePage) {
       // Map button positions to panel IDs for Forge page
@@ -52,17 +52,14 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
       }
       
       const actualPanelId = forgePanelMap[panelId]
-      console.log(`MiddlePanelControls: Mapped ${panelId} to ${actualPanelId} for Forge`);
       
       if (actualPanelId) {
-        console.log(`MiddlePanelControls: Calling toggleForgePanel for ${actualPanelId}`);
-        console.log(`MiddlePanelControls: Current Forge state before toggle: ${isForgePanelOpen(actualPanelId)}`);
         
         toggleForgePanel(actualPanelId)
         
         // Log state after toggle (use setTimeout to see the updated state)
         setTimeout(() => {
-          console.log(`MiddlePanelControls: Forge state after toggle: ${isForgePanelOpen(actualPanelId)}`);
+          
         }, 0);
       }
     } else if (onSourcePage) {
@@ -74,43 +71,42 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
       }
       
       const actualPanelId = sourcePanelMap[panelId]
-      console.log(`MiddlePanelControls: Mapped ${panelId} to ${actualPanelId} for Source`);
+      
       
       if (actualPanelId) {
-        console.log(`MiddlePanelControls: Calling toggleSourcePanel for ${actualPanelId}`);
-        console.log(`MiddlePanelControls: Current Source state before toggle: ${isSourcePanelOpen(actualPanelId)}`);
+        
         
         toggleSourcePanel(actualPanelId)
         
         // Log state after toggle (use setTimeout to see the updated state)
         setTimeout(() => {
-          console.log(`MiddlePanelControls: Source state after toggle: ${isSourcePanelOpen(actualPanelId)}`);
+          
         }, 0);
       }
     } else {
       // Use original onPanelToggle for other pages
-      console.log(`MiddlePanelControls: Using original onPanelToggle for ${panelId}`);
+      
       onPanelToggle && onPanelToggle(panelId)
     }
   }
 
   // Handle hide all panels with logging
   const handleHideAllPanels = () => {
-    console.log('MiddlePanelControls: Hide all panels requested');
+    
     
     if (onForgePage) {
-      console.log(`MiddlePanelControls: Current Forge allPanelsHidden state: ${allPanelsHidden}`);
+      
       toggleAllForgePanels()
       
       setTimeout(() => {
-        console.log(`MiddlePanelControls: New Forge allPanelsHidden state: ${allPanelsHidden}`);
+        
       }, 0);
     } else if (onSourcePage) {
-      console.log(`MiddlePanelControls: Current Source allSourcePanelsHidden state: ${allSourcePanelsHidden}`);
+      
       toggleAllSourcePanels()
       
       setTimeout(() => {
-        console.log(`MiddlePanelControls: New Source allSourcePanelsHidden state: ${allSourcePanelsHidden}`);
+        
       }, 0);
     } else {
       onPanelToggle && onPanelToggle('hideAll')
@@ -130,7 +126,7 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
       
       // Debug log for active state
       if (actualPanelId) {
-        console.log(`MiddlePanelControls: Forge panel ${panelId} (${actualPanelId}) is ${isActive ? 'active' : 'inactive'}`);
+        
       }
       
       return isActive;
@@ -145,7 +141,7 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
       
       // Debug log for active state
       if (actualPanelId) {
-        console.log(`MiddlePanelControls: Source panel ${panelId} (${actualPanelId}) is ${isActive ? 'active' : 'inactive'}`);
+        
       }
       
       return isActive;
@@ -161,16 +157,7 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
     return false; // Default for other pages
   }
 
-  // Log current state when component renders
-  console.log('MiddlePanelControls: Rendering with states:', {
-    onForgePage,
-    onSourcePage,
-    forgePanelStates: onForgePage ? forgePanelStates : 'N/A',
-    sourcePanelStates: onSourcePage ? sourcePanelStates : 'N/A',
-    allPanelsHidden: onForgePage ? allPanelsHidden : 'N/A',
-    allSourcePanelsHidden: onSourcePage ? allSourcePanelsHidden : 'N/A',
-    triggerUpdate: onForgePage ? _triggerUpdate : onSourcePage ? _sourceTriggerUpdate : 'N/A'
-  });
+  
 
   return (
     <div className="flex items-center gap-1 flex-shrink-0">

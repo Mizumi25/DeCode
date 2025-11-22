@@ -103,7 +103,7 @@ setPreviewPanelResponsiveMode: (mode) => set({
         
         // Debug logging for code panel specifically
         if (panelId === 'code-panel') {
-          console.log(`ForgeStore: Code panel check - toggle state: ${state.forgePanelStates[panelId]}, all hidden: ${state.allPanelsHidden}, result: ${isOpen}`);
+          
         }
         
         return isOpen;
@@ -124,13 +124,13 @@ setPreviewPanelResponsiveMode: (mode) => set({
           }
         });
         
-        console.log(`ForgeStore: Open panels count: ${count}`);
+        
         return count;
       },
       
       // Hide all panels (doesn't close them, just hides)
       hideAllForgePanels: () => set((state) => {
-        console.log('ForgeStore: Hiding all panels');
+        
         return {
           allPanelsHidden: true,
           _triggerUpdate: state._triggerUpdate + 1
@@ -139,7 +139,7 @@ setPreviewPanelResponsiveMode: (mode) => set({
       
       // Show all panels (restore visibility)
       showAllForgePanels: () => set((state) => {
-        console.log('ForgeStore: Showing all panels');
+        
         return {
           allPanelsHidden: false,
           _triggerUpdate: state._triggerUpdate + 1
@@ -149,7 +149,7 @@ setPreviewPanelResponsiveMode: (mode) => set({
       // Toggle hide/show all panels
       toggleAllForgePanels: () => set((state) => {
         const newHiddenState = !state.allPanelsHidden;
-        console.log(`ForgeStore: Toggle all panels - new hidden state: ${newHiddenState}`);
+        
         
         return {
           allPanelsHidden: newHiddenState,
@@ -160,7 +160,7 @@ setPreviewPanelResponsiveMode: (mode) => set({
 
      // UPDATED: Reset all panel states with proper defaults
     resetForgePanelStates: () => set((state) => {
-      console.log('ForgeStore: Resetting all panel states to defaults');
+      
       
       return {
         forgePanelStates: {
@@ -241,17 +241,13 @@ setPreviewPanelResponsiveMode: (mode) => set({
       // NEW: Debug helper to log current state
       debugCurrentState: () => {
         const state = get()
-        console.log('=== FORGE STORE DEBUG ===');
-        console.log('Panel States:', state.forgePanelStates);
-        console.log('All Panels Hidden:', state.allPanelsHidden);
-        console.log('Trigger Update:', state._triggerUpdate);
-        console.log('Open Panels Count:', state.getOpenForgePanelsCount());
+        
         
         // Check each panel's computed open state
         Object.keys(state.forgePanelStates).forEach(panelId => {
-          console.log(`${panelId}: ${state.isForgePanelOpen(panelId) ? 'OPEN' : 'CLOSED'}`);
+          
         });
-        console.log('========================');
+        
       }
     }),
     {

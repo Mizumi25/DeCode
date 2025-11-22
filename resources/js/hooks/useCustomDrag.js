@@ -1,5 +1,7 @@
 // @/hooks/useCustomDrag.js - Premium Framer/Webflow-style drag system
 import { useRef, useState, useCallback, useEffect } from 'react';
+import { throttle } from 'lodash'; // 🔥 ADD lodash throttle
+
 
 /**
  * Premium custom drag system with:
@@ -22,6 +24,7 @@ export const useCustomDrag = ({
   getDropTarget,
   validateDrop,
   threshold = 3, // 🔥 ADD THIS LINE
+  broadcastDragMove,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragState, setDragState] = useState(null);
@@ -89,6 +92,25 @@ export const useCustomDrag = ({
     document.body.appendChild(ghost);
     return ghost;
   }, []);
+  
+  
+  
+  
+  
+  
+  
+  // 🔥 NEW: Throttled broadcast function
+  const throttledBroadcast = useRef(
+    throttle((componentId, x, y, bounds) => {
+      if (broadcastDragMove) {
+        broadcastDragMove(componentId, x, y, bounds);
+      }
+    }, 50) // Broadcast max once per 50ms
+  ).current;
+  
+  
+  
+  
 
   /**
    * Create placeholder element - works with normal DOM flow (not absolute)
@@ -349,11 +371,15 @@ const detectDropTarget = useCallback((pointerX, pointerY) => {
   const handlePointerMove = useCallback((e) => {
   if (!interactionStateRef.current.isWatching) return;
 
-  e.preventDefault();
-  e.stopPropagation();
+  // 🔥 FIX: Only preventDefault if we're actually dragging
+  if (interactionStateRef.current.hasCrossedThreshold) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
 
   const pointerX = e.touches?.[0]?.clientX ?? e.clientX;
   const pointerY = e.touches?.[0]?.clientY ?? e.clientY;
+
 
   lastPointerPos.current = { x: pointerX, y: pointerY };
 
@@ -446,13 +472,28 @@ const detectDropTarget = useCallback((pointerX, pointerY) => {
       setDropIntent(null);
     }
 
-    // 🔥 NEW: Call onDragMove to broadcast position
-    onDragMove?.({
-      componentId,
-      position: { x: pointerX, y: pointerY },
-      dropTarget: dropInfo?.target,
-      dropIntent: dropInfo?.intent,
-    });
+   // 🔥 MODIFIED: Use throttled broadcast
+      onDragMove?.({
+        componentId,
+        position: { x: pointerX, y: pointerY },
+        dropTarget: dropInfo?.target,
+        dropIntent: dropInfo?.intent,
+      });
+      
+      
+      // 🔥 Use throttled version
+if (component && originalElementRef.current) { // 🔥 CHANGED: Use originalElementRef instead of undefined 'element'
+  const elemRect = originalElementRef.current.getBoundingClientRect();
+  
+  throttledBroadcast(componentId, pointerX, pointerY, {
+    x: pointerX,
+    y: pointerY,
+    width: elemRect.width,
+    height: elemRect.height,
+  });
+}
+      
+      
   }
 }, [updateGhostPosition, detectDropTarget, componentId, component, canvasRef, onDragMove, onDragStart, threshold, createGhostClone, createPlaceholder]);
 
@@ -510,63 +551,64 @@ const detectDropTarget = useCallback((pointerX, pointerY) => {
    * Handle pointer down (start drag)
    */
   const handlePointerDown = useCallback((e) => {
-    if (!enabled) return;
-    
-    e.preventDefault();
-    e.stopPropagation();
+  if (!enabled) return;
+  
+  e.preventDefault();
+  e.stopPropagation();
 
-    const dragHandle = e.currentTarget;
-    const componentElement = dragHandle.closest('[data-component-id]') || 
-                             document.querySelector(`[data-component-id="${componentId}"]`);
-    
-    if (!componentElement) {
-      console.warn('⚠️ Could not find component element');
-      return;
-    }
+  const dragHandle = e.currentTarget;
+  const componentElement = dragHandle.closest('[data-component-id]') || 
+                           document.querySelector(`[data-component-id="${componentId}"]`);
+  
+  if (!componentElement) {
+    console.warn('⚠️ Could not find component element');
+    return;
+  }
 
-    originalElementRef.current = componentElement;
-    
-    const rect = componentElement.getBoundingClientRect();
-    const pointerX = e.touches?.[0]?.clientX ?? e.clientX;
-    const pointerY = e.touches?.[0]?.clientY ?? e.clientY;
+  originalElementRef.current = componentElement;
+  
+  const rect = componentElement.getBoundingClientRect();
+  const pointerX = e.touches?.[0]?.clientX ?? e.clientX;
+  const pointerY = e.touches?.[0]?.clientY ?? e.clientY;
 
-    dragOffset.current = {
-      x: pointerX - rect.left,
-      y: pointerY - rect.top,
-    };
+  dragOffset.current = {
+    x: pointerX - rect.left,
+    y: pointerY - rect.top,
+  };
 
-    // 🔥 NEW: Start watching (don't create ghost yet)
-    interactionStateRef.current = {
-      isWatching: true,
-      startX: pointerX,
-      startY: pointerY,
-      hasCrossedThreshold: false,
-    };
+  // 🔥 NEW: Start watching (don't create ghost yet)
+  interactionStateRef.current = {
+    isWatching: true,
+    startX: pointerX,
+    startY: pointerY,
+    hasCrossedThreshold: false,
+  };
 
-    dragStartPos.current = { x: pointerX, y: pointerY };
-    lastPointerPos.current = { x: pointerX, y: pointerY };
+  dragStartPos.current = { x: pointerX, y: pointerY };
+  lastPointerPos.current = { x: pointerX, y: pointerY };
 
-    const moveHandler = (moveEvent) => {
-      if (!interactionStateRef.current.isWatching) return;
-      handlePointerMove(moveEvent);
-    };
-    
-    const upHandler = (upEvent) => {
-      if (!interactionStateRef.current.isWatching) return;
-      handlePointerUp(upEvent);
-    };
+  const moveHandler = (moveEvent) => {
+    if (!interactionStateRef.current.isWatching) return;
+    handlePointerMove(moveEvent);
+  };
+  
+  const upHandler = (upEvent) => {
+    if (!interactionStateRef.current.isWatching) return;
+    handlePointerUp(upEvent);
+  };
 
-    document.addEventListener('pointermove', moveHandler);
-    document.addEventListener('pointerup', upHandler);
-    document.addEventListener('touchmove', moveHandler, { passive: false });
-    document.addEventListener('touchend', upHandler);
+  // 🔥 FIX: Remove { passive: false } from touchmove listener
+  document.addEventListener('pointermove', moveHandler);
+  document.addEventListener('pointerup', upHandler);
+  document.addEventListener('touchmove', moveHandler); // 🔥 REMOVED { passive: false }
+  document.addEventListener('touchend', upHandler); // 🔥 REMOVED { passive: false }
 
-    dragStartPos.current.moveHandler = moveHandler;
-    dragStartPos.current.upHandler = upHandler;
+  dragStartPos.current.moveHandler = moveHandler;
+  dragStartPos.current.upHandler = upHandler;
 
-    document.body.style.overflow = 'hidden';
-    document.body.style.userSelect = 'none';
-  }, [enabled, componentId, component, handlePointerMove, handlePointerUp]);
+  document.body.style.overflow = 'hidden';
+  document.body.style.userSelect = 'none';
+}, [enabled, componentId, component, handlePointerMove, handlePointerUp]);
 
   // Cleanup on unmount
   useEffect(() => {

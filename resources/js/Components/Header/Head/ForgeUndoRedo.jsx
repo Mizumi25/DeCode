@@ -43,60 +43,55 @@ const ForgeUndoRedo = ({
   // Initialize frame on mount
   useEffect(() => {
     if (frameId) {
-      console.log('ForgeUndoRedo: Initializing frame:', frameId);
+      
       initializeFrame(frameId)
       
       // Push initial state if we have components
       if (canvasComponents.length > 0) {
-        console.log('ForgeUndoRedo: Pushing initial state with', canvasComponents.length, 'components');
+        
         pushHistory(frameId, canvasComponents, actionTypes.INITIAL)
       }
     }
   }, [frameId, initializeFrame, pushHistory, actionTypes])
 
-  // FIXED: Update history info when components change OR when undo/redo happens
-  useEffect(() => {
-    if (frameId) {
-      const info = getHistoryInfo(frameId)
-      const canUndoState = canUndo(frameId)
-      const canRedoState = canRedo(frameId)
-      
-      console.log('ForgeUndoRedo: History info updated:', {
-        canUndo: canUndoState,
-        canRedo: canRedoState,
-        undoCount: info.undoCount,
-        redoCount: info.redoCount
-      });
-      
-      setHistoryInfo({
-        ...info,
-        canUndo: canUndoState,
-        canRedo: canRedoState
-      })
-      
-      if (onHistoryChange) {
-        onHistoryChange({
-          ...info,
-          canUndo: canUndoState,
-          canRedo: canRedoState
-        })
-      }
-    }
-  }, [frameId, getHistoryInfo, canUndo, canRedo, onHistoryChange, canvasComponents.length])
+
+
+
+
+// 🔥 ADD THIS - only update on explicit history changes
+const updateHistoryInfo = useCallback(() => {
+  if (!frameId) return;
+  
+  const info = getHistoryInfo(frameId);
+  const canUndoState = canUndo(frameId);
+  const canRedoState = canRedo(frameId);
+  
+  setHistoryInfo({
+    ...info,
+    canUndo: canUndoState,
+    canRedo: canRedoState
+  });
+}, [frameId, getHistoryInfo, canUndo, canRedo]);
+
+
+
+// Only update on explicit signals
+useEffect(() => {
+  updateHistoryInfo();
+}, [frameId, updateHistoryInfo]); 
+
+
+
+
 
   // FIXED: Undo handler with proper state management
   const handleUndo = useCallback(async () => {
     if (!frameId || !historyInfo.canUndo || isProcessing || !onUndo) {
-      console.log('ForgeUndoRedo: Undo blocked', {
-        frameId: !!frameId,
-        canUndo: historyInfo.canUndo,
-        isProcessing,
-        hasOnUndo: !!onUndo
-      });
+      
       return;
     }
 
-    console.log('ForgeUndoRedo: Starting undo operation');
+    
     setIsProcessing(true);
     setProcessingType('undo');
     setLastActionTimestamp(Date.now());
@@ -104,7 +99,7 @@ const ForgeUndoRedo = ({
     try {
       // CRITICAL: Call the parent's undo handler directly
       await onUndo();
-      console.log('ForgeUndoRedo: Undo completed successfully');
+      
     } catch (error) {
       console.error('ForgeUndoRedo: Undo failed:', error);
     } finally {
@@ -119,16 +114,11 @@ const ForgeUndoRedo = ({
   // FIXED: Redo handler with proper state management
   const handleRedo = useCallback(async () => {
     if (!frameId || !historyInfo.canRedo || isProcessing || !onRedo) {
-      console.log('ForgeUndoRedo: Redo blocked', {
-        frameId: !!frameId,
-        canRedo: historyInfo.canRedo,
-        isProcessing,
-        hasOnRedo: !!onRedo
-      });
+      
       return;
     }
 
-    console.log('ForgeUndoRedo: Starting redo operation');
+    
     setIsProcessing(true);
     setProcessingType('redo');
     setLastActionTimestamp(Date.now());
@@ -136,7 +126,7 @@ const ForgeUndoRedo = ({
     try {
       // CRITICAL: Call the parent's redo handler directly
       await onRedo();
-      console.log('ForgeUndoRedo: Redo completed successfully');
+      
     } catch (error) {
       console.error('ForgeUndoRedo: Redo failed:', error);
     } finally {
@@ -164,16 +154,7 @@ const ForgeUndoRedo = ({
   // CRITICAL: Debug logging
   useEffect(() => {
     if (frameId) {
-      console.log('ForgeUndoRedo: Component state debug:', {
-        frameId,
-        canUndo: historyInfo.canUndo,
-        canRedo: historyInfo.canRedo,
-        undoCount: historyInfo.undoCount,
-        redoCount: historyInfo.redoCount,
-        hasOnUndo: !!onUndo,
-        hasOnRedo: !!onRedo,
-        isProcessing
-      });
+      
     }
   }, [frameId, historyInfo, onUndo, onRedo, isProcessing]);
 

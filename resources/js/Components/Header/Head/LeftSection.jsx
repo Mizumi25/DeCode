@@ -214,7 +214,7 @@ const LeftSection = ({
               onRedo={handleRedo}
               size="small"
               onHistoryChange={(info) => {
-                console.log('LeftSection: History changed:', info);
+                
               }}
             />
           )}

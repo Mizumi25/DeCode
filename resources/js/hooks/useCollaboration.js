@@ -21,77 +21,112 @@ export const useCollaboration = (frameUuid, currentUserId) => {
     window.addEventListener('touchstart', detectTouch, { once: true });
   }, []);
 
-  // Initialize Echo connection
-useEffect(() => {
-  if (!frameUuid || !window.Echo) return;
+ // 🔥 CRITICAL: Initialize Echo connection
+  useEffect(() => {
+    if (!frameUuid || !window.Echo) {
+      console.warn('⚠️ Echo not available or no frameUuid');
+      return;
+    }
 
-  console.log('🔗 Joining collaboration channel:', frameUuid);
+    console.log('🔗 Joining collaboration channel:', frameUuid);
 
-  channel.current = window.Echo.join(`frame.${frameUuid}`)
-    .here((users) => {
-      console.log('👥 Users here:', users);
-    })
-    .joining((user) => {
-      console.log('👋 User joining:', user.name);
-    })
-    .leaving((user) => {
-      console.log('👋 User leaving:', user.name);
-      // Remove all cursors/selections from this user
-      setActiveCursors(prev => {
-        const next = new Map(prev);
-        for (const [key, cursor] of next.entries()) {
-          if (cursor.userId === user.id) {
-            next.delete(key);
+    const channelName = `frame.${frameUuid}`;
+    channel.current = window.Echo.join(channelName)
+      .here((users) => {
+        console.log('👥 Users present:', users.length);
+      })
+      .joining((user) => {
+        console.log('👋 User joining:', user.name);
+      })
+      .leaving((user) => {
+        console.log('👋 User leaving:', user.name);
+        // Remove cursors from leaving user
+        setActiveCursors(prev => {
+          const next = new Map(prev);
+          for (const [key, cursor] of next.entries()) {
+            if (cursor.userId === user.id) {
+              next.delete(key);
+            }
           }
-        }
-        return next;
-      });
-      setSelectedElements(prev => {
-        const next = new Map(prev);
-        for (const [key, selection] of next.entries()) {
-          if (selection.userId === user.id) {
-            next.delete(key);
-          }
-        }
-        return next;
-      });
-    })
-    // 🔥 CRITICAL: Listen for both .listen and .listenForWhisper
-    .listen('.element.drag.started', (data) => {
-      console.log('🎬 Received drag started:', data);
-      handleDragStarted(data);
-    })
-    .listen('.element.drag.moving', (data) => {
-      console.log('🎯 Received drag move:', data);
-      handleDragMove(data);
-    })
-    .listen('.element.drag.ended', (data) => {
-      console.log('🏁 Received drag ended:', data);
-      handleDragEnd(data);
-    })
-    // Cursor events
-    .listen('.cursor.moved', handleCursorMoved)
-    .listenForWhisper('cursor.moved', handleCursorMoved)
-    // Selection events
-    .listen('.element.selected', handleElementSelected)
-    .listen('.element.deselected', handleElementDeselected)
-    
-    // ADD THIS - Listen for component updates
-.listen('.component.updated', (data) => {
-  console.log('🔄 Component updated remotely:', data);
-  handleComponentUpdated(data);
+          return next;
+        });
+      })
+      // 🔥 CRITICAL: Listen for drag events
+      .listen('.element.drag.started', (data) => {
+        console.log('🎬 RECEIVED drag started:', data);
+        handleDragStarted(data);
+      })
+      .listen('.element.drag.moving', (data) => {
+        console.log('🎯 RECEIVED drag move:', data);
+        handleDragMove(data);
+      })
+      .listen('.element.drag.ended', (data) => {
+        console.log('🏁 RECEIVED drag ended:', data);
+        handleDragEnd(data);
+      })
+      // Cursor events
+      .listen('.cursor.moved', handleCursorMoved)
+      .listenForWhisper('cursor.moved', handleCursorMoved)
+      // Selection events
+      .listen('.element.selected', handleElementSelected)
+      .listen('.element.deselected', handleElementDeselected)
+      // 🔥 Component updates
+      .listen('.component.updated', (data) => {
+        console.log('🔄 RECEIVED component update:', data);
+        handleComponentUpdated(data);
+      })
+      // 🔥 NEW: Listen for granular operations
+.listen('.component.operation', (data) => {
+  console.log('🔥 Operation received:', data);
+  
+  switch (data.operation) {
+    case 'move':
+      handleRemoteMove(data.payload);
+      break;
+    case 'nest':
+      handleRemoteNest(data.payload);
+      break;
+    case 'reorder':
+      handleRemoteReorder(data.payload);
+      break;
+    case 'style':
+      handleRemoteStyle(data.payload);
+      break;
+  }
 });
 
-  fetchActiveCursors();
-
-  return () => {
-    if (channel.current) {
-      removeCursor();
-      window.Echo.leave(`frame.${frameUuid}`);
-      channel.current = null;
+    // Fetch existing cursors
+    fetchActiveCursors();
+    
+    return () => {
+      if (channel.current) {
+        removeCursor();
+        console.log('🔌 Leaving channel:', channelName);
+        window.Echo.leave(channelName);
+        channel.current = null;
+      }
+    };
+  }, [frameUuid]);
+  
+  
+  
+  
+  const handleRemoteMove = useCallback((payload) => {
+  const { componentId, finalState } = payload;
+  
+  // Dispatch PRECISE update event
+  window.dispatchEvent(new CustomEvent('remote-component-moved', {
+    detail: {
+      componentId,
+      position: finalState.position,
+      parentId: finalState.parentId,
+      index: finalState.index,
     }
-  };
-}, [frameUuid]);
+  }));
+}, []);
+  
+  
+  
 
   // Fetch existing cursors
   const fetchActiveCursors = async () => {
@@ -250,11 +285,14 @@ const broadcastComponentUpdate = useCallback(async (componentId, updates, update
   
   
 
-  // Handle drag events
+// 🔥 FIX: Handle drag started
   const handleDragStarted = useCallback((data) => {
     if (data.userId === currentUserId && data.sessionId === sessionId) {
+      console.log('⏭️ Ignoring own drag start');
       return;
     }
+
+    console.log('✅ Applying drag start from remote user:', data.userId);
 
     const key = `${data.userId}-${data.sessionId}-${data.componentId}`;
     setDraggedElements(prev => {
@@ -274,15 +312,25 @@ const broadcastComponentUpdate = useCallback(async (componentId, updates, update
     });
   }, [currentUserId, sessionId]);
 
+    // 🔥 FIX: Handle drag move
   const handleDragMove = useCallback((data) => {
     if (data.userId === currentUserId && data.sessionId === sessionId) {
-      return;
+      return; // Ignore own movements
     }
+
+    console.log('✅ Applying drag move:', {
+      user: data.userId,
+      component: data.componentId,
+      position: { x: data.x, y: data.y }
+    });
 
     const key = `${data.userId}-${data.sessionId}-${data.componentId}`;
     setDraggedElements(prev => {
       const existing = prev.get(key);
-      if (!existing) return prev;
+      if (!existing) {
+        console.warn('⚠️ Drag move received but no drag start:', key);
+        return prev;
+      }
 
       const next = new Map(prev);
       next.set(key, {
@@ -295,10 +343,13 @@ const broadcastComponentUpdate = useCallback(async (componentId, updates, update
     });
   }, [currentUserId, sessionId]);
 
+    // 🔥 FIX: Handle drag end
   const handleDragEnd = useCallback((data) => {
     if (data.userId === currentUserId && data.sessionId === sessionId) {
       return;
     }
+
+    console.log('✅ Applying drag end:', data.componentId);
 
     const key = `${data.userId}-${data.sessionId}-${data.componentId}`;
     setDraggedElements(prev => {
@@ -306,6 +357,14 @@ const broadcastComponentUpdate = useCallback(async (componentId, updates, update
       next.delete(key);
       return next;
     });
+
+    // 🔥 CRITICAL: Trigger a refresh to get final position from backend
+    window.dispatchEvent(new CustomEvent('remote-drag-ended', {
+      detail: {
+        componentId: data.componentId,
+        userId: data.userId
+      }
+    }));
   }, [currentUserId, sessionId]);
 
   // 🔥 ENHANCED: Update cursor with touch detection
@@ -417,27 +476,53 @@ const broadcastDragMove = useCallback((componentId, x, y, bounds) => {
     }
   }, [frameUuid, sessionId]);
 
-  return {
+  // Line ~150: ADD these methods
+const broadcastRealtimeUpdate = useCallback(async (componentId, updateType, data) => {
+  try {
+    await axios.post(`/api/frames/${frameUuid}/collaboration/realtime-update`, {
+      component_id: componentId,
+      session_id: sessionId,
+      update_type: updateType,
+      data,
+    });
+  } catch (error) {
+    console.error('Failed to broadcast realtime update:', error);
+  }
+}, [frameUuid, sessionId]);
+
+const broadcastStateChanged = useCallback(async (componentId, operation, finalState) => {
+  try {
+    await axios.post(`/api/frames/${frameUuid}/collaboration/state-changed`, {
+      component_id: componentId,
+      operation,
+      final_state: finalState,
+    });
+  } catch (error) {
+    console.error('Failed to broadcast state change:', error);
+  }
+}, [frameUuid, sessionId]);
+
+// Update return statement (line ~250)
+return {
   activeCursors: Array.from(activeCursors.values()),
   draggedElements: Array.from(draggedElements.values()),
   selectedElements: Array.from(selectedElements.values()),
   updateCursor,
-  broadcastDragStart,
-  broadcastDragMove,
-  broadcastDragEnd,
+  broadcastDragStart, // Keep for initial drag indication
+  broadcastDragMove, // Keep for live ghost updates
+  broadcastDragEnd, // Keep for cleanup
+  broadcastRealtimeUpdate, // 🔥 NEW: For live component updates
+  broadcastStateChanged, // 🔥 NEW: For final state changes
   broadcastSelection,
   broadcastDeselection,
-  broadcastComponentUpdate, // 🔥 ADD THIS
   sessionId,
 };
 };
 
-// Generate unique session ID
 function generateSessionId() {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-// Generate consistent color for user
 function getUserColor(userId) {
   const colors = [
     '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',

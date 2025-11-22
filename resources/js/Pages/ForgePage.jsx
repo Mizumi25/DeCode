@@ -48,6 +48,8 @@ import { formatCode, highlightCode, parseCodeAndUpdateComponents } from '@/Compo
 import { useCollaboration } from '@/hooks/useCollaboration';
 import CollaborationOverlay from '@/Components/Forge/CollaborationOverlay';
 
+import { debounce } from 'lodash';
+
 
 
 // ADD THIS HELPER FUNCTION BEFORE export default function ForgePage:
@@ -251,7 +253,9 @@ const [isCanvasSelected, setIsCanvasSelected] = useState(true) // ✅ Track canv
   const [modalPos, setModalPos] = useState({ left: 0, top: 0 })
   
   
+  const isGeneratingCodeRef = useRef(false);
   
+  const saveOriginRef = useRef('user');
   
   
   /**
@@ -513,38 +517,63 @@ useEffect(() => {
   
   
   
-// 🔥 ENHANCED: Listen for ANY frame update and reload
+
+// Line 520-570: REPLACE with this
 useEffect(() => {
   if (!frame?.uuid || !window.Echo) return;
   
   const channelName = `frame.${frame.uuid}`;
-  
-  console.log('📡 Subscribing to frame updates:', channelName);
+  console.log('📡 Subscribing to real-time updates:', channelName);
   
   const channel = window.Echo.private(channelName)
-    .listen('FrameUpdated', (event) => {
-      console.log('🔄 Frame updated remotely:', event);
+    // Real-time updates (dragging, live edits)
+    .listen('.component.realtime', (event) => {
+      console.log('⚡ Real-time update:', event);
       
-      // 🔥 FIX: Reload on ANY update, not just bulk_update
-      console.log('⚡ Reloading frame components from backend...');
+      if (event.userId === currentUser.id && event.sessionId === sessionId) {
+        return; // Ignore own updates
+      }
+      
+      // Apply live update without saving
+      saveOriginRef.current = 'remote';
+      
+      setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: updateComponentInTree(
+          prev[currentFrame] || [],
+          event.componentId,
+          event.updateType,
+          event.data
+        )
+      }));
+    })
+    
+    // Final state changes (drop, save, delete)
+    .listen('.component.state.changed', (event) => {
+      console.log('🔄 State changed:', event);
+      
+      if (event.userId === currentUser.id) {
+        return; // Ignore own updates
+      }
       
       // Fetch fresh data from backend
+      saveOriginRef.current = 'remote';
+      
       axios.get(`/api/frames/${frame.uuid}/components`)
         .then(response => {
           if (response.data.success) {
-            console.log('✅ Loaded', response.data.data.length, 'components from backend');
+            console.log('✅ Loaded', response.data.data.length, 'components');
             
             setFrameCanvasComponents(prev => ({
               ...prev,
               [currentFrame]: response.data.data
             }));
             
-            // Regenerate code with fresh data
             generateCode(response.data.data);
           }
         })
         .catch(error => {
-          console.error('❌ Failed to reload components:', error);
+          console.error('❌ Failed to reload:', error);
         });
     });
   
@@ -555,8 +584,34 @@ useEffect(() => {
       console.warn('Failed to leave channel:', e);
     }
   };
-}, [frame?.uuid, currentFrame, setFrameCanvasComponents, generateCode]);
+}, [frame?.uuid, currentFrame, sessionId, currentUser]);
 
+// Helper function to update component in tree without full reload
+function updateComponentInTree(components, componentId, updateType, data) {
+  return components.map(comp => {
+    if (comp.id === componentId) {
+      switch (updateType) {
+        case 'drag_move':
+          return { ...comp, position: data };
+        case 'style':
+          return { ...comp, style: { ...comp.style, ...data } };
+        case 'prop':
+          return { ...comp, props: { ...comp.props, ...data } };
+        default:
+          return comp;
+      }
+    }
+    
+    if (comp.children?.length > 0) {
+      return {
+        ...comp,
+        children: updateComponentInTree(comp.children, componentId, updateType, data)
+      };
+    }
+    
+    return comp;
+  });
+}
 
 
 
@@ -650,7 +705,6 @@ useEffect(() => {
   
  
   
-   // MODIFY your frame data initialization to be more robust
   useEffect(() => {
     console.log('ForgePage: Frame props changed:', { 
       frameId, 
@@ -692,7 +746,7 @@ useEffect(() => {
         generateCode([]);
       }
     }
-  }, [frameId, frame?.uuid, frame?.canvas_data, currentFrame]);
+  }, [frameId, frame?.uuid, frame?.canvas_data?.components?.length, currentFrame]); 
   
 
 
@@ -878,27 +932,76 @@ useEffect(() => {
   });
 }
 
-  // Auto-save frame components when they change
-  useEffect(() => {
-    const saveComponents = async () => {
-        // Only save if we're not in the middle of undo/redo operations
-        if (projectId && currentFrame && canvasComponents.length > 0 && componentsLoaded && !isFrameSwitching) {
-            try {
-                if (componentLibraryService && componentLibraryService.saveProjectComponents) {
-                    console.log('Auto-saving', canvasComponents.length, 'components');
-                    await componentLibraryService.saveProjectComponents(projectId, currentFrame, canvasComponents);
-                }
-            } catch (error) {
-                console.error('Failed to auto-save components:', error);
-            }
+
+// 🔥 FIXED: Use ref to track previous components and prevent loops
+const lastSaveHashRef = useRef('');
+const isSavingRef = useRef(false);
+const prevComponentsRef = useRef(canvasComponents);
+
+useEffect(() => {
+  const saveComponents = async () => {
+    // Skip if this update came from remote or undo
+    if (saveOriginRef.current !== 'user') {
+      console.log(`⏭️ Skipping auto-save (${saveOriginRef.current} update)`);
+      saveOriginRef.current = 'user';
+      return;
+    }
+    
+    // Skip if already saving
+    if (isSavingRef.current) {
+      console.log('⏭️ Save already in progress');
+      return;
+    }
+    
+    // Skip if components haven't actually changed (use hash comparison)
+    const currentHash = JSON.stringify(canvasComponents.map(c => ({
+      id: c.id,
+      type: c.type,
+      parentId: c.parentId,
+      style: c.style,
+      props: c.props,
+    })));
+    
+    if (currentHash === lastSaveHashRef.current) {
+      console.log('⏭️ No changes to save');
+      return;
+    }
+    
+    // Skip if components haven't actually changed (additional check)
+    if (JSON.stringify(canvasComponents) === JSON.stringify(prevComponentsRef.current)) {
+      return;
+    }
+    
+    if (projectId && currentFrame && canvasComponents.length > 0 && componentsLoaded && !isFrameSwitching) {
+      try {
+        if (componentLibraryService?.hasPendingSave && componentLibraryService.hasPendingSave(currentFrame)) {
+          console.log('ForgePage: Skipping auto-save due to pending undo/redo operation');
+          return;
         }
-    };
+        
+        isSavingRef.current = true;
+        console.log('💾 Auto-saving', canvasComponents.length, 'components');
+        
+        await componentLibraryService.saveProjectComponents(
+          projectId,
+          currentFrame,
+          canvasComponents,
+          { silent: false } // 🔥 Broadcast this save
+        );
+        
+        lastSaveHashRef.current = currentHash;
+        prevComponentsRef.current = canvasComponents; // ✅ Update ref after successful save
+      } catch (error) {
+        console.error('❌ Auto-save failed:', error);
+      } finally {
+        isSavingRef.current = false;
+      }
+    }
+  };
 
-    // INCREASED delay for auto-save to reduce conflicts with undo/redo
-    const timeoutId = setTimeout(saveComponents, 2000); // 2 seconds instead of 1
-    return () => clearTimeout(timeoutId);
-}, [canvasComponents, projectId, currentFrame, componentsLoaded, isFrameSwitching]);
-
+  const timeoutId = setTimeout(saveComponents, 3000); // 🔥 Increased to 3 seconds
+  return () => clearTimeout(timeoutId);
+}, [canvasComponents, projectId, currentFrame, componentsLoaded, isFrameSwitching, componentLibraryService]);
 
 
 
@@ -2089,67 +2192,15 @@ useEffect(() => {
   
   
   
-  // ENHANCED: Modified undo/redo handlers to update thumbnails
-const handleUndo = useCallback(async () => {
-  if (!currentFrame || !canUndo(currentFrame)) {
-    console.log('ForgePage: Undo blocked - no frame or cannot undo');
-    return;
-  }
-
-  console.log('ForgePage: Starting undo operation');
+const handleUndo = useCallback(() => {
+  saveOriginRef.current = 'undo'; // 🔥 Mark as undo
   
-  try {
-    if (componentLibraryService?.clearSaveQueue) {
-      componentLibraryService.clearSaveQueue(currentFrame);
-    }
-    
-    const previousComponents = undo(currentFrame);
-    if (previousComponents) {
-      console.log('ForgePage: Executing undo - restoring', previousComponents.length, 'components');
-      
-      setFrameCanvasComponents(prev => ({
-        ...prev,
-        [currentFrame]: previousComponents
-      }));
-      
-      if (selectedComponent && !previousComponents.find(c => c.id === selectedComponent)) {
-        setSelectedComponent(null);
-      }
-      
-      generateCode(previousComponents);
-      
-      // ENHANCED: Update thumbnail after undo
-      const canvasSettings = {
-        viewport: getCurrentCanvasDimensions(),
-        background_color: frame?.settings?.background_color || '#ffffff',
-        responsive_mode: responsiveMode,
-        zoom_level: zoomLevel,
-        grid_visible: gridVisible
-      };
-      
-      setTimeout(() => {
-        scheduleThumbnailUpdate(previousComponents, canvasSettings);
-      }, 200);
-      
-      setTimeout(async () => {
-        try {
-          if (componentLibraryService?.forceSave) {
-            await componentLibraryService.forceSave(projectId, currentFrame, previousComponents);
-            console.log('ForgePage: Undo state saved to database');
-          }
-        } catch (error) {
-          console.error('Failed to save undo state:', error);
-        }
-      }, 100);
-      
-      console.log('ForgePage: Undo completed successfully');
-    }
-  } catch (error) {
-    console.error('ForgePage: Undo failed:', error);
-  }
-}, [currentFrame, undo, canUndo, selectedComponent, generateCode, projectId, componentLibraryService, 
-    scheduleThumbnailUpdate, getCurrentCanvasDimensions, responsiveMode, zoomLevel, gridVisible, frame?.settings]);
-
+  const previousComponents = undo(currentFrame);
+  setFrameCanvasComponents(prev => ({
+    ...prev,
+    [currentFrame]: previousComponents
+  }));
+}, []);
 
 
   
@@ -2208,6 +2259,27 @@ const handleUndo = useCallback(async () => {
   }
 }, [currentFrame, redo, canRedo, generateCode, projectId, componentLibraryService, 
     scheduleThumbnailUpdate, getCurrentCanvasDimensions, responsiveMode, zoomLevel, gridVisible, frame?.settings]);
+    
+    
+    
+   // 🔥 FIXED: Debounce code generation
+const generateCodeDebounced = useMemo(
+  () => debounce((components) => {
+    generateCode(components);
+  }, 500), // Only regenerate every 500ms
+  [generateCode]
+);
+
+useEffect(() => {
+  if (canvasComponents.length >= 0 && componentsLoaded) {
+    generateCodeDebounced(canvasComponents);
+  }
+}, [canvasComponents.length]); // Only trigger on count change 
+    
+    
+    
+    
+    
     
    // ENHANCED: Add thumbnail status indicator to the UI (optional)
   const renderThumbnailStatus = () => {
@@ -2316,82 +2388,109 @@ useEffect(() => {
 
 
 
-// ADD this useEffect after your existing useEffects (around line 300)
+// 🔥 FIXED: Remove canvasComponents.length dependency
 useEffect(() => {
-  // Auto-generate code whenever canvas components change
-  if (canvasComponents.length >= 0 && componentsLoaded && !isFrameSwitching) {
+  if (componentsLoaded && !isFrameSwitching && !isGeneratingCodeRef.current && canvasComponents.length > 0) {
     console.log('🔄 Auto-generating code for', canvasComponents.length, 'components');
-    generateCode(canvasComponents);
+    isGeneratingCodeRef.current = true;
+    generateCode(canvasComponents).finally(() => {
+      isGeneratingCodeRef.current = false;
+    });
   }
-}, [canvasComponents, componentsLoaded, isFrameSwitching, generateCode]);
+}, [componentsLoaded, isFrameSwitching]); // ✅ Only these stable dependencies
+
 
 // ALSO update when selected component properties change
+// 🔥 FIXED: Remove selectedComponent dependency
 useEffect(() => {
-  if (selectedComponent && canvasComponents.length > 0) {
-    console.log('🎨 Component properties changed, regenerating code');
-    // Debounce to avoid too many updates
+  if (canvasComponents.length > 0) {
+    console.log('🎨 Canvas components changed, regenerating code');
     const timer = setTimeout(() => {
       generateCode(canvasComponents);
-    }, 500);
+    }, 1000); // 🔥 Increased debounce time
     
     return () => clearTimeout(timer);
   }
-}, [selectedComponent, canvasComponents, generateCode]);
+}, [canvasComponents.length]); // ✅ Only track length changes
 
 
 
 
-// 🔥 NEW: Listen for remote component updates
+
+
+
 useEffect(() => {
-  const handleRemoteUpdate = (event) => {
-    const { componentId, updates, updateType } = event.detail;
+  const handleRemoteDragEnd = (event) => {
+    const { componentId, userId } = event.detail;
     
-    console.log('📡 Received remote component update:', {
-      componentId,
-      updateType,
-      updates,
-    });
+    console.log('🔄 Remote drag ended, fetching final position:', componentId);
     
-    // Apply update to local state
-    setFrameCanvasComponents(prev => {
-      const currentComponents = prev[currentFrame] || [];
-      
-      const updateComponentRecursive = (components) => {
-        return components.map(comp => {
-          if (comp.id === componentId) {
-            if (updateType === 'style') {
-              return { ...comp, style: { ...comp.style, ...updates } };
-            } else if (updateType === 'position') {
-              return { ...comp, position: updates };
-            } else if (updateType === 'props') {
-              return { ...comp, props: { ...comp.props, ...updates } };
-            }
+    // Reload components from backend to get final positions
+    if (currentFrame) {
+      axios.get(`/api/frames/${currentFrame}/components`)
+        .then(response => {
+          if (response.data.success) {
+            console.log('✅ Reloaded after remote drag');
+            
+            isRemoteUpdateRef.current = true;
+            
+            setFrameCanvasComponents(prev => ({
+              ...prev,
+              [currentFrame]: response.data.data
+            }));
+            
+            generateCode(response.data.data);
           }
-          
-          if (comp.children?.length > 0) {
-            return {
-              ...comp,
-              children: updateComponentRecursive(comp.children)
-            };
-          }
-          
-          return comp;
+        })
+        .catch(error => {
+          console.error('❌ Failed to reload after drag:', error);
         });
-      };
+    }
+  };
+
+  window.addEventListener('remote-drag-ended', handleRemoteDragEnd);
+  
+  return () => {
+    window.removeEventListener('remote-drag-ended', handleRemoteDragEnd);
+  };
+}, [currentFrame, setFrameCanvasComponents, generateCode]);
+
+
+
+
+
+useEffect(() => {
+  const handleRemoteMove = (event) => {
+    const { componentId, position, parentId, index } = event.detail;
+    saveOriginRef.current = 'remote'; 
+    
+    setFrameCanvasComponents(prev => {
+      const components = prev[currentFrame] || [];
       
-      const updatedComponents = updateComponentRecursive(currentComponents);
+      // 🔥 PRECISE UPDATE: Only modify the moved component
+      const updated = components.map(comp => {
+        if (comp.id === componentId) {
+          return {
+            ...comp,
+            position,
+            parentId: parentId || null,
+            sortOrder: index,
+          };
+        }
+        return comp;
+      });
       
       return {
         ...prev,
-        [currentFrame]: updatedComponents
+        [currentFrame]: updated
       };
     });
   };
   
-  window.addEventListener('remote-component-updated', handleRemoteUpdate);
+  window.addEventListener('remote-component-moved', handleRemoteMove);
   
   return () => {
-    window.removeEventListener('remote-component-updated', handleRemoteUpdate);
+    window.removeEventListener('remote-component-moved', handleRemoteMove);
   };
 }, [currentFrame]);
 
@@ -3012,6 +3111,7 @@ if (!componentsLoaded && loadingMessage) {
   broadcastDragMove={broadcastDragMove}
   broadcastComponentUpdate={broadcastComponentUpdate} // 🔥 ADD THIS
   updateCursor={updateCursor}
+  componentsLoaded={componentsLoaded}
 />
                     )}
                     

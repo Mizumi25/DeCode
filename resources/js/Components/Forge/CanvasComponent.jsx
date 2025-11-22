@@ -128,8 +128,10 @@ const CanvasComponent = ({
   projectId,
   setFrameCanvasComponents,
   frame,
-  broadcastDragMove, // 🔥 ADD THIS
-  updateCursor,      // 🔥 ADD THIS
+  broadcastDragMove, 
+  updateCursor,      
+  componentsLoaded,
+  broadcastRealtimeUpdate, // 🔥 ADD THIS LINE
 }) => {
   // Get responsive state from EditorStore
   const {
@@ -150,6 +152,8 @@ const {
   canvasZoom: forgeCanvasZoom,
   interactionMode 
 } = useForgeStore();
+
+const isRemoteUpdateRef = useRef(false);
   
 
   // 🔥 ADD this after the store hooks
@@ -760,54 +764,49 @@ const {
       }
     }
   },
-  onDragMove: ({ position, dropTarget: target, dropIntent: intent, componentId }) => {
-    onDragStateChange?.({ activeId: component.id, position });
-    
-    if (target) {
-      console.log('📍 Drag over:', target.id, intent);
-    }
-    
-    // 🔥 NEW: Broadcast drag move in real-time
-    if (canvasRef.current && broadcastDragMove) {
-      const canvasRect = canvasRef.current.getBoundingClientRect();
-      const relativeX = position.x;
-      const relativeY = position.y;
-      
-      const element = document.querySelector(`[data-component-id="${componentId}"]`);
-      if (element) {
-        const elemRect = element.getBoundingClientRect();
-        
-        broadcastDragMove(componentId, relativeX, relativeY, {
-          x: relativeX,
-          y: relativeY,
-          width: elemRect.width,
-          height: elemRect.height,
-        });
-      }
-    }
-  },
+ onDragMove: ({ position, dropTarget: target, dropIntent: intent, componentId }) => {
+  onDragStateChange?.({ activeId: component.id, position });
+  
+  if (target) {
+    console.log('📍 Drag over:', target.id, intent);
+  }
+  
+  // 🔥 FIXED: Use realtime update instead of drag move
+  if (canvasRef.current && broadcastRealtimeUpdate) {
+    broadcastRealtimeUpdate(componentId, 'drag_move', {
+      x: position.x,
+      y: position.y,
+    });
+  }
+},
   onDragEnd: ({ componentId, dropTarget: target, dropIntent: intent }) => {
-    console.log('🎯 Custom drag end:', componentId, 'to', target?.id, intent);
-    
-    if (target && handleComponentDragEnd) {
-      handleComponentDragEnd({
-        componentId,
-        targetId: target.id,
-        intent,
+  console.log('🎯 Custom drag end:', componentId, 'to', target?.id, intent);
+  
+  if (target && handleComponentDragEnd) {
+    handleComponentDragEnd({
+      componentId,
+      targetId: target.id,
+      intent,
+    });
+  }
+  
+  onDragStateChange?.({ activeId: null, position: null });
+  
+  // 🔥 NEW: Broadcast final state change
+  if (broadcastStateChanged) {
+    const component = canvasComponents.find(c => c.id === componentId);
+    if (component) {
+      broadcastStateChanged(componentId, 'moved', {
+        position: component.position,
+        parentId: component.parentId || null,
       });
     }
-    
-    onDragStateChange?.({ activeId: null, position: null });
-    
-    // 🔥 NEW: Broadcast drag end
-    if (broadcastDragEnd) {
-      broadcastDragEnd(componentId);
-    }
-    
-    window.dispatchEvent(new CustomEvent('element-drag-end', { 
-      detail: { componentId } 
-    }));
-  },
+  }
+  
+  window.dispatchEvent(new CustomEvent('element-drag-end', { 
+    detail: { componentId } 
+  }));
+},
   onDragCancel: () => {
     onDragStateChange?.({ activeId: null, position: null });
     
@@ -872,11 +871,37 @@ const {
 
   const componentStyles = getDeviceAwareStyles();
   
-  // 🔥 FORCE RE-RENDER when responsive mode changes
-  useEffect(() => {
-    // Component will re-render when responsiveMode changes
-    // This ensures responsive styles are recalculated
-  }, [responsiveMode]);
+
+// Auto-save components when they change
+useEffect(() => {
+  const saveComponents = async () => {
+    // 🔥 CRITICAL: Skip save if this was triggered by remote update
+    if (isRemoteUpdateRef.current) {
+      console.log('⏭️ Skipping auto-save (remote update)');
+      isRemoteUpdateRef.current = false;
+      return;
+    }
+
+    if (projectId && currentFrame && canvasComponents.length > 0 && componentsLoaded && !isFrameSwitching) {
+      try {
+        if (componentLibraryService?.saveProjectComponents) {
+          console.log('💾 Auto-saving', canvasComponents.length, 'components');
+          await componentLibraryService.saveProjectComponents(
+            projectId, 
+            currentFrame, 
+            canvasComponents,
+            { silent: true } // 🔥 NEW: Don't broadcast this save
+          );
+        }
+      } catch (error) {
+        console.error('Failed to auto-save:', error);
+      }
+    }
+  };
+
+  const timeoutId = setTimeout(saveComponents, 2000);
+  return () => clearTimeout(timeoutId);
+}, [canvasComponents, projectId, currentFrame, componentsLoaded, isFrameSwitching]);
 
 if (isLayout) {
     return (
