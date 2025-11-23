@@ -27,7 +27,15 @@ export function useScrollHandler({
   const shouldIgnoreTarget = (target) => {
     if (!target) return false
 
-    // Broadened set of selectors to ensure panel DOM elements (and drag previews) are ignored
+    // 🔥 DEBUG: Log what's being clicked
+    console.log('🎯 ScrollHandler checking target:', {
+      tagName: target.tagName,
+      className: target.className,
+      id: target.id,
+      dataset: target.dataset
+    });
+
+    // 🔥 FIXED: Added proper selectors for FloatingToolbox and all interactive elements
     const selectors = [
       '.preview-frame',
       '.lock-button',
@@ -36,6 +44,7 @@ export function useScrollHandler({
       '.frame-header',
       '.floating-toolbox',
       '.floating-tool',
+      'button', // 🔥 CRITICAL: Ignore all buttons
       '[data-panel]',
       '.panel-container',
       '.panel-stack',
@@ -45,10 +54,23 @@ export function useScrollHandler({
       '.dock-right',
       '.dock-left-snapped',
       '.dock-right-snapped',
-      '.delete-button'
+      '.delete-button',
+      // 🔥 NEW: Specific selectors for FloatingToolbox
+      '[data-tool-index]', // The wrapper div
+      '.tool-icon', // The icon inside button
+      '.group', // The group wrapper
+      '.ftb-label', // The label
+      '.z-50', // Any element with z-50 class
+      // 🔥 NEW: Generic interactive elements
+      '[role="button"]',
+      '.cursor-pointer',
+      '.pointer-events-auto'
     ]
 
-    return selectors.some(sel => !!target.closest(sel))
+    const shouldIgnore = selectors.some(sel => !!target.closest(sel));
+    console.log('🎯 ScrollHandler decision:', shouldIgnore ? '✅ IGNORING (allowing interaction)' : '❌ CAPTURING (blocking interaction)');
+    
+    return shouldIgnore;
   }
 
   // Optimized pointer down handler

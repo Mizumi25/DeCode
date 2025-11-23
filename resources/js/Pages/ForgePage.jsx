@@ -49,6 +49,7 @@ import { useCollaboration } from '@/hooks/useCollaboration';
 import CollaborationOverlay from '@/Components/Forge/CollaborationOverlay';
 
 import { debounce } from 'lodash';
+import axios from 'axios';
 
 
 
@@ -146,19 +147,40 @@ export default function ForgePage({
   const { auth } = usePage().props
   const currentUser = auth?.user
   
+  // 🔥 ENHANCED: Ensure currentUserId is properly defined for collaboration
+  const collaborationUserId = currentUser?.id || window.auth?.user?.id || null;
+
   const {
-  activeCursors,
-  draggedElements,
-  selectedElements,
-  updateCursor,
-  broadcastDragStart,
-  broadcastDragMove,
-  broadcastDragEnd,
-  broadcastSelection,
-  broadcastDeselection,
-  broadcastComponentUpdate, // 🔥 ADD THIS
-  sessionId,
-} = useCollaboration(currentFrame, currentUser?.id);
+    activeCursors,
+    draggedElements,
+    selectedElements,
+    updateCursor,
+    broadcastDragStart,
+    broadcastDragMove,
+    broadcastDragEnd,
+    broadcastSelection,
+    broadcastDeselection,
+    broadcastComponentUpdate, // 🔥 ENHANCED: Component updates for real-time sync
+    broadcastRealtimeUpdate,
+    broadcastStateChanged,
+    sessionId,
+  } = useCollaboration(currentFrame, collaborationUserId);
+
+  // 🔥 NEW: Set global variables for real-time collaboration
+  useEffect(() => {
+    if (collaborationUserId && sessionId) {
+      window.currentUserId = collaborationUserId;
+      window.currentSessionId = sessionId;
+      window.currentFrameUuid = currentFrame;
+      window.broadcastComponentUpdate = broadcastComponentUpdate;
+      
+      console.log('🌐 Global collaboration vars set:', {
+        userId: collaborationUserId,
+        sessionId,
+        frameUuid: currentFrame
+      });
+    }
+  }, [collaborationUserId, sessionId, currentFrame, broadcastComponentUpdate]);
 
 
   // Frame switching state
@@ -918,19 +940,6 @@ useEffect(() => {
     }
   }, [currentFrame, projectId]);
   
-  if (isForgePanelOpen('layout-presets-panel')) {
-  panels.push({
-    id: 'layout-presets-panel',
-    title: 'Layout Presets',
-    content: (
-      <LayoutPresets
-        onApplyPreset={handlePropertyUpdate}
-        selectedComponent={selectedComponent}
-        componentLibraryService={componentLibraryService}
-      />
-    )
-  });
-}
 
 
 // 🔥 FIXED: Use ref to track previous components and prevent loops
@@ -999,9 +1008,17 @@ useEffect(() => {
     }
   };
 
-  const timeoutId = setTimeout(saveComponents, 3000); // 🔥 Increased to 3 seconds
+  // 🔥 CRITICAL: Only run if components array has actually changed
+  const currentComponentsStr = JSON.stringify(canvasComponents);
+  if (currentComponentsStr === JSON.stringify(prevComponentsRef.current)) {
+    return; // No change, don't set timeout
+  }
+  
+  prevComponentsRef.current = canvasComponents;
+  
+  const timeoutId = setTimeout(saveComponents, 2000);
   return () => clearTimeout(timeoutId);
-}, [canvasComponents, projectId, currentFrame, componentsLoaded, isFrameSwitching, componentLibraryService]);
+}, [canvasComponents.length, projectId, currentFrame, componentsLoaded, isFrameSwitching]); // 🔥 FIXED: Minimal dependencies
 
 
 
@@ -1288,6 +1305,178 @@ const handleComponentDragEnd = useCallback((componentId) => {
 
 
 
+// 🔥 FIXED: handlePropertyUpdate with RECURSIVE nested component support
+const handlePropertyUpdate = useCallback((componentId, propName, value) => {
+  console.log('🎯 ForgePage: Property update:', { componentId, propName, value });
+  
+  // 🔥 NEW: RECURSIVE UPDATE FUNCTION - Updates nested components anywhere in tree
+  const updateComponentRecursive = (components) => {
+    return components.map(c => {
+      // Found the target component
+      if (c.id === componentId) {
+        console.log('✅ Found target component:', componentId);
+        
+        if (propName === 'position') {
+          return { ...c, position: value }
+        } else if (propName === 'style') {
+          // 🔥 CRITICAL: REPLACE entire style object
+          console.log('🔄 Replacing entire style object:', value);
+          return { 
+            ...c, 
+            style: value // ✅ Direct replacement
+          }
+        } else if (propName === 'animation') {
+          return { ...c, animation: { ...c.animation, ...value } }
+        } else if (propName === 'name') {
+          return { ...c, name: value }
+        } else if (propName === 'reset') {
+          return { 
+            ...c, 
+            style: {}, 
+            animation: {},
+            props: {}
+          }
+        } else {
+          // 🔥 Single property update in style
+          console.log('📝 Updating single style property:', propName, '=', value);
+          return { 
+            ...c, 
+            style: {
+              ...c.style,
+              [propName]: value
+            }
+          }
+        }
+      }
+      
+      // 🔥 NEW: CRITICAL - Recursively update children if they exist
+      if (c.children && c.children.length > 0) {
+        return {
+          ...c,
+          children: updateComponentRecursive(c.children)
+        };
+      }
+      
+      return c;
+    });
+  };
+  
+  // 🔥 CHANGED: Use recursive function instead of simple map
+  const updatedComponents = updateComponentRecursive(canvasComponents);
+  
+  // 🔥 CRITICAL: Force immediate state update
+  console.log('⚡ Forcing immediate canvas update with recursive changes');
+  setFrameCanvasComponents(prev => ({
+    ...prev,
+    [currentFrame]: updatedComponents
+  }));
+  
+  // 🔥 CHANGED: Find component recursively for history tracking
+  const findComponent = (components, id) => {
+    for (const comp of components) {
+      if (comp.id === id) return comp;
+      if (comp.children?.length > 0) {
+        const found = findComponent(comp.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  
+  const component = findComponent(canvasComponents, componentId);
+  const componentName = component?.name || component?.type || 'component';
+  
+  // KEEP EVERYTHING BELOW THIS THE SAME - all your existing history logic
+  let actionType = actionTypes.PROP_UPDATE;
+  if (propName === 'position') actionType = actionTypes.MOVE;
+  else if (propName === 'style') actionType = actionTypes.STYLE_UPDATE;
+  
+  if (propName === 'position') {
+    const oldPos = component?.position || { x: 0, y: 0 };
+    const deltaX = Math.abs(value.x - oldPos.x);
+    const deltaY = Math.abs(value.y - oldPos.y);
+    
+    if (deltaX > 5 || deltaY > 5) {
+      pushHistory(currentFrame, updatedComponents, actionType, {
+        componentName,
+        componentId,
+        propName,
+        value,
+        previousValue: oldPos
+      });
+    }
+  } else {
+    pushHistory(currentFrame, updatedComponents, actionType, {
+      componentName,
+      componentId,
+      propName,
+      value,
+      previousValue: propName === 'style' ? component?.style : component?.props?.[propName]
+    });
+  }
+  
+  // ENHANCED: Schedule thumbnail update for visual changes
+  const shouldUpdateThumbnail = propName !== 'name' && 
+                               (propName === 'style' || propName === 'position' || 
+                                propName === 'props' || propName === 'animation');
+                                
+  if (shouldUpdateThumbnail && updatedComponents.length > 0) {
+    const canvasSettings = {
+      viewport: getCurrentCanvasDimensions(),
+      background_color: frame?.settings?.background_color || '#ffffff',
+      responsive_mode: responsiveMode,
+      zoom_level: zoomLevel,
+      grid_visible: gridVisible
+    };
+    
+    scheduleThumbnailUpdate(updatedComponents, canvasSettings);
+  }
+  
+  
+  
+  if (broadcastComponentUpdate) {
+    let updateType = 'style';
+    let updates = {};
+    
+    if (propName === 'position') {
+      updateType = 'position';
+      updates = value;
+    } else if (propName === 'style') {
+      updateType = 'style';
+      updates = value;
+    } else if (propName === 'props' || propName === 'content' || propName === 'text') {
+      updateType = 'props';
+      updates = { [propName]: value };
+    }
+    
+    console.log('📡 Broadcasting component update:', {
+      componentId,
+      updateType,
+      updates
+    });
+    
+    broadcastComponentUpdate(componentId, updates, updateType);
+  }
+  
+  
+  
+  // Auto-save with longer delay to prevent conflicts
+  setTimeout(() => {
+    if (componentLibraryService?.saveProjectComponents) {
+      componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedComponents);
+    }
+  }, propName === 'position' ? 2000 : 1000);
+  
+  generateCode(updatedComponents);
+}, [canvasComponents, currentFrame, projectId, pushHistory, actionTypes, componentLibraryService, generateCode, 
+    scheduleThumbnailUpdate, getCurrentCanvasDimensions, responsiveMode, zoomLevel, gridVisible, frame?.settings, broadcastComponentUpdate]);
+
+
+
+
+
+
+
 const handleComponentDrag = useCallback((e, componentId) => {
   if (!canvasRef.current) return;
   
@@ -1296,7 +1485,7 @@ const handleComponentDrag = useCallback((e, componentId) => {
   const y = e.clientY - rect.top;
   
   // Update local position immediately
-  onPropertyUpdate(componentId, 'position', { x, y });
+  handlePropertyUpdate(componentId, 'position', { x, y });
   
   // 🔥 CRITICAL: Broadcast immediately (no debounce)
   const component = canvasComponents.find(c => c.id === componentId);
@@ -1314,35 +1503,34 @@ const handleComponentDrag = useCallback((e, componentId) => {
       });
     }
   }
-}, [broadcastDragMove, canvasComponents, canvasRef]);
+}, [handlePropertyUpdate, broadcastDragMove, canvasComponents, canvasRef]);
   
   
-
 
 
 
 
 
 const calculateDropIntent = (rect, mouseX, mouseY, isLayout) => {
-  // Non-layout elements: Always sibling placement
   if (!isLayout) {
     const middleY = rect.top + (rect.height / 2);
-    return mouseY < middleY ? 'before' : 'after';
+    return {
+      intent: mouseY < middleY ? 'before' : 'after',
+      targetId: null
+    };
   }
   
-  // Layout elements: Use smart zones with better thresholds
   const width = rect.width;
   const height = rect.height;
   
-  // 🔥 IMPROVED: Larger center zone for easier nesting
-  const EDGE_THRESHOLD = 0.2; // 20% from edge = sibling zone (reduced from 25%)
-  const CENTER_THRESHOLD = 0.5; // 50% center = nest zone (increased from 40%)
+  // 🎯 OPTIMAL THRESHOLDS based on UX research
+  const EDGE_THRESHOLD = 0.2;    // Top 20% and bottom 20%
+  const CENTER_THRESHOLD = 0.5;  // Middle 50%
   
-  // Calculate normalized positions (0 to 1)
   const normalizedX = (mouseX - rect.left) / width;
   const normalizedY = (mouseY - rect.top) / height;
   
-  // Check if in center "nest zone" (50% center area)
+  // Check center "nest zone"
   const centerMinX = (1 - CENTER_THRESHOLD) / 2;
   const centerMaxX = 1 - centerMinX;
   const centerMinY = (1 - CENTER_THRESHOLD) / 2;
@@ -1353,27 +1541,29 @@ const calculateDropIntent = (rect, mouseX, mouseY, isLayout) => {
   
   if (isInCenterX && isInCenterY) {
     console.log('🎯 CENTER ZONE → NEST');
-    return 'nest';
+    return { intent: 'nest', targetId: null };
   }
   
-  // Check edge zones for sibling placement
+  // Prioritize vertical edges (top/bottom)
   const isTopEdge = normalizedY < EDGE_THRESHOLD;
   const isBottomEdge = normalizedY > (1 - EDGE_THRESHOLD);
   
-  // Prioritize vertical placement
   if (isTopEdge) {
     console.log('⬆️ TOP EDGE → BEFORE');
-    return 'before';
+    return { intent: 'before', targetId: null };
   }
   if (isBottomEdge) {
     console.log('⬇️ BOTTOM EDGE → AFTER');
-    return 'after';
+    return { intent: 'after', targetId: null };
   }
   
-  // 🔥 FIXED: Use actual mouseY vs rect middle for fallback
+  // Fallback to middle comparison
   const middleY = rect.top + (rect.height / 2);
-  return mouseY < middleY ? 'before' : 'after';
+  return mouseY < middleY 
+    ? { intent: 'before', targetId: null } 
+    : { intent: 'after', targetId: null };
 };
+
 
 
 
@@ -1471,7 +1661,7 @@ const handleMouseMove = (moveEvent) => {
     hasMoved = true;
   }
   
-  onPropertyUpdate(componentId, 'position', { x: constrainedX, y: constrainedY });
+  handlePropertyUpdate(componentId, 'position', { x: constrainedX, y: constrainedY });
   
   // 🔥 BROADCAST POSITION UPDATE IN REAL-TIME
   if (broadcastDragMove) {
@@ -2001,171 +2191,6 @@ const handleIconSelect = useCallback((icon) => {
   }, [canvasComponents, currentFrame, projectId, pushHistory, actionTypes, componentLibraryService, generateCode]);
 
   
-// 🔥 FIXED: handlePropertyUpdate with RECURSIVE nested component support
-const handlePropertyUpdate = useCallback((componentId, propName, value) => {
-  console.log('🎯 ForgePage: Property update:', { componentId, propName, value });
-  
-  // 🔥 NEW: RECURSIVE UPDATE FUNCTION - Updates nested components anywhere in tree
-  const updateComponentRecursive = (components) => {
-    return components.map(c => {
-      // Found the target component
-      if (c.id === componentId) {
-        console.log('✅ Found target component:', componentId);
-        
-        if (propName === 'position') {
-          return { ...c, position: value }
-        } else if (propName === 'style') {
-          // 🔥 CRITICAL: REPLACE entire style object
-          console.log('🔄 Replacing entire style object:', value);
-          return { 
-            ...c, 
-            style: value // ✅ Direct replacement
-          }
-        } else if (propName === 'animation') {
-          return { ...c, animation: { ...c.animation, ...value } }
-        } else if (propName === 'name') {
-          return { ...c, name: value }
-        } else if (propName === 'reset') {
-          return { 
-            ...c, 
-            style: {}, 
-            animation: {},
-            props: {}
-          }
-        } else {
-          // 🔥 Single property update in style
-          console.log('📝 Updating single style property:', propName, '=', value);
-          return { 
-            ...c, 
-            style: {
-              ...c.style,
-              [propName]: value
-            }
-          }
-        }
-      }
-      
-      // 🔥 NEW: CRITICAL - Recursively update children if they exist
-      if (c.children && c.children.length > 0) {
-        return {
-          ...c,
-          children: updateComponentRecursive(c.children)
-        };
-      }
-      
-      return c;
-    });
-  };
-  
-  // 🔥 CHANGED: Use recursive function instead of simple map
-  const updatedComponents = updateComponentRecursive(canvasComponents);
-  
-  // 🔥 CRITICAL: Force immediate state update
-  console.log('⚡ Forcing immediate canvas update with recursive changes');
-  setFrameCanvasComponents(prev => ({
-    ...prev,
-    [currentFrame]: updatedComponents
-  }));
-  
-  // 🔥 CHANGED: Find component recursively for history tracking
-  const findComponent = (components, id) => {
-    for (const comp of components) {
-      if (comp.id === id) return comp;
-      if (comp.children?.length > 0) {
-        const found = findComponent(comp.children, id);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
-  
-  const component = findComponent(canvasComponents, componentId);
-  const componentName = component?.name || component?.type || 'component';
-  
-  // KEEP EVERYTHING BELOW THIS THE SAME - all your existing history logic
-  let actionType = actionTypes.PROP_UPDATE;
-  if (propName === 'position') actionType = actionTypes.MOVE;
-  else if (propName === 'style') actionType = actionTypes.STYLE_UPDATE;
-  
-  if (propName === 'position') {
-    const oldPos = component?.position || { x: 0, y: 0 };
-    const deltaX = Math.abs(value.x - oldPos.x);
-    const deltaY = Math.abs(value.y - oldPos.y);
-    
-    if (deltaX > 5 || deltaY > 5) {
-      pushHistory(currentFrame, updatedComponents, actionType, {
-        componentName,
-        componentId,
-        propName,
-        value,
-        previousValue: oldPos
-      });
-    }
-  } else {
-    pushHistory(currentFrame, updatedComponents, actionType, {
-      componentName,
-      componentId,
-      propName,
-      value,
-      previousValue: propName === 'style' ? component?.style : component?.props?.[propName]
-    });
-  }
-  
-  // ENHANCED: Schedule thumbnail update for visual changes
-  const shouldUpdateThumbnail = propName !== 'name' && 
-                               (propName === 'style' || propName === 'position' || 
-                                propName === 'props' || propName === 'animation');
-                                
-  if (shouldUpdateThumbnail && updatedComponents.length > 0) {
-    const canvasSettings = {
-      viewport: getCurrentCanvasDimensions(),
-      background_color: frame?.settings?.background_color || '#ffffff',
-      responsive_mode: responsiveMode,
-      zoom_level: zoomLevel,
-      grid_visible: gridVisible
-    };
-    
-    scheduleThumbnailUpdate(updatedComponents, canvasSettings);
-  }
-  
-  
-  
-  if (broadcastComponentUpdate) {
-    let updateType = 'style';
-    let updates = {};
-    
-    if (propName === 'position') {
-      updateType = 'position';
-      updates = value;
-    } else if (propName === 'style') {
-      updateType = 'style';
-      updates = value;
-    } else if (propName === 'props' || propName === 'content' || propName === 'text') {
-      updateType = 'props';
-      updates = { [propName]: value };
-    }
-    
-    console.log('📡 Broadcasting component update:', {
-      componentId,
-      updateType,
-      updates
-    });
-    
-    broadcastComponentUpdate(componentId, updates, updateType);
-  }
-  
-  
-  
-  // Auto-save with longer delay to prevent conflicts
-  setTimeout(() => {
-    if (componentLibraryService?.saveProjectComponents) {
-      componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedComponents);
-    }
-  }, propName === 'position' ? 2000 : 1000);
-  
-  generateCode(updatedComponents);
-}, [canvasComponents, currentFrame, projectId, pushHistory, actionTypes, componentLibraryService, generateCode, 
-    scheduleThumbnailUpdate, getCurrentCanvasDimensions, responsiveMode, zoomLevel, gridVisible, frame?.settings, broadcastComponentUpdate]);
 
   
 
@@ -2536,28 +2561,25 @@ const debugRenderedComponents = () => {
 
 // 🔥 ADD THIS: Component click handler
 const handleComponentClick = useCallback((componentId, e) => {
+  console.log('ForgePage: Component clicked:', componentId);
+  
+  // Prevent event bubbling to canvas
   if (e) {
     e.stopPropagation();
   }
   
-  console.log('🎯 Component clicked:', componentId);
-  
-  if (componentId === null) {
-    setSelectedComponent(null);
-    setIsCanvasSelected(true);
-    broadcastDeselection(); // 🔥 Broadcast deselection
-    return;
-  }
-  
-  const component = canvasComponents.find(c => c.id === componentId);
+  // Update selected component
   setSelectedComponent(componentId);
   setIsCanvasSelected(false);
   
-  // 🔥 Broadcast selection
-  if (component) {
-    broadcastSelection(componentId, component.name || component.type);
+  // Broadcast selection to other users
+  if (broadcastSelection && componentId) {
+    broadcastSelection(componentId);
   }
-}, [canvasComponents, broadcastSelection, broadcastDeselection]);
+}, [broadcastSelection]);
+
+
+  
 
 
 // 🔥 ENHANCED: Smart canvas click handler
@@ -3493,7 +3515,7 @@ if (!componentsLoaded && loadingMessage) {
             opacity: 1;
             transform: scale(1) translateY(0);
           }
-          2
+          
           .frame-transition-exit-active {
             opacity: 0;
             transform: scale(0.95) translateY(-10px);

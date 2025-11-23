@@ -91,7 +91,9 @@ export default function FloatingToolbox({ tools }) {
   }, [])
 
   const handleToolClick = (tool, e) => {
-    e.stopPropagation()
+    console.log('🔥 FloatingToolbox: Button clicked!', tool.label, e);
+    e.preventDefault();
+    e.stopPropagation();
     
     // Enhanced visual feedback animation for active states
     gsap.to(e.currentTarget, {
@@ -115,15 +117,18 @@ export default function FloatingToolbox({ tools }) {
 
     // Call the tool's action if it exists
     if (tool.action && typeof tool.action === 'function') {
-      tool.action()
+      console.log('🎯 Calling tool action:', tool.label);
+      tool.action();
+    } else {
+      console.warn('⚠️ No action defined for tool:', tool.label);
     }
   }
 
   return (
-    <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-20">
+    <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-50 pointer-events-auto">
       <div 
         ref={floatingToolsRef}
-        className="flex flex-col gap-2"
+        className="flex flex-col gap-2 pointer-events-auto"
       >
         {tools.map((tool, index) => {
           const Icon = tool.icon
@@ -142,7 +147,7 @@ export default function FloatingToolbox({ tools }) {
           
           return (
             // wrapper now carries data-tool-index so the effect can hook it
-            <div key={index} className="relative group" data-tool-index={String(index)}>
+            <div key={index} className="relative group pointer-events-auto" data-tool-index={String(index)}>
               {/* Floating Circle with enhanced active state support (unchanged) */}
               <button
                 onClick={(e) => handleToolClick(tool, e)}
@@ -151,7 +156,7 @@ export default function FloatingToolbox({ tools }) {
                   transition-all duration-300 ease-out
                   hover:scale-110 hover:-translate-y-1 active:scale-95
                   focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
-                  overflow-hidden
+                  overflow-hidden pointer-events-auto cursor-pointer
                   ${tool.isPrimary 
                     ? 'shadow-md hover:shadow-lg' 
                     : 'shadow-sm hover:shadow-md'

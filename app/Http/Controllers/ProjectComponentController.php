@@ -349,8 +349,9 @@ private function normalizeStyleData($componentData)
 
         DB::commit();
 
-        // 🔥 MODIFIED: Only broadcast if NOT silent
+        // 🔥 ENHANCED: Broadcast specific component updates for real-time collaboration
         if (!($validated['silent'] ?? false)) {
+            // Broadcast frame-level update
             event(new \App\Events\FrameUpdated(
                 $frame->uuid,
                 auth()->id(),
@@ -358,9 +359,33 @@ private function normalizeStyleData($componentData)
                     'action' => 'bulk_update',
                     'component_count' => count($savedComponentIds),
                     'updated_at' => now()->toISOString(),
+                    'user_name' => auth()->user()->name,
+                    'session_id' => request()->input('session_id', 'unknown'),
                 ],
-                'bulk_update' // 🔥 NEW: Specify update type
+                'bulk_update'
             ));
+
+            // 🔥 NEW: Broadcast individual component updates for real-time sync
+            foreach ($validated['components'] as $componentData) {
+                event(new \App\Events\ComponentUpdated(
+                    $frame->uuid,
+                    auth()->id(),
+                    request()->input('session_id', 'unknown'),
+                    $componentData['id'],
+                    [
+                        'style' => $componentData['style'] ?? [],
+                        'props' => $componentData['props'] ?? [],
+                        'text_content' => $componentData['text_content'] ?? null,
+                        'position' => [
+                            'x' => $componentData['style']['left'] ?? 0,
+                            'y' => $componentData['style']['top'] ?? 0
+                        ],
+                        'parentId' => $componentData['parentId'] ?? null,
+                        'component_type' => $componentData['type'] ?? 'unknown',
+                    ],
+                    'bulk_update'
+                ));
+            }
         }
         
         return response()->json([

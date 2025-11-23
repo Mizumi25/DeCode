@@ -51,18 +51,34 @@ export const useCollaboration = (frameUuid, currentUserId) => {
           return next;
         });
       })
-      // 🔥 CRITICAL: Listen for drag events
-      .listen('.element.drag.started', (data) => {
-        console.log('🎬 RECEIVED drag started:', data);
-        handleDragStarted(data);
+      // 🔥 ENHANCED: Listen for all real-time collaboration events
+      .listen('.component.updated', (data) => {
+        console.log('📦 RECEIVED component updated:', data);
+        handleComponentUpdated(data);
       })
-      .listen('.element.drag.moving', (data) => {
-        console.log('🎯 RECEIVED drag move:', data);
-        handleDragMove(data);
+      .listen('.component.realtime', (data) => {
+        console.log('⚡ RECEIVED real-time update:', data);
+        
+        switch (data.updateType) {
+          case 'drag_start':
+            handleDragStarted(data);
+            break;
+          case 'drag_move':
+            handleDragMove(data);
+            break;
+          case 'drag_end':
+            handleDragEnd(data);
+            break;
+          case 'component_updated':
+            handleComponentUpdated(data);
+            break;
+          default:
+            console.log('🔄 Other real-time update:', data.updateType, data);
+        }
       })
-      .listen('.element.drag.ended', (data) => {
-        console.log('🏁 RECEIVED drag ended:', data);
-        handleDragEnd(data);
+      .listen('.component.state.changed', (data) => {
+        console.log('🔄 RECEIVED state changed:', data);
+        handleStateChanged(data);
       })
       // Cursor events
       .listen('.cursor.moved', handleCursorMoved)
@@ -264,17 +280,25 @@ const handleComponentUpdated = useCallback((data) => {
 
 
 
-// 🔥 NEW: Broadcast component updates
+// 🔥 ENHANCED: Broadcast component updates with proper error handling
 const broadcastComponentUpdate = useCallback(async (componentId, updates, updateType) => {
+  if (!frameUuid || !sessionId) {
+    console.warn('⚠️ Missing frameUuid or sessionId for component update broadcast');
+    return;
+  }
+
   try {
-    await axios.post(`/api/frames/${frameUuid}/collaboration/component-update`, {
+    const response = await axios.post(`/api/frames/${frameUuid}/collaboration/component-update`, {
       component_id: componentId,
       session_id: sessionId,
       updates,
       update_type: updateType,
     });
+    
+    console.log(`✅ Component update broadcasted:`, { componentId, updateType });
+    return response.data;
   } catch (error) {
-    console.error('Failed to broadcast component update:', error);
+    console.error('❌ Failed to broadcast component update:', error.response?.data || error.message);
   }
 }, [frameUuid, sessionId]);
 
@@ -502,7 +526,29 @@ const broadcastStateChanged = useCallback(async (componentId, operation, finalSt
   }
 }, [frameUuid, sessionId]);
 
-// Update return statement (line ~250)
+// 🔥 REMOVED: Duplicate function declaration - using the one above
+
+// 🔥 ENHANCED: Handle state changes (bulk operations)
+const handleStateChanged = useCallback((data) => {
+  console.log('🔄 Processing state change:', data);
+  
+  if (data.userId === currentUserId) {
+    console.log('⏭️ Ignoring own state change');
+    return;
+  }
+  
+  // Dispatch bulk state change
+  window.dispatchEvent(new CustomEvent('remote-state-change', {
+    detail: {
+      operation: data.operation,
+      finalState: data.finalState,
+      componentIds: data.component_ids,
+      userId: data.userId
+    }
+  }));
+}, [currentUserId]);
+
+// Update return statement with all broadcast functions and handlers
 return {
   activeCursors: Array.from(activeCursors.values()),
   draggedElements: Array.from(draggedElements.values()),
@@ -511,10 +557,13 @@ return {
   broadcastDragStart, // Keep for initial drag indication
   broadcastDragMove, // Keep for live ghost updates
   broadcastDragEnd, // Keep for cleanup
+  broadcastComponentUpdate, // 🔥 ENHANCED: Component updates for real-time sync
   broadcastRealtimeUpdate, // 🔥 NEW: For live component updates
   broadcastStateChanged, // 🔥 NEW: For final state changes
   broadcastSelection,
   broadcastDeselection,
+  handleComponentUpdated, // 🔥 NEW: Handle incoming updates
+  handleStateChanged, // 🔥 NEW: Handle state changes
   sessionId,
 };
 };

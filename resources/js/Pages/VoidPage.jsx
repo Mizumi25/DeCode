@@ -1026,7 +1026,9 @@ useEffect(() => {
         // CRITICAL: Remove min-width/min-height constraints
         cursor: isDragging ? 'grabbing' : 'grab',
         position: 'relative',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        // 🔥 FIXED: Ensure floating elements can be interacted with
+        pointerEvents: 'auto'
       }}
       onClick={handleCanvasClick}
     >
