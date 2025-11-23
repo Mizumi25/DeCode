@@ -1781,160 +1781,101 @@ const handleCanvasDrop = useCallback((e) => {
   e.preventDefault();
   e.stopPropagation();
   
-  setDragPosition(null);
-  
-  // Clear visual feedback
-  document.querySelectorAll('.drop-intent-visual').forEach(el => el.remove());
-  document.querySelectorAll('[class*="drop-intent-"]').forEach(el => {
-    el.classList.remove('drop-intent-nest', 'drop-intent-before', 'drop-intent-after');
-  });
+  console.log('🎯 DROP FIRED');
   
   if (!canvasRef.current) return;
 
   try {
     const componentDataStr = e.dataTransfer.getData('text/plain');
-    let dragData;
+    console.log('📦 Raw drag data:', componentDataStr);
     
+    if (!componentDataStr) {
+      console.error('❌ No drag data');
+      return;
+    }
+    
+    let dragData;
     try {
       dragData = JSON.parse(componentDataStr);
+      console.log('✅ Parsed:', dragData);
     } catch (err) {
-      console.error('Failed to parse drop data:', err);
+      console.error('❌ Parse failed:', err);
       return;
     }
 
-    const { componentType, variant, ghostBounds } = dragData;
+    // 🔥 FIX: Handle BOTH formats (panel vs canvas)
+    const componentType = dragData.componentType || dragData.type;
+    const variant = dragData.variant || null;
+    
+    if (!componentType) {
+      console.error('❌ No componentType');
+      return;
+    }
+    
+    console.log('🎨 Creating:', componentType, variant?.name);
     
     const canvasRect = canvasRef.current.getBoundingClientRect();
     const dropX = e.clientX - canvasRect.left;
     const dropY = e.clientY - canvasRect.top;
 
-    const dropTarget = findDropTarget(canvasComponents, dropX, dropY, canvasRect);
-
     // Get component definition
     let componentDef = componentLibraryService?.getComponentDefinition(componentType);
-    const isLayout = ['section', 'container', 'div', 'flex', 'grid'].includes(componentType);
+    
+    // 🔥 FIX: Merge default props + variant props correctly
+    const baseProps = componentDef?.default_props || {};
+    const variantProps = variant?.props || {};
+    const variantStyle = variant?.style || {};
 
-    // Create new component
     const newComponent = {
       id: `${componentType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       type: componentType,
       props: {
-        ...(componentDef?.default_props || {}),
-        ...(variant?.props || {})
+        ...baseProps,
+        ...variantProps
       },
       name: variant ? `${componentType} (${variant.name})` : (componentDef?.name || componentType),
       variant: variant || null,
       style: {
-        ...(variant?.style || {}),
+        ...variantStyle,
       },
       animation: {},
       children: [],
-      isLayoutContainer: isLayout,
+      isLayoutContainer: ['section', 'container', 'div', 'flex', 'grid'].includes(componentType),
       zIndex: 0,
-      sortOrder: 0,
+      sortOrder: canvasComponents.length,
       position: { x: dropX - 50, y: dropY - 20 }
     };
 
-    console.log('🎨 Created component:', newComponent.name);
+    console.log('✅ NEW COMPONENT:', newComponent);
 
-    let updatedComponents;
-
-    // ============================================
-    // 🧠 EXECUTE DROP BASED ON INTENT
-    // ============================================
+    const updatedComponents = [...canvasComponents, newComponent];
     
-    if (!dropTarget) {
-      // Drop at root
-      console.log('🌍 Dropping at root level');
-      updatedComponents = [...canvasComponents, newComponent];
-      
-    } else {
-      const { component: targetComp, intent } = dropTarget;
-      
-      if (intent === 'nest') {
-        // NEST INSIDE CONTAINER
-        console.log('📦 NESTING inside:', targetComp.name);
-        
-        // Calculate position relative to container
-        const containerElement = document.querySelector(`[data-component-id="${targetComp.id}"]`);
-        if (containerElement) {
-          const containerRect = containerElement.getBoundingClientRect();
-          const relativeX = e.clientX - containerRect.left - 20;
-          const relativeY = e.clientY - containerRect.top - 20;
-          
-          newComponent.position = { 
-            x: Math.max(0, relativeX), 
-            y: Math.max(0, relativeY) 
-          };
-        }
-        
-        updatedComponents = canvasComponents.map(comp => {
-          if (comp.id === targetComp.id) {
-            return {
-              ...comp,
-              children: [
-                ...(comp.children || []),
-                {
-                  ...newComponent,
-                  parentId: comp.id
-                }
-              ]
-            };
-          }
-          return comp;
-        });
-        
-      } else if (intent === 'before') {
-        // INSERT BEFORE SIBLING
-        console.log('⬆️ INSERTING BEFORE:', targetComp.name);
-        
-        const targetIndex = canvasComponents.findIndex(c => c.id === targetComp.id);
-        updatedComponents = [
-          ...canvasComponents.slice(0, targetIndex),
-          newComponent,
-          ...canvasComponents.slice(targetIndex)
-        ];
-        
-      } else if (intent === 'after') {
-        // INSERT AFTER SIBLING
-        console.log('⬇️ INSERTING AFTER:', targetComp.name);
-        
-        const targetIndex = canvasComponents.findIndex(c => c.id === targetComp.id);
-        updatedComponents = [
-          ...canvasComponents.slice(0, targetIndex + 1),
-          newComponent,
-          ...canvasComponents.slice(targetIndex + 1)
-        ];
-      }
-    }
+    console.log('📦 UPDATING STATE:', updatedComponents.length, 'components');
     
-    // Update state
     setFrameCanvasComponents(prev => ({
       ...prev,
       [currentFrame]: updatedComponents
     }));
     
-    pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
-      componentName: newComponent.name,
-      componentType: newComponent.type,
-      position: newComponent.position,
-      componentId: newComponent.id,
-      droppedInto: dropTarget?.component?.id || null,
-      intent: dropTarget?.intent || 'root'
-    });
-    
     setSelectedComponent(newComponent.id);
     handleComponentDragEnd();
+    
+    if (pushHistory && actionTypes) {
+      pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
+        componentName: newComponent.name,
+        componentType: newComponent.type,
+        componentId: newComponent.id
+      });
+    }
+    
     generateCode(updatedComponents);
     
-    console.log('✅ Drop completed successfully');
+    console.log('✅ DROP COMPLETE');
     
   } catch (error) {
-    console.error('❌ Drop error:', error);
-    handleComponentDragEnd();
+    console.error('❌ DROP ERROR:', error);
   }
-}, [canvasComponents, currentFrame, componentLibraryService, pushHistory, actionTypes, generateCode, findDropTarget]);
-
+}, [canvasRef, canvasComponents, currentFrame, componentLibraryService, pushHistory, actionTypes, generateCode, setFrameCanvasComponents, handleComponentDragEnd]);
 
 
 
@@ -2560,22 +2501,25 @@ const debugRenderedComponents = () => {
 
 
 // 🔥 ADD THIS: Component click handler
+// REPLACE the entire handleComponentClick with:
 const handleComponentClick = useCallback((componentId, e) => {
-  console.log('ForgePage: Component clicked:', componentId);
+  console.log('🔥 ForgePage: Component clicked:', componentId);
   
   // Prevent event bubbling to canvas
   if (e) {
     e.stopPropagation();
   }
   
-  // Update selected component
+  // 🔥 FIX: Update BOTH states
   setSelectedComponent(componentId);
-  setIsCanvasSelected(false);
+  setIsCanvasSelected(componentId === '__canvas_root__');
   
   // Broadcast selection to other users
-  if (broadcastSelection && componentId) {
+  if (broadcastSelection && componentId && componentId !== '__canvas_root__') {
     broadcastSelection(componentId);
   }
+  
+  console.log('✅ Selected component set to:', componentId);
 }, [broadcastSelection]);
 
 
@@ -2795,13 +2739,14 @@ const handleCanvasClick = useCallback((e) => {
       ) : null
     ),
     createMockPanel('properties-panel', 'Properties',
-      PropertiesPanel ? (
-        <PropertiesPanel
-          canvasRef={canvasRef}
-          frame={frame}  
-          canvasComponents={canvasComponents}
-          selectedComponent={selectedComponent}
-          onPropertyUpdate={handlePropertyUpdate}
+  PropertiesPanel ? (
+    <PropertiesPanel
+      canvasRef={canvasRef}
+      frame={frame}  
+      canvasComponents={canvasComponents}
+      selectedComponent={selectedComponent}
+      setSelectedComponent={setSelectedComponent}  // 🔥 ADD THIS
+      onPropertyUpdate={handlePropertyUpdate}
           onComponentDelete={handleComponentDelete}
           onGenerateCode={generateCode}
           componentLibraryService={componentLibraryService}
@@ -3108,10 +3053,12 @@ if (!componentsLoaded && loadingMessage) {
                     
                     {/* Regular Canvas - only show if we have components or frame is component type */}
                     {(canvasComponents.length > 0 || frame?.type === 'component') && (
-                   <CanvasComponent
+                 <CanvasComponent
   canvasRef={canvasRef}
   canvasComponents={canvasComponents}
   selectedComponent={selectedComponent}
+  setSelectedComponent={setSelectedComponent}  // 🔥 ADD THIS LINE
+  setIsCanvasSelected={setIsCanvasSelected}    // 🔥 ADD THIS LINE
   dragState={dragState}
   isCanvasSelected={isCanvasSelected}
   componentLibraryService={componentLibraryService}

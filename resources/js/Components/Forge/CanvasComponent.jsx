@@ -110,6 +110,8 @@ const CanvasComponent = ({
   canvasRef,
   canvasComponents,
   selectedComponent,
+  setSelectedComponent,        // 🔥 ADD THIS
+  setIsCanvasSelected,         // 🔥 ADD THIS
   dragState,
   isCanvasSelected,
   componentLibraryService,
@@ -641,7 +643,7 @@ const handleDoubleClickText = useCallback((e, componentId) => {
   
   
   
-// 🔥 ENHANCED: Smart click handler that prioritizes deepest child
+// REPLACE the entire handleSmartClick function with:
 const handleSmartClick = useCallback((e) => {
   e.stopPropagation();
   
@@ -653,7 +655,7 @@ const handleSmartClick = useCallback((e) => {
   // Get all component elements under the click
   const clickPath = e.nativeEvent.composedPath();
   
-  // 🔥 PRIORITY 1: Check for text node clicks (ENHANCED)
+  // 🔥 PRIORITY 1: Check for text node clicks
   const textNode = clickPath.find(el => 
     el.nodeType === 1 && 
     el.hasAttribute && 
@@ -664,8 +666,12 @@ const handleSmartClick = useCallback((e) => {
   if (textNode) {
     const textNodeId = textNode.getAttribute('data-component-id');
     console.log('✅ Text node clicked:', textNodeId);
+    
+    // 🔥 FIX: Call both handlers with correct component ID
+    setSelectedComponent(textNodeId);
+    setIsCanvasSelected(false);
     onComponentClick(textNodeId, e);
-    // 🔥 NEW: Dispatch event for code panel highlighting
+    
     window.dispatchEvent(new CustomEvent('component-selected', {
       detail: { componentId: textNodeId }
     }));
@@ -676,11 +682,15 @@ const handleSmartClick = useCallback((e) => {
   const componentElements = clickPath.filter(el => 
     el.nodeType === 1 && el.hasAttribute && el.hasAttribute('data-component-id')
   );
+  
   if (componentElements.length === 0) {
     console.log('🎯 Canvas click - selecting canvas root');
-    onComponentClick('__canvas_root__', e);
+    
+    // 🔥 FIX: Properly set canvas root selection
+    setSelectedComponent('__canvas_root__');
     setIsCanvasSelected(true);
-    // 🔥 NEW: Dispatch event for code panel highlighting
+    onComponentClick('__canvas_root__', e);
+    
     window.dispatchEvent(new CustomEvent('component-selected', {
       detail: { componentId: '__canvas_root__' }
     }));
@@ -692,12 +702,16 @@ const handleSmartClick = useCallback((e) => {
   const componentId = targetElement.getAttribute('data-component-id');
   
   console.log('✅ Component selected:', componentId);
+  
+  // 🔥 FIX: Set local state AND call parent handler
+  setSelectedComponent(componentId);
+  setIsCanvasSelected(false);
   onComponentClick(componentId, e);
-  // 🔥 NEW: Dispatch event for code panel highlighting
+  
   window.dispatchEvent(new CustomEvent('component-selected', {
     detail: { componentId }
   }));
-}, [onComponentClick]);
+}, [onComponentClick, setSelectedComponent, setIsCanvasSelected]);
   
   
   
@@ -713,7 +727,8 @@ const DraggableComponent = ({
   parentStyle, 
   responsiveMode,
   onDragEnd: handleComponentDragEnd,
-  // 🔥 NEW: Pass parent scope variables
+  setSelectedComponent,        // 🔥 ADD THIS
+  setIsCanvasSelected,         // 🔥 ADD THIS
   currentFrame,
   canvasComponents,
   flattenForReorder,
@@ -932,7 +947,8 @@ if (isLayout) {
         {/* Nested components */}
        {component.children && component.children.length > 0 ? (
             component.children.map((child, childIndex) => (
-              <DraggableComponent
+             
+ <DraggableComponent
                 key={child.id}
                 component={child}
                 depth={depth + 1}
@@ -941,6 +957,8 @@ if (isLayout) {
                 parentStyle={componentStyles}
                 responsiveMode={responsiveMode}
                 onDragEnd={handleComponentDragEnd}
+    setSelectedComponent={setSelectedComponent}  // 🔥 ADD THIS
+    setIsCanvasSelected={setIsCanvasSelected}    // 🔥 ADD THIS
                 currentFrame={currentFrame}
                 canvasComponents={canvasComponents}
                 flattenForReorder={flattenForReorder}
@@ -1162,15 +1180,17 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
   });
 
   return (
-    <DraggableComponent
-      key={component.id}
-      component={responsiveComponent}
-      depth={depth}
-      parentId={parentId}
-      index={index}
-      parentStyle={responsiveStyles}
-      responsiveMode={responsiveMode}
-      onDragEnd={handleComponentDragEnd}
+  <DraggableComponent
+    key={component.id}
+    component={responsiveComponent}
+    depth={depth}
+    parentId={parentId}
+    index={index}
+    parentStyle={responsiveStyles}
+    responsiveMode={responsiveMode}
+    onDragEnd={handleComponentDragEnd}
+    setSelectedComponent={setSelectedComponent}  // 🔥 ADD THIS
+    setIsCanvasSelected={setIsCanvasSelected}    // 🔥 ADD THIS
       currentFrame={currentFrame}
       canvasComponents={canvasComponents}
       flattenForReorder={flattenForReorder}
@@ -1849,18 +1869,11 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
   onDragOver={onCanvasDragOver}
   onDrop={onCanvasDrop}
   onClick={(e) => {
-    // 🔥 MERGED: Combined both onClick handlers
-    if (isPreviewMode) return; // Disable selection in preview
-    
-    // Only select canvas if clicking directly on canvas (not on a component)
-    if (e.target === e.currentTarget || e.target === canvasRef.current) {
-      handleSmartClick(e);
-      onCanvasClick(null, e);
-      onComponentClick('__canvas_root__', e);
-    } else {
-      onCanvasClick(e);
-    }
-  }}
+  if (isPreviewMode) return;
+  
+  // Let handleSmartClick handle ALL clicks
+  handleSmartClick(e);
+}}
 >
     {/* 🔥 Viewport Boundary Indicator */}
   {/*  <ViewportBoundaryIndicator 

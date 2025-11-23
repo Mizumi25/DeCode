@@ -18,10 +18,11 @@ import { useCanvasOverlayStore } from '@/stores/useCanvasOverlayStore';
 
 const PropertiesPanel = ({ 
   canvasRef,
-  frame,  // ADD THIS
+  frame,
   canvasComponents, 
-  selectedComponent, 
-  onPropertyUpdate, 
+  selectedComponent,
+  setSelectedComponent,  // 🔥 ADD THIS
+  onPropertyUpdate,
   onComponentDelete, 
   onGenerateCode,
   componentLibraryService,
