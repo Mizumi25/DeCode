@@ -20,7 +20,7 @@ use App\Http\Controllers\ForgePageController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\CollaborationController;
-
+use App\Http\Controllers\AiController;
 /*
 |--------------------------------------------------------------------------
 | API Routes - All using UUIDs for resource identification
@@ -312,8 +312,8 @@ Route::post('/realtime-update', [CollaborationController::class, 'realtimeUpdate
     // Cleanup route (can be called via scheduled task)
     Route::post('/presence/cleanup', [FramePresenceController::class, 'cleanup']);
     
-    
-    
+    // AI generation route
+    Route::post('/ai/generate-template', [AiController::class, 'generateTemplate']);
 
     // Test thumbnail generation endpoint
     Route::get('/test-thumbnails', function() {

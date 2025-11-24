@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useForm } from '@inertiajs/react'
+import axios from 'axios'
 import { 
   Monitor, 
   Smartphone, 
@@ -117,6 +118,8 @@ const DEVICE_PRESETS = [
 export default function FrameCreator({ project, onFrameCreated, onClose }) {
   const [step, setStep] = useState(1)
   const [localErrors, setLocalErrors] = useState({})
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false)
 
  const { data, setData, post, processing, errors } = useForm({
     project_id: project.id,
@@ -205,7 +208,7 @@ export default function FrameCreator({ project, onFrameCreated, onClose }) {
     }))
   }
 
-  const handleCreateFrame = () => {
+  const handleCreateFrame = async () => {
     if (!validateStep(2)) return
 
     const randomX = Math.floor(Math.random() * 1000) + 200
@@ -222,24 +225,306 @@ export default function FrameCreator({ project, onFrameCreated, onClose }) {
       }
     }))
 
-    // Use web route instead of API route
-    post('/frames', {
-      onSuccess: () => {
-        console.log('Frame creation request successful')
-        // Since we can't get the frame data directly from back() response,
-        // we'll let the parent component handle reloading the frames
+    // Check if AI prompt is provided
+    if (aiPrompt.trim()) {
+      setIsGeneratingAI(true)
+      console.log('🤖 AI prompt detected:', aiPrompt)
+      
+      try {
+        // First, create the frame
+        console.log('📦 Creating frame...')
+        await new Promise((resolve, reject) => {
+          post('/frames', {
+            preserveScroll: true,
+            onSuccess: () => {
+              console.log('✅ Frame created successfully')
+              resolve()
+            },
+            onError: (errors) => {
+              console.error('❌ Frame creation error:', errors)
+              reject(errors)
+            }
+          })
+        })
+
+        console.log('🔍 Fetching latest frame from API...')
+        
+        // Fetch the latest frame for this project to get the correct database ID
+        const framesResponse = await axios.get(`/api/frames?project_id=${project.id}`)
+        const frames = framesResponse.data.frames || []
+        
+        if (frames.length === 0) {
+          throw new Error('No frames found after creation')
+        }
+        
+        // Get the most recently created frame (first in the list since they're ordered by created_at desc)
+        const newFrame = frames[0]
+        console.log('🆕 Latest frame:', newFrame)
+
+        console.log('🎨 Calling AI with frame:', {
+          frame_numeric_id: newFrame.numeric_id,
+          frame_uuid: newFrame.uuid,
+          project_id: project.id,
+          project_uuid: project.uuid
+        })
+
+        // Now call AI to generate template with component information using axios
+        const aiResponse = await axios.post('/api/ai/generate-template', {
+          prompt: aiPrompt,
+          frame_id: newFrame.numeric_id,  // Use the numeric database ID
+          project_id: project.id
+        })
+
+        console.log('🤖 AI Response status:', aiResponse.status)
+        console.log('🎯 AI Data received:', aiResponse.data)
+        
+        // Parse AI output and create components
+        if (aiResponse.data.ai_output) {
+          console.log('🔧 Starting component generation...')
+          await handleAIGeneration(aiResponse.data.ai_output, newFrame)
+        } else {
+          console.warn('⚠️ No AI output received')
+        }
+
+        setIsGeneratingAI(false)
+        console.log('✅ AI generation complete!')
+        
         if (onFrameCreated) {
-          // Signal that a frame was created (parent will reload frames)
-          onFrameCreated(null)
+          onFrameCreated(newFrame)
         }
         onClose()
-      },
-      onError: (errors) => {
-        console.error('Error creating frame:', errors)
-        const errorMessage = errors.error || errors.project || 'Failed to create frame. Please try again.'
-        setLocalErrors({ submit: errorMessage })
+
+      } catch (error) {
+        console.error('❌ Error with AI generation:', error)
+        console.error('Error details:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status
+        })
+        setIsGeneratingAI(false)
+        setLocalErrors({ submit: 'Frame created but AI generation failed: ' + (error.response?.data?.message || error.message) })
       }
-    })
+    } else {
+      // Normal frame creation without AI
+      post('/frames', {
+        onSuccess: () => {
+          console.log('Frame creation request successful')
+          if (onFrameCreated) {
+            onFrameCreated(null)
+          }
+          onClose()
+        },
+        onError: (errors) => {
+          console.error('Error creating frame:', errors)
+          const errorMessage = errors.error || errors.project || 'Failed to create frame. Please try again.'
+          setLocalErrors({ submit: errorMessage })
+        }
+      })
+    }
+  }
+
+  const handleAIGeneration = async (aiOutput, frame) => {
+    try {
+      console.log('📝 Raw AI output:', aiOutput)
+      
+      // Try to extract JSON from AI output
+      let aiComponentsData
+      
+      // Check if output contains JSON block
+      const jsonMatch = aiOutput.match(/```json\n([\s\S]*?)\n```/) || 
+                       aiOutput.match(/```\n([\s\S]*?)\n```/) ||
+                       aiOutput.match(/\{[\s\S]*\}/)
+      
+      if (jsonMatch) {
+        const jsonString = jsonMatch[1] || jsonMatch[0]
+        console.log('📋 Extracted JSON string:', jsonString)
+        aiComponentsData = JSON.parse(jsonString)
+      } else {
+        console.log('📋 Parsing raw output as JSON')
+        aiComponentsData = JSON.parse(aiOutput)
+      }
+
+      console.log('✅ Parsed AI components data:', aiComponentsData)
+
+      // Get all available components from database
+      console.log('🔍 Fetching available components...')
+      const componentsResponse = await axios.get('/api/components')
+      
+      const dbComponentsData = componentsResponse.data
+      console.log('📦 Raw components response:', dbComponentsData)
+      
+      // Flatten the grouped structure into a single array
+      const availableComponents = []
+      
+      if (dbComponentsData.success && dbComponentsData.data) {
+        // Process elements
+        if (dbComponentsData.data.elements) {
+          Object.values(dbComponentsData.data.elements).forEach(letterGroup => {
+            availableComponents.push(...letterGroup)
+          })
+        }
+        
+        // Process components
+        if (dbComponentsData.data.components) {
+          Object.values(dbComponentsData.data.components).forEach(letterGroup => {
+            availableComponents.push(...letterGroup)
+          })
+        }
+      }
+      
+      console.log(`📦 Found ${availableComponents.length} available components`)
+      
+      // Match and create components
+      if (aiComponentsData.components && Array.isArray(aiComponentsData.components)) {
+        console.log(`🎯 Creating ${aiComponentsData.components.length} components...`)
+        
+        for (let i = 0; i < aiComponentsData.components.length; i++) {
+          const componentSpec = aiComponentsData.components[i]
+          console.log(`\n🔨 Creating component ${i + 1}/${aiComponentsData.components.length}:`, componentSpec)
+          const result = await createComponentFromSpec(componentSpec, frame, availableComponents)
+          console.log(`${result ? '✅' : '❌'} Component ${i + 1} result:`, result)
+        }
+        
+        console.log('🎉 All components processed!')
+      } else {
+        console.warn('⚠️ No components array found in AI output')
+      }
+
+    } catch (error) {
+      console.error('❌ Error parsing AI output:', error)
+      console.error('Stack trace:', error.stack)
+      throw error
+    }
+  }
+
+  const createComponentFromSpec = async (spec, frame, availableComponents) => {
+    try {
+      console.log('  🔍 Looking for component type:', spec.type)
+      
+      // Find matching component from database
+      const matchingComponent = findMatchingComponent(spec.type, availableComponents)
+      
+      if (!matchingComponent) {
+        console.warn(`  ⚠️ No matching component found for: ${spec.type}`)
+        return null
+      }
+
+      console.log('  ✅ Found matching component:', matchingComponent.name, matchingComponent.type)
+
+      // Select appropriate variant if specified
+      let selectedVariant = null
+      let variantStyles = {}
+      
+      if (spec.variant && matchingComponent.variants) {
+        console.log('  🎨 Looking for variant:', spec.variant)
+        selectedVariant = matchingComponent.variants.find(v => 
+          v.name.toLowerCase().includes(spec.variant.toLowerCase())
+        )
+        
+        // Extract styles from the selected variant
+        if (selectedVariant && selectedVariant.style) {
+          variantStyles = selectedVariant.style
+          console.log('  ✅ Found variant styles:', Object.keys(variantStyles))
+        } else {
+          console.log('  ⚠️ Variant not found or has no styles')
+        }
+      }
+
+      // Merge styles: default component styles < variant styles < AI specified styles
+      const mergedStyles = {
+        ...(matchingComponent.default_props?.style || {}),
+        ...variantStyles,
+        ...(spec.style || {})
+      }
+
+      console.log('  📐 Merged styles:', Object.keys(mergedStyles))
+
+      // Prepare component data
+      const componentData = {
+        id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        type: matchingComponent.type,
+        name: spec.name || matchingComponent.name,
+        props: spec.props || matchingComponent.default_props || {},
+        style: mergedStyles,
+        zIndex: spec.zIndex || 0,
+        sortOrder: spec.sortOrder || 0,
+        visible: true,
+        locked: false,
+        children: []
+      }
+
+      const payload = {
+        project_id: project.id,
+        frame_id: frame.numeric_id,  // Use numeric database ID
+        component_instance_id: componentData.id,
+        component_type: componentData.type,
+        props: componentData.props,
+        name: componentData.name,
+        style: componentData.style,
+        z_index: componentData.zIndex,
+        sort_order: componentData.sortOrder,
+        visible: componentData.visible,
+        locked: componentData.locked
+      }
+
+      console.log('  📤 Sending to API:', {
+        endpoint: '/api/project-components',
+        payload_keys: Object.keys(payload),
+        frame_numeric_id: frame.numeric_id,
+        project_id: project.id
+      })
+
+      // Create component via API
+      const response = await axios.post('/api/project-components', payload)
+
+      console.log('  📥 API Response status:', response.status)
+      console.log('  ✅ Component created successfully:', response.data)
+
+      return response.data
+
+    } catch (error) {
+      console.error('  ❌ Error creating component from spec:', error)
+      console.error('  Stack:', error.stack)
+      return null
+    }
+  }
+
+  const findMatchingComponent = (requestedType, availableComponents) => {
+    console.log(`    🔎 Matching "${requestedType}" against ${availableComponents.length} components`)
+    
+    // First try exact match
+    let match = availableComponents.find(c => 
+      c.type.toLowerCase() === requestedType.toLowerCase()
+    )
+    
+    if (match) {
+      console.log(`    ✅ Exact match found: ${match.type}`)
+      return match
+    }
+
+    // Try partial match
+    match = availableComponents.find(c => 
+      c.type.toLowerCase().includes(requestedType.toLowerCase()) ||
+      c.name.toLowerCase().includes(requestedType.toLowerCase())
+    )
+    
+    if (match) {
+      console.log(`    ✅ Partial match found: ${match.type}`)
+      return match
+    }
+
+    // Try category match
+    match = availableComponents.find(c => 
+      c.category?.toLowerCase().includes(requestedType.toLowerCase())
+    )
+    
+    if (match) {
+      console.log(`    ✅ Category match found: ${match.type}`)
+      return match
+    }
+    
+    console.log(`    ❌ No match found for: ${requestedType}`)
+    return null
   }
 
   const renderStep1 = () => (
@@ -520,6 +805,30 @@ export default function FrameCreator({ project, onFrameCreated, onClose }) {
               />
             </div>
           </div>
+
+          {/* AI Prompt Input */}
+          <div className="border-t border-[var(--color-border)] pt-6 mt-6">
+            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text)' }}>
+              AI Design Prompt (Optional)
+            </label>
+            <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
+              Describe what you want to create and AI will assemble pre-styled components for you. Leave empty for manual design.
+            </p>
+            <textarea
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              placeholder="e.g., Create a hero section with a heading, subheading, and a primary button"
+              rows={4}
+              className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-all resize-none"
+            />
+            {aiPrompt.trim() && (
+              <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  ✨ AI will use existing components from your library to build this design
+                </p>
+              </div>
+            )}
+          </div>
       </div>
     </div>
   )
@@ -576,17 +885,17 @@ export default function FrameCreator({ project, onFrameCreated, onClose }) {
           <button
             type="button"
             onClick={handleCreateFrame}
-            disabled={processing}
+            disabled={processing || isGeneratingAI}
             className="flex items-center gap-2 px-6 py-3 text-sm font-medium text-white rounded-xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {processing && (
+            {(processing || isGeneratingAI) && (
               <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
             )}
-            {processing ? 'Creating...' : 'Create Frame'}
-            {!processing && <ArrowRight className="w-4 h-4" />}
+            {isGeneratingAI ? 'Generating with AI...' : processing ? 'Creating...' : 'Create Frame'}
+            {!processing && !isGeneratingAI && <ArrowRight className="w-4 h-4" />}
           </button>
         )}
       </div>

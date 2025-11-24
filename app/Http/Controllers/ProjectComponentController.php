@@ -19,7 +19,7 @@ class ProjectComponentController extends Controller
 
 
 // REPLACE the saveComponentTreeWithTracking method (around line 180)
-private function saveComponentTreeWithTracking($componentData, $projectId, $frameId, $parentDbId = null, $depth = 0, &$savedComponentIds)
+private function saveComponentTreeWithTracking($componentData, $projectId, $frameId, &$savedComponentIds, $parentDbId = null, $depth = 0)
 {
     if ($depth > 20) {
         \Log::warning('Max depth reached', ['component' => $componentData['id'] ?? 'unknown']);
@@ -31,8 +31,8 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
         return null;
     }
 
-    // 🔥 CRITICAL: Extract styles from variant FIRST
-    $finalStyle = $this->extractVariantStyles($componentData);
+    // Get the style (already merged in frontend if variant was selected)
+    $finalStyle = $componentData['style'] ?? [];
     
     // 🔥 Handle text_content for text nodes
     $textContent = null;
@@ -43,8 +43,6 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
     \Log::info('💾 Saving component:', [
         'id' => $componentData['id'],
         'type' => $componentData['type'],
-        'has_variant' => isset($componentData['variant']),
-        'variant_name' => $componentData['variant']['name'] ?? null,
         'final_style_keys' => array_keys($finalStyle),
     ]);
 
@@ -59,8 +57,7 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
         'name' => $componentData['name'],
         'z_index' => $componentData['zIndex'] ?? 0,
         'sort_order' => $componentData['sortOrder'] ?? 0,
-        'variant' => $componentData['variant'] ?? null,
-        'style' => $finalStyle, // 🔥 Use extracted + merged styles
+        'style' => $finalStyle,
         'animation' => $componentData['animation'] ?? [],
         'is_layout_container' => $componentData['isLayoutContainer'] ?? false,
         'visible' => $componentData['visible'] ?? true,
@@ -75,54 +72,15 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
             $this->saveComponentTreeWithTracking(
                 $childData, 
                 $projectId, 
-                $frameId, 
+                $frameId,
+                $savedComponentIds,
                 $component->id, 
-                $depth + 1,
-                $savedComponentIds
+                $depth + 1
             );
         }
     }
 
     return $component;
-}
-
-
-// 🔥 ADD this NEW method to extract variant styles
-private function extractVariantStyles($componentData)
-{
-    $baseStyle = $componentData['style'] ?? [];
-    $variant = $componentData['variant'] ?? null;
-    
-    // If no variant, return base style
-    if (!$variant || !is_array($variant)) {
-        return is_array($baseStyle) ? $baseStyle : [];
-    }
-    
-    \Log::info('🎨 Extracting variant styles:', [
-        'component' => $componentData['type'],
-        'variant' => $variant['name'] ?? 'unknown',
-        'has_variant_style' => isset($variant['style']),
-    ]);
-    
-    // 🔥 PRIORITY: Variant styles override base styles
-    $variantStyle = [];
-    if (isset($variant['style']) && is_array($variant['style'])) {
-        $variantStyle = $variant['style'];
-        \Log::info('✅ Found variant.style:', array_keys($variantStyle));
-    }
-    
-    // 🔥 Merge: base style + variant style (variant wins conflicts)
-    $finalStyle = array_merge(
-        is_array($baseStyle) ? $baseStyle : [],
-        $variantStyle
-    );
-    
-    \Log::info('✅ Final merged style:', [
-        'keys' => array_keys($finalStyle),
-        'sample' => array_slice($finalStyle, 0, 3)
-    ]);
-    
-    return $finalStyle;
 }
 
 
@@ -199,7 +157,6 @@ private function normalizeStyleData($componentData)
                   'name' => $component->name,
                   'zIndex' => $component->z_index,
                   'sortOrder' => $component->sort_order,
-                  'variant' => $component->variant,
                   'style' => $component->style ?? [], // ✅ Ensure style is loaded
                   'animation' => $component->animation ?? [],
                   'display_type' => $component->display_type,
@@ -288,6 +245,65 @@ private function normalizeStyleData($componentData)
         return $maxDepth;
     }
 
+    /**
+     * Store a new component
+     */
+    public function store(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'project_id' => 'required|integer',
+            'frame_id' => 'required|integer',
+            'component_instance_id' => 'required|string',
+            'component_type' => 'required|string',
+            'parent_id' => 'nullable|integer',
+            'props' => 'nullable|array',
+            'text_content' => 'nullable|string',
+            'name' => 'required|string',
+            'style' => 'nullable|array',
+            'animation' => 'nullable|array',
+            'z_index' => 'nullable|integer',
+            'sort_order' => 'nullable|integer',
+            'visible' => 'nullable|boolean',
+            'locked' => 'nullable|boolean',
+        ]);
+
+        try {
+            $component = ProjectComponent::create([
+                'project_id' => $validated['project_id'],
+                'frame_id' => $validated['frame_id'],
+                'parent_id' => $validated['parent_id'] ?? null,
+                'component_instance_id' => $validated['component_instance_id'],
+                'component_type' => $validated['component_type'],
+                'props' => $validated['props'] ?? [],
+                'text_content' => $validated['text_content'] ?? null,
+                'name' => $validated['name'],
+                'style' => $validated['style'] ?? [],
+                'animation' => $validated['animation'] ?? [],
+                'z_index' => $validated['z_index'] ?? 0,
+                'sort_order' => $validated['sort_order'] ?? 0,
+                'visible' => $validated['visible'] ?? true,
+                'locked' => $validated['locked'] ?? false,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $component,
+                'message' => 'Component created successfully'
+            ], 201);
+
+        } catch (\Exception $e) {
+            \Log::error('Error creating component:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create component: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
   
     
     public function bulkUpdate(Request $request): JsonResponse
@@ -341,9 +357,9 @@ private function normalizeStyleData($componentData)
                 $componentData, 
                 $project->id, 
                 $frame->id,
+                $savedComponentIds,
                 null,
-                0,
-                $savedComponentIds
+                0
             );
         }
 
