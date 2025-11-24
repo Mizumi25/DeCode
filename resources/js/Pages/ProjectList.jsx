@@ -38,6 +38,8 @@ export default function ProjectList({
   const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
   const [targetWorkspaceAction, setTargetWorkspaceAction] = useState(null); // 'move' or 'copy'
   const [selectedProjectForAction, setSelectedProjectForAction] = useState(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareProject, setShareProject] = useState(null);
   
   const dragTimeoutRef = useRef(null);
   const clickTimeoutRef = useRef(null);
@@ -424,6 +426,83 @@ export default function ProjectList({
     }
     setContextMenu({ show: false, x: 0, y: 0, project: null });
     setShowWorkspaceDropdown(false);
+  };
+
+  const handleDeleteProject = async (project) => {
+    if (!confirm(`Are you sure you want to delete "${project.title}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/projects/${project.project.uuid}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+        },
+      });
+
+      if (response.ok) {
+        console.log('Project deleted successfully');
+        // Close any open modals/menus
+        setContextMenu({ show: false, x: 0, y: 0, project: null });
+        setSelectedProject(null);
+        // Refresh the projects list
+        router.reload();
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to delete project:', errorData.message);
+        alert('Failed to delete project: ' + (errorData.message || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      alert('Error deleting project. Please try again.');
+    }
+  };
+
+  const handleDuplicateProject = async (project, targetWorkspaceId = null) => {
+    try {
+      const response = await fetch(`/api/projects/${project.project.uuid}/duplicate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+        },
+        body: JSON.stringify({
+          workspace_id: targetWorkspaceId || currentWorkspace?.id,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Project duplicated successfully');
+        setContextMenu({ show: false, x: 0, y: 0, project: null });
+        setShowWorkspaceDropdown(false);
+        setSelectedProjectForAction(null);
+        router.reload();
+      } else {
+        const errorData = await response.json();
+        alert('Failed to duplicate project: ' + (errorData.message || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error duplicating project:', error);
+      alert('Error duplicating project. Please try again.');
+    }
+  };
+
+  const handleShareProject = (project) => {
+    setShareProject(project);
+    setShowShareModal(true);
+    setContextMenu({ show: false, x: 0, y: 0, project: null });
+  };
+
+  const copyShareLink = (project) => {
+    const voidPageUrl = `${window.location.origin}/void/${project.project.uuid}`;
+    navigator.clipboard.writeText(voidPageUrl).then(() => {
+      alert('Link copied to clipboard!');
+    }).catch(err => {
+      console.error('Failed to copy link:', err);
+    });
   };
 
   const handleRefresh = async () => {
@@ -982,15 +1061,10 @@ export default function ProjectList({
                   {/* Drag handle - positioned at top left */}
                   <div 
                     className="drag-handle-only absolute top-2 left-2 w-7 h-7 z-30 cursor-grab active:cursor-grabbing"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
+                    onPointerDown={(e) => {
+                      // Don't prevent default - let react-grid-layout handle the drag
                       e.stopPropagation();
-                      console.log('Drag handle clicked - drag should work');
-                    }}
-                    onTouchStart={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      console.log('Drag handle touched - drag should work');
+                      console.log('Drag handle activated');
                     }}
                   >
                     <GripVertical size={14} className="text-[var(--color-text-muted)]" />
@@ -1202,7 +1276,10 @@ export default function ProjectList({
                 <Download size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
               </button>
               <div className="flex-1"></div>
-              <button className="p-3 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors group">
+              <button 
+                onClick={() => handleDeleteProject(selectedProject)}
+                className="p-3 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors group"
+              >
                 <Trash2 size={20} className="text-[var(--color-text-muted)] group-hover:text-red-500" />
               </button>
             </motion.div>
@@ -1232,7 +1309,10 @@ export default function ProjectList({
                   <Download size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
                   <span className="text-xs text-[var(--color-text-muted)]">Export</span>
                 </button>
-                <button className="flex flex-col items-center gap-1 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors group">
+                <button 
+                  onClick={() => handleDeleteProject(selectedProject)}
+                  className="flex flex-col items-center gap-1 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors group"
+                >
                   <Trash2 size={20} className="text-[var(--color-text-muted)] group-hover:text-red-500" />
                   <span className="text-xs text-[var(--color-text-muted)]">Delete</span>
                 </button>
@@ -1274,6 +1354,22 @@ export default function ProjectList({
             </button>
           )}
 
+          {/* Duplicate to workspace */}
+          {workspaces && workspaces.length > 1 && (
+            <button
+              onClick={() => {
+                setSelectedProjectForAction(contextMenu.project);
+                setTargetWorkspaceAction('duplicate');
+                setShowWorkspaceDropdown(true);
+                setContextMenu({ show: false, x: 0, y: 0, project: null });
+              }}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--color-bg-muted)] transition flex items-center gap-2 text-[var(--color-text)]"
+            >
+              <Copy size={14} />
+              Duplicate to Workspace
+            </button>
+          )}
+
           {/* Move to workspace - only show if user has access to multiple workspaces */}
           {workspaces && workspaces.length > 1 && (
             <button
@@ -1289,6 +1385,15 @@ export default function ProjectList({
               Move to Workspace
             </button>
           )}
+
+          {/* Share project */}
+          <button
+            onClick={() => handleShareProject(contextMenu.project)}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--color-bg-muted)] transition flex items-center gap-2 text-[var(--color-text)]"
+          >
+            <Share2 size={14} />
+            Share
+          </button>
 
           <div className="border-t border-[var(--color-border)] my-1"></div>
           
@@ -1311,6 +1416,7 @@ export default function ProjectList({
           <div className="border-t border-[var(--color-border)] my-1"></div>
           
           <button
+            onClick={() => handleDeleteProject(contextMenu.project)}
             className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition flex items-center gap-2 text-red-600"
           >
             <Trash2 size={14} />
@@ -1325,7 +1431,7 @@ export default function ProjectList({
           <div ref={workspaceDropdownRef} className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg shadow-xl w-full max-w-md">
             <div className="p-4 border-b border-[var(--color-border)]">
               <h3 className="font-semibold text-[var(--color-text)]">
-                {targetWorkspaceAction === 'move' ? 'Move' : 'Copy'} "{selectedProjectForAction.title}" to:
+                {targetWorkspaceAction === 'move' ? 'Move' : targetWorkspaceAction === 'duplicate' ? 'Duplicate' : 'Copy'} "{selectedProjectForAction.title}" to:
               </h3>
               <p className="text-sm text-[var(--color-text-muted)] mt-1">
                 Select a workspace to {targetWorkspaceAction} this project
@@ -1333,13 +1439,15 @@ export default function ProjectList({
             </div>
             <div className="max-h-60 overflow-y-auto">
               {workspaces
-                ?.filter(ws => ws.id !== currentWorkspace?.id) // Don't show current workspace for move
+                ?.filter(ws => targetWorkspaceAction === 'move' ? ws.id !== currentWorkspace?.id : true) // For move, don't show current workspace
                 ?.map((workspace) => (
                   <button
                     key={workspace.id}
                     onClick={() => {
                       if (targetWorkspaceAction === 'move') {
                         handleMoveProject(selectedProjectForAction, workspace.id);
+                      } else if (targetWorkspaceAction === 'duplicate') {
+                        handleDuplicateProject(selectedProjectForAction, workspace.id);
                       } else {
                         // For copy, first copy to clipboard then paste to target workspace
                         handleCopyProject(selectedProjectForAction).then(() => {
@@ -1388,6 +1496,40 @@ export default function ProjectList({
         currentWorkspace={currentWorkspace}
         workspaces={initialWorkspaces}
       />
+
+      {/* Share Modal */}
+      {showShareModal && shareProject && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowShareModal(false)}>
+          <div className="bg-[var(--color-surface)] rounded-lg p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-semibold mb-4 text-[var(--color-text)]">Share Project</h3>
+            <p className="text-sm text-[var(--color-text-muted)] mb-4">Share "{shareProject.title}" with others:</p>
+            
+            <div className="bg-[var(--color-bg-muted)] rounded-lg p-3 mb-4 flex items-center gap-2">
+              <input 
+                type="text" 
+                readOnly 
+                value={`${window.location.origin}/void/${shareProject.project.uuid}`}
+                className="flex-1 bg-transparent border-none outline-none text-sm text-[var(--color-text)]"
+              />
+              <button
+                onClick={() => copyShareLink(shareProject)}
+                className="px-3 py-1 bg-[var(--color-primary)] text-white rounded hover:opacity-80 transition"
+              >
+                Copy
+              </button>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowShareModal(false)}
+                className="px-4 py-2 text-sm hover:bg-[var(--color-bg-muted)] rounded transition text-[var(--color-text)]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AuthenticatedLayout>
   );
 }

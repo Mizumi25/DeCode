@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Head, Link, useForm } from '@inertiajs/react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Mail,
   Lock,
@@ -8,6 +8,8 @@ import {
   LogIn,
   Check,
   ArrowRight,
+  X,
+  Loader2,
 } from 'lucide-react'
 import InputError from '@/Components/InputError'
 import GuestLayout from '@/Layouts/GuestLayout'
@@ -17,6 +19,9 @@ import 'nprogress/nprogress.css'
 
 export default function Register() {
   const [socialLoading, setSocialLoading] = useState(null) // Track which social provider is loading
+  const [emailValidation, setEmailValidation] = useState({ isValid: false, isChecking: false, isAvailable: false });
+  const [passwordValidation, setPasswordValidation] = useState({ isValid: false, length: 0 });
+  const [confirmPasswordValidation, setConfirmPasswordValidation] = useState({ isValid: false, matches: false });
   
   const { data, setData, post, processing, errors, reset } = useForm({
     name: '',
@@ -25,8 +30,69 @@ export default function Register() {
     password_confirmation: '',
   })
 
+  // Email validation and availability check
+  useEffect(() => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const isValidFormat = emailRegex.test(data.email);
+    
+    if (data.email && isValidFormat) {
+      setEmailValidation(prev => ({ ...prev, isValid: true, isChecking: true }));
+      
+      // Debounce email availability check
+      const timer = setTimeout(async () => {
+        try {
+          const response = await fetch('/api/check-email', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+            },
+            body: JSON.stringify({ email: data.email }),
+          });
+          
+          const result = await response.json();
+          setEmailValidation({
+            isValid: true,
+            isChecking: false,
+            isAvailable: result.available || false,
+          });
+        } catch (error) {
+          setEmailValidation({ isValid: true, isChecking: false, isAvailable: false });
+        }
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    } else {
+      setEmailValidation({ isValid: false, isChecking: false, isAvailable: false });
+    }
+  }, [data.email]);
+
+  // Password validation
+  useEffect(() => {
+    const isValid = data.password.length >= 8;
+    setPasswordValidation({ isValid, length: data.password.length });
+  }, [data.password]);
+
+  // Confirm password validation
+  useEffect(() => {
+    const matches = data.password === data.password_confirmation && data.password_confirmation.length > 0;
+    const isValid = matches && data.password_confirmation.length >= 8;
+    setConfirmPasswordValidation({ isValid, matches });
+  }, [data.password, data.password_confirmation]);
+
+  // Check if form is valid
+  const isFormValid = 
+    data.name.length > 0 &&
+    emailValidation.isValid && 
+    emailValidation.isAvailable && 
+    !emailValidation.isChecking &&
+    passwordValidation.isValid && 
+    confirmPasswordValidation.isValid;
+
   const submit = (e) => {
     e.preventDefault()
+    if (!isFormValid) return;
+    
     NProgress.start()
     post(route('register'), {
       onFinish: () => {
@@ -174,12 +240,62 @@ export default function Register() {
                 autoComplete="username"
                 onChange={(e) => setData('email', e.target.value)}
                 disabled={socialLoading}
-                className="w-full px-4 py-3 pl-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none shadow-[var(--shadow-sm)] transition-all disabled:opacity-60"
+                className={`w-full px-4 py-3 pl-12 pr-12 rounded-xl border-2 bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] outline-none shadow-[var(--shadow-sm)] transition-all disabled:opacity-60 ${
+                  data.email.length === 0 
+                    ? 'border-[var(--color-border)]' 
+                    : emailValidation.isValid && emailValidation.isAvailable && !emailValidation.isChecking
+                    ? 'border-green-500 focus:border-green-500'
+                    : emailValidation.isValid && !emailValidation.isAvailable && !emailValidation.isChecking
+                    ? 'border-red-500 focus:border-red-500'
+                    : 'border-[var(--color-border)]'
+                }`}
                 placeholder="Enter your email address"
                 required
               />
               <Mail className="absolute left-4 top-3.5 w-5 h-5 text-[var(--color-text-muted)]" />
+              
+              {/* Validation Icons */}
+              <div className="absolute right-4 top-3.5">
+                <AnimatePresence mode="wait">
+                  {emailValidation.isChecking && (
+                    <motion.div
+                      key="checking"
+                      initial={{ opacity: 0, scale: 0.5, rotate: 0 }}
+                      animate={{ opacity: 1, scale: 1, rotate: 360 }}
+                      exit={{ opacity: 0, scale: 0.5 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+                    </motion.div>
+                  )}
+                  {!emailValidation.isChecking && emailValidation.isValid && emailValidation.isAvailable && (
+                    <motion.div
+                      key="valid"
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.5 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                    >
+                      <Check className="w-5 h-5 text-green-500" />
+                    </motion.div>
+                  )}
+                  {!emailValidation.isChecking && emailValidation.isValid && !emailValidation.isAvailable && (
+                    <motion.div
+                      key="invalid"
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.5 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                    >
+                      <X className="w-5 h-5 text-red-500" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
+            {!emailValidation.isChecking && emailValidation.isValid && !emailValidation.isAvailable && (
+              <p className="text-xs text-red-500 mt-1">Email is already taken</p>
+            )}
             <InputError message={errors.email} className="mt-2" />
           </motion.div>
 
@@ -201,12 +317,49 @@ export default function Register() {
                 onChange={(e) => setData('password', e.target.value)}
                 autoComplete="new-password"
                 disabled={socialLoading}
-                className="w-full px-4 py-3 pl-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none shadow-[var(--shadow-sm)] transition-all disabled:opacity-60"
-                placeholder="Create a secure password"
+                className={`w-full px-4 py-3 pl-12 pr-12 rounded-xl border-2 bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] outline-none shadow-[var(--shadow-sm)] transition-all disabled:opacity-60 ${
+                  data.password.length === 0
+                    ? 'border-[var(--color-border)]'
+                    : passwordValidation.isValid
+                    ? 'border-green-500 focus:border-green-500'
+                    : 'border-red-500 focus:border-red-500'
+                }`}
+                placeholder="Create a secure password (min 8 characters)"
                 required
               />
               <Lock className="absolute left-4 top-3.5 w-5 h-5 text-[var(--color-text-muted)]" />
+              
+              {/* Validation Icon */}
+              <div className="absolute right-4 top-3.5">
+                <AnimatePresence mode="wait">
+                  {data.password.length > 0 && passwordValidation.isValid && (
+                    <motion.div
+                      key="valid"
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.5 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                    >
+                      <Check className="w-5 h-5 text-green-500" />
+                    </motion.div>
+                  )}
+                  {data.password.length > 0 && !passwordValidation.isValid && (
+                    <motion.div
+                      key="invalid"
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.5 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                    >
+                      <X className="w-5 h-5 text-red-500" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
+            {data.password.length > 0 && !passwordValidation.isValid && (
+              <p className="text-xs text-red-500 mt-1">Password must be at least 8 characters ({passwordValidation.length}/8)</p>
+            )}
             <InputError message={errors.password} className="mt-2" />
           </motion.div>
 
@@ -231,12 +384,49 @@ export default function Register() {
                 onChange={(e) => setData('password_confirmation', e.target.value)}
                 autoComplete="new-password"
                 disabled={socialLoading}
-                className="w-full px-4 py-3 pl-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none shadow-[var(--shadow-sm)] transition-all disabled:opacity-60"
+                className={`w-full px-4 py-3 pl-12 pr-12 rounded-xl border-2 bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] outline-none shadow-[var(--shadow-sm)] transition-all disabled:opacity-60 ${
+                  data.password_confirmation.length === 0
+                    ? 'border-[var(--color-border)]'
+                    : confirmPasswordValidation.isValid
+                    ? 'border-green-500 focus:border-green-500'
+                    : 'border-red-500 focus:border-red-500'
+                }`}
                 placeholder="Confirm your password"
                 required
               />
-              <Check className="absolute left-4 top-3.5 w-5 h-5 text-[var(--color-text-muted)]" />
+              <Lock className="absolute left-4 top-3.5 w-5 h-5 text-[var(--color-text-muted)]" />
+              
+              {/* Validation Icon */}
+              <div className="absolute right-4 top-3.5">
+                <AnimatePresence mode="wait">
+                  {data.password_confirmation.length > 0 && confirmPasswordValidation.isValid && (
+                    <motion.div
+                      key="valid"
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.5 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                    >
+                      <Check className="w-5 h-5 text-green-500" />
+                    </motion.div>
+                  )}
+                  {data.password_confirmation.length > 0 && !confirmPasswordValidation.isValid && (
+                    <motion.div
+                      key="invalid"
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.5 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                    >
+                      <X className="w-5 h-5 text-red-500" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
+            {data.password_confirmation.length > 0 && !confirmPasswordValidation.matches && (
+              <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+            )}
             <InputError message={errors.password_confirmation} className="mt-2" />
           </motion.div>
 
@@ -265,10 +455,14 @@ export default function Register() {
           {/* Submit Button */}
           <motion.button
             type="submit"
-            whileHover={{ scale: (processing || socialLoading) ? 1 : 1.02, y: (processing || socialLoading) ? 0 : -2 }}
-            whileTap={{ scale: (processing || socialLoading) ? 1 : 0.98 }}
-            disabled={processing || socialLoading}
-            className="w-full flex items-center justify-center gap-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white font-medium px-6 py-4 rounded-xl shadow-[var(--shadow-lg)] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed transform hover:shadow-xl"
+            whileHover={{ scale: (processing || socialLoading || !isFormValid) ? 1 : 1.02, y: (processing || socialLoading || !isFormValid) ? 0 : -2 }}
+            whileTap={{ scale: (processing || socialLoading || !isFormValid) ? 1 : 0.98 }}
+            disabled={processing || socialLoading || !isFormValid}
+            className={`w-full flex items-center justify-center gap-2 font-medium px-6 py-4 rounded-xl shadow-[var(--shadow-lg)] transition-all duration-200 disabled:cursor-not-allowed transform ${
+              isFormValid && !processing && !socialLoading
+                ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white hover:shadow-xl'
+                : 'bg-gray-400 text-gray-200 opacity-60'
+            }`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.0 }}

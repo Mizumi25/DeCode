@@ -27,6 +27,19 @@ use App\Http\Controllers\CollaborationController;
 |--------------------------------------------------------------------------
 */
 
+// Public routes (no auth required)
+Route::post('/check-email', function (Request $request) {
+    $request->validate([
+        'email' => 'required|email',
+    ]);
+    
+    $exists = \App\Models\User::where('email', $request->email)->exists();
+    
+    return response()->json([
+        'available' => !$exists,
+    ]);
+});
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         $user = $request->user();
@@ -133,6 +146,7 @@ Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasS
     
     // Project actions
     Route::post('/projects/{project:uuid}/duplicate', [ProjectController::class, 'duplicate']);
+    Route::post('/projects/{project:uuid}/move', [ProjectController::class, 'moveToWorkspace']);
     Route::post('/projects/{project:uuid}/thumbnail', [ProjectController::class, 'updateThumbnail']);
     Route::post('/projects/{project:uuid}/thumbnail/snapshot', [ProjectController::class, 'updateThumbnailFromSnapshot']);
     Route::post('/projects/{project:uuid}/frames', [ProjectController::class, 'createFrame']);
