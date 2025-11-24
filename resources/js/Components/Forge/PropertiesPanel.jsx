@@ -16,25 +16,37 @@ import CanvasSettingsDropdown from './CanvasSettingsDropdown';
 // ✅ ADD THIS IMPORT
 import { useCanvasOverlayStore } from '@/stores/useCanvasOverlayStore';
 
-const PropertiesPanel = ({ 
-  canvasRef,
-  frame,
-  canvasComponents, 
-  selectedComponent,
-  setSelectedComponent,  // 🔥 ADD THIS
-  onPropertyUpdate,
-  onComponentDelete, 
-  onGenerateCode,
-  componentLibraryService,
-  searchTerm: externalSearchTerm = '',
-  onSearchChange
-}) => {
+// IN PropertiesPanel.jsx - at the TOP of the component:
+const PropertiesPanel = (allProps) => {
+  console.log('🎯 ALL PROPS RECEIVED:', Object.keys(allProps));
+  console.log('🔍 selectedComponent prop:', allProps.selectedComponent);
+  console.log('🔍 canvasComponents prop:', allProps.canvasComponents?.length);
   
-  // REPLACE the selectedComponentData lookup in PropertiesPanel.jsx
-const selectedComponentData = useMemo(() => {
+  // Now destructure
+  const { 
+    canvasRef,
+    frame,
+    canvasComponents, 
+    selectedComponent,
+    
+    onPropertyUpdate,
+    onComponentDelete, 
+    onGenerateCode,
+    componentLibraryService,
+    searchTerm: externalSearchTerm = '',
+    onSearchChange
+  } = allProps;
+  // 🔥 CRITICAL: Remove useMemo - it's causing stale closures
+const selectedComponentData = (() => {
+  console.log('🔍 PropertiesPanel computing selectedComponentData:', {
+    selectedComponent,
+    hasComponents: !!canvasComponents,
+    componentCount: canvasComponents?.length
+  });
+  
   if (!selectedComponent || !canvasComponents) return null;
   
-  // 🔥 FIX: Handle canvas root specially
+  // Handle canvas root
   if (selectedComponent === '__canvas_root__') {
     return {
       id: '__canvas_root__',
@@ -43,43 +55,29 @@ const selectedComponentData = useMemo(() => {
       style: frame?.canvas_style || {},
       props: frame?.canvas_props || {},
       animation: frame?.canvas_animation || {},
-      isCanvasRoot: true // 🔥 Flag to identify canvas root
+      isCanvasRoot: true
     };
   }
   
-  // 🔥 ENHANCED: Recursive search for real components
-  const findComponent = (components, id, depth = 0) => {
-    console.log(`🔍 Searching at depth ${depth}:`, components.map(c => c.id));
-    
-    for (const comp of components) {
-      if (comp.id === id) {
-        console.log(`✅ FOUND at depth ${depth}:`, {
-          id: comp.id,
-          type: comp.type,
-          hasProps: !!comp.props,
-          hasStyle: !!comp.style,
-          hasChildren: comp.children?.length > 0
-        });
-        return comp;
-      }
-      
-      // 🔥 CRITICAL: Search in ALL children recursively
+  // Flatten and find component
+  const flattenComponents = (comps) => {
+    const flat = [];
+    comps.forEach(comp => {
+      flat.push(comp);
       if (comp.children?.length > 0) {
-        const found = findComponent(comp.children, id, depth + 1);
-        if (found) return found;
+        flat.push(...flattenComponents(comp.children));
       }
-    }
-    return null;
+    });
+    return flat;
   };
   
-  const found = findComponent(canvasComponents, selectedComponent);
+  const allComponents = flattenComponents(canvasComponents);
+  const found = allComponents.find(comp => comp.id === selectedComponent) || null;
   
-  if (!found) {
-    console.warn('⚠️ Component not found:', selectedComponent);
-  }
+  console.log('✅ Found component:', found?.id, found?.type);
   
   return found;
-}, [selectedComponent, canvasComponents, frame]);
+})(); // 🔥 Execute immediately, no memoization
   
   
   

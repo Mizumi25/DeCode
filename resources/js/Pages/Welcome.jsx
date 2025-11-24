@@ -1,275 +1,470 @@
 import { Head, Link } from '@inertiajs/react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { 
   ArrowRight, 
   Code2, 
-  Palette, 
-  Zap, 
   Sparkles, 
-  Globe, 
   Layers3,
-  MousePointer2,
-  Star,
-  ArrowUpRight,
-  Play,
-  Check
+  Zap,
+  Eye,
+  Box,
+  Terminal
 } from 'lucide-react';
 import AnimatedBlackHoleLogo from '@/Components/AnimatedBlackHoleLogo';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+// Register GSAP plugins
+if (typeof window !== 'undefined') {
+  gsap.registerPlugin(ScrollTrigger);
+}
 
 export default function Welcome({ auth }) {
+  const containerRef = useRef(null);
   const heroRef = useRef(null);
-  const featuresRef = useRef(null);
-  const statsRef = useRef(null);
-  const ctaRef = useRef(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  
+  const { scrollYProgress } = useScroll();
+  const smoothProgress = useSpring(scrollYProgress, { 
+    stiffness: 100, 
+    damping: 30, 
+    restDelta: 0.001 
+  });
 
   useEffect(() => {
-    // GSAP animations with ScrollTrigger
-    if (typeof window !== 'undefined') {
-      // Hero animations
-      const tl = {
-        set: (target, props) => {
-          const elements = typeof target === 'string' ? document.querySelectorAll(target) : [target];
-          elements.forEach(el => {
-            Object.assign(el.style, props);
-          });
-        },
-        to: (target, props) => {
-          const elements = typeof target === 'string' ? document.querySelectorAll(target) : [target];
-          elements.forEach(el => {
-            const duration = props.duration || 1;
-            const delay = props.delay || 0;
-            
-            setTimeout(() => {
-              Object.keys(props).forEach(key => {
-                if (key !== 'duration' && key !== 'delay' && key !== 'ease') {
-                  el.style.transition = `${key} ${duration}s ease-out`;
-                  el.style[key] = props[key];
-                }
-              });
-            }, delay * 1000);
-          });
+    // Mouse parallax effect
+    const handleMouseMove = (e) => {
+      setMousePosition({
+        x: (e.clientX / window.innerWidth - 0.5) * 20,
+        y: (e.clientY / window.innerHeight - 0.5) * 20
+      });
+    };
+    
+    window.addEventListener('mousemove', handleMouseMove);
+
+    // GSAP ScrollTrigger animations
+    const ctx = gsap.context(() => {
+      // Hero title animation with split text effect
+      const heroTitle = document.querySelector('.hero-main-title');
+      if (heroTitle) {
+        const words = heroTitle.textContent.split(' ');
+        heroTitle.innerHTML = words.map(word => `<span class="word">${word}</span>`).join(' ');
+        
+        gsap.from('.word', {
+          opacity: 0,
+          y: 100,
+          rotationX: -90,
+          stagger: 0.1,
+          duration: 1.2,
+          ease: 'power4.out',
+          delay: 0.3
+        });
+      }
+
+      // Hero subtitle fade in
+      gsap.from('.hero-subtitle', {
+        opacity: 0,
+        y: 50,
+        duration: 1,
+        delay: 1,
+        ease: 'power3.out'
+      });
+
+      // Hero CTA buttons
+      gsap.from('.hero-cta', {
+        opacity: 0,
+        y: 30,
+        duration: 0.8,
+        delay: 1.3,
+        stagger: 0.2,
+        ease: 'power3.out'
+      });
+
+      // Floating orbs parallax
+      gsap.to('.orb-1', {
+        y: -100,
+        x: 50,
+        scrollTrigger: {
+          trigger: heroRef.current,
+          start: 'top top',
+          end: 'bottom top',
+          scrub: 1
         }
-      };
+      });
 
-      // Initial states
-      tl.set('.hero-title', { opacity: '0', transform: 'translateY(50px)' });
-      tl.set('.hero-subtitle', { opacity: '0', transform: 'translateY(30px)' });
-      tl.set('.hero-buttons', { opacity: '0', transform: 'translateY(20px)' });
-      tl.set('.feature-card', { opacity: '0', transform: 'translateY(40px)' });
-      tl.set('.stat-item', { opacity: '0', transform: 'translateY(30px)' });
+      gsap.to('.orb-2', {
+        y: -150,
+        x: -80,
+        scrollTrigger: {
+          trigger: heroRef.current,
+          start: 'top top',
+          end: 'bottom top',
+          scrub: 1
+        }
+      });
 
-      // Hero animations
-      setTimeout(() => {
-        tl.to('.hero-title', { opacity: '1', transform: 'translateY(0)', duration: 0.8, delay: 0.2 });
-        tl.to('.hero-subtitle', { opacity: '1', transform: 'translateY(0)', duration: 0.8, delay: 0.4 });
-        tl.to('.hero-buttons', { opacity: '1', transform: 'translateY(0)', duration: 0.8, delay: 0.6 });
-      }, 100);
+      gsap.to('.orb-3', {
+        y: -80,
+        x: 30,
+        scrollTrigger: {
+          trigger: heroRef.current,
+          start: 'top top',
+          end: 'bottom top',
+          scrub: 1
+        }
+      });
 
-      // Scroll-triggered animations
-      const observerOptions = {
-        threshold: 0.1,
-        rootMargin: '-50px'
-      };
-
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            if (entry.target.classList.contains('feature-card')) {
-              const cards = document.querySelectorAll('.feature-card');
-              cards.forEach((card, index) => {
-                setTimeout(() => {
-                  card.style.transition = 'all 0.6s ease-out';
-                  card.style.opacity = '1';
-                  card.style.transform = 'translateY(0)';
-                }, index * 100);
-              });
-            }
-            
-            if (entry.target.classList.contains('stats-section')) {
-              const stats = document.querySelectorAll('.stat-item');
-              stats.forEach((stat, index) => {
-                setTimeout(() => {
-                  stat.style.transition = 'all 0.6s ease-out';
-                  stat.style.opacity = '1';
-                  stat.style.transform = 'translateY(0)';
-                }, index * 150);
-              });
-            }
+      // Feature cards with stagger and 3D effect
+      gsap.utils.toArray('.feature-item').forEach((item) => {
+        gsap.from(item, {
+          opacity: 0,
+          y: 100,
+          rotationY: 30,
+          scale: 0.8,
+          duration: 1.2,
+          ease: 'power3.out',
+          scrollTrigger: {
+            trigger: item,
+            start: 'top bottom-=100',
+            end: 'top center',
+            toggleActions: 'play none none none'
           }
         });
-      }, observerOptions);
+      });
 
-      // Observe elements
-      document.querySelectorAll('.feature-card').forEach(el => observer.observe(el));
-      const statsSection = document.querySelector('.stats-section');
-      if (statsSection) observer.observe(statsSection);
+      // Process section with horizontal scroll reveal
+      gsap.utils.toArray('.process-step').forEach((step, index) => {
+        gsap.from(step, {
+          opacity: 0,
+          x: index % 2 === 0 ? -100 : 100,
+          duration: 1,
+          ease: 'power3.out',
+          scrollTrigger: {
+            trigger: step,
+            start: 'top bottom-=50',
+            toggleActions: 'play none none none'
+          }
+        });
+      });
 
-      return () => observer.disconnect();
-    }
+      // Showcase items smooth reveal
+      gsap.utils.toArray('.showcase-item').forEach((item) => {
+        gsap.from(item, {
+          opacity: 0,
+          scale: 0.95,
+          duration: 1.5,
+          ease: 'power2.out',
+          scrollTrigger: {
+            trigger: item,
+            start: 'top bottom-=100',
+            toggleActions: 'play none none none'
+          }
+        });
+      });
+
+      // Final CTA section scale effect
+      gsap.from('.final-cta', {
+        opacity: 0,
+        scale: 0.9,
+        duration: 1.2,
+        ease: 'power3.out',
+        scrollTrigger: {
+          trigger: '.final-cta',
+          start: 'top bottom-=100',
+          toggleActions: 'play none none none'
+        }
+      });
+
+    }, containerRef);
+
+    return () => {
+      ctx.revert();
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
   }, []);
 
   const features = [
     {
-      icon: <Code2 className="w-6 h-6" />,
+      icon: <Eye className="w-6 h-6" />,
       title: "Visual Builder",
-      description: "Drag and drop components to build stunning websites without coding"
+      description: "Craft pixel-perfect interfaces with an intuitive drag-and-drop canvas"
     },
     {
-      icon: <Palette className="w-6 h-6" />,
-      title: "Smart Design System",
-      description: "AI-powered design suggestions that adapt to your brand"
+      icon: <Code2 className="w-6 h-6" />,
+      title: "Code Generation",
+      description: "Clean, production-ready code generated from your designs instantly"
     },
     {
       icon: <Zap className="w-6 h-6" />,
-      title: "Lightning Fast",
-      description: "Generate production-ready code in seconds with our AI engine"
-    },
-    {
-      icon: <Globe className="w-6 h-6" />,
-      title: "Responsive by Default",
-      description: "Every design automatically works perfectly on all devices"
+      title: "Real-time Preview",
+      description: "See changes instantly across all devices and breakpoints"
     },
     {
       icon: <Layers3 className="w-6 h-6" />,
       title: "Component Library",
-      description: "Access thousands of pre-built components and templates"
+      description: "Extensive collection of pre-built, customizable components"
     },
     {
-      icon: <MousePointer2 className="w-6 h-6" />,
-      title: "One-Click Deploy",
-      description: "Deploy your websites instantly to the cloud with zero configuration"
+      icon: <Box className="w-6 h-6" />,
+      title: "Design System",
+      description: "Build consistent designs with tokens, variables, and styles"
+    },
+    {
+      icon: <Terminal className="w-6 h-6" />,
+      title: "Export Anywhere",
+      description: "Export to React, Vue, HTML, or deploy with one click"
     }
   ];
 
-  const stats = [
-    { number: "50K+", label: "Websites Created" },
-    { number: "99.9%", label: "Uptime" },
-    { number: "< 2s", label: "Load Time" },
-    { number: "24/7", label: "Support" }
+  const processSteps = [
+    {
+      number: "01",
+      title: "Design",
+      description: "Start with a blank canvas or choose from beautiful templates"
+    },
+    {
+      number: "02",
+      title: "Customize",
+      description: "Drag, drop, and style components to match your vision"
+    },
+    {
+      number: "03",
+      title: "Generate",
+      description: "Get production-ready code with clean architecture"
+    },
+    {
+      number: "04",
+      title: "Deploy",
+      description: "Launch your project to the web instantly"
+    }
   ];
 
   return (
     <>
-      <Head title="DeCode - Visual Frontend Builder" />
+      <Head title="DeCode - Website Builder with Code Generation" />
       
-      {/* Custom Styles */}
+      {/* Custom Styles - Inspired by Akari Art & Botanist */}
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
         body {
-          background: var(--color-bg);
-          color: var(--color-text);
+          background: #0a0a0a;
+          color: #ffffff;
+          overflow-x: hidden;
         }
         
-        .gradient-bg {
-          background: linear-gradient(135deg, var(--color-primary) 0%, #7c3aed 100%);
+        .word {
+          display: inline-block;
+          perspective: 1000px;
+          transform-style: preserve-3d;
         }
         
-        .glass-effect {
-          background: rgba(255, 255, 255, 0.1);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.2);
+        .minimal-gradient {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
         
-        .feature-hover {
-          transition: all 0.3s ease;
+        .text-gradient {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
         }
         
-        .feature-hover:hover {
+        .glass-nav {
+          background: rgba(10, 10, 10, 0.7);
+          backdrop-filter: blur(20px) saturate(180%);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .orb-1, .orb-2, .orb-3 {
+          position: absolute;
+          border-radius: 50%;
+          filter: blur(80px);
+          opacity: 0.3;
+          pointer-events: none;
+        }
+        
+        .orb-1 {
+          width: 500px;
+          height: 500px;
+          background: radial-gradient(circle, #667eea 0%, transparent 70%);
+          top: 10%;
+          right: 10%;
+        }
+        
+        .orb-2 {
+          width: 400px;
+          height: 400px;
+          background: radial-gradient(circle, #764ba2 0%, transparent 70%);
+          bottom: 20%;
+          left: 5%;
+        }
+        
+        .orb-3 {
+          width: 350px;
+          height: 350px;
+          background: radial-gradient(circle, #f093fb 0%, transparent 70%);
+          top: 50%;
+          left: 50%;
+        }
+        
+        .feature-item {
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          backdrop-filter: blur(10px);
+        }
+        
+        .feature-item:hover {
+          background: rgba(255, 255, 255, 0.04);
+          border-color: rgba(102, 126, 234, 0.3);
           transform: translateY(-8px);
-          box-shadow: var(--shadow-lg);
         }
         
         .btn-primary {
-          background: var(--color-primary);
-          color: white;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          border: none;
           transition: all 0.3s ease;
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .btn-primary::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+          transition: left 0.5s ease;
+        }
+        
+        .btn-primary:hover::before {
+          left: 100%;
         }
         
         .btn-primary:hover {
-          background: var(--color-primary-hover);
           transform: translateY(-2px);
-          box-shadow: 0 10px 25px rgba(160, 82, 255, 0.3);
+          box-shadow: 0 20px 40px rgba(102, 126, 234, 0.4);
         }
         
-        .floating-shapes {
+        .btn-secondary {
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .process-step {
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          backdrop-filter: blur(10px);
+        }
+        
+        .showcase-item {
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 24px;
+          overflow: hidden;
+        }
+        
+        .final-cta {
+          background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+          border: 1px solid rgba(102, 126, 234, 0.2);
+          backdrop-filter: blur(20px);
+        }
+        
+        .nav-link {
+          position: relative;
+          color: rgba(255, 255, 255, 0.7);
+          transition: color 0.3s ease;
+        }
+        
+        .nav-link::after {
+          content: '';
           position: absolute;
-          pointer-events: none;
-          z-index: -1;
+          bottom: -4px;
+          left: 0;
+          width: 0;
+          height: 1px;
+          background: #667eea;
+          transition: width 0.3s ease;
         }
         
-        .shape-1 {
-          width: 100px;
-          height: 100px;
-          background: linear-gradient(45deg, var(--color-primary), var(--color-accent));
-          border-radius: 50%;
-          top: 10%;
-          left: 80%;
-          animation: float 6s ease-in-out infinite;
+        .nav-link:hover {
+          color: #ffffff;
         }
         
-        .shape-2 {
-          width: 60px;
-          height: 60px;
-          background: linear-gradient(135deg, #7c3aed, var(--color-primary));
-          border-radius: var(--radius-lg);
-          top: 60%;
-          left: 10%;
-          animation: float 8s ease-in-out infinite reverse;
+        .nav-link:hover::after {
+          width: 100%;
         }
         
-        .shape-3 {
-          width: 80px;
-          height: 80px;
-          background: linear-gradient(45deg, var(--color-accent), var(--color-primary));
-          border-radius: 30%;
-          top: 30%;
-          left: 5%;
-          animation: float 7s ease-in-out infinite;
+        .scroll-indicator {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+          transform-origin: 0%;
+          z-index: 9999;
         }
         
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50% { transform: translateY(-20px) rotate(180deg); }
-        }
-        
-        .hero-gradient {
-          background: linear-gradient(135deg, var(--color-bg) 0%, var(--color-bg-muted) 100%);
+        @media (max-width: 768px) {
+          .orb-1, .orb-2, .orb-3 {
+            filter: blur(60px);
+          }
         }
       `}</style>
 
-      <div className="min-h-screen" style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
+      <div ref={containerRef} className="min-h-screen bg-black text-white">
         
-        {/* Navigation */}
-        <nav className="fixed top-0 left-0 right-0 z-50 glass-effect">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-               {/* Animated Logo with Glow Wrapper */}
+        {/* Scroll Progress Indicator */}
+        <motion.div 
+          className="scroll-indicator" 
+          style={{ scaleX: smoothProgress }}
+        />
+        
+        {/* Minimal Navigation */}
+        <nav className="glass-nav fixed top-0 left-0 right-0 z-50">
+          <div className="max-w-7xl mx-auto px-6 lg:px-8">
+            <div className="flex items-center justify-between h-20">
+              {/* Logo */}
+              <Link href="/" className="flex items-center space-x-3">
                 <div 
-                  className="relative flex items-center justify-center"
+                  className="relative"
                   style={{
-                    filter: `
-                      drop-shadow(0 0 8px rgba(255, 255, 255, 0.3))
-                      drop-shadow(0 0 16px rgba(139, 92, 246, 0.4))
-                      drop-shadow(0 0 24px rgba(147, 51, 234, 0.3))
-                    `
+                    filter: 'drop-shadow(0 0 20px rgba(102, 126, 234, 0.6))'
                   }}
                 >
-                  <AnimatedBlackHoleLogo size={30} />
+                  <AnimatedBlackHoleLogo size={32} />
                 </div>
-                <span className="text-xl font-bold">DeCode</span>
-              </div>
+                <span className="text-xl font-semibold tracking-tight">DeCode</span>
+              </Link>
               
+              {/* Navigation Links */}
               <div className="hidden md:flex items-center space-x-8">
-                <a href="#features" className="hover:text-purple-600 transition-colors">Features</a>
-                <a href="#about" className="hover:text-purple-600 transition-colors">About</a>
-                <a href="#pricing" className="hover:text-purple-600 transition-colors">Pricing</a>
+                <a href="#features" className="nav-link text-sm">Features</a>
+                <a href="#process" className="nav-link text-sm">Process</a>
+                <a href="#showcase" className="nav-link text-sm">Showcase</a>
               </div>
               
+              {/* Auth Buttons */}
               <div className="flex items-center space-x-4">
                 {auth.user ? (
                   <Link
                     href="/projects"
-                    className="btn-primary px-6 py-2 rounded-lg font-medium flex items-center space-x-2"
+                    className="btn-primary px-6 py-2.5 rounded-full text-sm font-medium flex items-center space-x-2"
                   >
                     <span>Dashboard</span>
                     <ArrowRight className="w-4 h-4" />
@@ -278,13 +473,13 @@ export default function Welcome({ auth }) {
                   <>
                     <Link
                       href="/login"
-                      className="px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                      className="hidden md:block text-sm nav-link px-4 py-2"
                     >
                       Sign In
                     </Link>
                     <Link
                       href="/register"
-                      className="btn-primary px-6 py-2 rounded-lg font-medium"
+                      className="btn-primary px-6 py-2.5 rounded-full text-sm font-medium"
                     >
                       Get Started
                     </Link>
@@ -295,135 +490,173 @@ export default function Welcome({ auth }) {
           </div>
         </nav>
 
-        {/* Hero Section */}
-        <section ref={heroRef} className="relative min-h-screen flex items-center justify-center hero-gradient overflow-hidden">
-          <div className="floating-shapes">
-            <div className="shape-1"></div>
-            <div className="shape-2"></div>
-            <div className="shape-3"></div>
-          </div>
+        {/* Hero Section - Minimalist & Powerful */}
+        <section ref={heroRef} className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
+          {/* Floating Orbs */}
+          <div className="orb-1"></div>
+          <div className="orb-2"></div>
+          <div className="orb-3"></div>
           
-          <div className="max-w-7xl mx-auto px-6 text-center relative z-10">
-            <div className="max-w-4xl mx-auto">
-              <div className="inline-flex items-center space-x-2 bg-purple-100 dark:bg-purple-900/30 px-4 py-2 rounded-full text-sm font-medium mb-8">
-                <Sparkles className="w-4 h-4 text-purple-600" />
-                <span>AI-Powered Frontend Builder</span>
-              </div>
+          <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
+            <div className="text-center max-w-5xl mx-auto">
+              {/* Badge */}
+              <motion.div 
+                className="inline-flex items-center space-x-2 px-4 py-2 rounded-full mb-8"
+                style={{
+                  background: 'rgba(102, 126, 234, 0.1)',
+                  border: '1px solid rgba(102, 126, 234, 0.2)'
+                }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.1 }}
+              >
+                <Sparkles className="w-4 h-4 text-purple-400" />
+                <span className="text-sm text-purple-200">Website Builder with Code Generation</span>
+              </motion.div>
               
-              <h1 className="hero-title text-5xl md:text-7xl font-bold mb-6 leading-tight">
-                Build Websites
-                <span className="block gradient-bg bg-clip-text text-transparent">
-                  Visually
-                </span>
+              {/* Main Heading */}
+              <h1 className="hero-main-title text-6xl md:text-8xl lg:text-9xl font-bold mb-8 leading-none tracking-tighter">
+                Build Visually Export Code
               </h1>
               
-              <p className="hero-subtitle text-xl md:text-2xl mb-12 max-w-3xl mx-auto" style={{ color: 'var(--color-text-muted)' }}>
-                Create stunning, responsive websites without code. Our AI-powered visual builder 
-                transforms your ideas into production-ready web applications.
+              {/* Subtitle */}
+              <p className="hero-subtitle text-xl md:text-2xl text-gray-400 mb-12 max-w-3xl mx-auto leading-relaxed">
+                The professional website builder that generates clean, production-ready code. 
+                No AI guesswork—just pure design-to-code precision.
               </p>
               
-              <div className="hero-buttons flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
+              {/* CTA Buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Link
                   href="/register"
-                  className="btn-primary px-8 py-4 rounded-lg font-semibold text-lg flex items-center space-x-2"
+                  className="hero-cta btn-primary px-8 py-4 rounded-full font-medium text-base flex items-center space-x-2"
                 >
                   <span>Start Building Free</span>
                   <ArrowRight className="w-5 h-5" />
                 </Link>
                 
-                <button className="flex items-center space-x-2 px-6 py-4 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                  <Play className="w-5 h-5" />
-                  <span>Watch Demo</span>
-                </button>
+                <a
+                  href="#showcase"
+                  className="hero-cta btn-secondary px-8 py-4 rounded-full font-medium text-base"
+                >
+                  View Showcase
+                </a>
+              </div>
+              
+              {/* Trust Indicators */}
+              <div className="flex items-center justify-center gap-8 mt-16 text-sm text-gray-500">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span>No credit card required</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span>Free forever plan</span>
+                </div>
               </div>
             </div>
           </div>
+          
+          {/* Scroll Indicator */}
+          <motion.div 
+            className="absolute bottom-12 left-1/2 transform -translate-x-1/2"
+            animate={{ y: [0, 10, 0] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            <div className="w-6 h-10 border-2 border-gray-700 rounded-full flex items-start justify-center p-2">
+              <motion.div 
+                className="w-1.5 h-1.5 bg-gray-500 rounded-full"
+                animate={{ y: [0, 16, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              />
+            </div>
+          </motion.div>
         </section>
 
-        {/* Features Section */}
-        <section ref={featuresRef} id="features" className="py-24" style={{ background: 'var(--color-bg-muted)' }}>
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="text-center mb-16">
-              <h2 className="text-4xl md:text-5xl font-bold mb-6">
-                Everything you need to
-                <span className="block gradient-bg bg-clip-text text-transparent">build amazing websites</span>
+        {/* Features Section - Minimalist Grid */}
+        <section id="features" className="py-32 relative">
+          <div className="max-w-7xl mx-auto px-6 lg:px-8">
+            <div className="text-center mb-20">
+              <h2 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">
+                Everything you need
               </h2>
-              <p className="text-xl max-w-3xl mx-auto" style={{ color: 'var(--color-text-muted)' }}>
-                Powerful features that make web development accessible to everyone, 
-                from beginners to professionals.
+              <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+                Powerful tools for professional web development
               </p>
             </div>
             
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {features.map((feature, index) => (
                 <div
                   key={index}
-                  className="feature-card feature-hover p-8 rounded-2xl"
-                  style={{ 
-                    background: 'var(--color-surface)', 
-                    border: '1px solid var(--color-border)',
-                    boxShadow: 'var(--shadow-sm)'
-                  }}
+                  className="feature-item p-8 rounded-3xl group cursor-pointer"
                 >
-                  <div className="w-12 h-12 gradient-bg rounded-xl flex items-center justify-center text-white mb-6">
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6 minimal-gradient">
                     {feature.icon}
                   </div>
-                  <h3 className="text-xl font-semibold mb-4">{feature.title}</h3>
-                  <p style={{ color: 'var(--color-text-muted)' }}>{feature.description}</p>
+                  <h3 className="text-2xl font-semibold mb-4">{feature.title}</h3>
+                  <p className="text-gray-400 leading-relaxed">{feature.description}</p>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* Stats Section */}
-        <section ref={statsRef} className="py-24">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="stats-section grid grid-cols-2 md:grid-cols-4 gap-8">
-              {stats.map((stat, index) => (
-                <div key={index} className="stat-item text-center">
-                  <div className="text-4xl md:text-5xl font-bold gradient-bg bg-clip-text text-transparent mb-2">
-                    {stat.number}
-                  </div>
-                  <div style={{ color: 'var(--color-text-muted)' }}>{stat.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Testimonials */}
-        <section className="py-24" style={{ background: 'var(--color-bg-muted)' }}>
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="text-center mb-16">
-              <h2 className="text-4xl font-bold mb-6">Loved by creators worldwide</h2>
+        {/* Process Section - Horizontal Steps */}
+        <section id="process" className="py-32 relative">
+          <div className="max-w-7xl mx-auto px-6 lg:px-8">
+            <div className="text-center mb-20">
+              <h2 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">
+                Simple <span className="text-gradient">workflow</span>
+              </h2>
+              <p className="text-xl text-gray-400">
+                From concept to code in four easy steps
+              </p>
             </div>
             
-            <div className="grid md:grid-cols-3 gap-8">
-              {[1, 2, 3].map((item) => (
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {processSteps.map((step, index) => (
+                <div
+                  key={index}
+                  className="process-step p-8 rounded-3xl"
+                >
+                  <div className="text-6xl font-bold text-gradient mb-6">{step.number}</div>
+                  <h3 className="text-2xl font-semibold mb-4">{step.title}</h3>
+                  <p className="text-gray-400">{step.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Showcase Section - Visual Examples */}
+        <section id="showcase" className="py-32 relative">
+          <div className="max-w-7xl mx-auto px-6 lg:px-8">
+            <div className="text-center mb-20">
+              <h2 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">
+                Built with DeCode
+              </h2>
+              <p className="text-xl text-gray-400">
+                Real projects created by our community
+              </p>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-8">
+              {[1, 2, 3, 4].map((item) => (
                 <div
                   key={item}
-                  className="p-8 rounded-2xl"
-                  style={{ 
-                    background: 'var(--color-surface)', 
-                    border: '1px solid var(--color-border)' 
-                  }}
+                  className="showcase-item aspect-video relative group cursor-pointer overflow-hidden"
                 >
-                  <div className="flex items-center space-x-1 mb-4">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                    ))}
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 to-blue-900/20 flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="text-6xl mb-4">🎨</div>
+                      <div className="text-xl font-semibold">Project {item}</div>
+                    </div>
                   </div>
-                  <p className="mb-6" style={{ color: 'var(--color-text-muted)' }}>
-                    "DeCode transformed how I build websites. What used to take weeks now takes hours."
-                  </p>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 gradient-bg rounded-full"></div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-8">
                     <div>
-                      <div className="font-semibold">Alex Johnson</div>
-                      <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                        Frontend Developer
-                      </div>
+                      <h3 className="text-2xl font-semibold mb-2">Beautiful Design</h3>
+                      <p className="text-gray-300">Created in minutes, not hours</p>
                     </div>
                   </div>
                 </div>
@@ -432,53 +665,49 @@ export default function Welcome({ auth }) {
           </div>
         </section>
 
-        {/* CTA Section */}
-        <section ref={ctaRef} className="py-24">
-          <div className="max-w-4xl mx-auto px-6 text-center">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
-              Ready to build something
-              <span className="block gradient-bg bg-clip-text text-transparent">amazing?</span>
-            </h2>
-            <p className="text-xl mb-12" style={{ color: 'var(--color-text-muted)' }}>
-              Join thousands of creators who are already building the future with DeCode.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
+        {/* Final CTA Section */}
+        <section className="py-32 relative">
+          <div className="max-w-4xl mx-auto px-6 lg:px-8">
+            <div className="final-cta p-16 rounded-[40px] text-center">
+              <h2 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">
+                Ready to build?
+              </h2>
+              <p className="text-xl text-gray-400 mb-12 max-w-2xl mx-auto">
+                Join thousands of developers and designers creating amazing websites with DeCode
+              </p>
+              
               <Link
                 href="/register"
-                className="btn-primary px-8 py-4 rounded-lg font-semibold text-lg flex items-center space-x-2"
+                className="btn-primary px-10 py-5 rounded-full text-lg font-medium inline-flex items-center space-x-2"
               >
-                <span>Start Building Today</span>
-                <ArrowUpRight className="w-5 h-5" />
+                <span>Start Building for Free</span>
+                <ArrowRight className="w-5 h-5" />
               </Link>
-            </div>
-            
-            <div className="flex items-center justify-center space-x-6 mt-8 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-              <div className="flex items-center space-x-2">
-                <Check className="w-4 h-4 text-green-500" />
-                <span>Free forever plan</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Check className="w-4 h-4 text-green-500" />
-                <span>No credit card required</span>
+              
+              <div className="mt-8 text-sm text-gray-500">
+                No credit card required • Free forever plan
               </div>
             </div>
           </div>
         </section>
 
-        {/* Footer */}
-        <footer className="py-16 border-t" style={{ borderColor: 'var(--color-border)' }}>
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="flex flex-col md:flex-row items-center justify-between">
-              <div className="flex items-center space-x-2 mb-4 md:mb-0">
-                <div className="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center">
-                  <Code2 className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl font-bold">DeCode</span>
+        {/* Footer - Minimal */}
+        <footer className="py-16 border-t border-gray-900">
+          <div className="max-w-7xl mx-auto px-6 lg:px-8">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="flex items-center space-x-3">
+                <AnimatedBlackHoleLogo size={24} />
+                <span className="text-lg font-semibold">DeCode</span>
               </div>
               
-              <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                © 2024 DeCode. Built with love for creators.
+              <div className="flex items-center gap-8 text-sm text-gray-500">
+                <a href="#" className="hover:text-white transition-colors">Privacy</a>
+                <a href="#" className="hover:text-white transition-colors">Terms</a>
+                <a href="#" className="hover:text-white transition-colors">Contact</a>
+              </div>
+              
+              <div className="text-sm text-gray-500">
+                © 2024 DeCode. All rights reserved.
               </div>
             </div>
           </div>

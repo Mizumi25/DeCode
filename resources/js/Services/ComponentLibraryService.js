@@ -121,13 +121,28 @@ calculateResponsiveStyles(component, responsiveMode, canvasDimensions, parentSty
   // 🔥 ACTUAL RESPONSIVE TRANSFORMATIONS based on device mode
   if (responsiveMode === 'mobile') {
     // Mobile-specific adjustments
-    if (['button', 'input', 'select', 'textarea'].includes(component.type)) {
-      if (!responsiveStyles.minHeight) responsiveStyles.minHeight = '44px';
-      if (!responsiveStyles.minWidth) responsiveStyles.minWidth = '44px';
-      if (component.type === 'button' && !responsiveStyles.fontSize) {
-        responsiveStyles.fontSize = '16px';
+ if (['button', 'input', 'select', 'textarea'].includes(component.type)) {
+  if (!responsiveStyles.minHeight) responsiveStyles.minHeight = '44px';
+  if (!responsiveStyles.minWidth) responsiveStyles.minWidth = '44px';
+  if (component.type === 'button' && !responsiveStyles.fontSize) {
+    responsiveStyles.fontSize = '16px';
+  }
+  
+  // 🔥 FIX: Ensure buttons don't overflow in mobile
+  if (component.type === 'button') {
+    // Scale down horizontal padding in mobile
+    if (responsiveStyles.padding) {
+      const [vertical, horizontal] = responsiveStyles.padding.split(' ');
+      if (horizontal) {
+        responsiveStyles.padding = `${vertical} ${Math.max(16, parseFloat(horizontal) * 0.7)}px`;
       }
     }
+    // Ensure flex-shrink so buttons can compress
+    if (!responsiveStyles.flexShrink) responsiveStyles.flexShrink = 1;
+    if (!responsiveStyles.minWidth) responsiveStyles.minWidth = '80px';
+    if (!responsiveStyles.maxWidth) responsiveStyles.maxWidth = '160px';
+  }
+}
     
     // Scale down font sizes for mobile (if not explicitly set)
     if (!responsiveStyles.fontSize && baseStyles.fontSize) {

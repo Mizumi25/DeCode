@@ -702,11 +702,32 @@ const handleSmartClick = useCallback((e) => {
   const componentId = targetElement.getAttribute('data-component-id');
   
   console.log('✅ Component selected:', componentId);
-  
-  // 🔥 FIX: Set local state AND call parent handler
+
+// 🔥 CRITICAL: Force immediate update with both mechanisms
+const updateSelection = () => {
   setSelectedComponent(componentId);
   setIsCanvasSelected(false);
-  onComponentClick(componentId, e);
+  
+  // Ensure parent handler is called
+  if (onComponentClick) {
+    onComponentClick(componentId, e);
+  }
+  
+  // Force re-render trigger
+  window.dispatchEvent(new CustomEvent('component-selected', {
+    detail: { componentId }
+  }));
+};
+
+// Execute immediately
+updateSelection();
+
+// 🔥 NEW: Force PropertiesPanel to re-check
+setTimeout(() => {
+  window.dispatchEvent(new CustomEvent('force-properties-update', {
+    detail: { componentId }
+  }));
+}, 0);
   
   window.dispatchEvent(new CustomEvent('component-selected', {
     detail: { componentId }
@@ -856,33 +877,36 @@ const {
   };
 
     const getDeviceAwareStyles = () => {
-      // 🔥 Pass parent context to service
-      const parentContext = {
-        isLayoutContainer: isLayout,
-        responsiveMode: responsiveMode
-      };
-      
-      const serviceStyles = componentLibraryService?.calculateResponsiveStyles 
-        ? componentLibraryService.calculateResponsiveStyles(
-            component, 
-            responsiveMode, 
-            canvasDimensions,
-            parentContext // 🔥 Pass parent info
-          )
-        : component.style;
-      
-      const baseStyles = {
-        display: isLayout ? 'block' : 'inline-block',
-        width: isLayout ? '100%' : 'auto',
-        minHeight: isLayout ? '100px' : 'auto',
-        padding: isLayout ? '24px' : '0',
-        backgroundColor: 'transparent',
-        ...serviceStyles, // 🔥 Service handles scaling
-        ...style, // Sortable transform
-      };
-    
-      return baseStyles;
+  const baseStyles = {
+    display: isLayout ? 'block' : 'inline-block',
+    width: isLayout ? '100%' : 'auto',
+    minHeight: isLayout ? '100px' : 'auto',
+    backgroundColor: 'transparent',
+  };
+  
+  // 🔥 FIX: For layouts, skip responsive calculations
+  if (isLayout) {
+    return {
+      ...baseStyles,
+      ...component.style,  // User styles applied directly
+      ...style,            // Drag transform
     };
+  }
+  
+  // For non-layout components, use responsive calculations
+  const serviceStyles = componentLibraryService?.calculateResponsiveStyles(
+    component, 
+    responsiveMode, 
+    canvasDimensions,
+    { isLayoutContainer: false, responsiveMode }
+  );
+  
+  return {
+    ...baseStyles,
+    ...serviceStyles,
+    ...style,
+  };
+};
 
   const componentStyles = getDeviceAwareStyles();
   

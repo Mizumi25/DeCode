@@ -2745,7 +2745,7 @@ const handleCanvasClick = useCallback((e) => {
       frame={frame}  
       canvasComponents={canvasComponents}
       selectedComponent={selectedComponent}
-      setSelectedComponent={setSelectedComponent}  // 🔥 ADD THIS
+      
       onPropertyUpdate={handlePropertyUpdate}
           onComponentDelete={handleComponentDelete}
           onGenerateCode={generateCode}

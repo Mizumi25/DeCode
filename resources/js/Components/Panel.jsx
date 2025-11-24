@@ -2,25 +2,11 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, GripVertical, Group, Ungroup, Search, Plus, Layers, MoreHorizontal } from 'lucide-react'
 
-// Stable defaults to avoid new references each render
-const DEFAULT_ALLOWED_POSITIONS = Object.freeze(['left', 'right'])
-const EMPTY_DEFAULT_DOCK = Object.freeze({})
-
-function shallowEqualById(a = [], b = []) {
-  if (a === b) return true
-  if (!Array.isArray(a) || !Array.isArray(b)) return false
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) {
-    if ((a[i]?.id) !== (b[i]?.id)) return false
-  }
-  return true
-}
-
 export default function Panel({ 
   isOpen = true, 
   panels = [],
   initialPanels = [], 
-  allowedDockPositions = DEFAULT_ALLOWED_POSITIONS,
+  allowedDockPositions = ['left', 'right'],
   maxPanelsPerDock = 4,
   onPanelClose,
   onPanelStateChange, 
@@ -35,34 +21,15 @@ export default function Panel({
   onSearch = null,
   searchPlaceholder = "Search...",
   isMobile = false,
-  defaultWidth = 200,
-  minWidth = 180,
-  maxWidth = 350,
+  defaultWidth = 320,
+  minWidth = 280,
+  maxWidth = 400,
   // NEW: Default merge configurations
-  defaultDockPosition = EMPTY_DEFAULT_DOCK
+  defaultDockPosition = {}
 }) {
-  
-
-  
-  
   const panelsToUse = useMemo(() => {
     return initialPanels.length > 0 ? initialPanels : panels
   }, [initialPanels, panels])
-  
-  
-  
-    
-  // 🔥 FIXED: Memoize the panels array
-const memoizedPanels = useMemo(() => {
-  return panelsToUse.map(panel => ({
-    ...panel,
-    content: React.isValidElement(panel.content) 
-      ? React.cloneElement(panel.content, { key: panel.id })
-      : panel.content
-  }));
-}, [panelsToUse]);
-
-// Use memoizedPanels instead of panelsToUse in your effects
 
   // Tab and search state
   const [activeTab, setActiveTab] = useState(tabConfig?.defaultTab || 'tab1')
@@ -149,12 +116,7 @@ const memoizedPanels = useMemo(() => {
 
   // Update panels when the memoized panelsToUse changes
   useEffect(() => {
-    setDockedPanels(prev => {
-      const sameLeft = shallowEqualById(prev.left, initialPanelState.left)
-      const sameRight = shallowEqualById(prev.right, initialPanelState.right)
-      if (sameLeft && sameRight) return prev
-      return initialPanelState
-    })
+    setDockedPanels(initialPanelState)
   }, [initialPanelState])
 
   // Update merged states when mergePosition prop changes
@@ -191,17 +153,17 @@ const memoizedPanels = useMemo(() => {
   }, [])
 
   const getPanelHeight = useCallback((position) => {
-  const currentCount = dockedPanels[position]?.length || 0
-  const isMerged = mergedStates[position]
-  
-  if (currentCount === 0) return 'calc(100% - 1rem)'
-  if (currentCount === 1 || isMerged) return 'calc(100% - 1rem)'
-  if (currentCount === 2) return 'calc(50% - 0.75rem)'
-  if (currentCount === 3) return 'calc(33.333% - 0.67rem)'
-  if (currentCount >= 4) return 'calc(25% - 0.75rem)'
-  
-  return `calc(${100 / Math.min(currentCount, maxPanelsPerDock)}% - 0.75rem)`
-}, [dockedPanels, mergedStates, maxPanelsPerDock])
+    const currentCount = dockedPanels[position]?.length || 0
+    const isMerged = mergedStates[position]
+    
+    if (currentCount === 0) return 'calc(100% - 1rem)'
+    if (currentCount === 1 || isMerged) return 'calc(100% - 1rem)'
+    if (currentCount === 2) return 'calc(50% - 0.75rem)'
+    if (currentCount === 3) return 'calc(33.333% - 0.67rem)'
+    if (currentCount >= 4) return 'calc(25% - 0.75rem)'
+    
+    return `calc(${100 / Math.min(currentCount, maxPanelsPerDock)}% - 0.75rem)`
+  }, [dockedPanels, mergedStates, maxPanelsPerDock])
 
   const getDropZone = useCallback(() => {
     if (!dragState.isDragging) return null
@@ -330,9 +292,6 @@ const memoizedPanels = useMemo(() => {
     })
   }, [dragState.isDragging, dragState.offset])
 
-
-
-
   // Unified drag start handler - ENHANCED with index tracking
   const startDrag = useCallback((clientX, clientY, panel, position, element) => {
     const rect = element.getBoundingClientRect()
@@ -363,169 +322,83 @@ const memoizedPanels = useMemo(() => {
 
   // FIXED: Enhanced drag end with snap-back prevention
   const endDrag = useCallback((clientX, clientY) => {
-  if (!dragState.isDragging) return
+    if (!dragState.isDragging) return
 
-  if (rafRef.current) {
-    cancelAnimationFrame(rafRef.current)
-    rafRef.current = null
-  }
-
-  // FIXED: Calculate drop target here with final position
-  const windowWidth = window.innerWidth
-  const windowHeight = window.innerHeight
-  const mouseX = clientX
-  const mouseY = clientY
-  
-  const targetPosition = mouseX < windowWidth / 2 ? 'left' : 'right'
-  
-  let dropTarget = null
-  
-  if (allowedDockPositions.includes(targetPosition)) {
-    const targetPanels = dockedPanels[targetPosition] || []
-    const { startPosition, draggedPanel, startIndex } = dragState
-    
-    // Same position reordering
-    if (targetPosition === startPosition) {
-      const panelCount = Math.min(targetPanels.length, maxPanelsPerDock)
-      
-      if (panelCount > 1) {
-        let targetIndex
-        if (panelCount === 2) {
-          const midY = windowHeight / 2
-          targetIndex = mouseY < midY ? 0 : 1
-        } else if (panelCount === 3) {
-          const sectionHeight = windowHeight / 3
-          targetIndex = Math.floor(mouseY / sectionHeight)
-        } else {
-          const sectionHeight = windowHeight / 4
-          targetIndex = Math.floor(mouseY / sectionHeight)
-          targetIndex = Math.min(targetIndex, maxPanelsPerDock - 1)
-        }
-        
-        if (targetIndex !== startIndex) {
-          dropTarget = {
-            position: targetPosition,
-            index: targetIndex,
-            action: 'reorder'
-          }
-        }
-      }
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
     }
-    // Different dock
-    else if (targetPosition !== startPosition) {
-      if (targetPanels.length === 0) {
-        dropTarget = {
-          position: targetPosition,
-          index: 0,
-          action: 'move'
-        }
-      } else if (targetPanels.length < maxPanelsPerDock) {
-        let targetIndex
-        const panelCount = targetPanels.length
-        
-        if (panelCount === 1) {
-          const midY = windowHeight / 2
-          targetIndex = mouseY < midY ? 0 : 1
-        } else if (panelCount === 2) {
-          const sectionHeight = windowHeight / 3
-          targetIndex = Math.floor(mouseY / sectionHeight)
-          targetIndex = Math.min(targetIndex, 2)
-        } else {
-          const sectionHeight = windowHeight / (panelCount + 1)
-          targetIndex = Math.floor(mouseY / sectionHeight)
-          targetIndex = Math.min(targetIndex, panelCount)
-        }
-        
-        dropTarget = {
-          position: targetPosition,
-          index: targetIndex,
-          action: 'add'
-        }
-      } else {
-        // Swap when at max capacity
-        let targetIndex
-        const sectionHeight = windowHeight / maxPanelsPerDock
-        targetIndex = Math.floor(mouseY / sectionHeight)
-        targetIndex = Math.min(targetIndex, maxPanelsPerDock - 1)
-        
-        dropTarget = {
-          position: targetPosition,
-          index: targetIndex,
-          action: 'swap'
-        }
-      }
-    }
-  }
 
-  const { draggedPanel, startPosition, startIndex } = dragState
+    const dropTarget = getDropTarget()
+    const { draggedPanel, startPosition, startIndex } = dragState
 
-  // Only update if there's a valid drop target
-  if (dropTarget && dropTarget.action && dropTarget.position && dropTarget.index !== undefined) {
-    const { position: targetPosition, index: targetIndex, action } = dropTarget
-    
-    setDockedPanels(prev => {
-      const newState = { ...prev }
+    // FIXED: Only update if there's a valid drop target
+    if (dropTarget && dropTarget.action && dropTarget.position && dropTarget.index !== undefined) {
+      const { position: targetPosition, index: targetIndex, action } = dropTarget
       
-      switch (action) {
-        case 'reorder': {
-          if (startPosition === targetPosition && startIndex !== targetIndex) {
-            const panels = [...(prev[targetPosition] || [])]
-            panels.splice(startIndex, 1)
-            panels.splice(targetIndex, 0, draggedPanel)
-            newState[targetPosition] = panels
+      setDockedPanels(prev => {
+        const newState = { ...prev }
+        
+        switch (action) {
+          case 'reorder': {
+            if (startPosition === targetPosition && startIndex !== targetIndex) {
+              const panels = [...(prev[targetPosition] || [])]
+              panels.splice(startIndex, 1)
+              panels.splice(targetIndex, 0, draggedPanel)
+              newState[targetPosition] = panels
+            }
+            break
           }
-          break
-        }
-        
-        case 'move': {
-          newState[startPosition] = (prev[startPosition] || []).filter(p => p.id !== draggedPanel.id)
-          newState[targetPosition] = [draggedPanel]
-          break
-        }
-        
-        case 'add': {
-          newState[startPosition] = (prev[startPosition] || []).filter(p => p.id !== draggedPanel.id)
-          const targetPanels = [...(prev[targetPosition] || [])]
-          targetPanels.splice(targetIndex, 0, draggedPanel)
-          newState[targetPosition] = targetPanels
-          break
-        }
-        
-        case 'swap': {
-          const targetPanels = [...(prev[targetPosition] || [])]
-          const panelToSwap = targetPanels[targetIndex]
           
-          if (panelToSwap) {
+          case 'move': {
             newState[startPosition] = (prev[startPosition] || []).filter(p => p.id !== draggedPanel.id)
-            targetPanels[targetIndex] = draggedPanel
-            newState[targetPosition] = targetPanels
-            newState[startPosition] = [...newState[startPosition], panelToSwap]
+            newState[targetPosition] = [draggedPanel]
+            break
           }
-          break
+          
+          case 'add': {
+            newState[startPosition] = (prev[startPosition] || []).filter(p => p.id !== draggedPanel.id)
+            const targetPanels = [...(prev[targetPosition] || [])]
+            targetPanels.splice(targetIndex, 0, draggedPanel)
+            newState[targetPosition] = targetPanels
+            break
+          }
+          
+          case 'swap': {
+            const targetPanels = [...(prev[targetPosition] || [])]
+            const panelToSwap = targetPanels[targetIndex]
+            
+            if (panelToSwap) {
+              newState[startPosition] = (prev[startPosition] || []).filter(p => p.id !== draggedPanel.id)
+              targetPanels[targetIndex] = draggedPanel
+              newState[targetPosition] = targetPanels
+              newState[startPosition] = [...newState[startPosition], panelToSwap]
+            }
+            break
+          }
         }
-      }
-      
-      return newState
+        
+        return newState
+      })
+    }
+    // If no valid drop target, panel stays in original position (no snap-back needed)
+
+    setDragState({
+      isDragging: false,
+      draggedPanel: null,
+      startPosition: null,
+      startIndex: null,
+      currentPosition: { x: 0, y: 0 },
+      offset: { x: 0, y: 0 },
+      dragElement: null,
+      snapBackTimeout: null
     })
-  }
 
-  setDragState({
-    isDragging: false,
-    draggedPanel: null,
-    startPosition: null,
-    startIndex: null,
-    currentPosition: { x: 0, y: 0 },
-    offset: { x: 0, y: 0 },
-    dragElement: null,
-    snapBackTimeout: null
-  })
-
-  document.body.style.userSelect = ''
-  document.body.style.touchAction = ''
-  document.body.style.cursor = ''
-  document.body.classList.remove('dragging-panel')
-}, [dragState, dockedPanels, allowedDockPositions, maxPanelsPerDock])
-
+    document.body.style.userSelect = ''
+    document.body.style.touchAction = ''
+    document.body.style.cursor = ''
+    document.body.classList.remove('dragging-panel')
+  }, [dragState, getDropTarget])
 
   const handleMouseDown = useCallback((e, panel, position) => {
     e.preventDefault()
@@ -873,150 +746,146 @@ const memoizedPanels = useMemo(() => {
 
   // Rest of the render functions remain the same...
   const renderPanel = (panel, position, index) => {
-  const isDragged = dragState.isDragging && dragState.draggedPanel?.id === panel.id
-  
-  // Calculate drop target for visual feedback (not for state updates)
-  const currentDropTarget = dragState.isDragging ? getDropTarget() : null
-  
-  const willBeAffected = currentDropTarget && currentDropTarget.position === position && 
-    ((currentDropTarget.action === 'reorder' && currentDropTarget.index !== index) ||
-     (currentDropTarget.action === 'add' && currentDropTarget.index <= index) ||
-     (currentDropTarget.action === 'swap' && currentDropTarget.index === index))
-  
-  const panelHeight = getPanelHeight(position)
-  const positionPanels = dockedPanels[position] || []
-  const canMerge = positionPanels.length > 1
+    const isDragged = dragState.isDragging && dragState.draggedPanel?.id === panel.id
+    const dropTarget = getDropTarget()
+    
+    const willBeAffected = dropTarget && dropTarget.position === position && 
+      ((dropTarget.action === 'reorder' && dropTarget.index !== index) ||
+       (dropTarget.action === 'add' && dropTarget.index <= index) ||
+       (dropTarget.action === 'swap' && dropTarget.index === index))
+    
+    const panelHeight = getPanelHeight(position)
+    const positionPanels = dockedPanels[position] || []
+    const canMerge = positionPanels.length > 1
 
-  return (
-    <motion.div
-      key={panel.id}
-      className={`w-full panel-container ${isDragged ? 'opacity-30' : 'opacity-100'}`}
-      initial={{ opacity: 0, y: 20, height: 0 }}
-      animate={{ 
-        opacity: isDragged ? 0.3 : 1, 
-        y: 0, 
-        height: panelHeight,
-        scale: willBeAffected ? 0.95 : 1,
-      }}
-      exit={{ 
-        opacity: 0, 
-        y: -20, 
-        height: 0
-      }}
-      transition={{ 
-        type: "spring", 
-        damping: 25, 
-        stiffness: 300,
-        height: { duration: 0.3, ease: "easeInOut" },
-        scale: { duration: 0.2, ease: "easeOut" }
-      }}
-      layout
-    >
-      <div 
-        className="rounded-lg border overflow-hidden h-full transition-all duration-200"
-        style={{
-          backgroundColor: willBeAffected ? 'rgba(251, 146, 60, 0.1)' : 'var(--color-surface)',
-          borderColor: willBeAffected ? 'rgb(251, 146, 60)' : 'var(--color-border)',
-          boxShadow: willBeAffected ? 'var(--shadow-lg)' : 'var(--shadow-md)',
-          pointerEvents: 'auto',
-          overflow: 'hidden',
+    return (
+      <motion.div
+        key={panel.id}
+        className={`w-full panel-container ${isDragged ? 'opacity-30' : 'opacity-100'}`}
+        initial={{ opacity: 0, y: 20, height: 0 }}
+        animate={{ 
+          opacity: isDragged ? 0.3 : 1, 
+          y: 0, 
+          height: panelHeight,
+          scale: willBeAffected ? 0.95 : 1,
         }}
+        exit={{ 
+          opacity: 0, 
+          y: -20, 
+          height: 0
+        }}
+        transition={{ 
+          type: "spring", 
+          damping: 25, 
+          stiffness: 300,
+          height: { duration: 0.3, ease: "easeInOut" },
+          scale: { duration: 0.2, ease: "easeOut" }
+        }}
+        layout
       >
-        {/* Panel Header */}
         <div 
-          className="flex items-center justify-between border-b"
+          className="rounded-lg border overflow-hidden h-full transition-all duration-200"
           style={{
-            backgroundColor: 'var(--color-bg-muted)',
-            borderColor: 'var(--color-border)',
-            minHeight: '48px',
+            backgroundColor: willBeAffected ? 'rgba(251, 146, 60, 0.1)' : 'var(--color-surface)',
+            borderColor: willBeAffected ? 'rgb(251, 146, 60)' : 'var(--color-border)',
+            boxShadow: willBeAffected ? 'var(--shadow-lg)' : 'var(--shadow-md)',
+            pointerEvents: 'auto', // CRITICAL: Only the visible panel gets clicks
+            overflow: 'hidden', // Prevent any overflow
           }}
         >
-          {/* Drag handle area */}
+          {/* Panel Header */}
           <div 
-            className="flex items-center gap-2 px-3 py-3 cursor-grab active:cursor-grabbing select-none touch-manipulation flex-1"
-            onMouseDown={(e) => handleMouseDown(e, panel, position)}
-            onTouchStart={(e) => handleTouchStart(e, panel, position)}
+            className="flex items-center justify-between border-b"
+            style={{
+              backgroundColor: 'var(--color-bg-muted)',
+              borderColor: 'var(--color-border)',
+              minHeight: '48px',
+            }}
           >
-            <GripVertical className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
-            <h3 className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>{panel.title}</h3>
-            {willBeAffected && (
-              <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-600 font-medium">
-                {currentDropTarget?.action === 'swap' ? 'Will Swap' : 'Will Move'}
-              </span>
-            )}
-          </div>
-          
-          {/* Rest of panel header... */}
-          <div className="flex items-center gap-1 px-3">
-            {canMerge && (
+            {/* Drag handle area */}
+            <div 
+              className="flex items-center gap-2 px-3 py-3 cursor-grab active:cursor-grabbing select-none touch-manipulation flex-1"
+              onMouseDown={(e) => handleMouseDown(e, panel, position)}
+              onTouchStart={(e) => handleTouchStart(e, panel, position)}
+            >
+              <GripVertical className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
+              <h3 className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>{panel.title}</h3>
+              {willBeAffected && (
+                <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-600 font-medium">
+                  {dropTarget?.action === 'swap' ? 'Will Swap' : 'Will Move'}
+                </span>
+              )}
+            </div>
+            
+            {/* Action buttons */}
+            <div className="flex items-center gap-1 px-3">
+              {canMerge && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    toggleMerge(position)
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors"
+                  style={{ 
+                    color: 'var(--color-text-muted)',
+                    backgroundColor: 'transparent'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = 'var(--color-bg-hover)'
+                    e.target.style.color = 'var(--color-primary)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'transparent'
+                    e.target.style.color = 'var(--color-text-muted)'
+                  }}
+                  title="Merge all panels in this position"
+                >
+                  <Group className="w-3 h-3" />
+                  Merge
+                </button>
+              )}
+              
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   e.preventDefault()
-                  toggleMerge(position)
+                  handleClose(panel.id, position)
                 }}
-                className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors"
-                style={{ 
-                  color: 'var(--color-text-muted)',
-                  backgroundColor: 'transparent'
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = 'var(--color-bg-hover)'
-                  e.target.style.color = 'var(--color-primary)'
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = 'transparent'
-                  e.target.style.color = 'var(--color-text-muted)'
-                }}
-                title="Merge all panels in this position"
+                className="p-1 rounded transition-colors"
+                style={{ color: 'var(--color-text-muted)' }}
+                onMouseEnter={(e) => e.target.style.color = 'var(--color-primary)'}
+                onMouseLeave={(e) => e.target.style.color = 'var(--color-text-muted)'}
+                title="Close Panel"
               >
-                <Group className="w-3 h-3" />
-                Merge
+                <X className="w-4 h-4" />
               </button>
-            )}
-            
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                e.preventDefault()
-                handleClose(panel.id, position)
-              }}
-              className="p-1 rounded transition-colors"
-              style={{ color: 'var(--color-text-muted)' }}
-              onMouseEnter={(e) => e.target.style.color = 'var(--color-primary)'}
-              onMouseLeave={(e) => e.target.style.color = 'var(--color-text-muted)'}
-              title="Close Panel"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            </div>
+          </div>
+          
+          {/* Tabs and Search */}
+          {renderTabs(panel)}
+          {renderSearchBar(panel)}
+          
+          {/* Panel Content */}
+          <div className="overflow-y-auto" style={{ 
+            height: `calc(100% - ${48 + (shouldShowTabsAndSearch(panel) ? 140 : 0)}px)` 
+          }}>
+            <div className="p-4">
+              {panel.content}
+            </div>
           </div>
         </div>
-        
-        {/* Tabs and Search */}
-        {renderTabs(panel)}
-        {renderSearchBar(panel)}
-        
-        {/* Panel Content */}
-        <div className="overflow-y-auto" style={{ 
-          height: `calc(100% - ${48 + (shouldShowTabsAndSearch(panel) ? 140 : 0)}px)` 
-        }}>
-          <div className="p-4">
-            {panel.content}
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  )
-}
+      </motion.div>
+    )
+  }
 
   // Render dock area
   const renderDockArea = (position) => {
     const panels = dockedPanels[position] || []
-  
-  // Calculate drop target for visual feedback only
-  const currentDropTarget = dragState.isDragging ? getDropTarget() : null
-  const isDropTarget = currentDropTarget && currentDropTarget.position === position
-  const isMerged = mergedStates[position] && panels.length > 1
+    const dropTarget = getDropTarget()
+    const isDropTarget = dropTarget && dropTarget.position === position
+    const isMerged = mergedStates[position] && panels.length > 1
     
     if (!allowedDockPositions.includes(position)) return null
 
