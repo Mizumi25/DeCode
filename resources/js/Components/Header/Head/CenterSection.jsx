@@ -77,7 +77,7 @@ const CenterSection = ({
         initial="hidden"
         animate="visible"
         custom={2}
-        className="hidden md:block flex-grow px-6" // Reduced padding
+        className="hidden md:block flex-1 max-w-md lg:max-w-lg px-2" // Limited max width and reduced padding
       >
         <SearchBar />
       </motion.div>

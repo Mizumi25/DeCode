@@ -42,7 +42,7 @@ const SearchBar = ({ placeholder = "Search projects...", mobile = false, autoFoc
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className={`relative ${mobile ? 'w-full' : 'w-full max-w-xl mx-auto'}`}
+      className={`relative ${mobile ? 'w-full' : 'w-full'}`}
     >
       {/* SEARCH INPUT WRAPPER */}
       <motion.div
@@ -74,12 +74,12 @@ const SearchBar = ({ placeholder = "Search projects...", mobile = false, autoFoc
           onFocus={() => setFocused(true)}
           onBlur={() => !searchQuery && setFocused(false)}
           placeholder={placeholder}
-          className={`search-placeholder bg-transparent w-full py-2 pl-10 pr-20 text-sm text-[var(--color-text)] rounded-full placeholder:text-[var(--color-text-muted)] outline-none
+          className={`search-placeholder bg-transparent w-full py-1.5 pl-10 pr-16 text-sm text-[var(--color-text)] rounded-full placeholder:text-[var(--color-text-muted)] outline-none
             ${focused || searchQuery ? 'search-active' : ''}
           `}
           animate={{
-            paddingLeft: focused || searchQuery ? "2.5rem" : "12rem",
-            textAlign: focused || searchQuery ? "left" : "center"
+            paddingLeft: focused || searchQuery ? "2.5rem" : "2.5rem",
+            textAlign: "left"
           }}
           transition={{ duration: 0.3, ease: "easeOut" }}
         />

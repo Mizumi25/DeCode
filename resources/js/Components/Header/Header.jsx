@@ -154,7 +154,7 @@ export default function Header({
           duration: 0.3
         }}
       >
-        <div className={`flex items-center relative ${(onVoidPage || onForgePage || onSourcePage) ? 'justify-between gap-3' : 'justify-between flex-wrap gap-2'}`}>
+        <div className={`flex items-center relative ${(onVoidPage || onForgePage || onSourcePage) ? 'justify-between gap-2' : 'justify-between gap-2'}`}>
           
           {/* Left Section */}
           {(onProjectsPage || onVoidPage || onForgePage || onSourcePage) && (
