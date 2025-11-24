@@ -509,17 +509,29 @@ const isLayoutElement = (type) => LAYOUT_TYPES.includes(type);
   
   
   // Load components lazily after mount
+const hasLoadedFrameRef = useRef(new Set());
+
 useEffect(() => {
   const loadFrameComponents = async () => {
     if (!currentFrame || !projectId) return;
     
+    // 🔥 CRITICAL: Only load once per frame, don't reload and overwrite user changes
+    if (hasLoadedFrameRef.current.has(currentFrame)) {
+      console.log('⏭️ Frame already loaded, skipping reload to preserve user changes');
+      return;
+    }
+    
     try {
+      console.log('📥 Loading frame components from backend for frame:', currentFrame);
       const response = await axios.get(`/api/frames/${currentFrame}/components`);
       if (response.data.success) {
         setFrameCanvasComponents(prev => ({
           ...prev,
           [currentFrame]: response.data.data
         }));
+        
+        hasLoadedFrameRef.current.add(currentFrame);
+        console.log('✅ Loaded', response.data.data.length, 'components from backend');
         
         if (response.data.data.length > 0) {
           generateCode(response.data.data);
@@ -540,86 +552,134 @@ useEffect(() => {
   
   
 
-// Line 520-570: REPLACE with this
+// Real-time component sync via Echo
+const hasJoinedChannelRef = useRef(false);
+
 useEffect(() => {
-  if (!frame?.uuid || !window.Echo) return;
+  if (!frame?.uuid || !window.Echo) {
+    console.warn('⚠️ Cannot subscribe to real-time updates:', { 
+      hasFrame: !!frame?.uuid, 
+      hasEcho: !!window.Echo 
+    });
+    return;
+  }
+  
+  // 🔥 CRITICAL: Prevent duplicate channel joins
+  if (hasJoinedChannelRef.current) {
+    console.log('⏭️ Already joined channel, skipping');
+    return;
+  }
   
   const channelName = `frame.${frame.uuid}`;
   console.log('📡 Subscribing to real-time updates:', channelName);
   
-  const channel = window.Echo.private(channelName)
-    // Real-time updates (dragging, live edits)
-    .listen('.component.realtime', (event) => {
-      console.log('⚡ Real-time update:', event);
+  try {
+    const channel = window.Echo.join(channelName)
+      // Listen for component updates (individual component changes)
+      .listen('.component.updated', (event) => {
+        console.log('⚡ Component updated:', event);
+        
+        if (event.userId === currentUser?.id && event.sessionId === sessionId) {
+          console.log('⏭️ Ignoring own update');
+          return; // Ignore own updates
+        }
+        
+        // Apply component update without saving
+        saveOriginRef.current = 'remote';
+        
+        setFrameCanvasComponents(prev => ({
+          ...prev,
+          [currentFrame]: updateComponentInTree(
+            prev[currentFrame] || [],
+            event.componentId,
+            event.updateType,
+            event.updates
+          )
+        }));
+      })
       
-      if (event.userId === currentUser.id && event.sessionId === sessionId) {
-        return; // Ignore own updates
-      }
-      
-      // Apply live update without saving
-      saveOriginRef.current = 'remote';
-      
-      setFrameCanvasComponents(prev => ({
-        ...prev,
-        [currentFrame]: updateComponentInTree(
-          prev[currentFrame] || [],
-          event.componentId,
-          event.updateType,
-          event.data
-        )
-      }));
-    })
+      // Listen for frame state updates (bulk changes, new components)
+      .listen('.frame.state.updated', (event) => {
+        console.log('🔄 Frame state updated:', event, 'Current user:', currentUser?.id, 'Session:', sessionId);
+        
+        // 🔥 CRITICAL: Ignore updates from own user OR own session
+        if (event.userId === currentUser?.id || event.sessionId === sessionId) {
+          console.log('⏭️ Ignoring own frame update (userId match or sessionId match)');
+          return; // Ignore own updates
+        }
+        
+        // 🔥 CRITICAL: Only reload if we're not currently in the middle of a save
+        if (isSavingRef.current) {
+          console.log('⏭️ Save in progress, ignoring frame update to prevent overwrite');
+          return;
+        }
+        
+        console.log('✅ Processing frame update from another user');
+        
+        // Fetch fresh data from backend for bulk updates
+        saveOriginRef.current = 'remote';
+        
+        axios.get(`/api/frames/${frame.uuid}/components`)
+          .then(response => {
+            if (response.data.success) {
+              console.log('✅ Reloaded', response.data.data.length, 'components from backend');
+              
+              setFrameCanvasComponents(prev => ({
+                ...prev,
+                [currentFrame]: response.data.data
+              }));
+              
+              generateCode(response.data.data);
+            }
+          })
+          .catch(error => {
+            console.error('❌ Failed to reload components:', error);
+          });
+      });
     
-    // Final state changes (drop, save, delete)
-    .listen('.component.state.changed', (event) => {
-      console.log('🔄 State changed:', event);
-      
-      if (event.userId === currentUser.id) {
-        return; // Ignore own updates
+    hasJoinedChannelRef.current = true;
+    console.log('✅ Successfully joined channel:', channelName);
+    
+    return () => {
+      try {
+        console.log('🚪 Leaving channel:', channelName);
+        window.Echo.leave(channelName);
+        hasJoinedChannelRef.current = false;
+      } catch (e) {
+        console.warn('Failed to leave channel:', e);
       }
-      
-      // Fetch fresh data from backend
-      saveOriginRef.current = 'remote';
-      
-      axios.get(`/api/frames/${frame.uuid}/components`)
-        .then(response => {
-          if (response.data.success) {
-            console.log('✅ Loaded', response.data.data.length, 'components');
-            
-            setFrameCanvasComponents(prev => ({
-              ...prev,
-              [currentFrame]: response.data.data
-            }));
-            
-            generateCode(response.data.data);
-          }
-        })
-        .catch(error => {
-          console.error('❌ Failed to reload:', error);
-        });
-    });
-  
-  return () => {
-    try {
-      window.Echo.leave(channelName);
-    } catch (e) {
-      console.warn('Failed to leave channel:', e);
-    }
-  };
-}, [frame?.uuid, currentFrame, sessionId, currentUser]);
+    };
+  } catch (error) {
+    console.error('❌ Failed to join channel:', error);
+  }
+}, [frame?.uuid]); // 🔥 MINIMAL DEPENDENCIES - only re-run when frame changes
 
 // Helper function to update component in tree without full reload
-function updateComponentInTree(components, componentId, updateType, data) {
+function updateComponentInTree(components, componentId, updateType, updates) {
   return components.map(comp => {
     if (comp.id === componentId) {
+      console.log('🔄 Updating component:', componentId, 'type:', updateType, 'data:', updates);
+      
       switch (updateType) {
+        case 'bulk_update':
+          // For bulk updates, merge all the updates
+          return { 
+            ...comp, 
+            style: updates.style || comp.style,
+            props: updates.props || comp.props,
+            parentId: updates.parentId !== undefined ? updates.parentId : comp.parentId
+          };
         case 'drag_move':
-          return { ...comp, position: data };
+          return { ...comp, style: { ...comp.style, left: updates.position?.x, top: updates.position?.y } };
         case 'style':
-          return { ...comp, style: { ...comp.style, ...data } };
+          return { ...comp, style: { ...comp.style, ...updates } };
         case 'prop':
-          return { ...comp, props: { ...comp.props, ...data } };
+        case 'props':
+          return { ...comp, props: { ...comp.props, ...updates } };
+        case 'position':
+          return { ...comp, style: { ...comp.style, left: updates.x, top: updates.y } };
         default:
+          console.warn('Unknown update type:', updateType);
           return comp;
       }
     }
@@ -627,7 +687,7 @@ function updateComponentInTree(components, componentId, updateType, data) {
     if (comp.children?.length > 0) {
       return {
         ...comp,
-        children: updateComponentInTree(comp.children, componentId, updateType, data)
+        children: updateComponentInTree(comp.children, componentId, updateType, updates)
       };
     }
     
@@ -644,22 +704,28 @@ useEffect(() => {
 }, [frame?.uuid, setCommentContext]);
 
 useEffect(() => {
-  if (!frame?.uuid || !window.Echo || commentChannelJoined) return;
+  if (!frame?.uuid || !window.Echo) return;
+  
+  const channelName = `frame.${frame.uuid}`;
+  
   try {
-    const presence = window.Echo.join(`frame.${frame.uuid}`);
+    const presence = window.Echo.join(channelName);
     presence.listenForWhisper('comment.created', (payload) => {
       if (!payload || !payload.contextKey || !payload.comment) return;
       addComment(payload.contextKey, payload.comment);
     });
-    setCommentChannelJoined(true);
+    
     return () => {
-      try { window.Echo.leave(`frame.${frame.uuid}`) } catch {}
-      setCommentChannelJoined(false);
+      try { 
+        window.Echo.leave(channelName);
+      } catch (e) {
+        console.warn('Failed to leave comment channel', e);
+      }
     };
   } catch (e) {
     console.warn('Comments: failed to join presence channel', e);
   }
-}, [frame?.uuid, commentChannelJoined, addComment]);
+}, [frame?.uuid, addComment]); // 🔥 REMOVED commentChannelJoined from dependencies
 
 const currentComments = useMemo(() => {
   const key = `forge:${frame?.uuid}`;
@@ -945,80 +1011,71 @@ useEffect(() => {
 // 🔥 FIXED: Use ref to track previous components and prevent loops
 const lastSaveHashRef = useRef('');
 const isSavingRef = useRef(false);
-const prevComponentsRef = useRef(canvasComponents);
 
 useEffect(() => {
-  const saveComponents = async () => {
-    // Skip if this update came from remote or undo
-    if (saveOriginRef.current !== 'user') {
-      console.log(`⏭️ Skipping auto-save (${saveOriginRef.current} update)`);
-      saveOriginRef.current = 'user';
-      return;
-    }
-    
-    // Skip if already saving
-    if (isSavingRef.current) {
-      console.log('⏭️ Save already in progress');
-      return;
-    }
-    
-    // Skip if components haven't actually changed (use hash comparison)
-    const currentHash = JSON.stringify(canvasComponents.map(c => ({
-      id: c.id,
-      type: c.type,
-      parentId: c.parentId,
-      style: c.style,
-      props: c.props,
-    })));
-    
-    if (currentHash === lastSaveHashRef.current) {
-      console.log('⏭️ No changes to save');
-      return;
-    }
-    
-    // Skip if components haven't actually changed (additional check)
-    if (JSON.stringify(canvasComponents) === JSON.stringify(prevComponentsRef.current)) {
-      return;
-    }
-    
-    if (projectId && currentFrame && canvasComponents.length > 0 && componentsLoaded && !isFrameSwitching) {
-      try {
-        if (componentLibraryService?.hasPendingSave && componentLibraryService.hasPendingSave(currentFrame)) {
-          console.log('ForgePage: Skipping auto-save due to pending undo/redo operation');
-          return;
-        }
-        
-        isSavingRef.current = true;
-        console.log('💾 Auto-saving', canvasComponents.length, 'components');
-        
-        await componentLibraryService.saveProjectComponents(
-          projectId,
-          currentFrame,
-          canvasComponents,
-          { silent: false } // 🔥 Broadcast this save
-        );
-        
-        lastSaveHashRef.current = currentHash;
-        prevComponentsRef.current = canvasComponents; // ✅ Update ref after successful save
-      } catch (error) {
-        console.error('❌ Auto-save failed:', error);
-      } finally {
-        isSavingRef.current = false;
-      }
-    }
-  };
-
-  // 🔥 CRITICAL: Only run if components array has actually changed
-  const currentComponentsStr = JSON.stringify(canvasComponents);
-  if (currentComponentsStr === JSON.stringify(prevComponentsRef.current)) {
-    return; // No change, don't set timeout
+  // Skip if this update came from remote or undo
+  if (saveOriginRef.current !== 'user') {
+    console.log(`⏭️ Skipping auto-save (${saveOriginRef.current} update)`);
+    saveOriginRef.current = 'user';
+    return;
   }
   
-  prevComponentsRef.current = canvasComponents;
+  // Skip if already saving
+  if (isSavingRef.current) {
+    console.log('⏭️ Save already in progress');
+    return;
+  }
+  
+  // Skip if not ready (but allow empty canvas saves!)
+  if (!projectId || !currentFrame || !componentsLoaded || isFrameSwitching) {
+    console.log('⏭️ Not ready to save:', { projectId: !!projectId, currentFrame: !!currentFrame, componentsLoaded, isFrameSwitching });
+    return;
+  }
+  
+  // Skip if components haven't actually changed (use hash comparison)
+  const currentHash = JSON.stringify(canvasComponents.map(c => ({
+    id: c.id,
+    type: c.type,
+    parentId: c.parentId,
+    style: c.style,
+    props: c.props,
+  })));
+  
+  if (currentHash === lastSaveHashRef.current) {
+    console.log('⏭️ No changes to save (hash matches)');
+    return;
+  }
+  
+  // Check if there's a pending undo/redo operation
+  if (componentLibraryService?.hasPendingSave && componentLibraryService.hasPendingSave(currentFrame)) {
+    console.log('⏭️ Skipping auto-save due to pending undo/redo operation');
+    return;
+  }
+  
+  const saveComponents = async () => {
+    try {
+      isSavingRef.current = true;
+      console.log('💾 ForgePage: Auto-saving', canvasComponents.length, 'components');
+      
+      await componentLibraryService.saveProjectComponents(
+        projectId,
+        currentFrame,
+        canvasComponents,
+        { silent: false } // 🔥 Broadcast this save
+      );
+      
+      lastSaveHashRef.current = currentHash;
+      console.log('✅ Auto-save completed successfully');
+    } catch (error) {
+      console.error('❌ Auto-save failed:', error);
+    } finally {
+      isSavingRef.current = false;
+    }
+  };
   
   const timeoutId = setTimeout(saveComponents, 2000);
   return () => clearTimeout(timeoutId);
-}, [canvasComponents.length, projectId, currentFrame, componentsLoaded, isFrameSwitching]); // 🔥 FIXED: Minimal dependencies
+}, [canvasComponents, projectId, currentFrame, componentsLoaded, isFrameSwitching]); // 🔥 FIXED: Use full canvasComponents array as dependency
 
 
 
@@ -1851,11 +1908,25 @@ const handleCanvasDrop = useCallback((e) => {
     const updatedComponents = [...canvasComponents, newComponent];
     
     console.log('📦 UPDATING STATE:', updatedComponents.length, 'components');
+    console.log('📦 Components before update:', canvasComponents.length);
+    console.log('📦 Components after update:', updatedComponents.length);
     
-    setFrameCanvasComponents(prev => ({
-      ...prev,
-      [currentFrame]: updatedComponents
-    }));
+    // 🔥 CRITICAL: Make sure saveOriginRef is set to 'user' so auto-save will run
+    saveOriginRef.current = 'user';
+    
+    setFrameCanvasComponents(prev => {
+      const newState = {
+        ...prev,
+        [currentFrame]: updatedComponents
+      };
+      console.log('📦 New state being set:', newState[currentFrame]?.length, 'components for frame', currentFrame);
+      return newState;
+    });
+    
+    // 🔥 DEBUG: Check state after update
+    setTimeout(() => {
+      console.log('📦 State check after 100ms:', frameCanvasComponents[currentFrame]?.length);
+    }, 100);
     
     setSelectedComponent(newComponent.id);
     handleComponentDragEnd();
@@ -1870,7 +1941,7 @@ const handleCanvasDrop = useCallback((e) => {
     
     generateCode(updatedComponents);
     
-    console.log('✅ DROP COMPLETE');
+    console.log('✅ DROP COMPLETE - Component added to state');
     
   } catch (error) {
     console.error('❌ DROP ERROR:', error);

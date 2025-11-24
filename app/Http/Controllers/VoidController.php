@@ -408,7 +408,12 @@ class VoidController extends Controller
         // BROADCAST FRAME UPDATE
         if ($project->workspace) {
             try {
-                broadcast(new FrameUpdated($frame, $project->workspace))->toOthers();
+                broadcast(new FrameUpdated(
+                    $frame->uuid,
+                    $user->id,
+                    ['frame' => $frame->toArray()],
+                    'frame_updated'
+                ))->toOthers();
                 Log::info('Frame update broadcasted successfully', [
                     'frame_id' => $frame->id,
                     'project_id' => $project->id,
@@ -541,7 +546,12 @@ public function updateCanvasStyles(Request $request, Frame $frame): JsonResponse
         
         // Broadcast update
         if ($project->workspace) {
-            broadcast(new \App\Events\FrameUpdated($frame, $project->workspace))->toOthers();
+            broadcast(new \App\Events\FrameUpdated(
+                $frame->uuid,
+                $user->id,
+                ['canvas_style' => $frame->canvas_style, 'canvas_props' => $frame->canvas_props],
+                'canvas_style_updated'
+            ))->toOthers();
         }
         
         return response()->json([
@@ -772,7 +782,12 @@ public function updateCanvasStyles(Request $request, Frame $frame): JsonResponse
         // BROADCAST FRAME UPDATE (position change)
         if ($project->workspace) {
             try {
-                broadcast(new FrameUpdated($frame, $project->workspace))->toOthers();
+                broadcast(new FrameUpdated(
+                    $frame->uuid,
+                    $user->id,
+                    ['position' => $canvasData['position']],
+                    'frame_position_updated'
+                ))->toOthers();
                 Log::info('Frame position update broadcasted successfully', [
                     'frame_id' => $frame->id,
                     'new_position' => $canvasData['position'],

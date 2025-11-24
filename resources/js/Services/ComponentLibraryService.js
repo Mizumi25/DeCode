@@ -542,27 +542,28 @@ renderCanvasRoot(frame, canvasRef) {
     
     
 renderLayoutContainer(componentDef, props, id, children) {
-    // 🔥 CRITICAL FIX: Apply ALL style properties including flexDirection
+    // 🔥 CRITICAL FIX: Apply ALL style properties
     const containerStyle = {
         // Start with essential defaults
         display: this.getDefaultDisplay(componentDef.type),
         width: '100%',
         minHeight: this.getDefaultMinHeight(componentDef.type),
         padding: this.getDefaultPadding(componentDef.type),
+        boxSizing: 'border-box',
         
-        // 🔥 CRITICAL: Apply ALL style props including flex properties
+        // 🔥 CRITICAL: Apply ALL style props
         // This MUST come last to override defaults
         ...props.style,
     };
 
-    
-    
     return React.createElement('div', {
         key: id,
         'data-layout-type': componentDef.type,
         'data-component-id': id,
+        'data-component-type': componentDef.type,
+        'data-is-layout': true,
         className: `layout-container ${componentDef.type}-container`,
-        style: containerStyle  // 🔥 This now includes ALL styles including flexDirection
+        style: containerStyle
     }, children && children.length > 0 ? children.map(child => 
         this.renderComponent(this.componentDefinitions.get(child.type), child, child.id)
     ) : null);
@@ -604,7 +605,7 @@ renderLayoutContainer(componentDef, props, id, children) {
 
       
 renderButton(props, id, layoutStyles = {}) {
-    const buttonText = props.content || props.text || props.children || 'Button';
+    const buttonText = props.children || props.content || props.text || 'Button';
     
     // 🔥 CRITICAL: Use props.style directly (already merged with variant)
     const buttonStyle = {
@@ -614,35 +615,6 @@ renderButton(props, id, layoutStyles = {}) {
         border: 'none',
         outline: 'none',
     };
-    
-    
-    
-    // 🔥 Text node wrapper for independent selection
-    const textNodeId = `${id}-text`;
-    const textNode = React.createElement('span', {
-      key: textNodeId,
-      'data-component-id': textNodeId,
-      'data-component-type': 'text-node',
-      'data-parent-id': id,
-      'data-is-layout': false,
-      'data-is-pseudo': true,
-      className: 'text-node-child',
-      style: {
-        cursor: 'pointer', // 🔥 CHANGED from 'text'
-        userSelect: 'none',
-        display: 'inline-block',
-        pointerEvents: 'auto',
-        position: 'relative', // 🔥 NEW
-        zIndex: 10, // 🔥 NEW - ensure it's clickable
-      },
-      onClick: (e) => {
-        e.stopPropagation();
-        
-        if (window.forgeSelectComponent) {
-          window.forgeSelectComponent(textNodeId);
-        }
-      }
-    }, buttonText);
     
     return React.createElement('button', {
         key: id,
@@ -654,7 +626,7 @@ renderButton(props, id, layoutStyles = {}) {
         'data-component-id': id,
         'data-component-type': 'button',
         'data-is-layout': false,
-    }, textNode);
+    }, buttonText);
 }
 
 
@@ -877,7 +849,7 @@ renderTextNode(props, id) {
 
 
 renderHeading(level, props, id) {
-  const content = props.content || props.text || '';
+  const content = props.children || props.content || props.text || 'Heading';
   
   const sizeClasses = {
     h1: 'text-6xl',
@@ -893,9 +865,6 @@ renderHeading(level, props, id) {
     ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600'
     : 'text-gray-900';
   
-  // 🔥 WRAP TEXT IN TEXT NODE
-  const textNode = this.wrapTextContent(level, props, id, content);
-  
   return React.createElement(level, {
     key: id,
     className: `${baseClasses} ${variantClasses} ${props.className || ''}`,
@@ -903,16 +872,13 @@ renderHeading(level, props, id) {
     'data-component-id': id,
     'data-component-type': level,
     'data-is-layout': false,
-  }, textNode); // 🔥 RENDER WRAPPED TEXT
+  }, content);
 }
 
 
 // 🔥 PARAGRAPH RENDERER
 renderParagraph(props, id) {
-  const content = props.content || props.text || '';
-  
-  // 🔥 WRAP TEXT IN TEXT NODE
-  const textNode = this.wrapTextContent('p', props, id, content);
+  const content = props.children || props.content || props.text || 'Paragraph text';
   
   return React.createElement('p', {
     key: id,
@@ -921,7 +887,7 @@ renderParagraph(props, id) {
     'data-component-id': id,
     'data-component-type': 'p',
     'data-is-layout': false,
-  }, textNode);
+  }, content);
 }
 
 
@@ -1210,10 +1176,7 @@ renderBlockquote(props, id) {
 
 // 🔥 LINK RENDERER
 renderLink(props, id) {
-  const content = props.content || props.text || 'Link';
-  
-  // 🔥 WRAP TEXT IN TEXT NODE
-  const textNode = this.wrapTextContent('link', props, id, content);
+  const content = props.children || props.content || props.text || 'Link';
   
   return React.createElement('a', {
     key: id,
@@ -1225,7 +1188,7 @@ renderLink(props, id) {
     'data-component-type': 'link',
     'data-is-layout': false,
     onClick: (e) => e.preventDefault()
-  }, textNode);
+  }, content);
 }
 
 // 🔥 CHECKBOX RENDERER
@@ -3200,9 +3163,9 @@ normalizeComponentStyles(component) {
 
 
 // MODIFY: saveProjectComponents method (around line 750)
-async saveProjectComponents(projectId, frameId, components) {
+async saveProjectComponents(projectId, frameId, components, options = {}) {
     try {
-        
+        const { silent = false } = options; // 🔥 Add silent option
         
         const seenIds = new Set();
         
@@ -3232,7 +3195,9 @@ async saveProjectComponents(projectId, frameId, components) {
                 children: comp.children || [],            
                 parentId: comp.parentId || null,
             })),
-            create_revision: false
+            create_revision: false,
+            silent: silent, // 🔥 Pass silent flag to backend
+            session_id: window.currentSessionId || 'unknown' // 🔥 Pass session ID for filtering own events
         });
         
         if (response.data.success) {
