@@ -2247,27 +2247,6 @@ useEffect(() => {
     
     
     
-   // ENHANCED: Add thumbnail status indicator to the UI (optional)
-  const renderThumbnailStatus = () => {
-    if (!thumbnailGenerating && !thumbnailUrl) return null;
-    
-    return (
-      <div className="fixed bottom-4 left-4 z-50">
-        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg backdrop-blur-sm border transition-all duration-200 ${
-          thumbnailGenerating 
-            ? 'bg-blue-50/90 border-blue-200 text-blue-700' 
-            : 'bg-green-50/90 border-green-200 text-green-700'
-        }`}>
-          <div className={`w-2 h-2 rounded-full ${
-            thumbnailGenerating ? 'bg-blue-500 animate-pulse' : 'bg-green-500'
-          }`}></div>
-          <span className="text-sm font-medium">
-            {thumbnailGenerating ? 'Updating preview...' : 'Preview updated'}
-          </span>
-        </div>
-      </div>
-    );
-  };
 
 
   // FIXED: Auto-save with conflict prevention
@@ -3383,8 +3362,6 @@ if (!componentsLoaded && loadingMessage) {
         </button>
       </div>
     )}
-      
-      {renderThumbnailStatus()}
       
       <IconWindowPanel onIconSelect={handleIconSelect} />
       

@@ -124,35 +124,69 @@ const CenterSection = ({
   // Forge and Source Page Middle Icons
   if (onForgePage || onSourcePage) {
     return (
-      <motion.div
-        variants={fadeIn}
-        initial="hidden"
-        animate="visible"
-        custom={2}
-        className="flex items-center gap-1 flex-shrink-0" // Reduced gap
-      >
-        <MiddlePanelControls 
-          currentRoute={currentRoute}
-          onPanelToggle={onPanelToggle}
-          panelStates={panelStates}
-        />
-        
-        {/* Icon Panel Button */}
-        <button
-          onClick={toggleIconPanel}
-          className={`p-1 rounded transition-colors ${
-            isIconPanelOpen 
-              ? 'bg-[var(--color-primary)] text-white' 
-              : 'hover:bg-[var(--color-bg-muted)] text-[var(--color-text)]'
-          }`}
-          title="Icon Browser"
+      <>
+        {/* Desktop: Show in header */}
+        <motion.div
+          variants={fadeIn}
+          initial="hidden"
+          animate="visible"
+          custom={2}
+          className="hidden md:flex items-center gap-1 flex-shrink-0" // Hide on mobile
         >
-          <Sparkles className="w-3 h-3" />
-        </button>
-        
-        {/* Vertical Divider */}
-        <div className="w-px h-2.5 bg-[var(--color-border)]"></div>
-      </motion.div>
+          <MiddlePanelControls 
+            currentRoute={currentRoute}
+            onPanelToggle={onPanelToggle}
+            panelStates={panelStates}
+          />
+          
+          {/* Icon Panel Button */}
+          <button
+            onClick={toggleIconPanel}
+            className={`p-1 rounded transition-colors ${
+              isIconPanelOpen 
+                ? 'bg-[var(--color-primary)] text-white' 
+                : 'hover:bg-[var(--color-bg-muted)] text-[var(--color-text)]'
+            }`}
+            title="Icon Browser"
+          >
+            <Sparkles className="w-3 h-3" />
+          </button>
+          
+          {/* Vertical Divider */}
+          <div className="w-px h-2.5 bg-[var(--color-border)]"></div>
+        </motion.div>
+
+        {/* Mobile: Floating bottom toolbar */}
+        <motion.div
+          initial={{ y: 100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          className="md:hidden fixed bottom-4 left-0 right-0 z-50 flex items-center justify-center pointer-events-none"
+        >
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-full shadow-lg px-4 py-2 pointer-events-auto">
+            <div className="flex items-center gap-2">
+              <MiddlePanelControls 
+                currentRoute={currentRoute}
+                onPanelToggle={onPanelToggle}
+                panelStates={panelStates}
+              />
+              
+              {/* Icon Panel Button */}
+              <button
+                onClick={toggleIconPanel}
+                className={`p-1.5 rounded-full transition-colors ${
+                  isIconPanelOpen 
+                    ? 'bg-[var(--color-primary)] text-white' 
+                    : 'hover:bg-[var(--color-bg-muted)] text-[var(--color-text)]'
+                }`}
+                title="Icon Browser"
+              >
+                <Sparkles className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </>
     );
   }
 

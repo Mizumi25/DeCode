@@ -164,10 +164,10 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
       {/* Components Panel Toggle - First Icon */}
       <button 
         onClick={() => handlePanelToggle('components')}
-        className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+        className="p-1 md:p-1 hover:bg-[var(--color-bg-muted)] rounded md:rounded transition-colors"
         title={onSourcePage ? "Toggle Explorer Panel" : "Toggle Components Panel"}
       >
-        <Component className={`w-3 h-3 ${
+        <Component className={`w-4 h-4 md:w-3 md:h-3 ${
           isPanelActive('components') ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'
         }`} />
       </button>
@@ -175,27 +175,27 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
       {/* Code Panel Toggle - Second Icon */}
       <button 
         onClick={() => handlePanelToggle('code')}
-        className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+        className="p-1 md:p-1 hover:bg-[var(--color-bg-muted)] rounded md:rounded transition-colors"
         title={onSourcePage ? "Toggle Terminal Panel" : "Toggle Code Panel"}
       >
-        <Code className={`w-3 h-3 ${
+        <Code className={`w-4 h-4 md:w-3 md:h-3 ${
           isPanelActive('code') ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'
         }`} />
       </button>
 
       {/* Puzzle - Third Icon (placeholder) */}
-      <button className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+      <button className="p-1 md:p-1 hover:bg-[var(--color-bg-muted)] rounded md:rounded transition-colors"
         title="Coming Soon">
-        <Puzzle className="w-3 h-3 text-[var(--color-text)]" />
+        <Puzzle className="w-4 h-4 md:w-3 md:h-3 text-[var(--color-text)]" />
       </button>
 
       {/* Layers Panel Toggle - Fourth Icon - UPDATED for Source page support */}
       <button 
         onClick={() => handlePanelToggle('layers')}
-        className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+        className="p-1 md:p-1 hover:bg-[var(--color-bg-muted)] rounded md:rounded transition-colors"
         title={onSourcePage ? "Toggle Layers Panel (Source)" : "Toggle Layers Panel (Forge)"}
       >
-        <Layers className={`w-3 h-3 ${
+        <Layers className={`w-4 h-4 md:w-3 md:h-3 ${
           isPanelActive('layers') ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'
         }`} />
       </button>
@@ -239,10 +239,10 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
           }
         }
       }}
-      className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+      className="p-1 md:p-1 hover:bg-[var(--color-bg-muted)] rounded md:rounded transition-colors"
       title="Toggle Properties & Assets Panels"
     >
-      <Info className={`w-3 h-3 ${
+      <Info className={`w-4 h-4 md:w-3 md:h-3 ${
         (onForgePage && (isForgePanelOpen('properties-panel') || isForgePanelOpen('assets-panel'))) 
           ? 'text-[var(--color-primary)]' 
           : 'text-[var(--color-text)]'
@@ -251,21 +251,21 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
     
     
       {/* Vertical Divider */}
-      <div className="w-px h-3 bg-[var(--color-border)]"></div>
+      <div className="w-px h-4 md:h-3 bg-[var(--color-border)]"></div>
 
       {/* Style Modal Button */}
       <button
         onClick={toggleStyleModal}
-        className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+        className="p-1 md:p-1 hover:bg-[var(--color-bg-muted)] rounded md:rounded transition-colors"
         title="Style Variables"
       >
-        <Settings className="w-3 h-3 text-[var(--color-text)]" />
+        <Settings className="w-4 h-4 md:w-3 md:h-3 text-[var(--color-text)]" />
       </button>
 
       {/* Hide/Show All Panels Button - UPDATED for Source page support */}
       <button
         onClick={handleHideAllPanels}
-        className="p-1 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+        className="p-1 md:p-1 hover:bg-[var(--color-bg-muted)] rounded md:rounded transition-colors"
         title={
           onForgePage 
             ? (allPanelsHidden ? "Show All Panels" : "Hide All Panels")
@@ -275,9 +275,9 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
         }
       >
         {getHiddenState() ? (
-          <Eye className="w-3 h-3 text-[var(--color-text)]" />
+          <Eye className="w-4 h-4 md:w-3 md:h-3 text-[var(--color-text)]" />
         ) : (
-          <EyeOff className="w-3 h-3 text-[var(--color-text)]" />
+          <EyeOff className="w-4 h-4 md:w-3 md:h-3 text-[var(--color-text)]" />
         )}
       </button>
     </div>

@@ -1173,6 +1173,71 @@ public function store(Request $request): RedirectResponse
     }
 
     /**
+     * Update project thumbnail from canvas snapshot
+     * Framer-style canvas snapshot upload
+     */
+    public function updateThumbnailFromSnapshot(Request $request, Project $project): JsonResponse
+    {
+        $user = Auth::user();
+        
+        // Check ownership
+        if ($project->user_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to update this project'
+            ], 403);
+        }
+
+        $request->validate([
+            'snapshot' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120', // 5MB max for snapshots
+            'method' => 'sometimes|string'
+        ]);
+
+        try {
+            if ($request->hasFile('snapshot')) {
+                // Delete old thumbnail if exists
+                if ($project->thumbnail) {
+                    \Storage::disk('public')->delete($project->thumbnail);
+                }
+
+                // Store new thumbnail from snapshot
+                $path = $request->file('snapshot')->store('thumbnails/projects', 'public');
+                
+                // Update project with new thumbnail
+                $project->update([
+                    'thumbnail' => $path,
+                    'thumbnail_method' => $request->input('method', 'canvas_snapshot'),
+                    'thumbnail_updated_at' => now()
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'thumbnail_url' => \Storage::url($path),
+                    'generated_at' => now()->toISOString(),
+                    'method' => 'canvas_snapshot',
+                    'message' => 'Project thumbnail updated from canvas snapshot'
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No snapshot file provided'
+            ], 400);
+
+        } catch (\Exception $e) {
+            \Log::error('Canvas snapshot upload failed', [
+                'project_id' => $project->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to upload canvas snapshot: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Create a new frame in the project
      */
     public function createFrame(Request $request, Project $project): JsonResponse

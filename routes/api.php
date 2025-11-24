@@ -134,6 +134,7 @@ Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasS
     // Project actions
     Route::post('/projects/{project:uuid}/duplicate', [ProjectController::class, 'duplicate']);
     Route::post('/projects/{project:uuid}/thumbnail', [ProjectController::class, 'updateThumbnail']);
+    Route::post('/projects/{project:uuid}/thumbnail/snapshot', [ProjectController::class, 'updateThumbnailFromSnapshot']);
     Route::post('/projects/{project:uuid}/frames', [ProjectController::class, 'createFrame']);
     Route::put('/projects/{project:uuid}/move-workspace', [ProjectController::class, 'moveToWorkspace']);
     

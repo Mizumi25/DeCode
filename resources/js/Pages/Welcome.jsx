@@ -637,7 +637,7 @@ export default function Welcome({ auth }) {
         }
       `}</style>
 
-      <div ref={containerRef} className="min-h-screen bg-black text-white">
+      <div ref={containerRef} className="min-h-screen bg-black text-white overflow-x-hidden">
         
         {/* Enhanced Navigation with Animations */}
         <nav className="nav-minimal fixed top-0 left-0 right-0">
@@ -923,19 +923,17 @@ export default function Welcome({ auth }) {
                     </li>
                   </ul>
                 </div>
-                <div className="image-reveal aspect-[4/3] rounded-sm">
-                  <div className="image-content showcase-placeholder w-full h-full flex items-center justify-center">
-                    <Grid3x3 className="w-24 h-24 opacity-20" />
-                  </div>
+                <div className="image-reveal aspect-[4/3] rounded-sm overflow-hidden relative">
+                  <img src="/images/welcome/mockup1.png" alt="Design System" className="image-content w-full h-full object-cover" />
+                  <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black to-transparent pointer-events-none"></div>
                 </div>
               </div>
 
               {/* Capability 2 - Slide from right */}
               <div className="grid lg:grid-cols-2 gap-16 items-center">
-                <div className="image-reveal aspect-[4/3] rounded-sm lg:order-1">
-                  <div className="image-content showcase-placeholder w-full h-full flex items-center justify-center">
-                    <MousePointer2 className="w-24 h-24 opacity-20" />
-                  </div>
+                <div className="image-reveal aspect-[4/3] rounded-sm overflow-hidden relative lg:order-1">
+                  <img src="/images/welcome/mockup2.png" alt="Interactions" className="image-content w-full h-full object-cover" />
+                  <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black to-transparent pointer-events-none"></div>
                 </div>
                 <div className="slide-right space-y-8 lg:order-2">
                   <div className="flex items-center space-x-4">

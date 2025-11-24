@@ -19,6 +19,7 @@ import { useThemeStore } from '@/stores/useThemeStore'
 import { useEditorStore } from '@/stores/useEditorStore'
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore'
 import useFrameLockStore from '@/stores/useFrameLockStore'
+import { useCanvasSnapshot } from '@/hooks/useCanvasSnapshot'
 
 // Import panel components
 import FramesPanel from '@/Components/Void/FramesPanel'
@@ -135,6 +136,18 @@ const zoomLevelRef = useRef(zoomLevel)
       initializeLockSystem(user.id)
     }
   }, [user?.id, initializeLockSystem, echoConnected])
+
+  // Initialize canvas snapshot for automatic thumbnail updates
+  const { scheduleSnapshot, isCapturing } = useCanvasSnapshot(project?.id, {
+    autoCapture: false, // Don't auto-capture on mount
+    captureDelay: 3000, // Wait 3 seconds after changes
+    onCaptureSuccess: (result) => {
+      console.log('[VoidPage] Thumbnail updated:', result.thumbnail_url)
+    },
+    onCaptureError: (error) => {
+      console.error('[VoidPage] Thumbnail capture failed:', error)
+    }
+  })
 
   // Load frames from database
   useEffect(() => {
@@ -343,11 +356,14 @@ const handleDragEnd = useCallback(async (event) => {
         },
         body: JSON.stringify({ x: newX, y: newY })
       })
+      
+      // Schedule canvas snapshot after frame position change
+      scheduleSnapshot()
     } catch (error) {
       console.error('Error updating frame position:', error)
     }
   }
-}, [frames, zoom, scrollBounds])
+}, [frames, zoom, scrollBounds, scheduleSnapshot])
 
 
 
@@ -380,6 +396,9 @@ const handleDragEnd = useCallback(async (event) => {
         setFrames(prev => prev.filter(frame => frame.id !== frameToDelete.id))
         setShowDeleteConfirmation(false)
         setFrameToDelete(null)
+        
+        // Schedule canvas snapshot after frame deletion
+        scheduleSnapshot()
       } else {
         console.error('Failed to delete frame')
       }
@@ -869,11 +888,14 @@ useEffect(() => {
             }
           }, 100)
         }
+        
+        // Schedule canvas snapshot after frame creation
+        scheduleSnapshot()
       }
     } catch (error) {
       console.error('Error reloading frames:', error)
     }
-  }, [project?.uuid])
+  }, [project?.uuid, scheduleSnapshot])
 
   // Enhanced floating tools configuration with visual feedback for active panels
   const floatingTools = useMemo(() => [
