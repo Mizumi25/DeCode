@@ -1175,27 +1175,39 @@ const handleAddSection = useCallback((targetComponentId, position) => {
   }
 }, [canvasComponents, currentFrame, flattenForReorder, setFrameCanvasComponents, pushHistory, actionTypes, componentLibraryService, projectId, setSelectedComponent]);
 
-// 🔥 NEW: Handle component drag end (replaces old dnd-kit handler)
+// 🔥 FIXED: Handle component drag end with proper parent context
 const handleComponentDragEnd = useCallback(({ componentId, targetId, intent }) => {
   console.log('🎯 Component drag end:', { componentId, targetId, intent });
   
-  // Use canvasComponents directly (it's already the current frame's components)
   const currentComponents = canvasComponents;
   const flatArray = flattenForReorder(currentComponents);
   
   const draggedComp = flatArray.find(c => c.id === componentId);
   const targetComp = flatArray.find(c => c.id === targetId);
   
-  if (!draggedComp || !targetComp) return;
+  if (!draggedComp || !targetComp) {
+    console.error('❌ Could not find dragged or target component');
+    return;
+  }
   
-  // Handle drop based on intent
+  const draggedParentId = draggedComp.parentId || null;
+  const targetParentId = targetComp.parentId || null;
+  
+  console.log('📍 Parent context:', {
+    draggedParentId,
+    targetParentId,
+    intent,
+    sameParent: draggedParentId === targetParentId
+  });
+  
+  // CASE 1: Nesting into a container
   if (intent === 'inside') {
-    // Nest into container
+    console.log('📦 Nesting into container:', targetId);
+    
     let updatedTree = removeComponentFromTree(currentComponents, componentId);
     updatedTree = addComponentToContainer(updatedTree, targetId, {
       ...draggedComp,
       parentId: targetId,
-      position: { x: 20, y: 20 }
     });
     
     setFrameCanvasComponents(prev => ({
@@ -1211,58 +1223,186 @@ const handleComponentDragEnd = useCallback(({ componentId, targetId, intent }) =
       });
     }
     
-    // Auto-save
     setTimeout(() => {
       if (componentLibraryService?.saveProjectComponents) {
         componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedTree);
       }
     }, 500);
-  } else {
-    // Reorder (before/after)
-    const oldIndex = flatArray.findIndex(c => c.id === componentId);
-    let targetIndex = flatArray.findIndex(c => c.id === targetId);
     
-    if (oldIndex === -1 || targetIndex === -1) {
-      console.error('❌ Invalid indices for reordering');
+    if ('vibrate' in navigator) navigator.vibrate(30);
+    return;
+  }
+  
+  // CASE 2: Reordering within same parent (siblings)
+  if (draggedParentId === targetParentId) {
+    console.log('↔️ Reordering siblings in same parent');
+    
+    // Get siblings only (children of same parent)
+    const siblings = flatArray.filter(c => (c.parentId || null) === draggedParentId);
+    const draggedSiblingIndex = siblings.findIndex(c => c.id === componentId);
+    const targetSiblingIndex = siblings.findIndex(c => c.id === targetId);
+    
+    if (draggedSiblingIndex === -1 || targetSiblingIndex === -1) {
+      console.error('❌ Could not find sibling indices');
       return;
     }
     
+    let newSiblingIndex = targetSiblingIndex;
     if (intent === 'after') {
-      targetIndex += 1;
+      newSiblingIndex += 1;
     }
     
-    if (oldIndex < targetIndex) {
-      targetIndex -= 1;
+    // Adjust for removing from array
+    if (draggedSiblingIndex < newSiblingIndex) {
+      newSiblingIndex -= 1;
     }
     
-    const reorderedFlat = arrayMove(flatArray, oldIndex, targetIndex);
-    const reorderedTree = rebuildTree(reorderedFlat);
+    console.log('📊 Sibling reorder:', {
+      from: draggedSiblingIndex,
+      to: newSiblingIndex,
+      totalSiblings: siblings.length
+    });
+    
+    // Reorder just the siblings
+    const reorderedSiblings = arrayMove(siblings, draggedSiblingIndex, newSiblingIndex);
+    
+    // Update the flat array with new sibling order
+    const updatedFlat = flatArray.map(c => {
+      if ((c.parentId || null) === draggedParentId) {
+        const siblingIndex = reorderedSiblings.findIndex(s => s.id === c.id);
+        return siblingIndex !== -1 ? reorderedSiblings[siblingIndex] : c;
+      }
+      return c;
+    });
+    
+    const updatedTree = rebuildTree(updatedFlat);
     
     setFrameCanvasComponents(prev => ({
       ...prev,
-      [currentFrame]: reorderedTree
+      [currentFrame]: updatedTree
     }));
     
     if (pushHistory && actionTypes) {
-      pushHistory(currentFrame, reorderedTree, actionTypes.MOVE, {
+      pushHistory(currentFrame, updatedTree, actionTypes.MOVE, {
         componentId,
-        fromIndex: oldIndex,
-        toIndex: targetIndex,
-        intent
+        action: 'reorder_siblings',
+        fromIndex: draggedSiblingIndex,
+        toIndex: newSiblingIndex
       });
     }
     
-    // Auto-save
     setTimeout(() => {
       if (componentLibraryService?.saveProjectComponents) {
-        componentLibraryService.saveProjectComponents(projectId, currentFrame, reorderedTree);
+        componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedTree);
       }
     }, 500);
+    
+    if ('vibrate' in navigator) navigator.vibrate(30);
+    return;
   }
   
-  if ('vibrate' in navigator) {
-    navigator.vibrate(30);
+  // CASE 3: Moving to different parent (reparenting)
+  console.log('🔀 Moving to different parent');
+  
+  // Determine new parent based on intent and target
+  let newParentId;
+  if (intent === 'before' || intent === 'after') {
+    // Insert as sibling of target (same parent as target)
+    newParentId = targetParentId;
+  } else {
+    newParentId = targetId; // This shouldn't happen (handled in CASE 1)
   }
+  
+  console.log('🎯 New parent will be:', newParentId || 'root');
+  
+  // Remove from old location
+  let updatedTree = removeComponentFromTree(currentComponents, componentId);
+  
+  // Update parentId
+  const movedComp = {
+    ...draggedComp,
+    parentId: newParentId,
+  };
+  
+  // Find insertion point in new parent
+  if (newParentId === null) {
+    // Adding to root
+    const rootComponents = updatedTree;
+    const targetRootIndex = rootComponents.findIndex(c => c.id === targetId);
+    
+    if (targetRootIndex !== -1) {
+      let insertIndex = targetRootIndex;
+      if (intent === 'after') {
+        insertIndex += 1;
+      }
+      rootComponents.splice(insertIndex, 0, movedComp);
+      updatedTree = rootComponents;
+    } else {
+      updatedTree.push(movedComp);
+    }
+  } else {
+    // Adding to a container
+    updatedTree = addComponentToContainer(updatedTree, newParentId, movedComp);
+    
+    // Now reorder within that container to get the right position
+    const reorderInContainer = (components) => {
+      return components.map(comp => {
+        if (comp.id === newParentId && comp.children) {
+          const targetChildIndex = comp.children.findIndex(c => c.id === targetId);
+          const movedChildIndex = comp.children.findIndex(c => c.id === componentId);
+          
+          if (targetChildIndex !== -1 && movedChildIndex !== -1) {
+            let insertIndex = targetChildIndex;
+            if (intent === 'after') {
+              insertIndex += 1;
+            }
+            if (movedChildIndex < insertIndex) {
+              insertIndex -= 1;
+            }
+            
+            const reorderedChildren = arrayMove(comp.children, movedChildIndex, insertIndex);
+            return {
+              ...comp,
+              children: reorderedChildren
+            };
+          }
+        }
+        
+        if (comp.children?.length > 0) {
+          return {
+            ...comp,
+            children: reorderInContainer(comp.children)
+          };
+        }
+        
+        return comp;
+      });
+    };
+    
+    updatedTree = reorderInContainer(updatedTree);
+  }
+  
+  setFrameCanvasComponents(prev => ({
+    ...prev,
+    [currentFrame]: updatedTree
+  }));
+  
+  if (pushHistory && actionTypes) {
+    pushHistory(currentFrame, updatedTree, actionTypes.MOVE, {
+      componentId,
+      action: 'reparent',
+      fromParent: draggedParentId || 'root',
+      toParent: newParentId || 'root'
+    });
+  }
+  
+  setTimeout(() => {
+    if (componentLibraryService?.saveProjectComponents) {
+      componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedTree);
+    }
+  }, 500);
+  
+  if ('vibrate' in navigator) navigator.vibrate(30);
 }, [currentFrame, canvasComponents, pushHistory, actionTypes, setFrameCanvasComponents, componentLibraryService, projectId, flattenForReorder]);
 
 const renderComponent = useCallback((component, index, parentStyle = {}, depth = 0, parentId = null) => {
