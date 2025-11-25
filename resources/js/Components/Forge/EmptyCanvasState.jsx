@@ -1,6 +1,6 @@
 // @/Components/Forge/EmptyCanvasState.jsx
-import React from 'react';
-import { Layout, Plus, Sparkles, Layers } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus } from 'lucide-react';
 
 const EmptyCanvasState = ({ 
   frameType = 'page', 
@@ -8,175 +8,103 @@ const EmptyCanvasState = ({
   onDragOver,
   onDrop,
   isDragOver = false,
-  responsiveMode = 'desktop' 
+  responsiveMode = 'desktop',
+  frame
 }) => {
-  const isPageType = frameType === 'page';
   const showBrowserFrame = responsiveMode !== 'desktop';
-    
+  
+  // Get canvas dimensions based on responsive mode
+  const getCanvasDimensions = () => {
+    switch (responsiveMode) {
+      case 'mobile':
+        return { width: '375px', height: '667px', minHeight: '667px' };
+      case 'tablet':
+        return { width: '768px', height: '1024px', minHeight: '1024px' };
+      case 'desktop':
+      default:
+        return { width: '1440px', height: 'auto', minHeight: '900px' };
+    }
+  };
+  
+  const dimensions = getCanvasDimensions();
+  const canvasStyle = frame?.canvas_style || {};
   
   return (
     <div 
-      className={`
-        w-full min-h-screen relative transition-all duration-300
-        ${isDragOver ? 'bg-blue-50/50' : 'bg-white'}
-      `}
+      className="relative transition-all duration-300"
       style={{
-        backgroundColor: isDragOver ? 'rgba(59, 130, 246, 0.05)' : '#ffffff',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        lineHeight: '1.6'
+        width: dimensions.width,
+        minHeight: dimensions.minHeight,
+        maxWidth: dimensions.width,
+        backgroundColor: canvasStyle.backgroundColor || '#ffffff',
+        fontFamily: canvasStyle.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        lineHeight: canvasStyle.lineHeight || '1.6',
+        overflow: 'visible',
+        position: 'relative',
+        boxSizing: 'border-box',
       }}
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
-      {/* ADD Browser Frame for mobile/tablet */}
-            {showBrowserFrame && responsiveMode === 'mobile' && (
-                <div className="mb-0 rounded-t-xl overflow-hidden bg-white border-b">
-                    <div className="flex items-center px-3 py-2 gap-2">
-                        <div className="flex-1 px-3 py-1.5 rounded-full text-sm bg-gray-100 flex items-center gap-2">
-                            <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-xs truncate">decode.app</span>
-                        </div>
-                    </div>
-                </div>
-            )}
+      {/* Browser Frame for mobile/tablet */}
+      {showBrowserFrame && responsiveMode === 'mobile' && (
+        <div className="mb-0 bg-white border-b">
+          <div className="flex items-center px-3 py-2 gap-2">
+            <div className="flex-1 px-3 py-1.5 rounded-full text-sm bg-gray-100 flex items-center gap-2">
+              <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+              </svg>
+              <span className="text-xs truncate">decode.app</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Visual <body> Indicator */}
       <div 
-        className="absolute top-2 left-2 text-xs font-mono opacity-30 select-none pointer-events-none"
+        className="absolute top-2 left-2 text-xs font-mono opacity-30 select-none pointer-events-none z-10"
         style={{ color: 'var(--color-text-muted)' }}
       >
         &lt;body&gt;
       </div>
       
-      {/* Base Section - Always visible as first droppable root */}
-      <div 
-        className={`
-          min-h-[400px] m-8 rounded-lg border-2 border-dashed transition-all duration-300
-          ${isDragOver ? 'border-blue-400 bg-blue-50/30' : 'border-gray-300 bg-gray-50/30'}
-        `}
-        style={{ 
-          position: 'relative',
-          padding: '48px 24px'
-        }}
-      >
-        {/* Section Label */}
-        <div 
-          className="absolute top-3 left-3 px-2 py-1 rounded text-xs font-medium bg-white border"
-          style={{ 
-            color: 'var(--color-text-muted)',
-            borderColor: 'var(--color-border)'
-          }}
-        >
-          <Layers className="w-3 h-3 inline mr-1" />
-          (Root)
-        </div>
-
-        {/* Drop Instructions */}
-        <div className="flex items-center justify-center h-full min-h-[300px]">
-          <div className="text-center max-w-md space-y-6">
-            <div 
-              className="w-16 h-16 mx-auto rounded-full flex items-center justify-center"
-              style={{ backgroundColor: 'var(--color-primary-soft)' }}
-            >
-              <Layout className="w-8 h-8" style={{ color: 'var(--color-primary)' }} />
-            </div>
-            
-            <div>
-              <h2 className="text-2xl font-bold mb-2" style={{ color: 'black' }}>
-                Drop elements here to start
-              </h2>
-              <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
-                This is your <strong>Base Section</strong> - the root container of your page.
-                Drop layout containers or elements here to build your design.
-              </p>
-            </div>
-            
-            {/* Quick Start Options */}
-            <div className="space-y-3">
-              <button
-                onClick={onAddSection}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all hover:scale-105"
-                style={{ 
-                  backgroundColor: 'var(--color-primary)',
-                  color: 'white',
-                  boxShadow: 'var(--shadow-lg)'
-                }}
-              >
-                <Plus className="w-4 h-4" />
-                Add Nested Section
-              </button>
-              
-              <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                Or drag <strong>Section</strong>, <strong>Container</strong>, <strong>Flex</strong>, or <strong>Grid</strong> from the sidebar
-              </div>
-            </div>
-
-            {/* Visual Hierarchy Guide */}
-            <div className="mt-8 pt-6 border-t" style={{ borderColor: 'var(--color-border)' }}>
-              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
-                <Sparkles className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
-                Layout Hierarchy
-              </h3>
-              
-              <div className="grid grid-cols-3 gap-3 text-xs">
-                {[
-                  { name: 'Layouts', desc: 'Can contain other layouts', color: '#10b981' },
-                  { name: 'Elements', desc: 'Go inside layouts', color: '#3b82f6' },
-                  { name: 'Auto-wrap', desc: 'Elements wrap if needed', color: '#8b5cf6' }
-                ].map((item) => (
-                  <div 
-                    key={item.name}
-                    className="p-3 rounded-lg border text-center"
-                    style={{ 
-                      backgroundColor: 'white',
-                      borderColor: item.color + '30'
-                    }}
-                  >
-                    <div 
-                      className="w-2 h-2 rounded-full mx-auto mb-2"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <div className="font-medium" style={{ color: item.color }}>
-                      {item.name}
-                    </div>
-                    <div style={{ color: 'var(--color-text-muted)' }}>
-                      {item.desc}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Active Drop Overlay */}
-        {isDragOver && (
-          <div 
-            className="absolute inset-0 flex items-center justify-center rounded-lg"
+      {/* Empty State Content with Add Section Button */}
+      <div className="flex items-center justify-center" style={{ minHeight: dimensions.minHeight }}>
+        <div className="text-center">
+          <button
+            onClick={onAddSection}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all hover:scale-105"
             style={{ 
-              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-              border: '3px solid rgba(59, 130, 246, 0.5)'
+              backgroundColor: 'var(--color-primary)',
+              color: 'white',
+              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
             }}
           >
-            <div 
-              className="bg-white border-2 rounded-xl p-6 shadow-2xl"
-              style={{ 
-                borderColor: 'var(--color-primary)',
-                backgroundColor: 'var(--color-surface)'
-              }}
-            >
-              <Plus 
-                className="w-12 h-12 mx-auto mb-3 animate-pulse" 
-                style={{ color: 'var(--color-primary)' }} 
-              />
-              <div className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>
-                Drop into Base Section
-              </div>
-            </div>
-          </div>
-        )}
+            <Plus className="w-5 h-5" />
+            Add Section
+          </button>
+          <p className="mt-4 text-sm text-gray-500">
+            Click to add a section or drag elements from the sidebar
+          </p>
+        </div>
       </div>
+
+      {/* Active Drop Overlay */}
+      {isDragOver && (
+        <div 
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ 
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            border: '3px solid rgba(59, 130, 246, 0.5)',
+            zIndex: 50
+          }}
+        >
+          <div className="bg-white border-2 rounded-xl p-6 shadow-2xl" style={{ borderColor: '#3b82f6' }}>
+            <Plus className="w-12 h-12 mx-auto mb-3 animate-pulse" style={{ color: '#3b82f6' }} />
+            <div className="text-lg font-bold">Drop here</div>
+          </div>
+        </div>
+      )}
 
       {/* Closing </body> tag */}
       <div 

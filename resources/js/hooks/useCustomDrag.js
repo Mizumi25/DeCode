@@ -422,7 +422,7 @@ const detectDropTarget = useCallback((pointerX, pointerY) => {
     }
   }
 
-  // 🔥 ADD THIS: Broadcast drag movement in real-time
+  // 🔥 CRITICAL: Only update during active drag
   if (isDraggingRef.current && ghostElementRef.current) {
     updateGhostPosition(pointerX, pointerY);
 
@@ -431,40 +431,38 @@ const detectDropTarget = useCallback((pointerX, pointerY) => {
       setDropTarget(dropInfo.target);
       setDropIntent(dropInfo.intent);
 
+      // 🔥 FIX: Move placeholder to correct position based on intent
       if (placeholderElementRef.current) {
         const targetElement = dropInfo.target.element;
         const placeholder = placeholderElementRef.current;
         
-        if (dropInfo.intent === 'before') {
-          if (targetElement.parentNode && placeholder.parentNode !== targetElement.parentNode) {
-            targetElement.parentNode.insertBefore(placeholder, targetElement);
-          } else if (placeholder.nextSibling !== targetElement) {
-            targetElement.parentNode.insertBefore(placeholder, targetElement);
-          }
-        } else if (dropInfo.intent === 'after') {
-          if (targetElement.parentNode) {
-            if (targetElement.nextSibling !== placeholder) {
-              if (placeholder.parentNode) {
-                placeholder.parentNode.removeChild(placeholder);
-              }
+        try {
+          if (dropInfo.intent === 'before') {
+            // Insert before target
+            if (targetElement.parentNode && placeholder !== targetElement.previousSibling) {
+              targetElement.parentNode.insertBefore(placeholder, targetElement);
+            }
+          } else if (dropInfo.intent === 'after') {
+            // Insert after target
+            if (targetElement.parentNode && placeholder !== targetElement.nextSibling) {
               if (targetElement.nextSibling) {
                 targetElement.parentNode.insertBefore(placeholder, targetElement.nextSibling);
               } else {
                 targetElement.parentNode.appendChild(placeholder);
               }
             }
-          }
-        } else if (dropInfo.intent === 'inside') {
-          if (targetElement !== placeholder.parentNode) {
-            if (placeholder.parentNode) {
-              placeholder.parentNode.removeChild(placeholder);
-            }
-            if (targetElement.firstChild) {
-              targetElement.insertBefore(placeholder, targetElement.firstChild);
-            } else {
-              targetElement.appendChild(placeholder);
+          } else if (dropInfo.intent === 'inside') {
+            // Insert as first child of target
+            if (placeholder.parentNode !== targetElement) {
+              if (targetElement.firstChild && targetElement.firstChild !== placeholder) {
+                targetElement.insertBefore(placeholder, targetElement.firstChild);
+              } else if (!targetElement.firstChild) {
+                targetElement.appendChild(placeholder);
+              }
             }
           }
+        } catch (error) {
+          console.warn('Placeholder positioning error:', error);
         }
       }
     } else {
@@ -472,30 +470,27 @@ const detectDropTarget = useCallback((pointerX, pointerY) => {
       setDropIntent(null);
     }
 
-   // 🔥 MODIFIED: Use throttled broadcast
-      onDragMove?.({
-        componentId,
-        position: { x: pointerX, y: pointerY },
-        dropTarget: dropInfo?.target,
-        dropIntent: dropInfo?.intent,
+    // Notify drag move
+    onDragMove?.({
+      componentId,
+      position: { x: pointerX, y: pointerY },
+      dropTarget: dropInfo?.target,
+      dropIntent: dropInfo?.intent,
+    });
+    
+    // Throttled broadcast for collaboration
+    if (component && originalElementRef.current) {
+      const elemRect = originalElementRef.current.getBoundingClientRect();
+      
+      throttledBroadcast(componentId, pointerX, pointerY, {
+        x: pointerX,
+        y: pointerY,
+        width: elemRect.width,
+        height: elemRect.height,
       });
-      
-      
-      // 🔥 Use throttled version
-if (component && originalElementRef.current) { // 🔥 CHANGED: Use originalElementRef instead of undefined 'element'
-  const elemRect = originalElementRef.current.getBoundingClientRect();
-  
-  throttledBroadcast(componentId, pointerX, pointerY, {
-    x: pointerX,
-    y: pointerY,
-    width: elemRect.width,
-    height: elemRect.height,
-  });
-}
-      
-      
+    }
   }
-}, [updateGhostPosition, detectDropTarget, componentId, component, canvasRef, onDragMove, onDragStart, threshold, createGhostClone, createPlaceholder]);
+}, [updateGhostPosition, detectDropTarget, componentId, component, canvasRef, onDragMove, onDragStart, threshold, createGhostClone, createPlaceholder, throttledBroadcast]);
 
   /**
    * Handle pointer up (end drag)
@@ -517,9 +512,12 @@ if (component && originalElementRef.current) { // 🔥 CHANGED: Use originalElem
       return;
     }
 
-    // Drag occurred - handle drop
+    // 🔥 FIX: Get drop target at final pointer position
     const dropInfo = detectDropTarget(pointerX, pointerY);
     
+    console.log('🎯 Drop info:', dropInfo);
+    
+    // Validate the drop
     const isValid = validateDrop?.({
       componentId,
       dropTarget: dropInfo?.target,
@@ -527,6 +525,7 @@ if (component && originalElementRef.current) { // 🔥 CHANGED: Use originalElem
     }) ?? true;
 
     if (isValid && dropInfo) {
+      console.log('✅ Valid drop, calling onDragEnd');
       onDragEnd?.({
         componentId,
         component,
@@ -535,6 +534,7 @@ if (component && originalElementRef.current) { // 🔥 CHANGED: Use originalElem
         position: { x: pointerX, y: pointerY },
       });
     } else {
+      console.log('❌ Invalid drop or no target, canceling');
       onDragCancel?.({
         componentId,
         component,

@@ -1355,11 +1355,12 @@ const handleComponentDragEnd = useCallback((componentId) => {
     dragPreview: null
   })
   
-  // 🔥 ADD: Broadcast drag end (only if componentId exists)
-  if (componentId) {
+  // 🔥 FIX: Only broadcast drag end for EXISTING canvas components being moved
+  // New components from panel are already broadcast via auto-save (line 1066)
+  if (componentId && canvasComponents.find(c => c.id === componentId)) {
     broadcastDragEnd(componentId);
   }
-}, [dragState.dragPreview, broadcastDragEnd])
+}, [dragState.dragPreview, broadcastDragEnd, canvasComponents])
 
 
 
@@ -2232,14 +2233,52 @@ useEffect(() => {
   
   
 const handleUndo = useCallback(() => {
-  saveOriginRef.current = 'undo'; // 🔥 Mark as undo
+  if (!currentFrame || !canUndo(currentFrame)) {
+    console.log('ForgePage: Undo blocked - no frame or cannot undo');
+    return;
+  }
+
+  console.log('ForgePage: Starting undo operation');
+  saveOriginRef.current = 'undo'; // 🔥 Mark as undo to prevent auto-save
   
-  const previousComponents = undo(currentFrame);
-  setFrameCanvasComponents(prev => ({
-    ...prev,
-    [currentFrame]: previousComponents
-  }));
-}, []);
+  try {
+    const previousComponents = undo(currentFrame);
+    
+    if (previousComponents) {
+      console.log('ForgePage: Executing undo - restoring', previousComponents.length, 'components');
+      
+      setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: previousComponents
+      }));
+      
+      generateCode(previousComponents);
+      
+      // 🔥 CRITICAL: Reset origin immediately after applying undo
+      setTimeout(() => {
+        saveOriginRef.current = 'user';
+      }, 10);
+      
+      // 🔥 Save to backend so other users see the change
+      setTimeout(async () => {
+        try {
+          await componentLibraryService.saveProjectComponents(
+            projectId,
+            currentFrame,
+            previousComponents,
+            { silent: false } // Broadcast to other users
+          );
+          console.log('✅ Undo state saved and broadcasted');
+        } catch (error) {
+          console.error('❌ Failed to save undo state:', error);
+        }
+      }, 100);
+    }
+  } catch (error) {
+    console.error('ForgePage: Undo failed:', error);
+    saveOriginRef.current = 'user'; // Reset on error
+  }
+}, [currentFrame, canUndo, undo, projectId, generateCode]);
 
 
   
@@ -2250,6 +2289,7 @@ const handleUndo = useCallback(() => {
   }
 
   console.log('ForgePage: Starting redo operation');
+  saveOriginRef.current = 'redo'; // 🔥 Mark as redo to prevent auto-save
   
   try {
     if (componentLibraryService?.clearSaveQueue) {
@@ -2266,6 +2306,26 @@ const handleUndo = useCallback(() => {
       }));
       
       generateCode(nextComponents);
+      
+      // 🔥 CRITICAL: Reset origin immediately after applying redo
+      setTimeout(() => {
+        saveOriginRef.current = 'user';
+      }, 10);
+      
+      // 🔥 Save to backend so other users see the change
+      setTimeout(async () => {
+        try {
+          await componentLibraryService.saveProjectComponents(
+            projectId,
+            currentFrame,
+            nextComponents,
+            { silent: false } // Broadcast to other users
+          );
+          console.log('✅ Redo state saved and broadcasted');
+        } catch (error) {
+          console.error('❌ Failed to save redo state:', error);
+        }
+      }, 100);
       
       // ENHANCED: Update thumbnail after redo
       const canvasSettings = {
@@ -2295,6 +2355,7 @@ const handleUndo = useCallback(() => {
     }
   } catch (error) {
     console.error('ForgePage: Redo failed:', error);
+    saveOriginRef.current = 'user'; // Reset on error
   }
 }, [currentFrame, redo, canRedo, generateCode, projectId, componentLibraryService, 
     scheduleThumbnailUpdate, getCurrentCanvasDimensions, responsiveMode, zoomLevel, gridVisible, frame?.settings]);

@@ -7,6 +7,7 @@ import SectionDropZone from './SectionDropZone';
 import EmptyCanvasState from './EmptyCanvasState';
 import SelectionOverlay from './SelectionOverlay';
 import DragSnapLines from './DragSnapLines';
+import SectionHoverAddLine from './SectionHoverAddLine';
 
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useForgeStore } from '@/stores/useForgeStore';
@@ -966,7 +967,21 @@ if (isLayout) {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* 🔥 REMOVED: Separate drag handle - entire layout is now draggable */}
+        {/* 🔥 NEW: Framer-style hover add lines for sections */}
+        {isLayout && !isDragging && !activeDragId && (
+          <>
+            <SectionHoverAddLine 
+              position="top" 
+              componentId={component.id}
+              onAdd={handleAddSection}
+            />
+            <SectionHoverAddLine 
+              position="bottom" 
+              componentId={component.id}
+              onAdd={handleAddSection}
+            />
+          </>
+        )}
         
         {/* Nested components */}
        {component.children && component.children.length > 0 ? (
@@ -1086,6 +1101,79 @@ return (
 };
 
 
+
+// 🔥 NEW: Handle adding section via hover line
+const handleAddSection = useCallback((targetComponentId, position) => {
+  console.log('➕ Adding section:', position, 'of', targetComponentId);
+  
+  // Create new section
+  const newSection = {
+    id: `section_${Date.now()}`,
+    type: 'section',
+    name: 'Section',
+    isLayoutContainer: true,
+    children: [],
+    style: {
+      width: '100%',
+      minHeight: '200px',
+      padding: '48px 24px',
+      backgroundColor: '#f9fafb',
+      display: 'block',
+    },
+    props: {},
+    sortOrder: 0,
+    zIndex: 0,
+  };
+  
+  const currentComponents = canvasComponents;
+  const flatArray = flattenForReorder(currentComponents);
+  
+  // Find target component index
+  const targetIndex = flatArray.findIndex(c => c.id === targetComponentId);
+  
+  if (targetIndex === -1) {
+    console.error('Target component not found');
+    return;
+  }
+  
+  // Insert new section before or after target
+  const insertIndex = position === 'top' ? targetIndex : targetIndex + 1;
+  const newFlatArray = [...flatArray];
+  newFlatArray.splice(insertIndex, 0, newSection);
+  
+  // Rebuild tree
+  const newTree = rebuildTree(newFlatArray);
+  
+  // Update state
+  setFrameCanvasComponents(prev => ({
+    ...prev,
+    [currentFrame]: newTree
+  }));
+  
+  // Push to history
+  if (pushHistory && actionTypes) {
+    pushHistory(currentFrame, newTree, actionTypes.ADD, {
+      componentId: newSection.id,
+      action: 'add_section_via_hover',
+      position,
+      targetId: targetComponentId
+    });
+  }
+  
+  // Auto-save
+  setTimeout(() => {
+    if (componentLibraryService?.saveProjectComponents) {
+      componentLibraryService.saveProjectComponents(projectId, currentFrame, newTree);
+    }
+  }, 500);
+  
+  // Select the new section
+  setSelectedComponent(newSection.id);
+  
+  if ('vibrate' in navigator) {
+    navigator.vibrate(30);
+  }
+}, [canvasComponents, currentFrame, flattenForReorder, setFrameCanvasComponents, pushHistory, actionTypes, componentLibraryService, projectId, setSelectedComponent]);
 
 // 🔥 NEW: Handle component drag end (replaces old dnd-kit handler)
 const handleComponentDragEnd = useCallback(({ componentId, targetId, intent }) => {
