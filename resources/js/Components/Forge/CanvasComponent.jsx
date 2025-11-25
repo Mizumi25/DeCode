@@ -1898,6 +1898,33 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
   // Let handleSmartClick handle ALL clicks
   handleSmartClick(e);
 }}
+  // 🔥 NEW: Track cursor movement for real-time collaboration
+  onMouseMove={(e) => {
+    if (isPreviewMode || !updateCursor) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    updateCursor(x, y, responsiveMode, { isTouch: false });
+  }}
+  onTouchMove={(e) => {
+    if (isPreviewMode || !updateCursor || e.touches.length === 0) return;
+    
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    
+    updateCursor(x, y, responsiveMode, { isTouch: true });
+  }}
+  onMouseLeave={() => {
+    // Optional: Remove cursor when leaving canvas
+    // Could call a removeCursor function here if implemented
+  }}
+  onTouchEnd={() => {
+    // Optional: Remove cursor when touch ends
+  }}
 >
     {/* 🔥 Viewport Boundary Indicator */}
   {/*  <ViewportBoundaryIndicator 

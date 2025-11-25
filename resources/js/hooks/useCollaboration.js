@@ -83,9 +83,19 @@ export const useCollaboration = (frameUuid, currentUserId) => {
       // Cursor events
       .listen('.cursor.moved', handleCursorMoved)
       .listenForWhisper('cursor.moved', handleCursorMoved)
-      // Selection events
+      // Selection events (both backend and whispers for redundancy)
       .listen('.element.selected', handleElementSelected)
       .listen('.element.deselected', handleElementDeselected)
+      .listenForWhisper('element.selected', (data) => {
+        if (data.userId === currentUserId && data.sessionId === sessionId) return;
+        console.log('📥 Whisper: element.selected', data);
+        handleElementSelected(data);
+      })
+      .listenForWhisper('element.deselected', (data) => {
+        if (data.userId === currentUserId && data.sessionId === sessionId) return;
+        console.log('📥 Whisper: element.deselected', data);
+        handleElementDeselected(data);
+      })
       // 🔥 Component updates
       .listen('.component.updated', (data) => {
         console.log('🔄 RECEIVED component update:', data);
@@ -109,7 +119,28 @@ export const useCollaboration = (frameUuid, currentUserId) => {
       handleRemoteStyle(data.payload);
       break;
   }
-});
+})
+      // 🔥 INSTANT: Listen for whisper events (no backend roundtrip)
+      .listenForWhisper('drag-start', (data) => {
+        if (data.userId === currentUserId && data.sessionId === sessionId) return;
+        console.log('📥 Whisper received: drag-start', data);
+        handleDragStarted(data);
+      })
+      .listenForWhisper('drag-move', (data) => {
+        if (data.userId === currentUserId && data.sessionId === sessionId) return;
+        console.log('📥 Whisper received: drag-move', data);
+        handleDragMove(data);
+      })
+      .listenForWhisper('drag-end', (data) => {
+        if (data.userId === currentUserId && data.sessionId === sessionId) return;
+        console.log('📥 Whisper received: drag-end', data);
+        handleDragEnd(data);
+      })
+      .listenForWhisper('component-update', (data) => {
+        if (data.userId === currentUserId && data.sessionId === sessionId) return;
+        console.log('📥 Whisper received: component-update', data);
+        handleComponentUpdated(data);
+      });
 
     // Fetch existing cursors
     fetchActiveCursors();
@@ -171,6 +202,8 @@ export const useCollaboration = (frameUuid, currentUserId) => {
     }
 
     const key = `${data.userId}-${data.sessionId}`;
+    console.log('📍 Cursor moved:', { userId: data.userId, userName: data.userName, x: data.x, y: data.y });
+    
     setActiveCursors(prev => {
       const next = new Map(prev);
       next.set(key, {
@@ -181,10 +214,11 @@ export const useCollaboration = (frameUuid, currentUserId) => {
         x: data.x,
         y: data.y,
         viewportMode: data.viewportMode,
-        color: data.color,
+        color: data.color || getUserColor(data.userId),
         meta: data.meta,
         lastUpdate: Date.now(),
       });
+      console.log('📊 Active cursors count:', next.size);
       return next;
     });
 
@@ -392,7 +426,13 @@ const broadcastComponentUpdate = useCallback(async (componentId, updates, update
   }, [currentUserId, sessionId]);
 
   // 🔥 ENHANCED: Update cursor with touch detection
+  // 🔥 INSTANT: Update cursor position using WHISPERS (smooth 60fps)
   const updateCursor = useCallback((x, y, viewportMode, meta = null) => {
+    if (!channel.current) {
+      console.warn('⚠️ updateCursor: No channel available');
+      return;
+    }
+    
     if (cursorThrottle.current) {
       clearTimeout(cursorThrottle.current);
     }
@@ -400,70 +440,114 @@ const broadcastComponentUpdate = useCallback(async (componentId, updates, update
     // Merge touch state into meta
     const enrichedMeta = {
       ...meta,
-      isTouch: touchState.current.isTouch,
+      isTouch: touchState.current.isTouch || meta?.isTouch,
+      isClicking: meta?.isClicking || false,
       timestamp: Date.now(),
     };
 
-    cursorThrottle.current = setTimeout(async () => {
+    cursorThrottle.current = setTimeout(() => {
       try {
-        await axios.post(`/api/frames/${frameUuid}/collaboration/cursor`, {
+        const data = {
+          userId: currentUserId,
+          sessionId,
+          userName: window.auth?.user?.name || 'User',
+          userAvatar: window.auth?.user?.avatar || null,
+          color: getUserColor(currentUserId),
           x,
           y,
-          viewport_mode: viewportMode,
-          session_id: sessionId,
+          viewportMode,
           meta: enrichedMeta,
-        });
+          timestamp: Date.now()
+        };
+        
+        console.log('📤 Whisper: cursor.moved', { x, y, userId: currentUserId });
+        // Whisper for instant cursor updates (no backend roundtrip)
+        channel.current.whisper('cursor.moved', data);
       } catch (error) {
-        console.error('Failed to update cursor:', error);
+        console.error('Failed to broadcast cursor:', error);
       }
-    }, 50);
-  }, [frameUuid, sessionId]);
+    }, 16); // ~60fps for smooth cursor movement
+  }, [sessionId, currentUserId]);
 
-  // Broadcast drag events
-  const broadcastDragStart = useCallback(async (componentId, componentName, bounds) => {
+  // 🔥 INSTANT: Broadcast drag events using WHISPERS (no backend delay)
+  const broadcastDragStart = useCallback((componentId, componentName, bounds) => {
+    if (!channel.current) return;
+    
     try {
-      await axios.post(`/api/frames/${frameUuid}/collaboration/drag-start`, {
-        component_id: componentId,
-        component_name: componentName,
-        session_id: sessionId,
-        bounds,
-      });
+      const data = {
+        componentId,
+        componentName,
+        userId: currentUserId,
+        userName: window.auth?.user?.name || 'User',
+        userAvatar: window.auth?.user?.avatar || null,
+        color: getUserColor(currentUserId), // 🔥 Add user color
+        sessionId,
+        bounds: bounds ? {
+          x: bounds.x || 0,
+          y: bounds.y || 0,
+          width: bounds.width || 0,
+          height: bounds.height || 0
+        } : null,
+        timestamp: Date.now()
+      };
+      
+      console.log('📤 Whisper: drag-start', data);
+      channel.current.whisper('drag-start', data);
     } catch (error) {
       console.error('Failed to broadcast drag start:', error);
     }
-  }, [frameUuid, sessionId]);
+  }, [sessionId, currentUserId]);
 
-const broadcastDragMove = useCallback((componentId, x, y, bounds) => {
-  // 🔥 REMOVED THROTTLE for real-time updates
-  try {
-    axios.post(`/api/frames/${frameUuid}/collaboration/drag-move`, {
-      component_id: componentId,
-      session_id: sessionId,
-      x,
-      y,
-      bounds,
-    });
-  } catch (error) {
-    console.error('Failed to broadcast drag move:', error);
-  }
-}, [frameUuid, sessionId]);
-
-  const broadcastDragEnd = useCallback(async (componentId) => {
+  const broadcastDragMove = useCallback((componentId, x, y, bounds) => {
+    if (!channel.current) return;
+    
     try {
-      await axios.post(`/api/frames/${frameUuid}/collaboration/drag-end`, {
-        component_id: componentId,
-        session_id: sessionId,
-      });
+      const data = {
+        componentId,
+        userId: currentUserId,
+        sessionId,
+        x,
+        y,
+        bounds: bounds ? {
+          x: bounds.x || 0,
+          y: bounds.y || 0,
+          width: bounds.width || 0,
+          height: bounds.height || 0
+        } : null,
+        timestamp: Date.now()
+      };
+      
+      // Whisper = instant delivery (no server roundtrip)
+      channel.current.whisper('drag-move', data);
+    } catch (error) {
+      console.error('Failed to broadcast drag move:', error);
+    }
+  }, [frameUuid, sessionId, currentUserId]);
+
+  const broadcastDragEnd = useCallback((componentId) => {
+    if (!channel.current) return;
+    
+    try {
+      const data = {
+        componentId,
+        userId: currentUserId,
+        sessionId,
+        timestamp: Date.now()
+      };
+      
+      console.log('📤 Whisper: drag-end', data);
+      channel.current.whisper('drag-end', data);
     } catch (error) {
       console.error('Failed to broadcast drag end:', error);
     }
-  }, [frameUuid, sessionId]);
+  }, [frameUuid, sessionId, currentUserId]);
 
-  // 🔥 NEW: Broadcast selection
-  const broadcastSelection = useCallback(async (componentId, componentName) => {
+  // 🔥 INSTANT: Broadcast selection using WHISPERS
+  const broadcastSelection = useCallback((componentId, componentName) => {
+    if (!channel.current) return;
+    
     try {
-      // Whisper for instant delivery
-      channel.current?.whisper('element.selected', {
+      const data = {
         userId: currentUserId,
         sessionId: sessionId,
         componentId,
@@ -471,23 +555,35 @@ const broadcastDragMove = useCallback((componentId, x, y, bounds) => {
         userName: window.auth?.user?.name || 'User',
         userAvatar: window.auth?.user?.avatar || null,
         color: getUserColor(currentUserId),
-      });
+        timestamp: Date.now()
+      };
+      
+      console.log('📤 Whisper: element.selected', data);
+      // Whisper for instant delivery
+      channel.current.whisper('element.selected', data);
     } catch (error) {
       console.error('Failed to broadcast selection:', error);
     }
-  }, [frameUuid, sessionId, currentUserId]);
+  }, [sessionId, currentUserId]);
 
-  // 🔥 NEW: Broadcast deselection
-  const broadcastDeselection = useCallback(async () => {
+  // 🔥 INSTANT: Broadcast deselection using WHISPERS
+  const broadcastDeselection = useCallback(() => {
+    if (!channel.current) return;
+    
     try {
-      channel.current?.whisper('element.deselected', {
+      const data = {
         userId: currentUserId,
         sessionId: sessionId,
-      });
+        userName: window.auth?.user?.name || 'User',
+        timestamp: Date.now()
+      };
+      
+      console.log('📤 Whisper: element.deselected', data);
+      channel.current.whisper('element.deselected', data);
     } catch (error) {
       console.error('Failed to broadcast deselection:', error);
     }
-  }, [frameUuid, sessionId, currentUserId]);
+  }, [sessionId, currentUserId]);
 
   // Remove cursor
   const removeCursor = useCallback(async () => {

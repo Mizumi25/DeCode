@@ -3155,6 +3155,16 @@ if (!componentsLoaded && loadingMessage) {
                     </div>
                 </div>
             )}
+            
+            {/* 🔥 Real-Time Collaboration Overlay - Shows cursors, drag ghosts, and selections */}
+            <CollaborationOverlay
+              cursors={Array.from(activeCursors.values())}
+              draggedElements={Array.from(draggedElements.values())}
+              selectedElements={Array.from(selectedElements.values())}
+              canvasRef={canvasRef}
+              responsiveMode={responsiveMode}
+              zoomLevel={zoomLevel}
+            />
         </div>
         
         {overlayRect && currentComments && currentComments.map((c) => (
