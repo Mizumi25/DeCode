@@ -1,6 +1,6 @@
 // @/Components/Forge/EmptyCanvasState.jsx
-import React, { useState } from 'react';
-import { Plus } from 'lucide-react';
+import React from 'react';
+import { Plus, Monitor, Tablet, Smartphone } from 'lucide-react';
 
 const EmptyCanvasState = ({ 
   frameType = 'page', 
@@ -11,54 +11,98 @@ const EmptyCanvasState = ({
   responsiveMode = 'desktop',
   frame
 }) => {
-  const showBrowserFrame = responsiveMode !== 'desktop';
+  const canvasStyle = frame?.canvas_style || {};
   
   // Get canvas dimensions based on responsive mode
   const getCanvasDimensions = () => {
     switch (responsiveMode) {
       case 'mobile':
-        return { width: '375px', height: '667px', minHeight: '667px' };
+        return { width: '375px', minHeight: '667px', maxWidth: '375px' };
       case 'tablet':
-        return { width: '768px', height: '1024px', minHeight: '1024px' };
+        return { width: '768px', minHeight: '1024px', maxWidth: '768px' };
       case 'desktop':
       default:
-        return { width: '1440px', height: 'auto', minHeight: '900px' };
+        return { width: '1440px', minHeight: '900px', maxWidth: '1440px' };
     }
   };
   
   const dimensions = getCanvasDimensions();
-  const canvasStyle = frame?.canvas_style || {};
+  
+  // Desktop browser frame (Chrome-style)
+  const DesktopBrowserFrame = () => (
+    <div className="w-full bg-gray-100 border-b border-gray-300 rounded-t-lg">
+      <div className="flex items-center px-4 py-2.5 gap-3">
+        <div className="flex gap-2">
+          <div className="w-3 h-3 rounded-full bg-red-500"></div>
+          <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+          <div className="w-3 h-3 rounded-full bg-green-500"></div>
+        </div>
+        <div className="flex-1 mx-4 px-4 py-1.5 rounded-md bg-white border border-gray-300 flex items-center gap-2">
+          <svg className="w-3.5 h-3.5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+          </svg>
+          <span className="text-xs text-gray-600">decode.app</span>
+        </div>
+        <Monitor className="w-4 h-4 text-gray-500" />
+      </div>
+    </div>
+  );
+  
+  // Tablet browser frame (iPad-style)
+  const TabletBrowserFrame = () => (
+    <div className="w-full bg-gray-100 border-b border-gray-300">
+      <div className="flex items-center px-3 py-2 gap-2">
+        <div className="flex-1 px-3 py-1.5 rounded-lg bg-white border border-gray-300 flex items-center gap-2">
+          <svg className="w-3.5 h-3.5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+          </svg>
+          <span className="text-xs text-gray-600 truncate">decode.app</span>
+        </div>
+        <Tablet className="w-4 h-4 text-gray-500" />
+      </div>
+    </div>
+  );
+  
+  // Mobile browser frame (iPhone-style)
+  const MobileBrowserFrame = () => (
+    <div className="w-full bg-gray-100 border-b border-gray-300">
+      <div className="flex items-center px-3 py-2 gap-2">
+        <div className="flex-1 px-3 py-1.5 rounded-full bg-white flex items-center gap-2">
+          <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+          </svg>
+          <span className="text-xs text-gray-600 truncate">decode.app</span>
+        </div>
+        <Smartphone className="w-3.5 h-3.5 text-gray-500" />
+      </div>
+    </div>
+  );
   
   return (
     <div 
-      className="relative transition-all duration-300"
+      className={`
+        relative transition-all duration-300
+        ${responsiveMode !== 'desktop' ? 'rounded-xl overflow-hidden shadow-2xl' : ''}
+      `}
       style={{
         width: dimensions.width,
         minHeight: dimensions.minHeight,
-        maxWidth: dimensions.width,
+        maxWidth: dimensions.maxWidth,
         backgroundColor: canvasStyle.backgroundColor || '#ffffff',
         fontFamily: canvasStyle.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         lineHeight: canvasStyle.lineHeight || '1.6',
         overflow: 'visible',
         position: 'relative',
         boxSizing: 'border-box',
+        borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
       }}
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
-      {/* Browser Frame for mobile/tablet */}
-      {showBrowserFrame && responsiveMode === 'mobile' && (
-        <div className="mb-0 bg-white border-b">
-          <div className="flex items-center px-3 py-2 gap-2">
-            <div className="flex-1 px-3 py-1.5 rounded-full text-sm bg-gray-100 flex items-center gap-2">
-              <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-              </svg>
-              <span className="text-xs truncate">decode.app</span>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Browser Frame based on responsive mode */}
+      {responsiveMode === 'desktop' && <DesktopBrowserFrame />}
+      {responsiveMode === 'tablet' && <TabletBrowserFrame />}
+      {responsiveMode === 'mobile' && <MobileBrowserFrame />}
 
       {/* Visual <body> Indicator */}
       <div 

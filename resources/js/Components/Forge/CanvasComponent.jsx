@@ -8,6 +8,7 @@ import EmptyCanvasState from './EmptyCanvasState';
 import SelectionOverlay from './SelectionOverlay';
 import DragSnapLines from './DragSnapLines';
 import SectionHoverAddLine from './SectionHoverAddLine';
+import DropAnimation from './DropAnimation';
 
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useForgeStore } from '@/stores/useForgeStore';
@@ -757,6 +758,7 @@ const DraggableComponent = ({
   onDragStateChange, // 🔥 NEW: Callback to update parent drag state
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [dropAnimationKey, setDropAnimationKey] = useState(0);
   const isSelected = selectedComponent === component.id;
   const isLayout = component.isLayoutContainer || 
                    ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
@@ -825,6 +827,9 @@ const {
       targetId: target.id,
       intent,
     });
+    
+    // 🔥 NEW: Trigger drop animation
+    setDropAnimationKey(prev => prev + 1);
   }
   
   onDragStateChange?.({ activeId: null, position: null });
@@ -967,6 +972,8 @@ if (isLayout) {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
+        {/* 🔥 NEW: Drop animation */}
+        <DropAnimation componentId={component.id} triggerKey={dropAnimationKey} />
         {/* 🔥 NEW: Framer-style hover add lines for sections */}
         {isLayout && !isDragging && !activeDragId && (
           <>
@@ -1077,6 +1084,9 @@ return (
       onClick={handleSmartClick}
       onDoubleClick={(e) => handleDoubleClickText(e, component.id)}
    >
+      {/* 🔥 NEW: Drop animation */}
+      <DropAnimation componentId={component.id} triggerKey={dropAnimationKey} />
+      
       {/* Component content wrapper */}
       <div 
         style={{ 
@@ -1235,8 +1245,65 @@ const handleComponentDragEnd = useCallback(({ componentId, targetId, intent }) =
   
   // CASE 2: Reordering within same parent (siblings)
   if (draggedParentId === targetParentId) {
-    console.log('↔️ Reordering siblings in same parent');
+    console.log('↔️ Reordering siblings in same parent:', draggedParentId || 'root');
     
+    // 🔥 SPECIAL HANDLING: Canvas root reordering
+    if (draggedParentId === null) {
+      console.log('🎯 Reordering at canvas root level');
+      
+      const rootComponents = currentComponents; // These are root-level components
+      const draggedRootIndex = rootComponents.findIndex(c => c.id === componentId);
+      const targetRootIndex = rootComponents.findIndex(c => c.id === targetId);
+      
+      if (draggedRootIndex === -1 || targetRootIndex === -1) {
+        console.error('❌ Could not find root indices');
+        return;
+      }
+      
+      let newRootIndex = targetRootIndex;
+      if (intent === 'after') {
+        newRootIndex += 1;
+      }
+      
+      // Adjust for removing from array
+      if (draggedRootIndex < newRootIndex) {
+        newRootIndex -= 1;
+      }
+      
+      console.log('📊 Root reorder:', {
+        from: draggedRootIndex,
+        to: newRootIndex,
+        totalRoot: rootComponents.length
+      });
+      
+      // Reorder root components
+      const reorderedRoot = arrayMove(rootComponents, draggedRootIndex, newRootIndex);
+      
+      setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: reorderedRoot
+      }));
+      
+      if (pushHistory && actionTypes) {
+        pushHistory(currentFrame, reorderedRoot, actionTypes.MOVE, {
+          componentId,
+          action: 'reorder_root',
+          fromIndex: draggedRootIndex,
+          toIndex: newRootIndex
+        });
+      }
+      
+      setTimeout(() => {
+        if (componentLibraryService?.saveProjectComponents) {
+          componentLibraryService.saveProjectComponents(projectId, currentFrame, reorderedRoot);
+        }
+      }, 500);
+      
+      if ('vibrate' in navigator) navigator.vibrate(30);
+      return;
+    }
+    
+    // Regular sibling reordering (nested components)
     // Get siblings only (children of same parent)
     const siblings = flatArray.filter(c => (c.parentId || null) === draggedParentId);
     const draggedSiblingIndex = siblings.findIndex(c => c.id === componentId);
@@ -2257,6 +2324,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                 onDrop={onCanvasDrop}
                 isDragOver={dragState.isDragging}
                 responsiveMode={responsiveMode}
+                frame={frame}
               />
             ) : (
               <>
