@@ -172,12 +172,14 @@ export default function ForgePage({
       window.currentUserId = collaborationUserId;
       window.currentSessionId = sessionId;
       window.currentFrameUuid = currentFrame;
+      window.currentUser = currentUser; // 🔥 Add full user object with name
       window.broadcastComponentUpdate = broadcastComponentUpdate;
       
       console.log('🌐 Global collaboration vars set:', {
         userId: collaborationUserId,
         sessionId,
-        frameUuid: currentFrame
+        frameUuid: currentFrame,
+        userName: currentUser?.name
       });
     }
   }, [collaborationUserId, sessionId, currentFrame, broadcastComponentUpdate]);

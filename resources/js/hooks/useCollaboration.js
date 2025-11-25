@@ -450,8 +450,8 @@ const broadcastComponentUpdate = useCallback(async (componentId, updates, update
         const data = {
           userId: currentUserId,
           sessionId,
-          userName: window.auth?.user?.name || 'User',
-          userAvatar: window.auth?.user?.avatar || null,
+          userName: window.currentUser?.name || 'User',
+          userAvatar: window.currentUser?.avatar || null,
           color: getUserColor(currentUserId),
           x,
           y,
@@ -478,8 +478,8 @@ const broadcastComponentUpdate = useCallback(async (componentId, updates, update
         componentId,
         componentName,
         userId: currentUserId,
-        userName: window.auth?.user?.name || 'User',
-        userAvatar: window.auth?.user?.avatar || null,
+        userName: window.currentUser?.name || 'User',
+        userAvatar: window.currentUser?.avatar || null,
         color: getUserColor(currentUserId), // 🔥 Add user color
         sessionId,
         bounds: bounds ? {
@@ -552,8 +552,8 @@ const broadcastComponentUpdate = useCallback(async (componentId, updates, update
         sessionId: sessionId,
         componentId,
         componentName,
-        userName: window.auth?.user?.name || 'User',
-        userAvatar: window.auth?.user?.avatar || null,
+        userName: window.currentUser?.name || 'User',
+        userAvatar: window.currentUser?.avatar || null,
         color: getUserColor(currentUserId),
         timestamp: Date.now()
       };
@@ -574,7 +574,7 @@ const broadcastComponentUpdate = useCallback(async (componentId, updates, update
       const data = {
         userId: currentUserId,
         sessionId: sessionId,
-        userName: window.auth?.user?.name || 'User',
+        userName: window.currentUser?.name || 'User',
         timestamp: Date.now()
       };
       

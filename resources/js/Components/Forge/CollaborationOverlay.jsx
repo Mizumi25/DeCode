@@ -1,5 +1,5 @@
 // @/Components/Forge/CollaborationOverlay.jsx - Real-time Collaboration Overlay
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /**
@@ -25,19 +25,41 @@ const CollaborationOverlay = ({
   });
 
   // Get canvas bounds for coordinate transformation
-  const canvasBounds = useMemo(() => {
-    if (!canvasRef?.current) {
-      console.warn('⚠️ CollaborationOverlay: No canvas ref');
-      return null;
-    }
-    const bounds = canvasRef.current.getBoundingClientRect();
-    console.log('📐 Canvas bounds:', bounds);
-    return bounds;
-  }, [canvasRef, cursors.length, draggedElements.length]);
+  const [canvasBounds, setCanvasBounds] = useState(null);
+  
+  useEffect(() => {
+    const updateBounds = () => {
+      if (!canvasRef?.current) {
+        console.warn('⚠️ CollaborationOverlay: No canvas ref');
+        return;
+      }
+      
+      const bounds = canvasRef.current.getBoundingClientRect();
+      if (bounds && bounds.width > 0 && bounds.height > 0) {
+        console.log('📐 Canvas bounds updated:', bounds);
+        setCanvasBounds(bounds);
+      }
+    };
+    
+    // Initial update
+    updateBounds();
+    
+    // Update on scroll/resize
+    window.addEventListener('scroll', updateBounds, true);
+    window.addEventListener('resize', updateBounds);
+    
+    // Update every 500ms to catch dynamic changes
+    const interval = setInterval(updateBounds, 500);
+    
+    return () => {
+      window.removeEventListener('scroll', updateBounds, true);
+      window.removeEventListener('resize', updateBounds);
+      clearInterval(interval);
+    };
+  }, [canvasRef, cursors.length, draggedElements.length, selectedElements.length]);
 
   if (!canvasBounds) {
-    console.warn('⚠️ CollaborationOverlay: No canvas bounds, not rendering');
-    return null;
+    return null; // Silently skip rendering until bounds are available
   }
 
   return (
@@ -131,7 +153,7 @@ const CollaboratorCursor = ({ cursor, canvasBounds, responsiveMode, zoomLevel })
       {/* Cursor SVG */}
       {/* Cursor icon - Different for touch vs mouse */}
       {isTouch ? (
-        // Touch cursor (hand pointer icon)
+        // Touch cursor - simple circle with dot (clean and professional)
         <svg
           width="24"
           height="24"
@@ -142,14 +164,8 @@ const CollaboratorCursor = ({ cursor, canvasBounds, responsiveMode, zoomLevel })
             filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.3))',
           }}
         >
-          <path
-            d="M9 11V6C9 4.34315 10.3431 3 12 3C13.6569 3 15 4.34315 15 6V11M9 11C9 11 9 11.5 9 12M9 11H7C5.34315 11 4 12.3431 4 14C4 15.6569 5.34315 17 7 17H9M15 11V13M15 11H17C18.6569 11 20 12.3431 20 14C20 15.6569 18.6569 17 17 17H15M15 13V17M9 12V17M9 12H11M15 17V19C15 20.1046 14.1046 21 13 21H11C9.89543 21 9 20.1046 9 19V17M15 17H9"
-            stroke={cursor.color}
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="white"
-          />
+          <circle cx="12" cy="12" r="8" fill={cursor.color} opacity="0.3" />
+          <circle cx="12" cy="12" r="4" fill={cursor.color} stroke="white" strokeWidth="2" />
         </svg>
       ) : (
         // Desktop cursor (pointer arrow)
@@ -184,9 +200,12 @@ const CollaboratorCursor = ({ cursor, canvasBounds, responsiveMode, zoomLevel })
           color: 'white',
         }}
       >
-        {cursor.userName}
+        <span>{cursor.userName || 'Unknown User'}</span>
         {cursor.meta?.isTouch && (
-          <span className="ml-1 opacity-75">📱</span>
+          <svg className="ml-1 w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+            <line x1="12" y1="18" x2="12" y2="18"/>
+          </svg>
         )}
       </motion.div>
 
@@ -259,10 +278,17 @@ const DraggedElementGhost = ({ draggedElement, canvasBounds, responsiveMode, zoo
           color: 'white',
         }}
       >
-        <span>↔️</span>
-        <span>{draggedElement.userName || 'User'}</span>
-        <span className="opacity-75 text-[10px]">• dragging</span>
-        <span className="font-bold">{draggedElement.componentName}</span>
+        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polyline points="5 9 2 12 5 15"/>
+          <polyline points="9 5 12 2 15 5"/>
+          <polyline points="15 19 12 22 9 19"/>
+          <polyline points="19 9 22 12 19 15"/>
+          <line x1="2" y1="12" x2="22" y2="12"/>
+          <line x1="12" y1="2" x2="12" y2="22"/>
+        </svg>
+        <span>{draggedElement.userName || 'Unknown User'}</span>
+        <span className="opacity-75 text-[10px]">dragging</span>
+        <span className="font-semibold">{draggedElement.componentName}</span>
       </motion.div>
     </motion.div>
   );
@@ -322,8 +348,11 @@ const SelectionIndicator = ({ selection, canvasBounds, responsiveMode, zoomLevel
             {selection.userName.charAt(0).toUpperCase()}
           </div>
         )}
-        <span>{selection.userName}</span>
-        <span className="opacity-75 text-[10px]">• selecting</span>
+        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        <span>{selection.userName || 'Unknown User'}</span>
+        <span className="opacity-75 text-[10px]">selecting</span>
       </motion.div>
     </motion.div>
   );
