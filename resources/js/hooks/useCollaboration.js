@@ -393,6 +393,8 @@ const broadcastComponentUpdate = useCallback(async (componentId, updates, update
       const next = new Map(prev);
       next.set(key, {
         ...existing,
+        userName: data.userName || existing.userName, // 🔥 Update username
+        color: data.color || existing.color, // 🔥 Update color
         x: data.x,
         y: data.y,
         bounds: data.bounds,
@@ -505,6 +507,8 @@ const broadcastComponentUpdate = useCallback(async (componentId, updates, update
       const data = {
         componentId,
         userId: currentUserId,
+        userName: window.currentUser?.name || 'User', // 🔥 Add username
+        color: getUserColor(currentUserId), // 🔥 Add color
         sessionId,
         x,
         y,

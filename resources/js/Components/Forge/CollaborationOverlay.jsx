@@ -23,6 +23,10 @@ const CollaborationOverlay = ({
     selectedCount: selectedElements.length,
     hasCanvasRef: !!canvasRef?.current
   });
+  
+  if (draggedElements.length > 0) {
+    console.log('👻 Dragged elements:', draggedElements);
+  }
 
   // Get canvas bounds for coordinate transformation
   const [canvasBounds, setCanvasBounds] = useState(null);
