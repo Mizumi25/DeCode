@@ -1,6 +1,6 @@
 // Components/Void/PreviewFrame.jsx - FIXED click navigation issue
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { Plug, MoreHorizontal, Github, FileCode, Layers, RefreshCw, Camera, AlertTriangle } from 'lucide-react'
+import { Plug, MoreHorizontal, Github, FileCode, Layers, RefreshCw, Camera, AlertTriangle, Copy, Trash2, Files } from 'lucide-react'
 import EnhancedLockButton from './EnhancedLockButton'
 import useFrameLockStore from '@/stores/useFrameLockStore'
 import { useThumbnail } from '@/hooks/useThumbnail'
@@ -43,50 +43,156 @@ export default function PreviewFrame({
   
   
   
-  // Add this state to PreviewFrame
-const [isOverDeleteButton, setIsOverDeleteButton] = useState(false)
-
-// Add this useEffect to listen for delete button hover events
-useEffect(() => {
-  const handleDeleteButtonHover = (e) => {
-    if (isDragging && e.detail) {
-      const { isOver, buttonRect } = e.detail
+  // Delete button proximity states
+  const [isOverDeleteButton, setIsOverDeleteButton] = useState(false)
+  const [isNearDeleteButton, setIsNearDeleteButton] = useState(false)
+  const [deleteButtonVibration, setDeleteButtonVibration] = useState(0)
+  const [frameScale, setFrameScale] = useState(1)
+  
+  // Tools menu state
+  const [showTools, setShowTools] = useState(false)
+  const toolsMenuRef = useRef(null)
+  
+  // Handle tool actions
+  const handleDuplicate = useCallback(async (e) => {
+    e.stopPropagation()
+    setShowTools(false)
+    
+    try {
+      const response = await fetch(`/api/frames/${frame.uuid}/duplicate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        }
+      })
       
-      if (isOver && frameRef.current) {
-        const frameRect = frameRef.current.getBoundingClientRect()
-        
-        // Enhanced collision detection
-        const isFrameOverButton = (
-          frameRect.right >= buttonRect.left - 20 &&
-          frameRect.left <= buttonRect.right + 20 &&
-          frameRect.bottom >= buttonRect.top - 20 &&
-          frameRect.top <= buttonRect.bottom + 20
-        )
-        
-        setIsOverDeleteButton(isFrameOverButton)
+      if (response.ok) {
+        console.log('Frame duplicated successfully')
+        // Real-time event will add the new frame
       } else {
-        setIsOverDeleteButton(false)
+        console.error('Failed to duplicate frame')
+        alert('Failed to duplicate frame')
+      }
+    } catch (error) {
+      console.error('Error duplicating frame:', error)
+      alert('Error duplicating frame')
+    }
+  }, [frame?.uuid])
+  
+  const handleCopy = useCallback((e) => {
+    e.stopPropagation()
+    setShowTools(false)
+    
+    // Copy frame UUID to clipboard for pasting
+    navigator.clipboard.writeText(frame.uuid)
+    console.log('Frame copied to clipboard:', frame.uuid)
+    // You can add a toast notification here
+  }, [frame?.uuid])
+  
+  const handleDelete = useCallback(async (e) => {
+    e.stopPropagation()
+    setShowTools(false)
+    
+    if (!confirm(`Delete frame "${title}"? This cannot be undone.`)) return
+    
+    try {
+      const response = await fetch(`/api/frames/${frame.uuid}`, {
+        method: 'DELETE',
+        headers: {
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        }
+      })
+      
+      if (response.ok) {
+        console.log('Frame deleted successfully')
+        // Real-time event will remove the frame
+      } else {
+        console.error('Failed to delete frame')
+        alert('Failed to delete frame')
+      }
+    } catch (error) {
+      console.error('Error deleting frame:', error)
+      alert('Error deleting frame')
+    }
+  }, [frame?.uuid, title])
+  
+  // Close tools menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (toolsMenuRef.current && !toolsMenuRef.current.contains(e.target)) {
+        setShowTools(false)
       }
     }
-  }
-
-  document.addEventListener('deleteButtonHover', handleDeleteButtonHover)
-  return () => {
-    document.removeEventListener('deleteButtonHover', handleDeleteButtonHover)
-  }
-}, [isDragging])
-
-
+    
+    if (showTools) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showTools])
   
   
-  
-  
-  
-  // REPLACE the DnD Kit hook section with:
+// REPLACE the DnD Kit hook section with:
   const { attributes, listeners, setNodeRef, transform, isDragging: dndIsDragging } = useDraggable({
     id: frameId,
     disabled: !isDraggable || (lockStatus?.is_locked && !lockStatus.locked_by_me)
   })
+  
+  
+
+  // Listen for delete button proximity events
+  useEffect(() => {
+    const handleDeleteProximity = (e) => {
+      if (!dndIsDragging || !frameRef.current) return
+      
+      const { isNearby, isHovering, isDragOver, vibrationIntensity, buttonRect } = e.detail
+      
+      const frameRect = frameRef.current.getBoundingClientRect()
+      
+      // Check if frame edges are touching/near the delete button
+      const isFrameNear = (
+        frameRect.right >= buttonRect.left - 80 &&
+        frameRect.left <= buttonRect.right + 80 &&
+        frameRect.bottom >= buttonRect.top - 80 &&
+        frameRect.top <= buttonRect.bottom + 80
+      )
+      
+      // Check if frame is directly over delete button
+      const isFrameOver = (
+        frameRect.right >= buttonRect.left &&
+        frameRect.left <= buttonRect.right &&
+        frameRect.bottom >= buttonRect.top &&
+        frameRect.top <= buttonRect.bottom
+      )
+      
+      setIsNearDeleteButton(isFrameNear && isNearby)
+      setIsOverDeleteButton(isFrameOver && isDragOver)
+      setDeleteButtonVibration(isFrameNear ? vibrationIntensity : 0)
+      
+      // Shrink frame when hovering over delete button
+      if (isFrameOver && isDragOver) {
+        setFrameScale(0.7) // Shrink to 70%
+      } else if (isFrameNear && isHovering) {
+        setFrameScale(0.85) // Slightly shrink when nearby
+      } else {
+        setFrameScale(1) // Normal size
+      }
+    }
+
+    window.addEventListener('deleteButtonProximity', handleDeleteProximity)
+    return () => {
+      window.removeEventListener('deleteButtonProximity', handleDeleteProximity)
+    }
+  }, [dndIsDragging])
+
+
+  
+  
+  
+  
+  
+  
   
   // ENHANCED: Use thumbnail hook for real-time updates
   const {
@@ -328,19 +434,33 @@ const getFrameStyles = () => {
     pointerEvents: 'auto'
   }
 
-  // Apply DnD transform
+  // Calculate vibration offset
+  let vibrationOffset = { x: 0, y: 0 }
+  if (deleteButtonVibration > 0 && dndIsDragging && !isOverDeleteButton) {
+    const maxOffset = 4
+    vibrationOffset = {
+      x: (Math.random() - 0.5) * maxOffset * deleteButtonVibration,
+      y: (Math.random() - 0.5) * maxOffset * deleteButtonVibration
+    }
+  }
+
+  // Apply DnD transform with scale and vibration
   if (transform && dndIsDragging) {
-    baseStyles.transform = `translate3d(${transform.x}px, ${transform.y}px, 0) scale(1.05)`
+    const translateX = transform.x + vibrationOffset.x
+    const translateY = transform.y + vibrationOffset.y
+    baseStyles.transform = `translate3d(${translateX}px, ${translateY}px, 0) scale(${frameScale * 1.05})`
     baseStyles.boxShadow = '0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 2px rgba(59, 130, 246, 0.6)'
     baseStyles.cursor = 'grabbing'
+    baseStyles.transition = deleteButtonVibration > 0 ? 'none' : 'all 0.2s ease-out'
   }
 
   // ENHANCED: Add delete button hover effect - frame scales down and gets red tint
   if (isOverDeleteButton && dndIsDragging) {
-    baseStyles.transform = `translate3d(${transform?.x || 0}px, ${transform?.y || 0}px, 0) scale(0.85)`
     baseStyles.boxShadow = '0 25px 50px -12px rgba(239, 68, 68, 0.4), 0 0 0 3px rgba(239, 68, 68, 0.3)'
     baseStyles.filter = 'brightness(0.9) hue-rotate(-10deg)'
-    baseStyles.transition = 'all 0.2s ease-out'
+    baseStyles.animation = 'pulse 0.5s ease-in-out infinite'
+  } else if (isNearDeleteButton && dndIsDragging) {
+    baseStyles.boxShadow = '0 25px 50px -12px rgba(239, 68, 68, 0.2), 0 0 0 2px rgba(239, 68, 68, 0.2)'
   }
 
   // Lock status styles
@@ -654,20 +774,25 @@ useEffect(() => {
       )
     }
 
+  // Combine refs for both DnD and proximity detection
+  const combinedRef = useCallback((node) => {
+    frameRef.current = node
+    setNodeRef(node)
+  }, [setNodeRef])
+
   return (
   <div
-    ref={setNodeRef}  // CHANGED from frameRef
-    {...listeners}     // ADDED
-    {...attributes}    // ADDED
+    ref={combinedRef}  // Use combined ref
+    {...listeners}
+    {...attributes}
     data-frame-uuid={frame?.uuid}
     className={`preview-frame absolute rounded-xl p-3 transition-all duration-300 ease-out flex flex-col group ${
       isDragging ? 'shadow-2xl scale-105 z-50' : 'shadow-lg hover:shadow-xl hover:-translate-y-1'
     } ${lockStatus?.is_locked && !lockStatus.locked_by_me ? 'cursor-not-allowed' : 'cursor-grab'}`}
-    style={style}      // CHANGED from getFrameStyles()
+    style={style}
     onClick={handleFrameClick}
     onMouseEnter={() => setShowThumbnailActions(true)}
     onMouseLeave={() => setShowThumbnailActions(false)}
-    // REMOVE onMouseDown={handleMouseDown} - DnD Kit handles this now
   >
       {/* Lock overlay for locked frames */}
       {lockStatus?.is_locked && !lockStatus.locked_by_me && (
@@ -738,12 +863,48 @@ useEffect(() => {
             ))}
           </div>
           
-          <button 
-            className="more-button p-1.5 rounded-lg hover:bg-white hover:bg-opacity-10 transition-all duration-200 hover:scale-110 flex-shrink-0"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <MoreHorizontal className="w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
-          </button>
+          <div className="relative" ref={toolsMenuRef}>
+            <button 
+              className="more-button p-1.5 rounded-lg hover:bg-white hover:bg-opacity-10 transition-all duration-200 hover:scale-110 flex-shrink-0"
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowTools(!showTools)
+              }}
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
+            </button>
+            
+            {/* Tools dropdown menu */}
+            {showTools && (
+              <div 
+                className="absolute right-0 top-full mt-1 w-40 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-xl z-50 py-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  onClick={handleDuplicate}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-muted)] flex items-center gap-2 text-[var(--color-text)]"
+                >
+                  <Copy className="w-4 h-4" />
+                  Duplicate
+                </button>
+                <button
+                  onClick={handleCopy}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-muted)] flex items-center gap-2 text-[var(--color-text)]"
+                >
+                  <Files className="w-4 h-4" />
+                  Copy
+                </button>
+                <div className="h-px bg-[var(--color-border)] my-1" />
+                <button
+                  onClick={handleDelete}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 text-red-600 dark:text-red-400"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -588,11 +588,23 @@ export default function ProjectList({
       } else {
         const errorData = await response.json();
         console.error('Failed to move project:', errorData.message);
-        alert('Failed to move project: ' + (errorData.message || 'Unknown error'));
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Move Failed',
+          message: errorData.message || 'Unable to move project. Please try again.',
+          variant: 'danger',
+          onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger', isLoading: false })
+        });
       }
     } catch (error) {
       console.error('Error moving project:', error);
-      alert('Error moving project. Please try again.');
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Error',
+        message: 'An error occurred while moving the project. Please try again.',
+        variant: 'danger',
+        onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger', isLoading: false })
+      });
     }
     setContextMenu({ show: false, x: 0, y: 0, project: null });
     setShowWorkspaceDropdown(false);
@@ -628,13 +640,25 @@ export default function ProjectList({
           } else {
             const errorData = await response.json();
             console.error('Failed to delete project:', errorData.message);
-            alert('Failed to delete project: ' + (errorData.message || 'Unknown error'));
-            setConfirmDialog(prev => ({ ...prev, isLoading: false }));
+            setConfirmDialog({
+              isOpen: true,
+              title: 'Delete Failed',
+              message: errorData.message || 'Unable to delete project. Please try again.',
+              variant: 'danger',
+              isLoading: false,
+              onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger', isLoading: false })
+            });
           }
         } catch (error) {
           console.error('Error deleting project:', error);
-          alert('Error deleting project. Please try again.');
-          setConfirmDialog(prev => ({ ...prev, isLoading: false }));
+          setConfirmDialog({
+            isOpen: true,
+            title: 'Error',
+            message: 'An error occurred while deleting the project. Please try again.',
+            variant: 'danger',
+            isLoading: false,
+            onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger', isLoading: false })
+          });
         }
       }
     });
@@ -666,11 +690,23 @@ export default function ProjectList({
         // No need to reload the page
       } else {
         const errorData = await response.json();
-        alert('Failed to duplicate project: ' + (errorData.message || 'Unknown error'));
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Duplicate Failed',
+          message: errorData.message || 'Unable to duplicate project. Please try again.',
+          variant: 'danger',
+          onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger', isLoading: false })
+        });
       }
     } catch (error) {
       console.error('Error duplicating project:', error);
-      alert('Error duplicating project. Please try again.');
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Error',
+        message: 'An error occurred while duplicating the project. Please try again.',
+        variant: 'danger',
+        onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger', isLoading: false })
+      });
     }
   };
 
@@ -683,10 +719,84 @@ export default function ProjectList({
   const copyShareLink = (project) => {
     const voidPageUrl = `${window.location.origin}/void/${project.project.uuid}`;
     navigator.clipboard.writeText(voidPageUrl).then(() => {
-      alert('Link copied to clipboard!');
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Link Copied',
+        message: 'Project link has been copied to your clipboard!',
+        variant: 'info',
+        onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'info', isLoading: false })
+      });
     }).catch(err => {
       console.error('Failed to copy link:', err);
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Copy Failed',
+        message: 'Failed to copy link to clipboard. Please try again.',
+        variant: 'danger',
+        onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger', isLoading: false })
+      });
     });
+  };
+
+  const handleExportProject = async (project) => {
+    try {
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Exporting Project',
+        message: 'Preparing your project for download...',
+        variant: 'info',
+        isLoading: true,
+        onConfirm: null
+      });
+
+      const response = await fetch(`/api/projects/${project.project.uuid}/export`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/zip',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+        },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${project.project.name}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Export Successful',
+          message: 'Your project has been downloaded successfully!',
+          variant: 'info',
+          isLoading: false,
+          onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'info', isLoading: false })
+        });
+      } else {
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Export Failed',
+          message: 'Unable to export project. Please try again.',
+          variant: 'danger',
+          isLoading: false,
+          onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger', isLoading: false })
+        });
+      }
+    } catch (error) {
+      console.error('Error exporting project:', error);
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Export Error',
+        message: 'An error occurred while exporting. Please try again.',
+        variant: 'danger',
+        isLoading: false,
+        onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger', isLoading: false })
+      });
+    }
   };
 
   const handleRefresh = async () => {
@@ -1453,10 +1563,16 @@ export default function ProjectList({
               >
                 <Copy size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
               </button>
-              <button className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
+              <button 
+                onClick={() => copyShareLink(selectedProject)}
+                className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group"
+              >
                 <Share2 size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
               </button>
-              <button className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
+              <button 
+                onClick={() => handleExportProject(selectedProject)}
+                className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group"
+              >
                 <Download size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
               </button>
               <div className="flex-1"></div>
@@ -1485,11 +1601,17 @@ export default function ProjectList({
                   <Copy size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
                   <span className="text-xs text-[var(--color-text-muted)]">Copy</span>
                 </button>
-                <button className="flex flex-col items-center gap-1 p-2 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
+                <button 
+                  onClick={() => copyShareLink(selectedProject)}
+                  className="flex flex-col items-center gap-1 p-2 hover:bg-[var(--color-bg)] rounded-lg transition-colors group"
+                >
                   <Share2 size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
                   <span className="text-xs text-[var(--color-text-muted)]">Share</span>
                 </button>
-                <button className="flex flex-col items-center gap-1 p-2 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
+                <button 
+                  onClick={() => handleExportProject(selectedProject)}
+                  className="flex flex-col items-center gap-1 p-2 hover:bg-[var(--color-bg)] rounded-lg transition-colors group"
+                >
                   <Download size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
                   <span className="text-xs text-[var(--color-text-muted)]">Export</span>
                 </button>

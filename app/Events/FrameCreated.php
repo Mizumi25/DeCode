@@ -43,5 +43,10 @@ class FrameCreated implements ShouldBroadcast
             'created_by' => auth()->user()?->name ?? 'Unknown', // Handle case where auth might be null in queue
         ];
     }
+
+    public function broadcastAs()
+    {
+        return 'FrameCreated';
+    }
 }
 ?>

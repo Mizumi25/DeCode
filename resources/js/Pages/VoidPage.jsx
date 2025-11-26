@@ -161,6 +161,71 @@ const zoomLevelRef = useRef(zoomLevel)
     }
   })
 
+  // Real-time frame events listener
+  useEffect(() => {
+    if (!currentWorkspace || !window.Echo || !project?.uuid) return;
+
+    console.log('🔌 VoidPage: Subscribing to workspace channel for frames:', `workspace.${currentWorkspace.id}`);
+
+    const channel = window.Echo.private(`workspace.${currentWorkspace.id}`);
+
+    // Listen for frame created
+    channel.listen('FrameCreated', (event) => {
+      console.log('🖼️ Frame created event received:', event);
+      
+      // Only add frame if it belongs to current project
+      if (event.project_uuid === project.uuid) {
+        const newFrame = event.frame;
+        setFrames(prevFrames => {
+          // Check if frame already exists
+          if (prevFrames.some(f => f.uuid === newFrame.uuid)) {
+            console.log('⚠️ Frame already exists, skipping:', newFrame.uuid);
+            return prevFrames;
+          }
+          
+          console.log('✅ Adding new frame to canvas:', newFrame.name);
+          
+          // Map frame to state format
+          const frameToAdd = {
+            id: newFrame.id,
+            uuid: newFrame.uuid,
+            title: newFrame.name,
+            fileName: `${newFrame.name}.${newFrame.type}`,
+            x: newFrame.canvas_data?.position?.x || Math.random() * 1000 + 200,
+            y: newFrame.canvas_data?.position?.y || Math.random() * 600 + 200,
+            isDragging: false,
+            isLoading: false,
+            type: newFrame.type,
+            settings: newFrame.settings
+          };
+          
+          return [frameToAdd, ...prevFrames];
+        });
+      }
+    });
+
+    // Listen for frame deleted
+    channel.listen('FrameDeleted', (event) => {
+      console.log('🗑️ Frame deleted event received:', event);
+      
+      // Only remove frame if it belongs to current project
+      if (event.project_uuid === project.uuid) {
+        setFrames(prevFrames => {
+          const filtered = prevFrames.filter(f => f.uuid !== event.frame_uuid);
+          console.log('✅ Removed frame from canvas. Before:', prevFrames.length, 'After:', filtered.length);
+          return filtered;
+        });
+      }
+    });
+
+    return () => {
+      console.log('🔌 VoidPage: Unsubscribing from workspace channel');
+      channel.stopListening('FrameCreated');
+      channel.stopListening('FrameDeleted');
+      window.Echo.leave(`workspace.${currentWorkspace.id}`);
+    };
+  }, [currentWorkspace?.id, project?.uuid]);
+
   // Load frames from database
   useEffect(() => {
     const loadFrames = async () => {

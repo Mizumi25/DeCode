@@ -5,33 +5,67 @@ export default function DeleteButton({ zoom = 1, onFrameDrop = () => {}, isDragA
   const [isHovered, setIsHovered] = useState(false)
   const [isFrameHovering, setIsFrameHovering] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [isNearby, setIsNearby] = useState(false)
+  const [vibrationIntensity, setVibrationIntensity] = useState(0)
   const deleteButtonRef = useRef(null)
 
-  // Enhanced frame hover detection with improved collision detection
+  // Enhanced frame hover detection with proximity zones and vibration
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (!isDragActive || !deleteButtonRef.current) return
 
       const rect = deleteButtonRef.current.getBoundingClientRect()
       
-      // Enhanced collision detection with larger hit area
-      const expandedRect = {
-        left: rect.left - 20,
-        right: rect.right + 20,
-        top: rect.top - 20,
-        bottom: rect.bottom + 20
-      }
-
-      const isOver = (
-        e.clientX >= expandedRect.left &&
-        e.clientX <= expandedRect.right &&
-        e.clientY >= expandedRect.top &&
-        e.clientY <= expandedRect.bottom
+      // Calculate distance from mouse to delete button center
+      const centerX = rect.left + rect.width / 2
+      const centerY = rect.top + rect.height / 2
+      const distance = Math.sqrt(
+        Math.pow(e.clientX - centerX, 2) + 
+        Math.pow(e.clientY - centerY, 2)
       )
-
-      if (isOver !== isDragOver) {
-        setIsDragOver(isOver)
-        setIsFrameHovering(isOver)
+      
+      // Proximity zones
+      const HOVER_ZONE = 100 // Direct hover zone
+      const NEARBY_ZONE = 250 // "Near" detection zone
+      const VIBRATION_START = 200 // Start vibrating
+      
+      // Check if directly over delete button
+      const isDirectlyOver = (
+        e.clientX >= rect.left &&
+        e.clientX <= rect.right &&
+        e.clientY >= rect.top &&
+        e.clientY <= rect.bottom
+      )
+      
+      // Check if in hover zone
+      const isInHoverZone = distance < HOVER_ZONE
+      
+      // Check if nearby
+      const isInNearbyZone = distance < NEARBY_ZONE
+      
+      // Calculate vibration intensity (0-1) based on distance
+      let vibration = 0
+      if (distance < VIBRATION_START && distance > HOVER_ZONE) {
+        vibration = 1 - ((distance - HOVER_ZONE) / (VIBRATION_START - HOVER_ZONE))
+      }
+      
+      setIsDragOver(isDirectlyOver)
+      setIsFrameHovering(isInHoverZone || isDirectlyOver)
+      setIsNearby(isInNearbyZone)
+      setVibrationIntensity(vibration)
+      
+      // Dispatch event for frames to listen to
+      if (isInNearbyZone) {
+        window.dispatchEvent(new CustomEvent('deleteButtonProximity', {
+          detail: {
+            distance,
+            isNearby: isInNearbyZone,
+            isHovering: isInHoverZone || isDirectlyOver,
+            isDragOver: isDirectlyOver,
+            vibrationIntensity: vibration,
+            buttonRect: rect
+          }
+        }))
       }
     }
 
@@ -78,13 +112,38 @@ export default function DeleteButton({ zoom = 1, onFrameDrop = () => {}, isDragA
     }
   }, [isDragOver, isDragActive, onFrameDrop])
 
-  const isActive = isHovered || isFrameHovering || isDragOver
+  const isActive = isHovered || isFrameHovering || isDragOver || isNearby
   const showOpenTrash = isFrameHovering || isDragOver
+  
+  // Calculate scale based on state
+  const getScale = () => {
+    if (isDragOver) return 1.3 // Largest when hovering
+    if (isFrameHovering) return 1.2
+    if (isNearby) return 1.1
+    return 1
+  }
+  
+  // Calculate vibration offset
+  const getVibrationOffset = () => {
+    if (vibrationIntensity > 0 && !isDragOver) {
+      const maxOffset = 3
+      const offsetX = (Math.random() - 0.5) * maxOffset * vibrationIntensity
+      const offsetY = (Math.random() - 0.5) * maxOffset * vibrationIntensity
+      return { x: offsetX, y: offsetY }
+    }
+    return { x: 0, y: 0 }
+  }
+  
+  const vibrationOffset = getVibrationOffset()
 
   return (
     <div 
-      className="fixed right-6 bottom-6 z-50" // Increased z-index to ensure it's above frames
-      style={{ transform: 'scale(1)', transformOrigin: 'bottom right' }}
+      className="fixed right-6 bottom-6 z-50 pointer-events-auto" // Ensure it's clickable
+      style={{ 
+        transform: `scale(${getScale()}) translate(${vibrationOffset.x}px, ${vibrationOffset.y}px)`, 
+        transformOrigin: 'bottom right',
+        transition: vibrationIntensity > 0 ? 'none' : 'transform 0.3s ease-out'
+      }}
     >
       <div
         ref={deleteButtonRef}
@@ -93,9 +152,7 @@ export default function DeleteButton({ zoom = 1, onFrameDrop = () => {}, isDragA
         onMouseLeave={() => setIsHovered(false)}
       >
         <div
-          className={`relative transition-all duration-300 ease-out ${
-            isActive ? 'scale-110' : 'scale-100'
-          }`}
+          className={`relative transition-all duration-300 ease-out`}
         >
           {/* Animated background glow */}
           <div

@@ -43,5 +43,10 @@ class FrameDeleted implements ShouldBroadcast
             'deleted_at' => now()->toISOString(),
         ];
     }
+
+    public function broadcastAs()
+    {
+        return 'FrameDeleted';
+    }
 }
 
