@@ -61,4 +61,9 @@ class ProjectUpdated implements ShouldBroadcast
             'updated_by' => auth()->user()->name,
         ];
     }
+
+    public function broadcastAs()
+    {
+        return 'ProjectUpdated';
+    }
 }

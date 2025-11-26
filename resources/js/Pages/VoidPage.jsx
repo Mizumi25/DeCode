@@ -64,7 +64,8 @@ export default function VoidPage() {
   
   const { 
     currentWorkspace,
-    workspaces 
+    workspaces,
+    setCurrentWorkspace
   } = useWorkspaceStore()
   
   const { 
@@ -128,6 +129,17 @@ const zoomLevelRef = useRef(zoomLevel)
   // Frame dimensions for collision detection
   const frameWidth = 320
   const frameHeight = 224
+
+  // Update current workspace based on project's workspace
+  useEffect(() => {
+    if (project?.workspace_id && workspaces.length > 0) {
+      const projectWorkspace = workspaces.find(w => w.id === project.workspace_id);
+      if (projectWorkspace && currentWorkspace?.id !== project.workspace_id) {
+        console.log('VoidPage: Updating current workspace to:', projectWorkspace.name);
+        setCurrentWorkspace(projectWorkspace);
+      }
+    }
+  }, [project?.workspace_id, workspaces, currentWorkspace?.id, setCurrentWorkspace]);
 
   // Initialize frame lock system
   useEffect(() => {

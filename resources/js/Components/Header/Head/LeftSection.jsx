@@ -11,6 +11,7 @@ import ForgeZoomControls from './ForgeZoomControls';
 import BinaryToggle from './BinaryToggle';
 import AnimatedBlackHoleLogo from '@/Components/AnimatedBlackHoleLogo';
 import { useForgeStore } from '@/stores/useForgeStore';
+import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 
 
 const fadeIn = {
@@ -55,6 +56,7 @@ const LeftSection = ({
 }) => {
   
   const { canvasZoom, setCanvasZoom } = useForgeStore();
+  const { currentWorkspace } = useWorkspaceStore();
 
   
   const { url, props } = usePage(); 
@@ -90,7 +92,17 @@ const LeftSection = ({
   };
 
   const handleLogoClick = () => {
-    router.visit('/projects');
+    // Use currentWorkspace from store as primary source
+    // This ensures we go to the workspace the user was recently in
+    if (currentWorkspace) {
+      router.visit(`/workspaces/${currentWorkspace.id}/projects`);
+    } else if (project?.workspace_id) {
+      // Fallback to project's workspace if available
+      router.visit(`/workspaces/${project.workspace_id}/projects`);
+    } else {
+      // Final fallback to personal workspace
+      router.visit('/projects');
+    }
   };
 
   const handleGridToggle = () => {

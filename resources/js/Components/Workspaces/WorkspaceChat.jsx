@@ -385,8 +385,19 @@ useEffect(() => {
       if (mentionable.type === 'user' || mentionable.type === 'User') {
         replacement = `<span class="mention user-mention px-1 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded" data-user-id="${mentionable.id}">@${mentionable.name}</span>`;
       } else {
-        const url = mentionable.url || '#';
-        replacement = `<a href="${url}" class="mention project-mention px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded hover:underline" data-${mentionable.type}-id="${mentionable.id}">#${mentionable.name}</a>`;
+        // Generate proper URL based on mentionable type
+        let url = '#';
+        if (mentionable.type === 'project' || mentionable.type === 'Project') {
+          url = `/void/${mentionable.uuid || mentionable.id}`;
+        } else if (mentionable.type === 'frame' || mentionable.type === 'Frame') {
+          // Frames need project context - check if we have project_uuid
+          const projectUuid = mentionable.project_uuid || mentionable.project?.uuid;
+          if (projectUuid) {
+            url = `/forge/${projectUuid}?frame=${mentionable.uuid || mentionable.id}`;
+          }
+        }
+        
+        replacement = `<a href="${url}" class="mention project-mention px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded hover:underline cursor-pointer" data-${mentionable.type}-id="${mentionable.id}" onclick="event.preventDefault(); window.location.href='${url}';">#${mentionable.name}</a>`;
       }
 
       formattedContent = formattedContent.substring(0, start) + replacement + formattedContent.substring(end);

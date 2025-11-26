@@ -69,31 +69,55 @@ const useSearchStore = create(
         set({ isSearching: true })
         
         try {
-          // Make request to your Laravel backend
+          // Get current workspace from URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const workspaceId = urlParams.get('workspace');
+          
+          // Make request to search API endpoint (faster, no page reload)
           const params = new URLSearchParams({
-            search: query.trim(),
+            q: query.trim(),
             filter: searchFilters.filter,
             type: searchFilters.type,
             sort: searchFilters.sort
           })
           
-          // Using Inertia's visit method to update the page with search results
-          router.visit(`/projects?${params.toString()}`, {
-            method: 'get',
-            preserveState: true,
-            preserveScroll: true,
-            only: ['projects', 'filters', 'stats'], // Only reload these props
-            onSuccess: (page) => {
-              set({ 
-                searchResults: page.props.projects || [],
-                isSearching: false 
-              })
-            },
-            onError: (errors) => {
-              console.error('Search failed:', errors)
-              set({ isSearching: false })
+          if (workspaceId) {
+            params.append('workspace', workspaceId);
+          }
+          
+          const response = await fetch(`/api/projects/search?${params.toString()}`, {
+            headers: {
+              'Accept': 'application/json',
+              'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
             }
-          })
+          });
+          
+          if (!response.ok) {
+            throw new Error('Search request failed');
+          }
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            set({ 
+              searchResults: result.data || [],
+              isSearching: false 
+            });
+            
+            // Update URL without reloading page
+            const newUrl = `/projects?${params.toString()}`;
+            window.history.replaceState({}, '', newUrl);
+            
+            // Trigger a custom event that ProjectList can listen to
+            window.dispatchEvent(new CustomEvent('search-results-updated', { 
+              detail: { 
+                results: result.data,
+                query: query 
+              } 
+            }));
+          } else {
+            throw new Error('Search failed');
+          }
         } catch (error) {
           console.error('Search error:', error)
           set({ isSearching: false })
@@ -115,13 +139,16 @@ const useSearchStore = create(
           searchTimer: null
         })
         
-        // Reload page without search params
-        router.visit('/projects', {
-          method: 'get',
-          preserveState: true,
-          preserveScroll: true,
-          only: ['projects', 'filters', 'stats']
-        })
+        // Get current workspace from URL and preserve it
+        const urlParams = new URLSearchParams(window.location.search);
+        const workspaceId = urlParams.get('workspace');
+        
+        // Update URL without search params but keep workspace
+        const newUrl = workspaceId ? `/projects?workspace=${workspaceId}` : '/projects';
+        window.history.replaceState({}, '', newUrl);
+        
+        // Trigger custom event for ProjectList to reload
+        window.dispatchEvent(new CustomEvent('search-cleared'));
       },
       
       // Quick actions

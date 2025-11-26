@@ -12,6 +12,7 @@ import { useForgeStore } from '@/stores/useForgeStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore';
 import { useCodeSyncStore } from '@/stores/useCodeSyncStore';
+import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 import { useThumbnail } from '@/hooks/useThumbnail';
 // Add this import with your other store imports
 import { useFramePresenceStore } from '@/stores/useFramePresenceStore';
@@ -137,6 +138,12 @@ export default function ForgePage({
     setCodeStyle: setSyncedCodeStyle,
     updateSyncedCode 
   } = useCodeSyncStore();
+  
+  const { 
+    currentWorkspace,
+    workspaces,
+    setCurrentWorkspace
+  } = useWorkspaceStore();
   
   const [currentFrame, setCurrentFrame] = useState(() => {
       const frameIdToUse = frameId || frame?.uuid;
@@ -1192,6 +1199,17 @@ const handleAssetDrop = useCallback((e) => {
 
 
 
+
+  // Update current workspace based on project's workspace
+  useEffect(() => {
+    if (project?.workspace_id && workspaces.length > 0) {
+      const projectWorkspace = workspaces.find(w => w.id === project.workspace_id);
+      if (projectWorkspace && currentWorkspace?.id !== project.workspace_id) {
+        console.log('ForgePage: Updating current workspace to:', projectWorkspace.name);
+        setCurrentWorkspace(projectWorkspace);
+      }
+    }
+  }, [project?.workspace_id, workspaces, currentWorkspace?.id, setCurrentWorkspace]);
 
   // Initialize undo/redo when frame and components are ready
   useEffect(() => {

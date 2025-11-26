@@ -5,6 +5,7 @@ import { Responsive, WidthProvider } from 'react-grid-layout';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import NewProjectModal from '@/Components/Projects/NewProjectModal';
+import ConfirmDialog from '@/Components/ConfirmDialog';
 import { useSearchStore } from '@/stores/useSearchStore';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 import 'react-grid-layout/css/styles.css';
@@ -40,6 +41,19 @@ export default function ProjectList({
   const [selectedProjectForAction, setSelectedProjectForAction] = useState(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareProject, setShareProject] = useState(null);
+  
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: null,
+    variant: 'danger',
+    isLoading: false
+  });
+  
+  // Real-time projects state
+  const [realtimeProjects, setRealtimeProjects] = useState(initialProjects);
   
   const dragTimeoutRef = useRef(null);
   const clickTimeoutRef = useRef(null);
@@ -121,6 +135,156 @@ export default function ProjectList({
     return () => cleanup();
   }, [initializeFromUrl, cleanup]);
 
+  // Real-time project events listener
+  useEffect(() => {
+    if (!currentWorkspace || !window.Echo) {
+      console.log('❌ Cannot subscribe - missing:', { 
+        hasWorkspace: !!currentWorkspace, 
+        hasEcho: !!window.Echo,
+        currentWorkspace: currentWorkspace 
+      });
+      return;
+    }
+
+    console.log('🔌 Subscribing to workspace channel:', `workspace.${currentWorkspace.id}`, {
+      workspaceId: currentWorkspace.id,
+      workspaceName: currentWorkspace.name,
+      echoConnector: window.Echo.connector?.name
+    });
+
+    const channel = window.Echo.private(`workspace.${currentWorkspace.id}`);
+
+    // Log when channel is ready
+    channel.subscribed(() => {
+      console.log('✅ Successfully subscribed to workspace channel:', `workspace.${currentWorkspace.id}`);
+    });
+
+    channel.error((error) => {
+      console.error('❌ Channel subscription error:', error);
+    });
+
+    // Listen to ALL events on this channel for debugging
+    if (channel.pusher) {
+      const pusherChannel = channel.pusher;
+      pusherChannel.bind_global((eventName, data) => {
+        console.log('🎯 Raw Pusher event on workspace channel:', eventName, data);
+        console.log('🎯 Event name type:', typeof eventName, 'Event name:', JSON.stringify(eventName));
+      });
+    }
+
+    // Listen for project created (try with dot prefix)
+    channel.listen('.ProjectCreated', (event) => {
+      console.log('📦 Project created event received (with dot):', event);
+      
+      // Add new project to the list
+      setRealtimeProjects(prevProjects => {
+        // Check if project already exists
+        if (prevProjects.some(p => p.id === event.project.id)) {
+          console.log('⚠️ Project already exists, skipping:', event.project.id);
+          return prevProjects;
+        }
+        console.log('✅ Adding new project to list:', event.project.name);
+        return [event.project, ...prevProjects];
+      });
+    });
+
+    // Listen for project created (try without dot prefix)
+    channel.listen('ProjectCreated', (event) => {
+      console.log('📦 Project created event received:', event);
+      
+      // Add new project to the list
+      setRealtimeProjects(prevProjects => {
+        // Check if project already exists
+        if (prevProjects.some(p => p.id === event.project.id)) {
+          console.log('⚠️ Project already exists, skipping:', event.project.id);
+          return prevProjects;
+        }
+        console.log('✅ Adding new project to list:', event.project.name);
+        return [event.project, ...prevProjects];
+      });
+    });
+
+    // Listen for project updated (with dot)
+    channel.listen('.ProjectUpdated', (event) => {
+      console.log('🔄 Project updated event received (with dot):', event);
+      
+      // Update existing project
+      setRealtimeProjects(prevProjects => 
+        prevProjects.map(p => 
+          p.id === event.project.id ? { ...p, ...event.project } : p
+        )
+      );
+    });
+
+    // Listen for project updated (without dot)
+    channel.listen('ProjectUpdated', (event) => {
+      console.log('🔄 Project updated event received (no dot):', event);
+      
+      // Update existing project
+      setRealtimeProjects(prevProjects => 
+        prevProjects.map(p => 
+          p.id === event.project.id ? { ...p, ...event.project } : p
+        )
+      );
+    });
+
+    // Listen for project deleted (with dot)
+    channel.listen('.ProjectDeleted', (event) => {
+      console.log('🗑️ Project deleted event received (with dot):', event);
+      
+      // Remove project from list
+      setRealtimeProjects(prevProjects => {
+        const filtered = prevProjects.filter(p => p.id !== event.project_id);
+        console.log('✅ Removed project from list. Before:', prevProjects.length, 'After:', filtered.length);
+        return filtered;
+      });
+    });
+
+    // Listen for project deleted (without dot)
+    channel.listen('ProjectDeleted', (event) => {
+      console.log('🗑️ Project deleted event received (no dot):', event);
+      
+      // Remove project from list
+      setRealtimeProjects(prevProjects => {
+        const filtered = prevProjects.filter(p => p.id !== event.project_id);
+        console.log('✅ Removed project from list. Before:', prevProjects.length, 'After:', filtered.length);
+        return filtered;
+      });
+    });
+
+    return () => {
+      console.log('🔌 Unsubscribing from workspace channel');
+      channel.stopListening('ProjectCreated');
+      channel.stopListening('.ProjectCreated');
+      channel.stopListening('ProjectUpdated');
+      channel.stopListening('.ProjectUpdated');
+      channel.stopListening('ProjectDeleted');
+      channel.stopListening('.ProjectDeleted');
+      window.Echo.leave(`workspace.${currentWorkspace.id}`);
+    };
+  }, [currentWorkspace?.id]);
+
+  // Listen for search results updates
+  useEffect(() => {
+    const handleSearchResults = (event) => {
+      console.log('🔍 Search results updated:', event.detail);
+      setRealtimeProjects(event.detail.results);
+    };
+
+    const handleSearchCleared = () => {
+      console.log('🔍 Search cleared, reloading projects');
+      setRealtimeProjects(initialProjects);
+    };
+
+    window.addEventListener('search-results-updated', handleSearchResults);
+    window.addEventListener('search-cleared', handleSearchCleared);
+
+    return () => {
+      window.removeEventListener('search-results-updated', handleSearchResults);
+      window.removeEventListener('search-cleared', handleSearchCleared);
+    };
+  }, [initialProjects]);
+
   // Add state for tracking active tab
   const [activeTab, setActiveTab] = useState(0);
 
@@ -190,7 +354,7 @@ export default function ProjectList({
   
   // Convert projects to the format expected by the grid
   const projects = useMemo(() => {
-    return initialProjects.map((project, index) => ({
+    return realtimeProjects.map((project, index) => ({
       id: project.id.toString(),
       title: project.name,
       date: new Date(project.updated_at).toLocaleDateString('en-US', {
@@ -206,7 +370,7 @@ export default function ProjectList({
       h: Math.random() > 0.5 ? 4 : 5, // Random height for demo
       project: project // Store the full project data
     }));
-  }, [initialProjects]);
+  }, [realtimeProjects]);
 
   // Generate default layouts based on current projects
   const defaultLayouts = useMemo(() => {
@@ -415,49 +579,67 @@ export default function ProjectList({
       if (response.ok) {
         const data = await response.json();
         console.log('Project moved:', data.message);
-        // Refresh the projects list
-        router.reload();
+        
+        // Real-time events will update both workspaces automatically
+        // Just remove from current view if moving to different workspace
+        if (targetWorkspaceId !== currentWorkspace?.id) {
+          setRealtimeProjects(prev => prev.filter(p => p.id !== project.project.id));
+        }
       } else {
         const errorData = await response.json();
         console.error('Failed to move project:', errorData.message);
+        alert('Failed to move project: ' + (errorData.message || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error moving project:', error);
+      alert('Error moving project. Please try again.');
     }
     setContextMenu({ show: false, x: 0, y: 0, project: null });
     setShowWorkspaceDropdown(false);
   };
 
-  const handleDeleteProject = async (project) => {
-    if (!confirm(`Are you sure you want to delete "${project.title}"? This action cannot be undone.`)) {
-      return;
-    }
+  const handleDeleteProject = (project) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Project',
+      message: `Are you sure you want to delete "${project.title}"? This action cannot be undone.`,
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, isLoading: true }));
+        
+        try {
+          const response = await fetch(`/api/projects/${project.project.uuid}`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+            },
+          });
 
-    try {
-      const response = await fetch(`/api/projects/${project.project.uuid}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
-        },
-      });
-
-      if (response.ok) {
-        console.log('Project deleted successfully');
-        // Close any open modals/menus
-        setContextMenu({ show: false, x: 0, y: 0, project: null });
-        setSelectedProject(null);
-        // Refresh the projects list
-        router.reload();
-      } else {
-        const errorData = await response.json();
-        console.error('Failed to delete project:', errorData.message);
-        alert('Failed to delete project: ' + (errorData.message || 'Unknown error'));
+          if (response.ok) {
+            console.log('Project deleted successfully');
+            // Close confirmation dialog and context menu
+            setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger', isLoading: false });
+            setContextMenu({ show: false, x: 0, y: 0, project: null });
+            setSelectedProject(null);
+            
+            // Remove from local state (real-time event will also update it)
+            setRealtimeProjects(prev => prev.filter(p => p.id !== project.project.id));
+          } else {
+            const errorData = await response.json();
+            console.error('Failed to delete project:', errorData.message);
+            alert('Failed to delete project: ' + (errorData.message || 'Unknown error'));
+            setConfirmDialog(prev => ({ ...prev, isLoading: false }));
+          }
+        } catch (error) {
+          console.error('Error deleting project:', error);
+          alert('Error deleting project. Please try again.');
+          setConfirmDialog(prev => ({ ...prev, isLoading: false }));
+        }
       }
-    } catch (error) {
-      console.error('Error deleting project:', error);
-      alert('Error deleting project. Please try again.');
-    }
+    });
+    
+    setContextMenu({ show: false, x: 0, y: 0, project: null });
   };
 
   const handleDuplicateProject = async (project, targetWorkspaceId = null) => {
@@ -479,7 +661,9 @@ export default function ProjectList({
         setContextMenu({ show: false, x: 0, y: 0, project: null });
         setShowWorkspaceDropdown(false);
         setSelectedProjectForAction(null);
-        router.reload();
+        
+        // Real-time event will add the new project automatically
+        // No need to reload the page
       } else {
         const errorData = await response.json();
         alert('Failed to duplicate project: ' + (errorData.message || 'Unknown error'));
@@ -1530,6 +1714,17 @@ export default function ProjectList({
           </div>
         </div>
       )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger', isLoading: false })}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant={confirmDialog.variant}
+        isLoading={confirmDialog.isLoading}
+      />
     </AuthenticatedLayout>
   );
 }

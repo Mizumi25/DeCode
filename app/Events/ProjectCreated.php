@@ -65,4 +65,9 @@ class ProjectCreated implements ShouldBroadcast
             'created_by' => $this->createdBy ? $this->createdBy->name : 'Unknown User',
         ];
     }
+
+    public function broadcastAs()
+    {
+        return 'ProjectCreated';
+    }
 }

@@ -435,16 +435,36 @@ class ProjectController extends Controller
 
         try {
             $oldWorkspace = $project->workspace;
+            $oldWorkspaceId = $oldWorkspace?->id;
+            
             $project->update(['workspace_id' => $targetWorkspace->id]);
 
             \Log::info('Project moved between workspaces', [
                 'project_id' => $project->id,
-                'old_workspace_id' => $oldWorkspace?->id,
+                'old_workspace_id' => $oldWorkspaceId,
                 'old_workspace_name' => $oldWorkspace?->name,
                 'new_workspace_id' => $targetWorkspace->id,
                 'new_workspace_name' => $targetWorkspace->name,
                 'user_id' => $user->id
             ]);
+
+            // BROADCAST TO OLD WORKSPACE (project removed)
+            if ($oldWorkspaceId) {
+                try {
+                    broadcast(new \App\Events\ProjectDeleted($project->id, $project->uuid, $project->name, $oldWorkspaceId, $user->name))->toOthers();
+                    \Log::info('Project removal from old workspace broadcasted');
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to broadcast to old workspace: ' . $e->getMessage());
+                }
+            }
+
+            // BROADCAST TO NEW WORKSPACE (project added)
+            try {
+                broadcast(new \App\Events\ProjectCreated($project->fresh(), $targetWorkspace, $user))->toOthers();
+                \Log::info('Project addition to new workspace broadcasted');
+            } catch (\Exception $e) {
+                \Log::warning('Failed to broadcast to new workspace: ' . $e->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
@@ -976,6 +996,14 @@ public function store(Request $request): RedirectResponse
                 'user_id' => $user->id
             ]);
 
+            // BROADCAST PROJECT CREATION (duplicate creates a new project)
+            try {
+                broadcast(new \App\Events\ProjectCreated($newProject, $workspace, $user))->toOthers();
+                \Log::info('Project duplication broadcasted');
+            } catch (\Exception $e) {
+                \Log::warning('Failed to broadcast project duplication: ' . $e->getMessage());
+            }
+
             return redirect()->route('void.index', [
                 'project' => $newProject->uuid,
                 'workspace' => $workspaceId
@@ -1083,12 +1111,27 @@ public function store(Request $request): RedirectResponse
             ], 403);
         }
 
+        // Store project info before deletion for broadcasting
+        $projectId = $project->id;
+        $projectUuid = $project->uuid;
+        $projectName = $project->name;
+        $workspaceId = $project->workspace_id;
+        $deletedBy = $user->name;
+
         // Delete thumbnail if exists
         if ($project->thumbnail) {
             \Storage::disk('public')->delete($project->thumbnail);
         }
 
         $project->delete();
+
+        // BROADCAST PROJECT DELETION
+        try {
+            broadcast(new \App\Events\ProjectDeleted($projectId, $projectUuid, $projectName, $workspaceId, $deletedBy))->toOthers();
+            \Log::info('Project deletion broadcasted', ['project_id' => $projectId, 'workspace_id' => $workspaceId]);
+        } catch (\Exception $e) {
+            \Log::warning('Failed to broadcast project deletion: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,

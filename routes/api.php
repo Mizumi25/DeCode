@@ -144,6 +144,9 @@ Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasS
     Route::put('/projects/{project:uuid}', [ProjectController::class, 'update']);
     Route::delete('/projects/{project:uuid}', [ProjectController::class, 'destroy']);
     
+    // Project search (for real-time search without page reload)
+    Route::get('/projects/search', [ProjectController::class, 'search']);
+    
     // Project actions
     Route::post('/projects/{project:uuid}/duplicate', [ProjectController::class, 'duplicate']);
     Route::post('/projects/{project:uuid}/move', [ProjectController::class, 'moveToWorkspace']);
