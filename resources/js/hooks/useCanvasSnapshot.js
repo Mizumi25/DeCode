@@ -128,10 +128,18 @@ export function useCanvasSnapshot(projectId, options = {}) {
    */
   useEffect(() => {
     if (autoCapture && projectId) {
-      console.log(`[useCanvasSnapshot] Auto-capturing on mount`);
+      console.log(`🚀 [useCanvasSnapshot] Auto-capture ENABLED for project ${projectId}`);
+      console.log(`⏰ [useCanvasSnapshot] Will capture in ${captureDelay}ms`);
       scheduleSnapshot();
+    } else {
+      if (!autoCapture) {
+        console.log(`⏸️ [useCanvasSnapshot] Auto-capture DISABLED`);
+      }
+      if (!projectId) {
+        console.log(`⚠️ [useCanvasSnapshot] No project ID provided`);
+      }
     }
-  }, [autoCapture, projectId, scheduleSnapshot]);
+  }, [autoCapture, projectId, scheduleSnapshot, captureDelay]);
 
   /**
    * Cleanup on unmount

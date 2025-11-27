@@ -10,83 +10,175 @@ export class CanvasSnapshotService {
   static snapshotCache = new Map();
   
   /**
-   * Capture canvas snapshot using DOM element snapshotting
-   * Captures ONLY the frames container, excluding UI elements
+   * Capture ENTIRE Void page snapshot - background, grid, frames, EVERYTHING visible
+   * This is like taking a screenshot of the whole Void page UI
    */
   static async captureCanvasSnapshot(projectId, options = {}) {
     const {
-      width = 800,
-      height = 600,
-      quality = 0.92,
+      width = 1400,
+      height = 900,
+      quality = 0.9,
       format = 'image/jpeg',
-      scale = 2, // For higher quality (retina)
-      excludeSelectors = [
-        '[data-exclude-snapshot="true"]',
-        '.header',
-        '.panel',
-        '.floating-toolbox',
-        '.delete-button',
-        '.infinite-grid',
-      ]
+      scale = 1, // No extra scaling, capture at actual viewport size
     } = options;
 
     try {
-      console.log(`[CanvasSnapshot] Starting capture for project ${projectId}`);
+      console.log(`🎬 [CanvasSnapshot] Starting FULL VOID PAGE capture for project ${projectId}`);
 
-      // Find the canvas container (the scrollable area with frames)
-      const canvasElement = document.querySelector('[data-canvas="true"]');
-      if (!canvasElement) {
-        throw new Error('Canvas element not found');
+      // Find the main Void page container with data-canvas="true"
+      const voidPageElement = document.querySelector('[data-canvas="true"]');
+      
+      if (!voidPageElement) {
+        console.error('❌ [CanvasSnapshot] Void page element [data-canvas="true"] not found in DOM');
+        throw new Error('Void page element not found');
       }
+      console.log('✅ [CanvasSnapshot] Found Void page element:', voidPageElement);
 
-      // Find the frames container (the element that contains all frames)
-      const framesContainer = canvasElement.querySelector('.absolute.inset-0');
-      if (!framesContainer) {
-        throw new Error('Frames container not found');
-      }
+      // Count frames for logging
+      const frameElements = voidPageElement.querySelectorAll('[data-frame-id]');
+      console.log(`📊 [CanvasSnapshot] Found ${frameElements.length} frames in Void page`);
 
-      console.log(`[CanvasSnapshot] Found frames container, capturing...`);
+      // Get actual dimensions of the viewport
+      const rect = voidPageElement.getBoundingClientRect();
+      const captureWidth = Math.min(width, rect.width);
+      const captureHeight = Math.min(height, rect.height);
 
-      // Create a temporary canvas for snapshot
-      const canvas = document.createElement('canvas');
-      canvas.width = width * scale;
-      canvas.height = height * scale;
-      const ctx = canvas.getContext('2d');
+      console.log(`📸 [CanvasSnapshot] Capturing ENTIRE Void page: ${captureWidth}x${captureHeight} (background, grid, frames, everything visible)`);
 
-      // Scale context for better quality
-      ctx.scale(scale, scale);
+      // Use html2canvas to capture the entire visible Void page
+      const canvas = await this.captureElementUsingHtml2Canvas(voidPageElement, captureWidth, captureHeight);
+      
+      // Convert to JPEG data URL
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
 
-      // Fill with background
-      const isDark = canvasElement.classList.contains('bg-gradient-to-br') && 
-                     canvasElement.style.backgroundColor.includes('slate');
-      ctx.fillStyle = isDark ? '#0f172a' : '#f8fafc';
-      ctx.fillRect(0, 0, width, height);
-
-      // Clone the frames container to avoid modifying the DOM
-      const clonedContainer = framesContainer.cloneNode(true);
-
-      // Remove excluded elements from clone
-      excludeSelectors.forEach(selector => {
-        const elements = clonedContainer.querySelectorAll(selector);
-        elements.forEach(el => el.remove());
-      });
-
-      // Capture using foreign object in SVG
-      const dataUrl = await this.captureElementToDataURL(clonedContainer, width, height, scale);
-
-      console.log(`[CanvasSnapshot] Capture successful`);
+      console.log(`✅ [CanvasSnapshot] FULL VOID PAGE captured! Data URL length: ${dataUrl.length}`);
 
       return {
         dataUrl,
-        width: width * scale,
-        height: height * scale,
+        width: canvas.width,
+        height: canvas.height,
         timestamp: Date.now()
       };
 
     } catch (error) {
-      console.error(`[CanvasSnapshot] Capture failed:`, error);
+      console.error(`❌ [CanvasSnapshot] Capture failed:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Capture element using html2canvas library or fallback to simple screenshot
+   * This will render the entire Void page including background gradients
+   */
+  static async captureElementUsingHtml2Canvas(element, width, height) {
+    // Check if html2canvas is available
+    if (typeof window.html2canvas !== 'undefined') {
+      console.log('📸 [CanvasSnapshot] Using html2canvas library');
+      try {
+        const canvas = await window.html2canvas(element, {
+          width: width,
+          height: height,
+          scale: 1,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: null,
+          logging: false
+        });
+        return canvas;
+      } catch (error) {
+        console.warn('⚠️ [CanvasSnapshot] html2canvas failed, using fallback:', error);
+      }
+    }
+
+    // Fallback: Manual canvas rendering
+    console.log('📸 [CanvasSnapshot] Using fallback manual canvas rendering');
+    return new Promise((resolve, reject) => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+
+        // Get computed styles
+        const computedStyle = window.getComputedStyle(element);
+        const bgColor = computedStyle.backgroundColor;
+        const bgImage = computedStyle.backgroundImage;
+
+        // Fill with background color
+        if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)') {
+          ctx.fillStyle = bgColor;
+          ctx.fillRect(0, 0, width, height);
+        } else {
+          // Default dark background for Void page
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(0, 0, width, height);
+        }
+
+        // Draw a simple grid pattern (since we can't capture the actual grid)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.lineWidth = 1;
+        const gridSize = 50;
+        
+        for (let x = 0; x < width; x += gridSize) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, height);
+          ctx.stroke();
+        }
+        
+        for (let y = 0; y < height; y += gridSize) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(width, y);
+          ctx.stroke();
+        }
+
+        // Draw frame rectangles
+        const frameElements = element.querySelectorAll('[data-frame-id]');
+        console.log(`🖼️ [CanvasSnapshot] Drawing ${frameElements.length} frames on canvas`);
+        
+        frameElements.forEach(frameEl => {
+          const rect = frameEl.getBoundingClientRect();
+          const containerRect = element.getBoundingClientRect();
+          
+          // Calculate relative position
+          const x = rect.left - containerRect.left;
+          const y = rect.top - containerRect.top;
+          const w = rect.width;
+          const h = rect.height;
+
+          // Draw frame background
+          ctx.fillStyle = '#1e293b';
+          ctx.fillRect(x, y, w, h);
+          
+          // Draw frame border
+          ctx.strokeStyle = '#334155';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x, y, w, h);
+          
+          // Try to get frame name from various sources
+          let frameName = 'Frame';
+          const nameElement = frameEl.querySelector('h2') || 
+                            frameEl.querySelector('.frame-title') ||
+                            frameEl.querySelector('[contenteditable]');
+          if (nameElement) {
+            frameName = nameElement.textContent || 'Frame';
+          }
+          
+          // Draw frame name
+          ctx.fillStyle = '#f1f5f9';
+          ctx.font = '14px system-ui, -apple-system, sans-serif';
+          ctx.fillText(frameName, x + 10, y + 25);
+        });
+
+        console.log('✅ [CanvasSnapshot] Fallback rendering complete');
+        resolve(canvas);
+
+      } catch (error) {
+        console.error('❌ [CanvasSnapshot] Fallback rendering failed:', error);
+        reject(error);
+      }
+    });
   }
 
   /**
@@ -191,10 +283,11 @@ export class CanvasSnapshotService {
    */
   static async uploadSnapshot(projectId, dataUrl) {
     try {
-      console.log(`[CanvasSnapshot] Uploading snapshot for project ${projectId}`);
+      console.log(`⬆️ [CanvasSnapshot] Uploading snapshot for project ${projectId}...`);
 
       // Convert data URL to blob
       const blob = await this.dataURLToBlob(dataUrl);
+      console.log(`📦 [CanvasSnapshot] Blob created: ${(blob.size / 1024).toFixed(2)}KB`);
 
       // Create form data
       const formData = new FormData();
@@ -210,7 +303,8 @@ export class CanvasSnapshotService {
       });
 
       if (response.data.success) {
-        console.log(`[CanvasSnapshot] Upload successful:`, response.data.thumbnail_url);
+        console.log(`✅ [CanvasSnapshot] Upload successful:`, response.data.thumbnail_url);
+        console.log(`🎉 [CanvasSnapshot] PROJECT THUMBNAIL IS NOW VISIBLE ON PROJECT LIST!`);
         
         // Cache the result
         this.snapshotCache.set(projectId, {
@@ -224,7 +318,7 @@ export class CanvasSnapshotService {
       throw new Error(response.data.message || 'Upload failed');
 
     } catch (error) {
-      console.error(`[CanvasSnapshot] Upload failed:`, error);
+      console.error(`❌ [CanvasSnapshot] Upload failed:`, error);
       throw error;
     }
   }

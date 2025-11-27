@@ -842,6 +842,9 @@ public function updateCanvasStyles(Request $request, Frame $frame): JsonResponse
                   'url' => $thumbnailUrl
               ]);
               
+              // DON'T update project thumbnail - let CanvasSnapshotService handle it
+              // Project thumbnails show the entire Void page, not individual frames
+              
               // Broadcast to workspace if available
               if ($frame->project->workspace) {
                   broadcast(new ThumbnailGenerated($frame, $frame->project->workspace));
@@ -912,6 +915,9 @@ public function updateCanvasStyles(Request $request, Frame $frame): JsonResponse
             
             if ($thumbnailPath) {
                 $thumbnailUrl = $this->thumbnailService->getThumbnailUrl($frame);
+                
+                // DON'T update project thumbnail - let CanvasSnapshotService handle it
+                // Project thumbnails show the entire Void page, not individual frames
                 
                 return response()->json([
                     'success' => true,
@@ -1176,6 +1182,9 @@ public function updateCanvasStyles(Request $request, Frame $frame): JsonResponse
               'path' => $thumbnailPath,
               'url' => $thumbnailUrl
           ]);
+          
+          // DON'T update project thumbnail - let CanvasSnapshotService handle it
+          // Project thumbnails show the entire Void page, not individual frames
           
             return response()->json([
               'success' => true,
@@ -1704,5 +1713,33 @@ public function checkPlaywrightStatus(Request $request): JsonResponse
             'message' => 'Error checking Playwright: ' . $e->getMessage()
         ]);
     }
+}
+
+/**
+ * Darken a hex color by a percentage
+ */
+private function darkenColor(string $hex, float $percent): string
+{
+    // Remove # if present
+    $hex = ltrim($hex, '#');
+    
+    // Convert to RGB
+    if (strlen($hex) === 3) {
+        $r = hexdec(str_repeat(substr($hex, 0, 1), 2));
+        $g = hexdec(str_repeat(substr($hex, 1, 1), 2));
+        $b = hexdec(str_repeat(substr($hex, 2, 1), 2));
+    } else {
+        $r = hexdec(substr($hex, 0, 2));
+        $g = hexdec(substr($hex, 2, 2));
+        $b = hexdec(substr($hex, 4, 2));
+    }
+    
+    // Darken
+    $r = max(0, min(255, $r * (1 - $percent)));
+    $g = max(0, min(255, $g * (1 - $percent)));
+    $b = max(0, min(255, $b * (1 - $percent)));
+    
+    // Convert back to hex
+    return sprintf('#%02x%02x%02x', $r, $g, $b);
 }
 }

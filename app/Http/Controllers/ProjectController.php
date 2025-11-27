@@ -1223,8 +1223,19 @@ public function store(Request $request): RedirectResponse
     {
         $user = Auth::user();
         
+        \Log::info('📸 PROJECT THUMBNAIL UPLOAD STARTED', [
+            'project_id' => $project->uuid,
+            'project_name' => $project->name,
+            'user_id' => $user->id
+        ]);
+        
         // Check ownership
         if ($project->user_id !== $user->id) {
+            \Log::warning('❌ Unauthorized thumbnail upload attempt', [
+                'project_id' => $project->uuid,
+                'user_id' => $user->id,
+                'owner_id' => $project->user_id
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'You do not have permission to update this project'
@@ -1238,13 +1249,22 @@ public function store(Request $request): RedirectResponse
 
         try {
             if ($request->hasFile('snapshot')) {
+                $file = $request->file('snapshot');
+                \Log::info('📦 Snapshot file received', [
+                    'size' => $file->getSize(),
+                    'mime_type' => $file->getMimeType(),
+                    'original_name' => $file->getClientOriginalName()
+                ]);
+                
                 // Delete old thumbnail if exists
                 if ($project->thumbnail) {
                     \Storage::disk('public')->delete($project->thumbnail);
+                    \Log::info('🗑️ Old thumbnail deleted', ['path' => $project->thumbnail]);
                 }
 
                 // Store new thumbnail from snapshot
                 $path = $request->file('snapshot')->store('thumbnails/projects', 'public');
+                \Log::info('💾 New thumbnail stored', ['path' => $path]);
                 
                 // Update project with new thumbnail
                 $project->update([
@@ -1252,10 +1272,17 @@ public function store(Request $request): RedirectResponse
                     'thumbnail_method' => $request->input('method', 'canvas_snapshot'),
                     'thumbnail_updated_at' => now()
                 ]);
+                
+                $thumbnailUrl = \Storage::url($path);
+                \Log::info('✅ PROJECT THUMBNAIL UPDATED SUCCESSFULLY!', [
+                    'project_id' => $project->uuid,
+                    'thumbnail_url' => $thumbnailUrl,
+                    'full_url' => asset('storage/' . $path)
+                ]);
 
                 return response()->json([
                     'success' => true,
-                    'thumbnail_url' => \Storage::url($path),
+                    'thumbnail_url' => $thumbnailUrl,
                     'generated_at' => now()->toISOString(),
                     'method' => 'canvas_snapshot',
                     'message' => 'Project thumbnail updated from canvas snapshot'

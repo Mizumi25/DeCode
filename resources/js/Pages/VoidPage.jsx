@@ -1,7 +1,7 @@
 // Pages/VoidPage.jsx - Modified sections only
 import { useRef, useState, useCallback, useMemo, useEffect } from 'react'
 import { Head, usePage, router } from '@inertiajs/react'
-import { Plus, Layers, FolderOpen, Code, Users, Upload, Briefcase, UserPlus } from 'lucide-react'
+import { Plus, Layers, FolderOpen, Code, Users, Upload, Briefcase, UserPlus, Camera } from 'lucide-react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import Panel from '@/Components/Panel'
 import BackgroundLayers from '@/Components/Void/BackgroundLayers'
@@ -20,6 +20,7 @@ import { useEditorStore } from '@/stores/useEditorStore'
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore'
 import useFrameLockStore from '@/stores/useFrameLockStore'
 import { useCanvasSnapshot } from '@/hooks/useCanvasSnapshot'
+import { useVoidSnapshot } from '@/hooks/useVoidSnapshot'
 
 // Import panel components
 import FramesPanel from '@/Components/Void/FramesPanel'
@@ -149,17 +150,43 @@ const zoomLevelRef = useRef(zoomLevel)
     }
   }, [user?.id, initializeLockSystem, echoConnected])
 
-  // Initialize canvas snapshot for automatic thumbnail updates
+  // DISABLE auto-capture completely for now - it has re-render issues
   const { scheduleSnapshot, isCapturing } = useCanvasSnapshot(project?.id, {
-    autoCapture: false, // Don't auto-capture on mount
-    captureDelay: 3000, // Wait 3 seconds after changes
+    autoCapture: false,
+    captureDelay: 5000,
     onCaptureSuccess: (result) => {
-      console.log('[VoidPage] Thumbnail updated:', result.thumbnail_url)
+      console.log('[VoidPage] ✅ Snapshot complete:', result.thumbnail_url)
     },
     onCaptureError: (error) => {
-      console.error('[VoidPage] Thumbnail capture failed:', error)
+      console.error('[VoidPage] ❌ Snapshot failed:', error)
     }
   })
+
+  // Manual snapshot function
+  const generateProjectThumbnail = useCallback(async () => {
+    if (!project?.uuid) return;
+    
+    console.log('[VoidPage] 🚀 Manually generating project thumbnail...');
+    
+    try {
+      const { VoidPageSnapshotService } = await import('@/Services/VoidPageSnapshotService');
+      
+      const result = await VoidPageSnapshotService.generateAndUpload(project.uuid, {
+        width: 1600,
+        height: 1000,
+        scale: 2,
+        quality: 0.95,
+        waitForRender: 2000,
+      });
+      
+      console.log('[VoidPage] 🎉 SUCCESS! Thumbnail updated:', result.thumbnailUrl);
+      alert('✅ Project thumbnail generated successfully!');
+      
+    } catch (error) {
+      console.error('[VoidPage] ❌ Failed to generate thumbnail:', error);
+      alert('❌ Failed to generate thumbnail: ' + error.message);
+    }
+  }, [project?.uuid])
 
   // Real-time frame events listener
   useEffect(() => {
@@ -1016,6 +1043,12 @@ useEffect(() => {
       label: 'Import', 
       isPrimary: false, 
       action: () => handleToolAction('Import') 
+    },
+    { 
+      icon: Camera, 
+      label: 'Generate Thumbnail', 
+      isPrimary: false, 
+      action: generateProjectThumbnail
     },
     { 
       icon: Briefcase, 

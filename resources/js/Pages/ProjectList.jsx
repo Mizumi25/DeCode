@@ -252,6 +252,42 @@ export default function ProjectList({
       });
     });
 
+    // Listen for thumbnail generated (with dot)
+    channel.listen('.ThumbnailGenerated', (event) => {
+      console.log('🖼️ Thumbnail generated event received (with dot):', event);
+      
+      // Update project thumbnail using project_uuid from event
+      if (event.project_uuid && event.thumbnail_url) {
+        setRealtimeProjects(prevProjects => 
+          prevProjects.map(p => {
+            if (p.uuid === event.project_uuid) {
+              console.log('✅ Updating project thumbnail:', p.name, event.thumbnail_url);
+              return { ...p, thumbnail: event.thumbnail_url };
+            }
+            return p;
+          })
+        );
+      }
+    });
+
+    // Listen for thumbnail generated (without dot)
+    channel.listen('ThumbnailGenerated', (event) => {
+      console.log('🖼️ Thumbnail generated event received (no dot):', event);
+      
+      // Update project thumbnail using project_uuid from event
+      if (event.project_uuid && event.thumbnail_url) {
+        setRealtimeProjects(prevProjects => 
+          prevProjects.map(p => {
+            if (p.uuid === event.project_uuid) {
+              console.log('✅ Updating project thumbnail:', p.name, event.thumbnail_url);
+              return { ...p, thumbnail: event.thumbnail_url };
+            }
+            return p;
+          })
+        );
+      }
+    });
+
     return () => {
       console.log('🔌 Unsubscribing from workspace channel');
       channel.stopListening('ProjectCreated');
@@ -260,6 +296,8 @@ export default function ProjectList({
       channel.stopListening('.ProjectUpdated');
       channel.stopListening('ProjectDeleted');
       channel.stopListening('.ProjectDeleted');
+      channel.stopListening('ThumbnailGenerated');
+      channel.stopListening('.ThumbnailGenerated');
       window.Echo.leave(`workspace.${currentWorkspace.id}`);
     };
   }, [currentWorkspace?.id]);
@@ -511,7 +549,7 @@ export default function ProjectList({
   // Project actions
   const handleCopyProject = async (project) => {
     try {
-      const response = await fetch(`/api/projects/${project.project.id}/copy`, {
+      const response = await fetch(`/api/projects/${project.project.uuid}/copy`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -522,13 +560,33 @@ export default function ProjectList({
       if (response.ok) {
         const data = await response.json();
         console.log('Project copied to clipboard:', data.message);
-        // Update clipboard status in parent or refresh
-        router.reload({ only: ['clipboardStatus'] });
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Project Copied',
+          message: 'Project has been copied to clipboard. You can now paste it.',
+          variant: 'info',
+          onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'info', isLoading: false })
+        });
       } else {
-        console.error('Failed to copy project');
+        const errorData = await response.json();
+        console.error('Failed to copy project:', errorData.message);
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Copy Failed',
+          message: errorData.message || 'Unable to copy project. Please try again.',
+          variant: 'danger',
+          onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger', isLoading: false })
+        });
       }
     } catch (error) {
       console.error('Error copying project:', error);
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Error',
+        message: 'An error occurred while copying the project. Please try again.',
+        variant: 'danger',
+        onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger', isLoading: false })
+      });
     }
     setContextMenu({ show: false, x: 0, y: 0, project: null });
   };
@@ -550,14 +608,34 @@ export default function ProjectList({
       if (response.ok) {
         const data = await response.json();
         console.log('Project pasted:', data.message);
-        // Refresh the projects list
-        router.reload();
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Project Pasted',
+          message: 'Project has been pasted successfully!',
+          variant: 'info',
+          onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'info', isLoading: false })
+        });
+        // Real-time event will add the project
       } else {
         const errorData = await response.json();
         console.error('Failed to paste project:', errorData.message);
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Paste Failed',
+          message: errorData.message || 'Unable to paste project. Please try again.',
+          variant: 'danger',
+          onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger', isLoading: false })
+        });
       }
     } catch (error) {
       console.error('Error pasting project:', error);
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Error',
+        message: 'An error occurred while pasting the project. Please try again.',
+        variant: 'danger',
+        onConfirm: () => setConfirmDialog({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger', isLoading: false })
+      });
     }
     setContextMenu({ show: false, x: 0, y: 0, project: null });
     setShowWorkspaceDropdown(false);
@@ -565,7 +643,7 @@ export default function ProjectList({
 
   const handleMoveProject = async (project, targetWorkspaceId) => {
     try {
-      const response = await fetch(`/api/projects/${project.project.id}/move-to-workspace`, {
+      const response = await fetch(`/api/projects/${project.project.uuid}/move-to-workspace`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
