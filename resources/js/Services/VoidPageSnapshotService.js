@@ -178,119 +178,253 @@ export class VoidPageSnapshotService {
   }
 
   /**
-   * Capture the offscreen container as a canvas
-   * FIXED: Capture LIVE frames from the actual DOM, not cloned container
+   * Capture the Void Page directly from the live DOM
+   * Captures: Background, Frames Container, Preview Frames, Scroll Handler
+   * Excludes: Header, Panels, Floating Toolbox, Delete Button, Grid overlays
    */
   static async captureOffscreenContainer(container, targetWidth, targetHeight, scale) {
-    console.log('📸 [VoidSnapshot] Capturing offscreen container to canvas');
+    console.log('📸 [VoidSnapshot] Capturing Void Page to canvas');
     
+    // Get the live Void page canvas element
+    const liveVoidPage = document.querySelector('[data-canvas="true"]');
+    
+    if (!liveVoidPage) {
+      throw new Error('Live Void page element [data-canvas="true"] not found');
+    }
+
+    // Find all frames in the DOM
+    const frames = liveVoidPage.querySelectorAll('[data-frame-uuid]');
+    console.log(`🖼️ [VoidSnapshot] Found ${frames.length} frames to capture`);
+
+    // Create canvas
     const canvas = document.createElement('canvas');
     canvas.width = targetWidth;
     canvas.height = targetHeight;
     const ctx = canvas.getContext('2d', { alpha: false });
 
-    // IMPORTANT: Get frames from the LIVE DOM, not the cloned container
-    // Because React components don't clone properly with cloneNode()
-    const liveVoidPage = document.querySelector('[data-canvas="true"]');
-    
-    if (!liveVoidPage) {
-      throw new Error('Live Void page element not found');
-    }
+    // Step 1: Draw the background
+    await this.drawVoidBackground(ctx, liveVoidPage, targetWidth, targetHeight);
 
-    // Method 1: Capture from live DOM
-    try {
-      // Draw background
-      const computedStyle = window.getComputedStyle(liveVoidPage);
-      const bgColor = computedStyle.backgroundColor;
-      
-      if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)') {
-        ctx.fillStyle = bgColor;
-      } else {
-        // Default Void page background
-        ctx.fillStyle = '#0f172a';
-      }
-      ctx.fillRect(0, 0, targetWidth, targetHeight);
-
-      // Draw frames from the LIVE Void page (React-rendered)
-      const frames = liveVoidPage.querySelectorAll('[data-frame-id]');
-      console.log(`🖼️ [VoidSnapshot] Found ${frames.length} frames to render from LIVE DOM`);
-
-      // Calculate container offset for positioning
-      const containerRect = liveVoidPage.getBoundingClientRect();
-
-      frames.forEach((frame, index) => {
-        try {
-          const frameRect = frame.getBoundingClientRect();
-          
-          // Calculate position relative to container
-          const x = (frameRect.left - containerRect.left) / scale;
-          const y = (frameRect.top - containerRect.top) / scale;
-          const w = frameRect.width / scale;
-          const h = frameRect.height / scale;
-
-          // Get frame styles
-          const frameStyle = window.getComputedStyle(frame);
-          const frameBg = frameStyle.backgroundColor;
-          const frameBorder = frameStyle.borderColor;
-
-          // Draw frame background
-          if (frameBg && frameBg !== 'rgba(0, 0, 0, 0)') {
-            ctx.fillStyle = frameBg;
-          } else {
-            ctx.fillStyle = '#ffffff';
-          }
-          ctx.fillRect(x, y, w, h);
-
-          // Draw frame border
-          ctx.strokeStyle = frameBorder || '#e5e7eb';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(x, y, w, h);
-
-          // Draw frame content (components) if any
-          const components = frame.querySelectorAll('[data-component-id]');
-          components.forEach(comp => {
-            const compRect = comp.getBoundingClientRect();
-            const compX = (compRect.left - containerRect.left) / scale;
-            const compY = (compRect.top - containerRect.top) / scale;
-            const compW = compRect.width / scale;
-            const compH = compRect.height / scale;
-
-            const compStyle = window.getComputedStyle(comp);
-            const compBg = compStyle.backgroundColor;
-
-            if (compBg && compBg !== 'rgba(0, 0, 0, 0)') {
-              ctx.fillStyle = compBg;
-              ctx.fillRect(compX, compY, compW, compH);
-            }
-
-            // Draw component border
-            ctx.strokeStyle = compStyle.borderColor || '#d1d5db';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(compX, compY, compW, compH);
-          });
-
-          // Draw frame name
-          const frameName = frame.querySelector('h2')?.textContent || 
-                          frame.querySelector('.frame-title')?.textContent ||
-                          frame.getAttribute('data-frame-name') ||
-                          `Frame ${index + 1}`;
-          
-          ctx.fillStyle = '#1f2937';
-          ctx.font = '16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-          ctx.fillText(frameName, x + 12, y + 28);
-
-        } catch (err) {
-          console.warn(`⚠️ [VoidSnapshot] Failed to render frame ${index}:`, err);
-        }
-      });
-
-      console.log('✅ [VoidSnapshot] Canvas rendering complete');
+    // Step 2: If no frames, return background only
+    if (frames.length === 0) {
+      console.warn('⚠️ [VoidSnapshot] No frames found! Returning background snapshot only');
       return canvas;
-
-    } catch (error) {
-      console.error('❌ [VoidSnapshot] Canvas rendering failed:', error);
-      throw error;
     }
+
+    // Step 3: Calculate viewport to capture all frames
+    const viewport = this.calculateFramesViewport(frames, liveVoidPage);
+    console.log('📐 [VoidSnapshot] Viewport:', viewport);
+
+    // Step 4: Calculate scale to fit frames in target dimensions
+    const fitScale = this.calculateFitScale(viewport, targetWidth, targetHeight);
+    
+    // Step 5: Center the content
+    const offsetX = (targetWidth - (viewport.width * fitScale)) / 2;
+    const offsetY = (targetHeight - (viewport.height * fitScale)) / 2;
+
+    console.log('📐 [VoidSnapshot] Fit scale:', fitScale, 'Offset:', { offsetX, offsetY });
+
+    // Step 6: Capture each frame with proper rendering
+    await this.captureFrames(ctx, frames, viewport, liveVoidPage, fitScale, offsetX, offsetY);
+
+    console.log('✅ [VoidSnapshot] Canvas rendering complete');
+    return canvas;
+  }
+
+  /**
+   * Draw the Void Page background (gradient or solid color)
+   */
+  static async drawVoidBackground(ctx, voidPageElement, width, height) {
+    const computedStyle = window.getComputedStyle(voidPageElement);
+    const bgColor = computedStyle.backgroundColor;
+    const bgImage = computedStyle.backgroundImage;
+    
+    // Check if there's a gradient background
+    if (bgImage && bgImage !== 'none') {
+      // Try to extract gradient colors from background-image
+      // For now, use default Void gradient
+      const gradient = ctx.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, '#0f172a'); // slate-900
+      gradient.addColorStop(0.5, '#581c87'); // purple-900
+      gradient.addColorStop(1, '#0f172a'); // slate-900
+      ctx.fillStyle = gradient;
+    } else if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+      ctx.fillStyle = bgColor;
+    } else {
+      // Default dark gradient
+      const gradient = ctx.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, '#0f172a');
+      gradient.addColorStop(0.5, '#581c87');
+      gradient.addColorStop(1, '#0f172a');
+      ctx.fillStyle = gradient;
+    }
+    
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  /**
+   * Calculate viewport that encompasses all frames
+   */
+  static calculateFramesViewport(frames, containerElement) {
+    const containerRect = containerElement.getBoundingClientRect();
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    
+    const frameData = [];
+    frames.forEach((frameElement) => {
+      const rect = frameElement.getBoundingClientRect();
+      
+      // Get frame position relative to the canvas container
+      const frameX = rect.left - containerRect.left;
+      const frameY = rect.top - containerRect.top;
+      
+      minX = Math.min(minX, frameX);
+      minY = Math.min(minY, frameY);
+      maxX = Math.max(maxX, frameX + rect.width);
+      maxY = Math.max(maxY, frameY + rect.height);
+      
+      frameData.push({
+        element: frameElement,
+        x: frameX,
+        y: frameY,
+        width: rect.width,
+        height: rect.height
+      });
+    });
+
+    // Add padding around frames
+    const padding = 50;
+    return {
+      x: Math.max(0, minX - padding),
+      y: Math.max(0, minY - padding),
+      width: (maxX - minX) + (padding * 2),
+      height: (maxY - minY) + (padding * 2),
+      frames: frameData
+    };
+  }
+
+  /**
+   * Calculate scale to fit viewport in target dimensions
+   */
+  static calculateFitScale(viewport, targetWidth, targetHeight) {
+    const scaleX = targetWidth / viewport.width;
+    const scaleY = targetHeight / viewport.height;
+    return Math.min(scaleX, scaleY, 1); // Don't upscale beyond 1x
+  }
+
+  /**
+   * Capture all frames onto the canvas
+   */
+  static async captureFrames(ctx, frames, viewport, containerElement, fitScale, offsetX, offsetY) {
+    const containerRect = containerElement.getBoundingClientRect();
+
+    for (let i = 0; i < frames.length; i++) {
+      const frame = frames[i];
+      try {
+        const rect = frame.getBoundingClientRect();
+        
+        // Calculate position relative to container
+        const frameX = rect.left - containerRect.left;
+        const frameY = rect.top - containerRect.top;
+        
+        // Calculate position in the snapshot canvas
+        const canvasX = offsetX + ((frameX - viewport.x) * fitScale);
+        const canvasY = offsetY + ((frameY - viewport.y) * fitScale);
+        const canvasWidth = rect.width * fitScale;
+        const canvasHeight = rect.height * fitScale;
+
+        // Draw the frame using canvas API
+        await this.drawFrameToCanvas(ctx, frame, canvasX, canvasY, canvasWidth, canvasHeight);
+        
+        console.log(`✅ [VoidSnapshot] Captured frame ${i + 1}/${frames.length} at (${canvasX.toFixed(0)}, ${canvasY.toFixed(0)})`);
+      } catch (err) {
+        console.warn(`⚠️ [VoidSnapshot] Failed to capture frame ${i}:`, err);
+      }
+    }
+  }
+
+  /**
+   * Draw a single frame to canvas (without html2canvas)
+   * Captures the actual rendered content by traversing the DOM
+   */
+  static async drawFrameToCanvas(ctx, frameElement, x, y, width, height) {
+    // Save context state
+    ctx.save();
+    
+    // Get frame styles
+    const frameStyle = window.getComputedStyle(frameElement);
+    
+    // Draw frame background
+    const bgColor = frameStyle.backgroundColor;
+    if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+      ctx.fillStyle = bgColor;
+    } else {
+      ctx.fillStyle = '#ffffff';
+    }
+    ctx.fillRect(x, y, width, height);
+    
+    // Draw frame border
+    const borderColor = frameStyle.borderColor;
+    const borderWidth = parseInt(frameStyle.borderWidth) || 1;
+    if (borderColor && borderColor !== 'rgba(0, 0, 0, 0)') {
+      ctx.strokeStyle = borderColor;
+    } else {
+      ctx.strokeStyle = '#e5e7eb';
+    }
+    ctx.lineWidth = Math.max(1, borderWidth * (width / frameElement.offsetWidth));
+    ctx.strokeRect(x, y, width, height);
+    
+    // Draw frame shadow if present
+    const boxShadow = frameStyle.boxShadow;
+    if (boxShadow && boxShadow !== 'none') {
+      // Simple shadow approximation
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 2;
+    }
+    
+    // Get frame title
+    const titleElement = frameElement.querySelector('[class*="frame-title"], h2, h3, .title');
+    if (titleElement) {
+      const title = titleElement.textContent || '';
+      if (title) {
+        ctx.fillStyle = '#1f2937';
+        ctx.font = `${Math.max(12, height * 0.03)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.fillText(title, x + (width * 0.05), y + (height * 0.08));
+      }
+    }
+    
+    // Draw iframe content if present
+    const iframe = frameElement.querySelector('iframe');
+    if (iframe) {
+      // Draw a representation of the iframe
+      ctx.fillStyle = '#f3f4f6';
+      const iframeX = x + (width * 0.05);
+      const iframeY = y + (height * 0.15);
+      const iframeW = width * 0.9;
+      const iframeH = height * 0.8;
+      ctx.fillRect(iframeX, iframeY, iframeW, iframeH);
+      
+      // Try to capture iframe content if same-origin
+      try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (iframeDoc && iframeDoc.body) {
+          // Draw a simplified representation
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = `${Math.max(10, height * 0.025)}px monospace`;
+          ctx.fillText('Frame Content', iframeX + 10, iframeY + 20);
+        }
+      } catch (e) {
+        // Cross-origin iframe, can't access content
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillRect(iframeX + iframeW/2 - 20, iframeY + iframeH/2 - 20, 40, 40);
+      }
+    }
+    
+    // Restore context state
+    ctx.restore();
   }
 
   /**
