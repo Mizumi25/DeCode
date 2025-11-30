@@ -16,6 +16,7 @@ use App\Events\FrameCreated;
 use App\Events\FrameUpdated;
 use App\Events\FrameDeleted;
 use App\Services\PlaywrightThumbnailService;
+use App\Services\VoidPagePlaywrightService;
 use App\Events\ThumbnailGenerated;
 
 class VoidController extends Controller

@@ -151,6 +151,9 @@ Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasS
     Route::post('/projects/{project:uuid}/duplicate', [ProjectController::class, 'duplicate']);
     Route::post('/projects/{project:uuid}/move', [ProjectController::class, 'moveToWorkspace']);
     Route::post('/projects/{project:uuid}/thumbnail', [ProjectController::class, 'updateThumbnail']);
+    
+    // Project thumbnail generation - Playwright PRIMARY, Canvas FALLBACK
+    Route::post('/projects/{project:uuid}/thumbnail/playwright', [ProjectController::class, 'generateThumbnailPlaywright']);
     Route::post('/projects/{project:uuid}/thumbnail/snapshot', [ProjectController::class, 'updateThumbnailFromSnapshot']);
     Route::post('/projects/{project:uuid}/frames', [ProjectController::class, 'createFrame']);
     Route::put('/projects/{project:uuid}/move-workspace', [ProjectController::class, 'moveToWorkspace']);

@@ -14,6 +14,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Http\RedirectResponse;
 use App\Events\ProjectCreated;
+use App\Services\VoidPagePlaywrightService;
 
 class ProjectController extends Controller
 {
@@ -1216,14 +1217,112 @@ public function store(Request $request): RedirectResponse
     }
 
     /**
+     * Generate project thumbnail using Playwright (PRIMARY method)
+     * Falls back to frontend canvas snapshot if Playwright fails
+     */
+    public function generateThumbnailPlaywright(Request $request, Project $project): JsonResponse
+    {
+        $user = Auth::user();
+        
+        \Log::info('🎬 PLAYWRIGHT THUMBNAIL GENERATION STARTED', [
+            'project_id' => $project->uuid,
+            'project_name' => $project->name,
+            'user_id' => $user->id
+        ]);
+        
+        // Check ownership
+        if ($project->user_id !== $user->id) {
+            \Log::warning('❌ Unauthorized thumbnail generation attempt', [
+                'project_id' => $project->uuid,
+                'user_id' => $user->id,
+                'owner_id' => $project->user_id
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to update this project'
+            ], 403);
+        }
+
+        try {
+            $playwrightService = new VoidPagePlaywrightService();
+            
+            // Check if Playwright is available
+            if (!$playwrightService->checkPlaywrightAvailability()) {
+                \Log::warning('⚠️ Playwright not available, client should use fallback', [
+                    'project_id' => $project->uuid
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Playwright not available',
+                    'fallback_required' => true,
+                    'method' => 'playwright_unavailable'
+                ], 503);
+            }
+            
+            // Generate thumbnail with Playwright
+            $thumbnailPath = $playwrightService->generateVoidPageThumbnail($project, [
+                'width' => $request->input('width', 1600),
+                'height' => $request->input('height', 1000),
+                'quality' => $request->input('quality', 90),
+                'wait_time' => $request->input('wait_time', 3000),
+            ]);
+            
+            if (!$thumbnailPath) {
+                \Log::error('❌ Playwright thumbnail generation returned null', [
+                    'project_id' => $project->uuid
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Playwright generation failed',
+                    'fallback_required' => true,
+                    'method' => 'playwright_failed'
+                ], 500);
+            }
+            
+            // Get the URL for the thumbnail
+            $thumbnailUrl = $playwrightService->getThumbnailUrl($project);
+            
+            \Log::info('✅ PLAYWRIGHT THUMBNAIL GENERATED SUCCESSFULLY!', [
+                'project_id' => $project->uuid,
+                'thumbnail_url' => $thumbnailUrl,
+                'method' => $project->thumbnail_method
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Thumbnail generated successfully with Playwright',
+                'thumbnail_url' => $thumbnailUrl,
+                'method' => $project->thumbnail_method,
+                'updated_at' => $project->thumbnail_updated_at
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('❌ PLAYWRIGHT THUMBNAIL GENERATION EXCEPTION', [
+                'project_id' => $project->uuid,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Exception during Playwright generation: ' . $e->getMessage(),
+                'fallback_required' => true,
+                'method' => 'playwright_exception'
+            ], 500);
+        }
+    }
+
+    /**
      * Update project thumbnail from canvas snapshot
-     * Framer-style canvas snapshot upload
+     * Framer-style canvas snapshot upload (FALLBACK method)
      */
     public function updateThumbnailFromSnapshot(Request $request, Project $project): JsonResponse
     {
         $user = Auth::user();
         
-        \Log::info('📸 PROJECT THUMBNAIL UPLOAD STARTED', [
+        \Log::info('📸 PROJECT THUMBNAIL UPLOAD STARTED (Frontend Fallback)', [
             'project_id' => $project->uuid,
             'project_name' => $project->name,
             'user_id' => $user->id
@@ -1269,7 +1368,7 @@ public function store(Request $request): RedirectResponse
                 // Update project with new thumbnail
                 $project->update([
                     'thumbnail' => $path,
-                    'thumbnail_method' => $request->input('method', 'canvas_snapshot'),
+                    'thumbnail_method' => 'frontend_' . $request->input('method', 'canvas_snapshot'),
                     'thumbnail_updated_at' => now()
                 ]);
                 

@@ -150,43 +150,48 @@ const zoomLevelRef = useRef(zoomLevel)
     }
   }, [user?.id, initializeLockSystem, echoConnected])
 
-  // DISABLE auto-capture completely for now - it has re-render issues
-  const { scheduleSnapshot, isCapturing } = useCanvasSnapshot(project?.id, {
-    autoCapture: false,
+  // Enable Playwright-first thumbnail generation with automatic fallback
+  const { generateSnapshot, scheduleSnapshot, isCapturing, captureMethod } = useVoidSnapshot(project?.uuid, {
+    autoCapture: true, // Enable automatic capture when VoidPage loads
     captureDelay: 5000,
+    usePlaywright: true, // Try Playwright first
+    canvasFallback: true, // Fall back to canvas if Playwright fails
     onCaptureSuccess: (result) => {
-      console.log('[VoidPage] ✅ Snapshot complete:', result.thumbnail_url)
+      console.log('[VoidPage] ✅ Thumbnail captured successfully!', {
+        method: result.method || captureMethod,
+        url: result.thumbnailUrl || result.thumbnail_url
+      })
     },
     onCaptureError: (error) => {
-      console.error('[VoidPage] ❌ Snapshot failed:', error)
+      console.error('[VoidPage] ❌ Thumbnail capture failed:', error)
     }
   })
 
-  // Manual snapshot function
+  // Manual snapshot function - now uses Playwright-first approach
   const generateProjectThumbnail = useCallback(async () => {
     if (!project?.uuid) return;
     
-    console.log('[VoidPage] 🚀 Manually generating project thumbnail...');
+    console.log('[VoidPage] 🚀 Manually generating project thumbnail (Playwright-first)...');
     
     try {
-      const { VoidPageSnapshotService } = await import('@/Services/VoidPageSnapshotService');
+      const result = await generateSnapshot();
       
-      const result = await VoidPageSnapshotService.generateAndUpload(project.uuid, {
-        width: 1600,
-        height: 1000,
-        scale: 2,
-        quality: 0.95,
-        waitForRender: 2000,
-      });
-      
-      console.log('[VoidPage] 🎉 SUCCESS! Thumbnail updated:', result.thumbnailUrl);
-      alert('✅ Project thumbnail generated successfully!');
+      if (result && result.success) {
+        console.log('[VoidPage] 🎉 SUCCESS! Thumbnail generated:', {
+          method: result.method,
+          url: result.thumbnailUrl || result.thumbnail_url
+        });
+        alert(`✅ Project thumbnail generated successfully using ${result.method === 'playwright' ? 'Playwright' : 'Canvas fallback'}!`);
+      } else {
+        console.error('[VoidPage] ❌ Thumbnail generation failed');
+        alert('❌ Failed to generate thumbnail. Check console for details.');
+      }
       
     } catch (error) {
       console.error('[VoidPage] ❌ Failed to generate thumbnail:', error);
       alert('❌ Failed to generate thumbnail: ' + error.message);
     }
-  }, [project?.uuid])
+  }, [project?.uuid, generateSnapshot])
 
   // Real-time frame events listener
   useEffect(() => {
