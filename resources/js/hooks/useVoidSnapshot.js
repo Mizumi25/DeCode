@@ -21,7 +21,6 @@ export const useVoidSnapshot = (projectId, options = {}) => {
   const [lastSnapshot, setLastSnapshot] = useState(null);
   const [captureMethod, setCaptureMethod] = useState(null); // Track which method was used
   const captureTimeoutRef = useRef(null);
-  const hasScheduledRef = useRef(false);
 
   /**
    * Generate snapshot manually
@@ -137,20 +136,18 @@ export const useVoidSnapshot = (projectId, options = {}) => {
   }, [scheduleSnapshot]);
 
   /**
-   * Auto-capture ONCE when projectId is available
-   * Uses generateSnapshot which includes Playwright-first logic
+   * Auto-capture EVERY TIME when projectId is available
+   * Triggers on every VoidPage visit, not just first time
    */
   useEffect(() => {
-    // Only schedule if we have a projectId and haven't scheduled yet
-    if (autoCapture && projectId && !hasScheduledRef.current) {
-      hasScheduledRef.current = true;
-      
+    // Schedule capture whenever we have a projectId and autoCapture is enabled
+    if (autoCapture && projectId) {
       console.log('[useVoidSnapshot] 🚀 SCHEDULING snapshot in 5 seconds for project:', projectId);
       
       const timeoutId = setTimeout(() => {
         console.log('[useVoidSnapshot] ⏰ TIMEOUT FIRED! Starting snapshot generation...');
         
-        // Call generateSnapshot which now handles Playwright-first with fallback
+        // Call generateSnapshot which handles Playwright-first with fallback
         generateSnapshot();
       }, 5000);
       
@@ -159,7 +156,7 @@ export const useVoidSnapshot = (projectId, options = {}) => {
       console.log('[useVoidSnapshot] ✅ Timeout scheduled with ID:', timeoutId);
     }
     
-    // Cleanup function
+    // Cleanup function - clears timeout when component unmounts or projectId changes
     return () => {
       if (captureTimeoutRef.current) {
         console.log('[useVoidSnapshot] 🧹 Clearing timeout:', captureTimeoutRef.current);
@@ -167,7 +164,7 @@ export const useVoidSnapshot = (projectId, options = {}) => {
         captureTimeoutRef.current = null;
       }
     };
-  }, [projectId, autoCapture, generateSnapshot]); // Include dependencies
+  }, [projectId, autoCapture]); // Re-run when projectId or autoCapture changes
 
   return {
     generateSnapshot,

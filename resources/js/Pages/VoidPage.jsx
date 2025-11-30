@@ -151,6 +151,7 @@ const zoomLevelRef = useRef(zoomLevel)
   }, [user?.id, initializeLockSystem, echoConnected])
 
   // Enable Playwright-first thumbnail generation with automatic fallback
+  // Captures on: 1) Every page visit, 2) Frame updates (debounced)
   const { generateSnapshot, scheduleSnapshot, isCapturing, captureMethod } = useVoidSnapshot(project?.uuid, {
     autoCapture: true, // Enable automatic capture when VoidPage loads
     captureDelay: 5000,
@@ -167,6 +168,16 @@ const zoomLevelRef = useRef(zoomLevel)
     }
   })
 
+  // Auto-capture thumbnail when frames are updated/edited (debounced 5 seconds after last change)
+  useEffect(() => {
+    if (!project?.uuid || !frames || frames.length === 0) return;
+
+    console.log('[VoidPage] 📸 Frame data changed, scheduling thumbnail capture...');
+    scheduleSnapshot(5000); // Debounce: wait 5s after last frame change
+
+  }, [frames, scheduleSnapshot, project?.uuid])
+
+  // Note: Zoom/pan changes captured via frames array changes
   // Manual snapshot function - now uses Playwright-first approach
   const generateProjectThumbnail = useCallback(async () => {
     if (!project?.uuid) return;

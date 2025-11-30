@@ -7,6 +7,7 @@ use App\Http\Controllers\SourceController;
 use App\Http\Controllers\WorkspaceController; 
 use App\Http\Controllers\InviteController; 
 use App\Http\Controllers\FrameLockController;
+use App\Http\Middleware\AllowPlaywrightAccess;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
@@ -40,7 +41,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
     
     // Void page using UUID (moved to VoidController)
-    Route::get('/void/{project:uuid}', [VoidController::class, 'show'])->name('void.index');
+    // Allow Playwright to bypass auth for thumbnail generation
+    Route::get('/void/{project:uuid}', [VoidController::class, 'show'])
+        ->name('void.index')
+        ->withoutMiddleware('auth')
+        ->middleware([AllowPlaywrightAccess::class, 'auth']);
     
     // Frame creation route (web route for form submission)
     Route::post('/frames', [VoidController::class, 'store'])->name('frames.store');

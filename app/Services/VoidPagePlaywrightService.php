@@ -174,8 +174,11 @@ class VoidPagePlaywrightService
         try {
             Log::info('🖥️ Using local Playwright');
 
+            // Get auth bypass token
+            $authToken = $this->generateAuthBypassToken();
+
             // Create Playwright script (use .cjs extension for CommonJS in ES module project)
-            $playwrightScript = $this->createPlaywrightScript($url, $outputPath, $width, $height, $quality, $waitTime);
+            $playwrightScript = $this->createPlaywrightScript($url, $outputPath, $width, $height, $quality, $waitTime, $authToken);
             $scriptPath = $this->tempPath . '/void_playwright_' . time() . '.cjs';
             file_put_contents($scriptPath, $playwrightScript);
 
@@ -209,9 +212,19 @@ class VoidPagePlaywrightService
     }
 
     /**
+     * Generate a special token to bypass authentication for Playwright
+     */
+    private function generateAuthBypassToken(): string
+    {
+        // Use a special header that we can check in middleware
+        // For now, we'll use a simple token stored in env
+        return env('PLAYWRIGHT_AUTH_TOKEN', 'playwright_' . md5(env('APP_KEY')));
+    }
+
+    /**
      * Create Playwright script for capturing VoidPage
      */
-    private function createPlaywrightScript(string $url, string $outputPath, int $width, int $height, int $quality, int $waitTime): string
+    private function createPlaywrightScript(string $url, string $outputPath, int $width, int $height, int $quality, int $waitTime, string $authToken = ''): string
     {
         return <<<JS
 const { chromium } = require('playwright');
@@ -239,10 +252,17 @@ const { chromium } = require('playwright');
         
         const page = await context.newPage();
         
+        // Set auth bypass header for Playwright
+        await page.setExtraHTTPHeaders({
+            'X-Playwright-Auth': '{$authToken}'
+        });
+        
         console.log('🌐 Navigating to VoidPage:', '{$url}');
+        console.log('🔑 Using auth bypass token');
+        
         await page.goto('{$url}', { 
-            waitUntil: 'networkidle',
-            timeout: 30000 
+            waitUntil: 'domcontentloaded',
+            timeout: 60000  // Increased to 60 seconds
         });
         
         console.log('⏳ Waiting {$waitTime}ms for frames to load...');

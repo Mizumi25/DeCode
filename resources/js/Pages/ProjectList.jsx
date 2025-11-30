@@ -1600,21 +1600,53 @@ export default function ProjectList({
                   className="w-full max-w-4xl h-full max-h-[600px] bg-[var(--color-bg-muted)] rounded-2xl shadow-2xl overflow-hidden"
                   style={{ perspective: 1000 }}
                 >
-                  <div className="w-full h-full flex items-center justify-center bg-[var(--color-bg-muted)]">
-                    <div className="text-center">
-                      <div className="w-24 h-24 mx-auto mb-4 bg-gradient-to-r from-blue-400 to-purple-500 rounded-xl opacity-80"></div>
+                  <div className="w-full h-full flex flex-col">
+                    {/* Project Thumbnail Preview */}
+                    {selectedProject.project.thumbnail ? (
+                      <div className="flex-1 relative overflow-hidden bg-[var(--color-surface)]">
+                        <img
+                          src={selectedProject.project.thumbnail.startsWith('http') 
+                            ? selectedProject.project.thumbnail 
+                            : `/storage/${selectedProject.project.thumbnail}`}
+                          alt={selectedProject.title}
+                          className="w-full h-full object-contain"
+                          onError={(e) => {
+                            // Fallback if image fails to load
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'flex';
+                          }}
+                        />
+                        {/* Fallback placeholder if image doesn't load */}
+                        <div className="hidden w-full h-full items-center justify-center bg-[var(--color-bg-muted)]">
+                          <div className="text-center">
+                            <div className="w-24 h-24 mx-auto mb-4 bg-gradient-to-r from-blue-400 to-purple-500 rounded-xl opacity-80"></div>
+                            <p className="text-[var(--color-text-muted)]">No preview available</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center bg-[var(--color-bg-muted)]">
+                        <div className="text-center">
+                          <div className="w-24 h-24 mx-auto mb-4 bg-gradient-to-r from-blue-400 to-purple-500 rounded-xl opacity-80"></div>
+                          <p className="text-[var(--color-text-muted)]">No thumbnail yet</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Project Info Footer */}
+                    <div className="p-6 bg-[var(--color-bg)] border-t border-[var(--color-border)]">
                       <h3 className="text-2xl font-bold text-[var(--color-text)] mb-2">
                         {selectedProject.title}
                       </h3>
-                      <p className="text-[var(--color-text-muted)] mb-2">
+                      <p className="text-[var(--color-text-muted)] text-sm mb-3">
                         Created on {selectedProject.date}
                       </p>
                       {selectedProject.description && (
-                        <p className="text-[var(--color-text-muted)] text-sm max-w-md mx-auto mb-4">
+                        <p className="text-[var(--color-text-muted)] text-sm mb-3">
                           {selectedProject.description}
                         </p>
                       )}
-                      <div className="flex items-center justify-center gap-4 text-sm text-[var(--color-text-muted)]">
+                      <div className="flex items-center gap-4 text-sm text-[var(--color-text-muted)]">
                         <span>{selectedProject.componentCount} components</span>
                         <span>•</span>
                         <span>{selectedProject.project.status}</span>
