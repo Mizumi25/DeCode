@@ -273,112 +273,133 @@ const zoomLevelRef = useRef(zoomLevel)
   useEffect(() => {
     const loadFrames = async () => {
       try {
+        console.log('🔍 [VoidPage] Loading frames for project:', project.uuid)
+        
         const response = await fetch(`/api/projects/${project.uuid}/frames`, {
           headers: {
             'Accept': 'application/json',
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-          }
+          },
+          credentials: 'include'
         })
 
-        if (response.ok) {
-          const data = await response.json()
-          const framesToState = data.frames.map((frame, index) => {
-            // Enhanced frame mapping with GitHub import detection
-            const isGithubImport = frame.settings?.imported_from_github || 
-                                  frame.canvas_data?.github_imported ||
-                                  frame.canvas_data?.github_file;
-            
-            // Get GitHub file metadata if available
-            const githubFile = frame.canvas_data?.github_file;
-            
-            return {
-              id: frame.id,
-              uuid: frame.uuid,
-              title: frame.name,
-              fileName: isGithubImport 
-                ? (githubFile?.filename || `${frame.name}.${githubFile?.extension || frame.type}`)
-                : `${frame.name}.${frame.type}`,
-              x: frame.canvas_data?.position?.x || (200 + (index % 4) * 350),
-              y: frame.canvas_data?.position?.y || (200 + Math.floor(index / 4) * 350),
-              isDragging: false,
-              isLoading: false,
-              type: frame.type,
-              settings: frame.settings,
-              // GitHub-specific metadata
-              githubFile: githubFile || null,
-              isGithubImport: isGithubImport,
-              complexity: githubFile?.estimated_complexity || 'simple',
-              // Additional GitHub display info
-              githubPath: githubFile?.path || null,
-              githubExtension: githubFile?.extension || null
-            }
-          })
+        console.log('📡 [VoidPage] API Response:', response.status, response.statusText, 'OK:', response.ok)
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error('❌ [VoidPage] API Error:', response.status, errorText)
+          return
+        }
+
+        const data = await response.json()
+        console.log('✅ [VoidPage] Frames data received:', data)
+        const framesToState = data.frames.map((frame, index) => {
+          console.log('🖼️ [VoidPage] Mapping frame:', frame.name, frame.uuid)
           
-          // Sort frames: GitHub imports first, then by creation date
-          framesToState.sort((a, b) => {
-            if (a.isGithubImport && !b.isGithubImport) return -1;
-            if (!a.isGithubImport && b.isGithubImport) return 1;
-            return 0;
+          // Enhanced frame mapping with GitHub import detection
+          const isGithubImport = frame.settings?.imported_from_github || 
+                                frame.canvas_data?.github_imported ||
+                                frame.canvas_data?.github_file;
+          
+          // Get GitHub file metadata if available
+          const githubFile = frame.canvas_data?.github_file;
+          
+          return {
+            id: frame.id,
+            uuid: frame.uuid,
+            title: frame.name,
+            fileName: isGithubImport 
+              ? (githubFile?.filename || `${frame.name}.${githubFile?.extension || frame.type}`)
+              : `${frame.name}.${frame.type}`,
+            x: frame.canvas_data?.position?.x || (200 + (index % 4) * 350),
+            y: frame.canvas_data?.position?.y || (200 + Math.floor(index / 4) * 350),
+            isDragging: false,
+            isLoading: false,
+            type: frame.type,
+            settings: frame.settings,
+            // GitHub-specific metadata
+            githubFile: githubFile || null,
+            isGithubImport: isGithubImport,
+            complexity: githubFile?.estimated_complexity || 'simple',
+            // Additional GitHub display info
+            githubPath: githubFile?.path || null,
+            githubExtension: githubFile?.extension || null
+          }
+        })
+        
+        console.log('✅ [VoidPage] Mapped frames:', framesToState.length, 'frames')
+        
+        // Sort frames: GitHub imports first, then by creation date
+        framesToState.sort((a, b) => {
+          if (a.isGithubImport && !b.isGithubImport) return -1;
+          if (!a.isGithubImport && b.isGithubImport) return 1;
+          return 0;
+        });
+        
+        console.log('🎯 [VoidPage] Setting frames state...')
+        setFrames(framesToState)
+        console.log('✅ [VoidPage] Frames state updated!')
+
+        // Load lock status for each frame
+        framesToState.forEach(frame => {
+          if (frame.lock_status) {
+            setLockStatus(frame.uuid, frame.lock_status)
+          }
+        })
+          
+        // Auto-focus on GitHub imported frames if this is a fresh import
+        const githubFrames = framesToState.filter(f => f.isGithubImport);
+        if (githubFrames.length > 0 && !sessionStorage.getItem(`viewed-${project.uuid}`)) {
+          // Center view on first GitHub frame
+          const firstFrame = githubFrames[0];
+          setScrollPosition({ 
+            x: Math.max(0, firstFrame.x - 400), 
+            y: Math.max(0, firstFrame.y - 300) 
           });
           
-          setFrames(framesToState)
-
-          // Load lock status for each frame
-          framesToState.forEach(frame => {
-            if (frame.lock_status) {
-              setLockStatus(frame.uuid, frame.lock_status)
-            }
-          })
+          // Mark as viewed to prevent auto-centering on subsequent visits
+          sessionStorage.setItem(`viewed-${project.uuid}`, 'true');
           
-          // Auto-focus on GitHub imported frames if this is a fresh import
-          const githubFrames = framesToState.filter(f => f.isGithubImport);
-          if (githubFrames.length > 0 && !sessionStorage.getItem(`viewed-${project.uuid}`)) {
-            // Center view on first GitHub frame
-            const firstFrame = githubFrames[0];
-            setScrollPosition({ 
-              x: Math.max(0, firstFrame.x - 400), 
-              y: Math.max(0, firstFrame.y - 300) 
+          // Add visual highlight effect for GitHub imported frames
+          setTimeout(() => {
+            githubFrames.forEach(frame => {
+              const frameElement = document.querySelector(`[data-frame-uuid="${frame.uuid}"]`);
+              if (frameElement) {
+                frameElement.style.transition = 'all 0.8s ease-out';
+                frameElement.style.transform = 'scale(1.05)';
+                frameElement.style.boxShadow = '0 0 30px rgba(34, 197, 94, 0.5)';
+                
+                setTimeout(() => {
+                  frameElement.style.transform = 'scale(1)';
+                  frameElement.style.boxShadow = '';
+                }, 2000);
+              }
             });
+          }, 500);
+          
+          // Show import success notification
+          if (githubFrames.length > 0) {
+            const pages = githubFrames.filter(f => f.type === 'page').length;
+            const components = githubFrames.filter(f => f.type === 'component').length;
             
-            // Mark as viewed to prevent auto-centering on subsequent visits
-            sessionStorage.setItem(`viewed-${project.uuid}`, 'true');
+            let message = `Successfully imported ${githubFrames.length} frame${githubFrames.length > 1 ? 's' : ''}`;
+            if (pages > 0) message += ` (${pages} page${pages > 1 ? 's' : ''})`;
+            if (components > 0) message += ` ${pages > 0 ? 'and ' : ''}(${components} component${components > 1 ? 's' : ''})`;
             
-            // Add visual highlight effect for GitHub imported frames
-            setTimeout(() => {
-              githubFrames.forEach(frame => {
-                const frameElement = document.querySelector(`[data-frame-uuid="${frame.uuid}"]`);
-                if (frameElement) {
-                  frameElement.style.transition = 'all 0.8s ease-out';
-                  frameElement.style.transform = 'scale(1.05)';
-                  frameElement.style.boxShadow = '0 0 30px rgba(34, 197, 94, 0.5)';
-                  
-                  setTimeout(() => {
-                    frameElement.style.transform = 'scale(1)';
-                    frameElement.style.boxShadow = '';
-                  }, 2000);
-                }
-              });
-            }, 500);
-            
-            // Show import success notification
-            if (githubFrames.length > 0) {
-              const pages = githubFrames.filter(f => f.type === 'page').length;
-              const components = githubFrames.filter(f => f.type === 'component').length;
-              
-              let message = `Successfully imported ${githubFrames.length} frame${githubFrames.length > 1 ? 's' : ''}`;
-              if (pages > 0) message += ` (${pages} page${pages > 1 ? 's' : ''})`;
-              if (components > 0) message += ` ${pages > 0 ? 'and ' : ''}(${components} component${components > 1 ? 's' : ''})`;
-              
-              console.log(`🎉 ${message} from GitHub repository!`);
-            }
+            console.log(`🎉 ${message} from GitHub repository!`);
           }
         }
+        
+        console.log('✅✅✅ [VoidPage] Frame loading complete! Total frames:', framesToState.length)
+        
       } catch (error) {
-        console.error('Error loading frames:', error)
+        console.error('❌❌❌ [VoidPage] Error loading frames:', error)
+        console.error('Stack:', error.stack)
       }
     }
 
     if (project?.uuid) {
+      console.log('🚀 [VoidPage] Starting frame load for project:', project.uuid)
       loadFrames()
     }
   }, [project?.uuid, setLockStatus])

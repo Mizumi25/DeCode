@@ -62,7 +62,25 @@ class VoidController extends Controller
       }]);
       
       return Inertia::render('VoidPage', [
-          'project' => $project,
+          'project' => [
+              'id' => $project->id,
+              'uuid' => $project->uuid,
+              'name' => $project->name,
+              'description' => $project->description,
+              'user_id' => $project->user_id,
+              'workspace_id' => $project->workspace_id,
+              'is_public' => $project->is_public,
+              'canvas_data' => $project->canvas_data,
+              'created_at' => $project->created_at,
+              'updated_at' => $project->updated_at,
+              'workspace' => $project->workspace ? [
+                  'id' => $project->workspace->id,
+                  'name' => $project->workspace->name,
+                  'type' => $project->workspace->type,
+                  'owner' => $project->workspace->owner,
+                  'users' => $project->workspace->users,
+              ] : null,
+          ],
           'canvas_data' => $project->canvas_data,
           'frames' => $project->canvas_data['frames'] ?? [],
           'userRole' => $project->workspace ? $project->workspace->getUserRole($user->id) : 'owner',
