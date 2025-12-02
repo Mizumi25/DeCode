@@ -57,6 +57,7 @@ const LeftSection = ({
   
   const { canvasZoom, setCanvasZoom } = useForgeStore();
   const { currentWorkspace } = useWorkspaceStore();
+  const [myDiscipline, setMyDiscipline] = React.useState(null);
 
   
   const { url, props } = usePage(); 
@@ -69,6 +70,32 @@ const LeftSection = ({
     currentRoute.startsWith('/void') &&
     !onForgePage &&
     !onSourcePage;
+
+  // Fetch user's discipline
+  useEffect(() => {
+    const fetchMyDiscipline = async () => {
+      if (!currentWorkspace?.uuid) return;
+      
+      try {
+        const response = await fetch(`/api/workspaces/${currentWorkspace.uuid}/roles/my-role`, {
+          headers: { 'Accept': 'application/json' }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setMyDiscipline(data.data.discipline);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch discipline:', error);
+      }
+    };
+    
+    if (currentWorkspace?.uuid) {
+      fetchMyDiscipline();
+    }
+  }, [currentWorkspace?.uuid]);
 
   useEffect(() => {
     if (url.includes('/modeForge') && activeNav !== 'Forge') {
@@ -180,13 +207,15 @@ const LeftSection = ({
       {/* Forge and Source Page Specific Elements */}
       {(onForgePage || onSourcePage) && (
         <>
-          {/* Navigation Dropdown */}
-          <NavigationDropdown 
-            activeNav={activeNav} 
-            setActiveNav={setActiveNav} 
-            onModeSwitch={onModeSwitch}
-            size="small"
-          />
+          {/* Navigation Dropdown - Only for Developer discipline */}
+          {myDiscipline === 'Developer' && (
+            <NavigationDropdown 
+              activeNav={activeNav} 
+              setActiveNav={setActiveNav} 
+              onModeSwitch={onModeSwitch}
+              size="small"
+            />
+          )}
 
           {/* Lock Icon */}
           <button className="p-0.5 hover:bg-[var(--color-bg-muted)] rounded transition-colors">

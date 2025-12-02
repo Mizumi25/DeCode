@@ -1,11 +1,12 @@
 // @/Components/Void/TeamCollaborationPanel.jsx - REPLACE WITH THIS VERSION
 
 import React, { useState, useEffect } from 'react'
-import { Users, MessageCircle, Share2, Clock, User, Plus, Settings, Crown, Eye, Edit, X, Check, AlertCircle, UserPlus, Mail, Trash2, UserMinus, Code, Palette, Target, Bug, Briefcase, TrendingUp, DollarSign, HeadphonesIcon, GripVertical } from 'lucide-react'
+import { Users, MessageCircle, Share2, Clock, User, Plus, Settings, Crown, Eye, Edit, X, Check, AlertCircle, UserPlus, Mail, Trash2, UserMinus, Code, Palette, Target, Bug, Briefcase, TrendingUp, DollarSign, HeadphonesIcon, GripVertical, RefreshCw } from 'lucide-react'
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore'
 import { router, usePage } from '@inertiajs/react'
 import Modal from '@/Components/Modal'
 import InviteModal from '@/Components/Workspaces/InviteModal'
+import ConfirmDialog from '@/Components/ConfirmDialog'
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
 
 export default function TeamCollaborationPanel() {
@@ -32,6 +33,9 @@ export default function TeamCollaborationPanel() {
   const [activeMembers, setActiveMembers] = useState([])
   const [recentActivity, setRecentActivity] = useState([])
   const [isLoading, setIsLoading] = useState(false)
+  const [showTransferOwnershipDialog, setShowTransferOwnershipDialog] = useState(false)
+  const [userToTransferOwnership, setUserToTransferOwnership] = useState(null)
+  const [isTransferringOwnership, setIsTransferringOwnership] = useState(false)
 
   // Check permissions
   const canManageUsers = currentWorkspace && (
@@ -44,15 +48,11 @@ export default function TeamCollaborationPanel() {
 
   // Available disciplines
   const disciplines = [
-    { value: 'Developer', label: 'Developer', icon: Code, color: 'blue' },
     { value: 'Designer', label: 'Designer', icon: Palette, color: 'purple' },
-    { value: 'Product Manager', label: 'Product Manager', icon: Target, color: 'indigo' },
-    { value: 'QA Tester', label: 'QA Tester', icon: Bug, color: 'red' },
-    { value: 'Project Manager', label: 'Project Manager', icon: Briefcase, color: 'orange' },
-    { value: 'Marketing', label: 'Marketing', icon: TrendingUp, color: 'pink' },
-    { value: 'Sales', label: 'Sales', icon: DollarSign, color: 'green' },
-    { value: 'Support', label: 'Support', icon: HeadphonesIcon, color: 'cyan' },
-    { value: 'Member', label: 'Member', icon: User, color: 'gray' }
+    { value: 'Programmer', label: 'Programmer', icon: Code, color: 'blue' },
+    { value: 'Developer', label: 'Developer', icon: Code, color: 'green' },
+    { value: 'Tester', label: 'Tester', icon: Bug, color: 'red' },
+    { value: 'ContentManager', label: 'Content Manager', icon: Edit, color: 'orange' }
   ]
 
   // Load workspace data
@@ -281,6 +281,7 @@ const handleDisciplineChange = async (userId, discipline) => {
     const userToRemove = workspaceUsers.find(u => u.id === userId)
     if (!userToRemove) return
 
+    // Use browser confirm for now (will be replaced with ConfirmDialog if needed)
     if (!confirm(`Remove ${userToRemove.name} from the workspace?`)) {
       return
     }
@@ -304,6 +305,51 @@ const handleDisciplineChange = async (userId, discipline) => {
     } finally {
       setIsRemovingUser(false)
     }
+  }
+
+  const handleTransferOwnership = async () => {
+    if (!userToTransferOwnership) return
+
+    setIsTransferringOwnership(true)
+    try {
+      const response = await fetch(`/api/workspaces/${currentWorkspace.uuid}/roles/transfer-ownership`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+        },
+        body: JSON.stringify({ new_owner_id: userToTransferOwnership.id })
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        // Reload workspace data
+        await getUserWorkspaces()
+        await loadWorkspaceData()
+        
+        // Close dialogs
+        setShowTransferOwnershipDialog(false)
+        setUserToTransferOwnership(null)
+        setShowUserManagement(false)
+        
+        // Show success message
+        console.log('✅ Ownership transferred successfully')
+      } else {
+        console.error('Failed to transfer ownership:', data.message)
+        alert(data.message || 'Failed to transfer ownership')
+      }
+    } catch (error) {
+      console.error('Error transferring ownership:', error)
+      alert('An error occurred while transferring ownership')
+    } finally {
+      setIsTransferringOwnership(false)
+    }
+  }
+
+  const initiateTransferOwnership = (member) => {
+    setUserToTransferOwnership(member)
+    setShowTransferOwnershipDialog(true)
   }
 
   const handleRevokeInvite = async (inviteId) => {
@@ -334,10 +380,11 @@ const handleDisciplineChange = async (userId, discipline) => {
 
   const getRoleColor = (role) => {
     switch (role) {
-      case 'owner': return 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-400'
-      case 'editor': return 'text-blue-600 bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400'
-      case 'viewer': return 'text-green-600 bg-green-100 dark:bg-green-900/20 dark:text-green-400'
-      default: return 'text-gray-600 bg-gray-100 dark:bg-gray-900/20 dark:text-gray-400'
+      case 'owner': return 'text-yellow-700 bg-yellow-50/50 dark:bg-yellow-900/10 dark:text-yellow-400'
+      case 'admin': return 'text-purple-700 bg-purple-50/50 dark:bg-purple-900/10 dark:text-purple-400'
+      case 'editor': return 'text-blue-700 bg-blue-50/50 dark:bg-blue-900/10 dark:text-blue-400'
+      case 'viewer': return 'text-gray-700 bg-gray-50/50 dark:bg-gray-900/10 dark:text-gray-400'
+      default: return 'text-gray-700 bg-gray-50/50 dark:bg-gray-900/10 dark:text-gray-400'
     }
   }
 
@@ -347,15 +394,15 @@ const handleDisciplineChange = async (userId, discipline) => {
 
   const getDisciplineColor = (color) => {
     const colors = {
-      blue: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400 border-blue-200 dark:border-blue-800',
-      purple: 'text-purple-600 bg-purple-50 dark:bg-purple-900/20 dark:text-purple-400 border-purple-200 dark:border-purple-800',
-      indigo: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800',
-      red: 'text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 border-red-200 dark:border-red-800',
-      orange: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20 dark:text-orange-400 border-orange-200 dark:border-orange-800',
-      pink: 'text-pink-600 bg-pink-50 dark:bg-pink-900/20 dark:text-pink-400 border-pink-200 dark:border-pink-800',
-      green: 'text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400 border-green-200 dark:border-green-800',
-      cyan: 'text-cyan-600 bg-cyan-50 dark:bg-cyan-900/20 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800',
-      gray: 'text-gray-600 bg-gray-50 dark:bg-gray-900/20 dark:text-gray-400 border-gray-200 dark:border-gray-800',
+      blue: 'text-blue-600 bg-blue-50/50 dark:bg-blue-900/10 dark:text-blue-400',
+      purple: 'text-purple-600 bg-purple-50/50 dark:bg-purple-900/10 dark:text-purple-400',
+      indigo: 'text-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/10 dark:text-indigo-400',
+      red: 'text-red-600 bg-red-50/50 dark:bg-red-900/10 dark:text-red-400',
+      orange: 'text-orange-600 bg-orange-50/50 dark:bg-orange-900/10 dark:text-orange-400',
+      pink: 'text-pink-600 bg-pink-50/50 dark:bg-pink-900/10 dark:text-pink-400',
+      green: 'text-green-600 bg-green-50/50 dark:bg-green-900/10 dark:text-green-400',
+      cyan: 'text-cyan-600 bg-cyan-50/50 dark:bg-cyan-900/10 dark:text-cyan-400',
+      gray: 'text-gray-600 bg-gray-50/50 dark:bg-gray-900/10 dark:text-gray-400',
     }
     return colors[color] || colors.gray
   }
@@ -410,15 +457,16 @@ const handleDisciplineChange = async (userId, discipline) => {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="p-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="font-semibold text-[var(--color-text)]">Team Collaboration</h4>
-          <div className="flex items-center gap-2">
+    <div className="h-full flex flex-col bg-[var(--color-surface)]">
+      {/* Apple-style minimalist header */}
+      <div className="px-5 py-4 border-b border-[var(--color-border)]">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-semibold text-[var(--color-text)] tracking-tight">Team</h4>
+          <div className="flex items-center gap-1">
             {canInvite && (
               <button 
                 onClick={() => setShowInviteModal(true)}
-                className="p-1.5 rounded hover:bg-[var(--color-bg-hover)] text-[var(--color-primary)]"
+                className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-all"
                 title="Invite members"
               >
                 <UserPlus className="w-4 h-4" />
@@ -426,26 +474,19 @@ const handleDisciplineChange = async (userId, discipline) => {
             )}
             <button 
               onClick={() => setShowUserManagement(true)}
-              className={`relative p-2.5 rounded-lg transition-all duration-200 ${
+              className={`p-1.5 rounded-lg transition-all ${
                 showUserManagement
-                  ? 'bg-[var(--color-primary)] text-white shadow-lg scale-110'
-                  : 'hover:bg-[var(--color-bg-hover)] text-[var(--color-text)] hover:scale-105'
+                  ? 'bg-[var(--color-primary)] text-white'
+                  : 'hover:bg-[var(--color-bg-hover)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
               }`}
-              title="⚙️ Workspace Settings & Roles"
+              title="Settings"
             >
-              <Settings className="w-5 h-5" />
-              {isOwner && (
-                <span 
-                  className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-500 rounded-full border-2" 
-                  style={{ borderColor: 'var(--color-bg)' }}
-                  title="Owner Controls"
-                />
-              )}
+              <Settings className="w-4 h-4" />
             </button>
           </div>
         </div>
-        <div className="text-xs text-[var(--color-text-muted)]">
-          {activeMembers.length} members online • {workspaceUsers.length} total members
+        <div className="text-[11px] text-[var(--color-text-muted)] font-medium">
+          {workspaceUsers.length} {workspaceUsers.length === 1 ? 'member' : 'members'}
         </div>
       </div>
 
@@ -456,46 +497,39 @@ const handleDisciplineChange = async (userId, discipline) => {
           </div>
         ) : (
           <>
-            {/* Active Members */}
-            <div className="p-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
-              <h5 className="font-medium text-sm text-[var(--color-text)] mb-3 flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                Active Members
+            {/* Active Members - Apple Style */}
+            <div className="px-5 py-4">
+              <h5 className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-3">
+                Active Now
               </h5>
               
               {activeMembers.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-0.5">
                   {activeMembers.map((member) => {
-                    const RoleIcon = getRoleIcon(member.role)
                     const disciplineInfo = getDisciplineInfo(member.discipline)
                     const DisciplineIcon = disciplineInfo.icon
                     
                     return (
-                      <div key={member.id} className="flex items-center gap-3 p-2 rounded hover:bg-[var(--color-bg-hover)]">
-                        <div className="relative">
-                          <div className="w-6 h-6 rounded-full overflow-hidden">
+                      <div key={member.id} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors cursor-pointer">
+                        <div className="relative flex-shrink-0">
+                          <div className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-[var(--color-surface)]">
                             {getAvatarContent(member)}
                           </div>
                           {member.isOnline && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-400 rounded-full border-2 border-[var(--color-surface)]"></div>
+                            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full ring-2 ring-[var(--color-surface)]"></div>
                           )}
                         </div>
                         
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <div className="text-sm font-medium text-[var(--color-text)] truncate">
-                              {member.name}
-                              {member.id === user?.id && (
-                                <span className="text-xs text-[var(--color-text-muted)] ml-1">(You)</span>
-                              )}
-                            </div>
-                            <RoleIcon className="w-3 h-3 text-[var(--color-text-muted)]" />
+                          <div className="text-[13px] font-medium text-[var(--color-text)] truncate">
+                            {member.name}
+                            {member.id === user?.id && (
+                              <span className="text-[11px] text-[var(--color-text-muted)] ml-1.5 font-normal">(You)</span>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
-                            <DisciplineIcon className="w-3 h-3 text-[var(--color-primary)]" />
+                          <div className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                            <DisciplineIcon className="w-3 h-3" />
                             <span>{disciplineInfo.label}</span>
-                            <span>•</span>
-                            <span>{member.status} • {member.file}</span>
                           </div>
                         </div>
                       </div>
@@ -503,59 +537,55 @@ const handleDisciplineChange = async (userId, discipline) => {
                   })}
                 </div>
               ) : (
-                <p className="text-sm text-[var(--color-text-muted)]">No members currently active</p>
+                <p className="text-[13px] text-[var(--color-text-muted)] px-2">No members active</p>
               )}
             </div>
 
-            {/* Recent Activity */}
-            <div className="p-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
-              <h5 className="font-medium text-sm text-[var(--color-text)] mb-3 flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                Recent Activity
+            {/* All Members List - Apple Style */}
+            <div className="px-5 py-4 border-t border-[var(--color-border)]">
+              <h5 className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-3">
+                All Members
               </h5>
               
-              <div className="space-y-3">
-                {recentActivity.map((activity, index) => (
-                  <div key={index} className="flex items-start gap-3">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                      activity.type === 'comment' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' :
-                      activity.type === 'edit' ? 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400' :
-                      activity.type === 'share' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400' :
-                      'bg-orange-100 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400'
-                    }`}>
-                      {activity.type === 'comment' ? <MessageCircle className="w-3 h-3" /> :
-                       activity.type === 'edit' ? <Edit className="w-3 h-3" /> :
-                       activity.type === 'share' ? <Share2 className="w-3 h-3" /> :
-                       <Plus className="w-3 h-3" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-[var(--color-text)]">
-                        <span className="font-medium">{activity.user}</span>{' '}
-                        {activity.action}{' '}
-                        <span className="font-mono text-xs bg-[var(--color-bg-muted)] px-1 py-0.5 rounded">
-                          {activity.file}
-                        </span>
+              <div className="space-y-0.5">
+                {workspaceUsers.map((member) => {
+                  const disciplineInfo = getDisciplineInfo(member.discipline)
+                  const DisciplineIcon = disciplineInfo.icon
+                  
+                  return (
+                    <div key={member.id} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors cursor-pointer">
+                      <div className="relative flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full overflow-hidden ring-1 ring-[var(--color-border)]">
+                          {getAvatarContent(member)}
+                        </div>
+                        {member.isOwner && (
+                          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center ring-2 ring-[var(--color-surface)]">
+                            <Crown className="w-2.5 h-2.5 text-white" />
+                          </div>
+                        )}
                       </div>
-                      <div className="text-xs text-[var(--color-text-muted)] mt-1">
-                        {activity.time}
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-medium text-[var(--color-text)] truncate">
+                          {member.name}
+                          {member.id === user?.id && (
+                            <span className="text-[11px] text-[var(--color-text-muted)] ml-1.5 font-normal">(You)</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                          <DisciplineIcon className="w-3 h-3" />
+                          <span>{disciplineInfo.label}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex-shrink-0">
+                        <div className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getRoleColor(member.role)}`}>
+                          {member.role}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="p-4">
-              <div className="grid grid-cols-2 gap-2">
-                <button className="flex items-center gap-2 p-2 rounded bg-[var(--color-bg-muted)] hover:bg-[var(--color-bg-hover)] transition-colors">
-                  <MessageCircle className="w-4 h-4 text-[var(--color-primary)]" />
-                  <span className="text-sm text-[var(--color-text)]">Comments</span>
-                </button>
-                <button className="flex items-center gap-2 p-2 rounded bg-[var(--color-bg-muted)] hover:bg-[var(--color-bg-hover)] transition-colors">
-                  <Share2 className="w-4 h-4 text-[var(--color-primary)]" />
-                  <span className="text-sm text-[var(--color-text)]">Share</span>
-                </button>
+                  )
+                })}
               </div>
             </div>
           </>
@@ -628,29 +658,26 @@ const handleDisciplineChange = async (userId, discipline) => {
                                 </div>
                                 
                                 <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-[var(--color-text)] truncate">
+                                  <div className="text-[13px] font-medium text-[var(--color-text)] truncate">
                                     {member.name}
                                     {member.id === user?.id && (
-                                      <span className="text-xs text-[var(--color-text-muted)] ml-2">(You)</span>
+                                      <span className="text-[11px] text-[var(--color-text-muted)] ml-2 font-normal">(You)</span>
                                     )}
                                   </div>
-                                  <div className="text-sm text-[var(--color-text-muted)] truncate">{member.email}</div>
-                                  <div className="flex items-center gap-2 mt-1">
+                                  <div className="text-[11px] text-[var(--color-text-muted)] truncate mt-0.5">{member.email}</div>
+                                  <div className="flex items-center gap-2 mt-1.5">
                                     {/* Discipline Badge */}
-                                    <div className={`px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1 border ${getDisciplineColor(disciplineInfo.color)}`}>
+                                    <div className={`px-2 py-0.5 rounded-md text-[10px] font-medium flex items-center gap-1 ${getDisciplineColor(disciplineInfo.color)}`}>
                                       <DisciplineIcon className="w-3 h-3" />
                                       {disciplineInfo.label}
                                     </div>
-                                    <span className="text-xs text-[var(--color-text-muted)]">
-                                      Joined {new Date(member.joined_at).toLocaleDateString()}
-                                    </span>
                                   </div>
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+                              <div className="flex items-center gap-2 flex-shrink-0 ml-3">
                                 {/* Role Badge */}
-                                <div className={`px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${getRoleColor(member.role)}`}>
+                                <div className={`px-2.5 py-1 rounded-md text-[10px] font-semibold flex items-center gap-1 ${getRoleColor(member.role)}`}>
                                   <RoleIcon className="w-3 h-3" />
                                   {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                                 </div>
@@ -753,6 +780,17 @@ const handleDisciplineChange = async (userId, discipline) => {
                                     </div>
                                   )}
 
+                                {/* Transfer Ownership Button - Only for editors/admins */}
+                                {isOwner && !member.isOwner && (member.role === 'editor' || member.role === 'admin') && (
+                                  <button
+                                    onClick={() => initiateTransferOwnership(member)}
+                                    className="p-1 text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded"
+                                    title="Transfer ownership to this user"
+                                  >
+                                    <RefreshCw className="w-4 h-4" />
+                                  </button>
+                                )}
+
                                 {/* Remove User Button */}
                                 {isOwner && !member.isOwner && (
                                   <button
@@ -834,6 +872,26 @@ const handleDisciplineChange = async (userId, discipline) => {
         }}
         workspaceId={currentWorkspace?.uuid}
         forceInviteMode={true}
+      />
+
+      {/* Transfer Ownership Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showTransferOwnershipDialog}
+        onClose={() => {
+          setShowTransferOwnershipDialog(false)
+          setUserToTransferOwnership(null)
+        }}
+        onConfirm={handleTransferOwnership}
+        title="Transfer Workspace Ownership"
+        message={
+          userToTransferOwnership
+            ? `Are you sure you want to transfer ownership of "${currentWorkspace?.name}" to ${userToTransferOwnership.name}? You will become an Editor and lose owner privileges.`
+            : 'Are you sure you want to transfer ownership?'
+        }
+        confirmText="Transfer Ownership"
+        cancelText="Cancel"
+        variant="warning"
+        isLoading={isTransferringOwnership}
       />
     </div>
   )

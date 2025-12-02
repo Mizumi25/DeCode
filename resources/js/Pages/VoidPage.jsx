@@ -1415,19 +1415,15 @@ useEffect(() => {
           ? 'bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900' 
           : 'bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50'
       }`}
-      style={{ cursor: containerMode ? 'crosshair' : 'default' }}
       style={{
         backgroundColor: isDark ? 'var(--color-bg)' : 'var(--color-bg)',
         userSelect: 'none',
         touchAction: 'none',
-        // CRITICAL: Remove min-width/min-height constraints
-        cursor: isDragging ? 'grabbing' : 'grab',
+        cursor: containerMode ? 'crosshair' : (isDragging ? 'grabbing' : 'grab'),
         position: 'relative',
         overflow: 'hidden',
-        // 🔥 FIXED: Ensure floating elements can be interacted with
         pointerEvents: 'auto'
       }}
-      onClick={handleCanvasClick}
     >
         {/* Background Layers - z-index: 5 */}
         <BackgroundLayers isDark={isDark} scrollPosition={scrollPosition} />

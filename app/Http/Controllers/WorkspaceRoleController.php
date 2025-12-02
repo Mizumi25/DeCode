@@ -192,6 +192,7 @@ class WorkspaceRoleController extends Controller
             'success' => true,
             'data' => [
                 'role' => $workspaceUser->role,
+                'discipline' => $workspaceUser->discipline,
                 'is_owner' => $workspace->owner_id === $currentUser->id,
                 'permissions' => $this->getRolePermissions($workspaceUser->role)
             ]

@@ -76,10 +76,18 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   const logout = () => router.post('/logout')
 
+  // Get current user's role in workspace
+  const getCurrentUserRole = () => {
+    if (!currentWorkspace || !user) return null
+    if (currentWorkspace.owner?.id === user.id) return 'owner'
+    const userInWorkspace = currentWorkspace.users?.find(u => u.id === user.id)
+    return userInWorkspace?.role || null
+  }
+
   const handleItemClick = (label) => {
     if (label === 'New Workspace') {
-      setShowCreateWorkspaceModal(true)
       onClose()
+      setShowCreateWorkspaceModal(true)
       return
     }
 

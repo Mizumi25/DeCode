@@ -576,7 +576,7 @@ class WorkspaceController extends Controller
       }
   
       $validated = $request->validate([
-          'discipline' => 'required|in:Developer,Designer,Product Manager,QA Tester,Project Manager,Marketing,Sales,Support,Member'
+          'discipline' => 'required|in:Designer,Programmer,Developer,Tester,ContentManager'
       ]);
   
       try {

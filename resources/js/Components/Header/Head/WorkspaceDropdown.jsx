@@ -27,6 +27,7 @@ const WorkspaceDropdown = ({
 
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [switchingWorkspace, setSwitchingWorkspace] = useState(false)
+  const [myRole, setMyRole] = useState(null)
 
   // Get only workspaces the current user has access to
   const userWorkspaces = getUserWorkspaces(currentUser?.id)
@@ -191,6 +192,36 @@ const WorkspaceDropdown = ({
     currentWorkspace.users?.some(user => user.id === currentUser?.id)
   )
 
+  // Permission: Only owner and editors can invite
+  const isOwner = currentWorkspace?.owner?.id === currentUser?.id
+  const canInvite = isOwner || myRole === 'editor' || myRole === 'admin'
+
+  // Fetch current user's role from API
+  useEffect(() => {
+    const fetchMyRole = async () => {
+      if (!currentWorkspace?.uuid) return
+      
+      try {
+        const response = await fetch(`/api/workspaces/${currentWorkspace.uuid}/roles/my-role`, {
+          headers: { 'Accept': 'application/json' }
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success) {
+            setMyRole(data.data.role)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch role:', error)
+      }
+    }
+    
+    if (currentWorkspace?.uuid) {
+      fetchMyRole()
+    }
+  }, [currentWorkspace?.uuid])
+
   // If current workspace is not accessible, switch to a workspace the user has access to
   useEffect(() => {
     if (currentWorkspace && !hasCurrentWorkspaceAccess && userWorkspaces.length > 0) {
@@ -298,7 +329,7 @@ const WorkspaceDropdown = ({
                     
                     {/* Current workspace actions */}
                     <div className="flex gap-1 mt-2">
-                      {!isPersonalWorkspace && (
+                      {!isPersonalWorkspace && canInvite && (
                         <button
                           onClick={handleInviteMembers}
                           className="flex items-center gap-1 px-2 py-1 text-xs bg-[var(--color-primary)] text-white rounded-md hover:bg-[var(--color-primary-hover)] transition-colors"
