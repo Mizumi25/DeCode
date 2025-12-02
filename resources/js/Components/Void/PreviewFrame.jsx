@@ -1,10 +1,13 @@
 // Components/Void/PreviewFrame.jsx - FIXED click navigation issue
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import ReactDOM from 'react-dom'
 import { Plug, MoreHorizontal, Github, FileCode, Layers, RefreshCw, Camera, AlertTriangle, Copy, Trash2, Files } from 'lucide-react'
 import EnhancedLockButton from './EnhancedLockButton'
 import useFrameLockStore from '@/stores/useFrameLockStore'
 import { useThumbnail } from '@/hooks/useThumbnail'
 import { ThumbnailService } from '@/Services/ThumbnailService'
+import RealTimeStackingAvatars from '@/Components/Header/Head/RealTimeStackingAvatars'
+import ConfirmationDialog from '@/Components/ConfirmationDialog'
 
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
@@ -28,6 +31,7 @@ export default function PreviewFrame({
   isDragging = false,
   isLoading = false,
   onFrameClick,
+  onFrameDelete,
   zoom = 1,
   isDraggable = true,
   isDark = false,
@@ -53,6 +57,17 @@ export default function PreviewFrame({
   const [showTools, setShowTools] = useState(false)
   const toolsMenuRef = useRef(null)
   
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState({
+    show: false,
+    title: '',
+    message: '',
+    type: 'info',
+    confirmText: 'OK',
+    onConfirm: null,
+    showCancel: false,
+  })
+  
   // Handle tool actions
   const handleDuplicate = useCallback(async (e) => {
     e.stopPropagation()
@@ -69,16 +84,39 @@ export default function PreviewFrame({
       
       if (response.ok) {
         console.log('Frame duplicated successfully')
-        // Real-time event will add the new frame
+        setConfirmDialog({
+          show: true,
+          title: 'Success',
+          message: `Frame "${title}" duplicated successfully!`,
+          type: 'success',
+          confirmText: 'OK',
+          onConfirm: () => setConfirmDialog(prev => ({ ...prev, show: false })),
+          showCancel: false,
+        })
       } else {
-        console.error('Failed to duplicate frame')
-        alert('Failed to duplicate frame')
+        setConfirmDialog({
+          show: true,
+          title: 'Duplication Failed',
+          message: 'Failed to duplicate frame. Please try again.',
+          type: 'error',
+          confirmText: 'OK',
+          onConfirm: () => setConfirmDialog(prev => ({ ...prev, show: false })),
+          showCancel: false,
+        })
       }
     } catch (error) {
       console.error('Error duplicating frame:', error)
-      alert('Error duplicating frame')
+      setConfirmDialog({
+        show: true,
+        title: 'Error',
+        message: 'An error occurred while duplicating the frame.',
+        type: 'error',
+        confirmText: 'OK',
+        onConfirm: () => setConfirmDialog(prev => ({ ...prev, show: false })),
+        showCancel: false,
+      })
     }
-  }, [frame?.uuid])
+  }, [frame?.uuid, title])
   
   const handleCopy = useCallback((e) => {
     e.stopPropagation()
@@ -87,35 +125,89 @@ export default function PreviewFrame({
     // Copy frame UUID to clipboard for pasting
     navigator.clipboard.writeText(frame.uuid)
     console.log('Frame copied to clipboard:', frame.uuid)
-    // You can add a toast notification here
+    
+    setConfirmDialog({
+      show: true,
+      title: 'Copied',
+      message: `Frame UUID copied to clipboard!`,
+      type: 'success',
+      confirmText: 'OK',
+      onConfirm: () => setConfirmDialog(prev => ({ ...prev, show: false })),
+      showCancel: false,
+    })
   }, [frame?.uuid])
   
   const handleDelete = useCallback(async (e) => {
     e.stopPropagation()
     setShowTools(false)
     
-    if (!confirm(`Delete frame "${title}"? This cannot be undone.`)) return
-    
-    try {
-      const response = await fetch(`/api/frames/${frame.uuid}`, {
-        method: 'DELETE',
-        headers: {
-          'Accept': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+    setConfirmDialog({
+      show: true,
+      title: 'Delete Frame',
+      message: `Are you sure you want to delete "${title}"? This will delete the frame and all its components. This action cannot be undone.`,
+      type: 'warning',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          const response = await fetch(`/api/frames/${frame.uuid}`, {
+            method: 'DELETE',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            }
+          })
+          
+          const data = await response.json().catch(() => ({}))
+          
+          if (response.ok) {
+            console.log('Frame deleted successfully', { frameUuid: frame.uuid })
+            
+            // Manually remove from UI immediately (don't wait for broadcast)
+            if (onFrameDelete) {
+              onFrameDelete(frame.uuid)
+            }
+            
+            setConfirmDialog({
+              show: true,
+              title: 'Deleted',
+              message: 'Frame and its components deleted successfully.',
+              type: 'success',
+              confirmText: 'OK',
+              onConfirm: () => setConfirmDialog(prev => ({ ...prev, show: false })),
+              showCancel: false,
+            })
+          } else {
+            console.error('Delete failed:', response.status, data)
+            const errorMessage = data.message || `Failed to delete frame (Status: ${response.status}). Please try again.`
+            
+            setConfirmDialog({
+              show: true,
+              title: 'Delete Failed',
+              message: errorMessage,
+              type: 'error',
+              confirmText: 'OK',
+              onConfirm: () => setConfirmDialog(prev => ({ ...prev, show: false })),
+              showCancel: false,
+            })
+          }
+        } catch (error) {
+          console.error('Error deleting frame:', error)
+          setConfirmDialog({
+            show: true,
+            title: 'Error',
+            message: `An error occurred: ${error.message || 'Unknown error'}`,
+            type: 'error',
+            confirmText: 'OK',
+            onConfirm: () => setConfirmDialog(prev => ({ ...prev, show: false })),
+            showCancel: false,
+          })
         }
-      })
-      
-      if (response.ok) {
-        console.log('Frame deleted successfully')
-        // Real-time event will remove the frame
-      } else {
-        console.error('Failed to delete frame')
-        alert('Failed to delete frame')
-      }
-    } catch (error) {
-      console.error('Error deleting frame:', error)
-      alert('Error deleting frame')
-    }
+      },
+      onCancel: () => setConfirmDialog(prev => ({ ...prev, show: false })),
+      showCancel: true,
+    })
   }, [frame?.uuid, title])
   
   // Close tools menu when clicking outside
@@ -221,9 +313,6 @@ export default function PreviewFrame({
   // Auto-scroll related state
   const autoScrollRef = useRef(null)
   const [autoScrollActive, setAutoScrollActive] = useState(false)
-  
-  // Dummy avatar colors for stacked avatars
-  const avatarColors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500']
   
   
   
@@ -850,17 +939,12 @@ useEffect(() => {
             />
           </div>
           
-          <div className="flex -space-x-1.5 flex-shrink-0">
-            {avatarColors.map((color, i) => (
-              <div
-                key={i}
-                className={`avatar w-5 h-5 rounded-full border-2 border-white ${color} flex items-center justify-center shadow-sm hover:scale-110 transition-transform duration-200 cursor-pointer`}
-                style={{ fontSize: '9px', color: 'white', fontWeight: 'bold' }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {String.fromCharCode(65 + i)}
-              </div>
-            ))}
+          {/* Real-time Stacking Avatars - Shows who is inside this frame */}
+          <div className="flex-shrink-0">
+            <RealTimeStackingAvatars 
+              frameId={frame?.uuid}
+              currentMode="forge"
+            />
           </div>
           
           <div className="relative" ref={toolsMenuRef}>
@@ -946,6 +1030,22 @@ useEffect(() => {
       
       {thumbnailGenerating && (
         <div className="absolute top-2 right-2 w-3 h-3 bg-blue-500 rounded-full shadow-lg animate-pulse"></div>
+      )}
+      
+      {/* Render Confirmation Dialog as Portal (renders at document body level) */}
+      {confirmDialog.show && ReactDOM.createPortal(
+        <ConfirmationDialog
+          show={confirmDialog.show}
+          onClose={() => setConfirmDialog(prev => ({ ...prev, show: false }))}
+          onConfirm={confirmDialog.onConfirm}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmText={confirmDialog.confirmText}
+          cancelText={confirmDialog.cancelText}
+          type={confirmDialog.type}
+          variant={confirmDialog.type === 'success' ? 'primary' : confirmDialog.type === 'error' ? 'danger' : confirmDialog.type === 'warning' ? 'warning' : 'primary'}
+        />,
+        document.body
       )}
     </div>
   )

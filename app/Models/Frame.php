@@ -16,7 +16,11 @@ class Frame extends Model
  protected $fillable = [
         'uuid', 
         'project_id', 
-        'name', 
+        'name',
+        'x',                 // Position X in void canvas
+        'y',                 // Position Y in void canvas
+        'container_id',      // Container this frame belongs to
+        'container_order',   // Order within container
         'type',
         'scrolled_component',
         'scroll_direction',
@@ -41,6 +45,9 @@ class Frame extends Model
         'settings' => 'array',
         'is_locked' => 'boolean',
         'locked_at' => 'datetime',
+        'x' => 'integer',
+        'y' => 'integer',
+        'container_order' => 'integer',
     ];
 
 protected static function boot()
@@ -90,6 +97,11 @@ protected static function boot()
     public function project() 
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function container()
+    {
+        return $this->belongsTo(FrameContainer::class, 'container_id');
     }
 
     public function lockedByUser()

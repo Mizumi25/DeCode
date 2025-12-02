@@ -7,6 +7,8 @@ import Panel from '@/Components/Panel'
 import BackgroundLayers from '@/Components/Void/BackgroundLayers'
 import FloatingToolbox from '@/Components/Void/FloatingToolbox'
 import FramesContainer from '@/Components/Void/FramesContainer'
+import FrameContainer from '@/Components/Void/FrameContainer'
+import useContainerStore from '@/stores/useContainerStore'
 import DeleteButton from '@/Components/Void/DeleteButton'
 import FrameCreator from '@/Components/Void/FrameCreator'
 import ConfirmationDialog from '@/Components/ConfirmationDialog'
@@ -82,6 +84,9 @@ export default function VoidPage() {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
   const [frameToDelete, setFrameToDelete] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  
+  // Container state from Zustand store
+  const { containerMode, setContainerMode, containers, setContainers, addContainer, updateContainer, removeContainer } = useContainerStore()
   // Add after other state declarations
   const zoomContainerRef = useRef(null)
   const [isZooming, setIsZooming] = useState(false)
@@ -261,13 +266,66 @@ const zoomLevelRef = useRef(zoomLevel)
       }
     });
 
+    // Listen for container created
+    channel.listen('ContainerCreated', (event) => {
+      console.log('📦 Container created event received:', event);
+      const store = useContainerStore.getState();
+      if (!store.containers.some(c => c.uuid === event.container.uuid)) {
+        store.addContainer(event.container);
+      }
+    });
+
+    // Listen for container updated
+    channel.listen('ContainerUpdated', (event) => {
+      console.log('📦 Container updated event received:', event);
+      useContainerStore.getState().updateContainer(event.container.uuid, event.container);
+    });
+
+    // Listen for container deleted
+    channel.listen('ContainerDeleted', (event) => {
+      console.log('🗑️ Container deleted event received:', event);
+      useContainerStore.getState().removeContainer(event.uuid);
+      
+      // Reload frames to get updated container_id values
+      fetch(`/api/projects/${project.uuid}/frames`)
+        .then(res => res.json())
+        .then(data => setFrames(data.frames || []))
+        .catch(err => console.error('Failed to reload frames:', err));
+    });
+
     return () => {
       console.log('🔌 VoidPage: Unsubscribing from workspace channel');
       channel.stopListening('FrameCreated');
       channel.stopListening('FrameDeleted');
+      channel.stopListening('ContainerCreated');
+      channel.stopListening('ContainerUpdated');
+      channel.stopListening('ContainerDeleted');
       window.Echo.leave(`workspace.${currentWorkspace.id}`);
     };
   }, [currentWorkspace?.id, project?.uuid]);
+
+  // Load containers from database
+  useEffect(() => {
+    const loadContainers = async () => {
+      try {
+        const response = await fetch(`/api/projects/${project.uuid}/containers`, {
+          headers: { 'Accept': 'application/json' }
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          console.log('📦 Loaded containers:', data.data)
+          setContainers(data.data || [])
+        }
+      } catch (error) {
+        console.error('Failed to load containers:', error)
+      }
+    }
+    
+    if (project?.uuid) {
+      loadContainers()
+    }
+  }, [project?.uuid])
 
   // Load frames from database
   useEffect(() => {
@@ -451,44 +509,91 @@ const handleDragEnd = useCallback(async (event) => {
   
   console.log('Drag end:', frameId, 'Delta:', delta)
   
-  // CRITICAL: Update actual position based on delta
-  setFrames(prev => prev.map(frame => {
-    if (frame.id !== frameId) return frame
-    
-    // Calculate new position with wrapping
-    let newX = frame.x + (delta.x / zoom)
-    let newY = frame.y + (delta.y / zoom)
-    
-    // Wrap positions within bounds (INFINITE LOOP EFFECT) - properly handle negatives
-    while (newX < 0) newX += scrollBounds.width
-    while (newX >= scrollBounds.width) newX -= scrollBounds.width
-    while (newY < 0) newY += scrollBounds.height
-    while (newY >= scrollBounds.height) newY -= scrollBounds.height
-    
-    return {
-      ...frame,
-      x: newX,
-      y: newY,
-      isDragging: false
-    }
-  }))
-  
-  setDraggedFrame(null)
-  setIsFrameDragging(false)
-
-  // Save position to backend
   const frame = frames.find(f => f.id === frameId)
-  if (frame) {
-    let newX = frame.x + (delta.x / zoom)
-    let newY = frame.y + (delta.y / zoom)
+  if (!frame) return
+  
+  // Calculate new position
+  let newX = frame.x + (delta.x / zoom)
+  let newY = frame.y + (delta.y / zoom)
+  
+  // Check if dropped over a container (considering scroll position)
+  const dropX = event.activatorEvent.clientX
+  const dropY = event.activatorEvent.clientY
+  
+  let droppedContainer = null
+  const canvasRect = canvasRef.current?.getBoundingClientRect()
+  
+  if (canvasRect) {
+    // Convert screen coordinates to canvas coordinates
+    const canvasX = (dropX - canvasRect.left) / zoom - scrollPosition.x
+    const canvasY = (dropY - canvasRect.top) / zoom - scrollPosition.y
     
-    // Wrap positions - properly handle negatives
-    while (newX < 0) newX += scrollBounds.width
-    while (newX >= scrollBounds.width) newX -= scrollBounds.width
-    while (newY < 0) newY += scrollBounds.height
-    while (newY >= scrollBounds.height) newY -= scrollBounds.height
+    for (const container of containers) {
+      if (canvasX >= container.x && canvasX <= container.x + container.width &&
+          canvasY >= container.y && canvasY <= container.y + container.height) {
+        droppedContainer = container
+        break
+      }
+    }
+  }
+  
+  // Handle container drop
+  if (droppedContainer) {
+    console.log('📦 Frame dropped into container:', droppedContainer.name)
     
     try {
+      // Add frame to container
+      const response = await fetch(`/api/projects/${project.uuid}/containers/${droppedContainer.uuid}/frames/${frame.uuid}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        },
+        body: JSON.stringify({ order: 0 }) // Will be calculated by backend
+      })
+      
+      if (response.ok) {
+        // Update local state
+        setFrames(prev => prev.map(f => 
+          f.uuid === frame.uuid ? { ...f, container_id: droppedContainer.id, isDragging: false } : f
+        ))
+      }
+    } catch (error) {
+      console.error('Failed to add frame to container:', error)
+    }
+  } else {
+    // Not dropped in container - handle normal position update
+    
+    // Wrap positions within bounds
+    while (newX < 0) newX += scrollBounds.width
+    while (newX >= scrollBounds.width) newX -= scrollBounds.width
+    while (newY < 0) newY += scrollBounds.height
+    while (newY >= scrollBounds.height) newY -= scrollBounds.height
+    
+    // Update position
+    setFrames(prev => prev.map(f => {
+      if (f.id !== frameId) return f
+      return {
+        ...f,
+        x: newX,
+        y: newY,
+        isDragging: false,
+        container_id: null // Remove from container if was in one
+      }
+    }))
+    
+    try {
+      // Remove from container if needed
+      if (frame.container_id) {
+        await fetch(`/api/frames/${frame.uuid}/container`, {
+          method: 'DELETE',
+          headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+          }
+        })
+      }
+      
+      // Save new position
       await fetch(`/api/frames/${frame.uuid}/position`, {
         method: 'PUT',
         headers: {
@@ -498,13 +603,15 @@ const handleDragEnd = useCallback(async (event) => {
         body: JSON.stringify({ x: newX, y: newY })
       })
       
-      // Schedule canvas snapshot after frame position change
       scheduleSnapshot()
     } catch (error) {
       console.error('Error updating frame position:', error)
     }
   }
-}, [frames, zoom, scrollBounds, scheduleSnapshot])
+  
+  setDraggedFrame(null)
+  setIsFrameDragging(false)
+}, [frames, zoom, scrollBounds, scheduleSnapshot, containers, project.uuid])
 
 
 
@@ -825,35 +932,6 @@ useEffect(() => {
     return () => window.removeEventListener('resize', updateRect)
   }, [canvasRef, currentComments.length])
 
-  // Comments: handle click to add pin
-  const handleCanvasClick = useCallback((e) => {
-    if (commentMode && canvasRef.current) {
-      const rect = canvasRef.current.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const y = e.clientY - rect.top
-      if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height) {
-        const text = window.prompt('Add a comment')
-        if (text && text.trim()) {
-          const comment = {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
-            text: text.trim(),
-            x, y,
-            ts: Date.now(),
-            user: { id: user?.id, name: user?.name, avatar: user?.avatar || null },
-            replies: []
-          }
-          const ctx = `void:${project?.uuid}`
-          addComment(ctx, comment)
-          try {
-            const ch = `project.${project?.uuid}`
-            window.Echo?.join(ch)?.whisper('comment.created', { contextKey: ctx, comment })
-          } catch {}
-        }
-        return
-      }
-    }
-  }, [commentMode, addComment, project?.uuid])
-
   // Listen for replies
   useEffect(() => {
     if (!project?.uuid || !window.Echo) return
@@ -1039,6 +1117,153 @@ useEffect(() => {
   }, [project?.uuid, scheduleSnapshot])
 
   // Enhanced floating tools configuration with visual feedback for active panels
+  // Container handlers + Comments handler merged
+  const handleCanvasClick = useCallback(async (e) => {
+    // Get fresh state from store
+    const currentContainerMode = useContainerStore.getState().containerMode;
+    
+    // Handle comment mode first
+    if (commentMode && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+      if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height) {
+        const text = window.prompt('Add a comment')
+        if (text && text.trim()) {
+          const comment = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+            text: text.trim(),
+            x, y,
+            ts: Date.now(),
+            user: { id: user?.id, name: user?.name, avatar: user?.avatar || null },
+            replies: []
+          }
+          addComment(comment)
+        }
+      }
+      return
+    }
+    
+    // Handle container creation
+    if (currentContainerMode) {
+      console.log('📦 Container mode active, creating container...');
+      
+      // Get click position relative to canvas
+      const rect = e.currentTarget.getBoundingClientRect()
+      const x = (e.clientX - rect.left) / zoom
+      const y = (e.clientY - rect.top) / zoom
+      
+      try {
+        const response = await fetch(`/api/projects/${project.uuid}/containers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+          },
+          body: JSON.stringify({ x: Math.round(x), y: Math.round(y) })
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          console.log('📦 Container created:', data.data)
+          useContainerStore.getState().addContainer(data.data)
+          useContainerStore.getState().setContainerMode(false) // Auto-deactivate after creating
+        } else {
+          console.error('Failed to create container:', response.status)
+        }
+      } catch (error) {
+        console.error('Failed to create container:', error)
+      }
+      return
+    }
+    
+    // Handle canvas click when not in container mode
+    if (!isFrameDragging && e.target.dataset.canvas === 'true') {
+      console.log('Canvas clicked, no active drag')
+      scheduleSnapshot()
+    }
+  }, [commentMode, zoom, project.uuid, isFrameDragging, scheduleSnapshot, addComment, user])
+  
+  const handleContainerMove = useCallback(async (uuid, x, y) => {
+    // Optimistic update
+    updateContainer(uuid, { x: Math.round(x), y: Math.round(y) })
+    
+    try {
+      await fetch(`/api/projects/${project.uuid}/containers/${uuid}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        },
+        body: JSON.stringify({ x: Math.round(x), y: Math.round(y) })
+      })
+    } catch (error) {
+      console.error('Failed to update container position:', error)
+    }
+  }, [project.uuid])
+  
+  const handleContainerResize = useCallback(async (uuid, width, height) => {
+    // Optimistic update
+    updateContainer(uuid, { width: Math.round(width), height: Math.round(height) })
+    
+    try {
+      await fetch(`/api/projects/${project.uuid}/containers/${uuid}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        },
+        body: JSON.stringify({ width: Math.round(width), height: Math.round(height) })
+      })
+    } catch (error) {
+      console.error('Failed to update container size:', error)
+    }
+  }, [project.uuid])
+  
+  const handleContainerNameChange = useCallback(async (uuid, name) => {
+    // Optimistic update
+    updateContainer(uuid, { name })
+    
+    try {
+      await fetch(`/api/projects/${project.uuid}/containers/${uuid}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        },
+        body: JSON.stringify({ name })
+      })
+    } catch (error) {
+      console.error('Failed to update container name:', error)
+    }
+  }, [project.uuid])
+  
+  const handleContainerDelete = useCallback(async (uuid) => {
+    if (!confirm('Delete this container? Frames will be released to the canvas.')) return
+    
+    try {
+      const response = await fetch(`/api/projects/${project.uuid}/containers/${uuid}`, {
+        method: 'DELETE',
+        headers: {
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        }
+      })
+      
+      if (response.ok) {
+        removeContainer(uuid)
+        // Reload frames to get updated positions
+        const framesResponse = await fetch(`/api/projects/${project.uuid}/frames`)
+        if (framesResponse.ok) {
+          const framesData = await framesResponse.json()
+          setFrames(framesData.frames || [])
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete container:', error)
+    }
+  }, [project.uuid])
+
   const floatingTools = useMemo(() => [
     { 
       icon: Plus, 
@@ -1167,12 +1392,12 @@ useEffect(() => {
 
   return (
     <AuthenticatedLayout 
-      gridVisible={gridVisible} 
-      setGridVisible={setGridVisible}
-      zoomLevel={zoomLevel}
-      onZoomChange={handleZoom}
-      project={project}
-      frame={null}
+      headerProps={{
+        zoomLevel,
+        onZoomChange: handleZoom,
+        project,
+        frame: null
+      }}
     >
       <Head title={`Void - ${project?.name || 'Project'}`} />
      <DndContext
@@ -1183,11 +1408,14 @@ useEffect(() => {
     <div 
       ref={canvasRef}
       data-canvas="true"
+      data-canvas-area="true"
+      onClick={handleCanvasClick}
       className={`relative w-full h-screen overflow-hidden ${
         isDark 
           ? 'bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900' 
           : 'bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50'
       }`}
+      style={{ cursor: containerMode ? 'crosshair' : 'default' }}
       style={{
         backgroundColor: isDark ? 'var(--color-bg)' : 'var(--color-bg)',
         userSelect: 'none',
@@ -1223,12 +1451,46 @@ useEffect(() => {
             willChange: 'transform',
           }}
         >
+         {/* Render Containers FIRST (with scroll offset like frames) */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              width: scrollBounds.width,
+              height: scrollBounds.height,
+              transform: `translate(${-scrollPosition.x}px, ${-scrollPosition.y}px)`,
+              willChange: 'transform',
+            }}
+          >
+            {containers.map(container => (
+              <FrameContainer
+                key={container.uuid}
+                container={container}
+                frames={frames.filter(f => f.container_id === container.id)}
+                onMove={handleContainerMove}
+                onResize={handleContainerResize}
+                onNameChange={handleContainerNameChange}
+                onDelete={handleContainerDelete}
+                onFrameClick={handleFrameClick}
+                zoom={zoom}
+                isDark={isDark}
+                isFrameDragging={isFrameDragging}
+              />
+            ))}
+          </div>
+          
+          {/* Render Frames (not in containers) */}
          <FramesContainer 
-            frames={frames} 
+            frames={frames.filter(f => !f.container_id)} 
             scrollPosition={scrollPosition} 
             scrollBounds={scrollBounds}
             setScrollPosition={setScrollPosition}
             onFrameClick={handleFrameClick}  // KEEP this
+            onFrameDelete={(frameUuid) => {
+              console.log('🗑️ Manual frame delete triggered:', frameUuid)
+              setFrames(prevFrames => prevFrames.filter(f => f.uuid !== frameUuid))
+            }}
             zoom={zoom}
             isDark={isDark}
           />

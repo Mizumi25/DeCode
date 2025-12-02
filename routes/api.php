@@ -21,6 +21,7 @@ use App\Http\Controllers\MessageController;
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\CollaborationController;
 use App\Http\Controllers\AiController;
+use App\Http\Controllers\FrameContainerController;
 /*
 |--------------------------------------------------------------------------
 | API Routes - All using UUIDs for resource identification
@@ -118,6 +119,19 @@ Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasS
             Route::get('/', [FramePresenceController::class, 'index']);
         });
     });
+    
+    // Frame Container routes
+    Route::prefix('projects/{project:uuid}/containers')->group(function () {
+        Route::get('/', [FrameContainerController::class, 'index']);
+        Route::post('/', [FrameContainerController::class, 'store']);
+        Route::patch('/{container:uuid}', [FrameContainerController::class, 'update']);
+        Route::delete('/{container:uuid}', [FrameContainerController::class, 'destroy']);
+        Route::post('/{container:uuid}/frames/{frame:uuid}', [FrameContainerController::class, 'addFrame']);
+        Route::patch('/{container:uuid}/reorder', [FrameContainerController::class, 'reorderFrames']);
+    });
+    
+    // Remove frame from container
+    Route::delete('/frames/{frame:uuid}/container', [FrameContainerController::class, 'removeFrame']);
     
     // Frame lock system routes
     Route::prefix('frames/{frame:uuid}/lock')->group(function () {

@@ -7,6 +7,7 @@ export default function FramesContainer({
   scrollBounds, 
   setScrollPosition,
   onFrameClick,
+  onFrameDelete,
   zoom = 1,
   isDark = false
 }) {
@@ -41,6 +42,7 @@ export default function FramesContainer({
         isDragging={frame.isDragging}
         isLoading={frame.isLoading}
         onFrameClick={onFrameClick}
+        onFrameDelete={onFrameDelete}
         zoom={zoom}
         isDark={isDark}
         isDraggable={true}
@@ -48,7 +50,7 @@ export default function FramesContainer({
         onAutoScroll={handleAutoScroll}
       />
     ))
-  , [frames, onFrameClick, zoom, isDark, scrollPosition, handleAutoScroll])
+  , [frames, onFrameClick, onFrameDelete, zoom, isDark, scrollPosition, handleAutoScroll])
 
   return (
     <div 

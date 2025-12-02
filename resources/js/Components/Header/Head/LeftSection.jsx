@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { Menu, X, Lock, MousePointer2, Hand, ChevronLeft, Grid3X3 } from 'lucide-react';
+import { Menu, X, Lock, MousePointer2, Hand, ChevronLeft, Container } from 'lucide-react';
+import useContainerStore from '@/stores/useContainerStore';
 import { motion } from 'framer-motion';
 import { router, usePage } from '@inertiajs/react';
 import ThemeToggle from './ThemeToggle';
@@ -47,7 +48,6 @@ const LeftSection = ({
   interactionMode,
   setInteractionMode,
   gridVisible,
-  setGridVisible,
   projectId,
   currentFrame,
   canvasComponents,
@@ -105,10 +105,11 @@ const LeftSection = ({
     }
   };
 
-  const handleGridToggle = () => {
-    if (setGridVisible) {
-      setGridVisible(!gridVisible);
-    }
+  // Use Zustand store for container mode
+  const { containerMode, toggleContainerMode } = useContainerStore();
+  
+  const handleContainerModeToggle = () => {
+    toggleContainerMode();
   };
 
   return (
@@ -270,17 +271,17 @@ const LeftSection = ({
             size="small"
           />
 
-          {/* Grid Toggle - Only on Void Page */}
+          {/* Container Mode Toggle - Only on Void Page */}
           <button
-            onClick={handleGridToggle}
+            onClick={handleContainerModeToggle}
             className={`p-0.5 rounded transition-colors ${
-              gridVisible 
+              containerMode 
                 ? 'bg-[var(--color-primary)] text-white' 
                 : 'hover:bg-[var(--color-bg-muted)] text-[var(--color-text)]'
             }`}
-            title={gridVisible ? "Hide Grid" : "Show Grid"}
+            title={containerMode ? "Exit Container Mode" : "Add Container"}
           >
-            <Grid3X3 className="w-2.5 h-2.5" />
+            <Container className="w-2.5 h-2.5" />
           </button>
         </>
       )}

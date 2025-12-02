@@ -789,14 +789,11 @@ public function updateCanvasStyles(Request $request, Frame $frame): JsonResponse
             'y' => 'required|numeric',
         ]);
 
-        // Update the canvas_data with new position
-        $canvasData = $frame->canvas_data ?? [];
-        $canvasData['position'] = [
+        // Update frame position in database (NEW: using dedicated columns)
+        $frame->update([
             'x' => $validated['x'],
             'y' => $validated['y']
-        ];
-        
-        $frame->update(['canvas_data' => $canvasData]);
+        ]);
 
         // BROADCAST FRAME UPDATE (position change)
         if ($project->workspace) {

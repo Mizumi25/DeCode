@@ -16,7 +16,10 @@ export function useScrollHandler({
 }) {
   const isDraggingRef = useRef(false)
   const lastPosRef = useRef({ x: 0, y: 0 })
+  const startPosRef = useRef({ x: 0, y: 0 })
+  const hasCrossedThresholdRef = useRef(false)
   const animationFrameRef = useRef(null)
+  const DRAG_THRESHOLD = 3 // pixels
   const touchStateRef = useRef({
     initialDistance: 0,
     initialZoom: 1,
@@ -55,6 +58,9 @@ export function useScrollHandler({
       '.dock-left-snapped',
       '.dock-right-snapped',
       '.delete-button',
+      // 🔥 NEW: Frame containers
+      '.frame-container', // Container wrapper
+      '[data-container-element="true"]', // Data attribute check
       // 🔥 NEW: Specific selectors for FloatingToolbox
       '[data-tool-index]', // The wrapper div
       '.tool-icon', // The icon inside button
@@ -73,7 +79,7 @@ export function useScrollHandler({
     return shouldIgnore;
   }
 
-  // Optimized pointer down handler
+  // Optimized pointer down handler with threshold
   const handlePointerDown = useCallback((e) => {
     if (shouldIgnoreTarget(e.target)) return
     
@@ -82,21 +88,19 @@ export function useScrollHandler({
       return
     }
     
-    isDraggingRef.current = true
-    setIsDragging(true)
-    
     const clientX = e.clientX || e.touches?.[0]?.clientX
     const clientY = e.clientY || e.touches?.[0]?.clientY
     
+    // Track start position but don't start dragging yet
+    isDraggingRef.current = true // Track that pointer is down
+    hasCrossedThresholdRef.current = false // Reset threshold
+    startPosRef.current = { x: clientX, y: clientY }
     lastPosRef.current = { x: clientX, y: clientY }
-    document.body.style.cursor = 'grabbing'
-    document.body.style.userSelect = 'none'
     
-    e.preventDefault()
-    e.stopPropagation()
+    // Don't prevent default yet - allow clicks to work
   }, [setIsDragging])
 
-  // Smooth pointer move with requestAnimationFrame
+  // Smooth pointer move with requestAnimationFrame and threshold
   const handlePointerMove = useCallback((e) => {
     // If the move event started over a panel (or moved over one), ignore it.
     if (shouldIgnoreTarget(e.target)) return
@@ -105,11 +109,34 @@ export function useScrollHandler({
     if (e.touches?.length === 2 && onPinchZoom) {
       onPinchZoom(e)
       isDraggingRef.current = false
+      hasCrossedThresholdRef.current = false
       setIsDragging(false)
       return
     }
     
     if (!isDraggingRef.current) return
+    
+    const clientX = e.clientX || e.touches?.[0]?.clientX
+    const clientY = e.clientY || e.touches?.[0]?.clientY
+    
+    // Check threshold if not crossed yet
+    if (!hasCrossedThresholdRef.current) {
+      const deltaX = Math.abs(clientX - startPosRef.current.x)
+      const deltaY = Math.abs(clientY - startPosRef.current.y)
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
+      
+      if (distance < DRAG_THRESHOLD) {
+        return // Not moved enough yet - allow click to work
+      }
+      
+      // Threshold crossed - start actual dragging
+      hasCrossedThresholdRef.current = true
+      setIsDragging(true)
+      document.body.style.cursor = 'grabbing'
+      document.body.style.userSelect = 'none'
+      e.preventDefault()
+      e.stopPropagation()
+    }
     
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current)
@@ -141,7 +168,13 @@ export function useScrollHandler({
 
   // Clean pointer up handler
   const handlePointerUp = useCallback((e) => {
+    // If threshold was never crossed, it was a click
+    if (!hasCrossedThresholdRef.current) {
+      console.log('✅ Click detected (within threshold)')
+    }
+    
     isDraggingRef.current = false
+    hasCrossedThresholdRef.current = false
     setIsDragging(false)
     
     if (animationFrameRef.current) {

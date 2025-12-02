@@ -1119,25 +1119,71 @@ public function store(Request $request): RedirectResponse
         $workspaceId = $project->workspace_id;
         $deletedBy = $user->name;
 
-        // Delete thumbnail if exists
-        if ($project->thumbnail) {
-            \Storage::disk('public')->delete($project->thumbnail);
-        }
-
-        $project->delete();
-
-        // BROADCAST PROJECT DELETION
         try {
-            broadcast(new \App\Events\ProjectDeleted($projectId, $projectUuid, $projectName, $workspaceId, $deletedBy))->toOthers();
-            \Log::info('Project deletion broadcasted', ['project_id' => $projectId, 'workspace_id' => $workspaceId]);
-        } catch (\Exception $e) {
-            \Log::warning('Failed to broadcast project deletion: ' . $e->getMessage());
-        }
+            // Get all frames for this project
+            $frames = \App\Models\Frame::where('project_id', $project->id)->get();
+            
+            \Log::info('Deleting project with frames', [
+                'project_id' => $project->id,
+                'frame_count' => $frames->count()
+            ]);
+            
+            // Delete each frame and its components
+            foreach ($frames as $frame) {
+                // Delete project components for this frame
+                \App\Models\ProjectComponent::where('frame_id', $frame->id)->delete();
+                
+                // Delete frame thumbnail if exists
+                $settings = $frame->settings ?? [];
+                if (isset($settings['thumbnail_path'])) {
+                    $thumbnailPath = storage_path('app/public/' . $settings['thumbnail_path']);
+                    if (file_exists($thumbnailPath)) {
+                        @unlink($thumbnailPath);
+                    }
+                }
+                
+                // Delete the frame
+                $frame->delete();
+            }
+            
+            // Delete project thumbnail if exists
+            if ($project->thumbnail) {
+                \Storage::disk('public')->delete($project->thumbnail);
+            }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Project deleted successfully'
-        ]);
+            // Delete the project
+            $project->delete();
+
+            \Log::info('Project and all frames deleted successfully', [
+                'project_id' => $projectId,
+                'frames_deleted' => $frames->count()
+            ]);
+
+            // BROADCAST PROJECT DELETION
+            try {
+                broadcast(new \App\Events\ProjectDeleted($projectId, $projectUuid, $projectName, $workspaceId, $deletedBy))->toOthers();
+                \Log::info('Project deletion broadcasted', ['project_id' => $projectId, 'workspace_id' => $workspaceId]);
+            } catch (\Exception $e) {
+                \Log::warning('Failed to broadcast project deletion: ' . $e->getMessage());
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Project, frames, and components deleted successfully'
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error deleting project', [
+                'project_id' => $project->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete project: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function templates(): JsonResponse

@@ -179,6 +179,8 @@ export default function Header({
               setInteractionMode={setInteractionMode}
               gridVisible={gridVisible}
               setGridVisible={setGridVisible}
+              containerMode={props.containerMode}
+              setContainerMode={props.setContainerMode}
               // ADD THESE:
               projectId={props.project?.uuid || null}
               currentFrame={props.frame?.uuid || null}
