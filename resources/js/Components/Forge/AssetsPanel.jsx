@@ -1,5 +1,5 @@
 // @/Components/Forge/AssetsPanel.jsx
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileImage, 
@@ -26,6 +26,7 @@ import axios from 'axios';
 
 const AssetsPanel = ({ onAssetDrop, onAssetSelect }) => {
   const [assets, setAssets] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedAsset, setSelectedAsset] = useState(null);
@@ -47,6 +48,25 @@ const filterTabs = [
 ];
   const fileInputRef = useRef(null);
   const dragCountRef = useRef(0);
+
+  // Fetch assets on component mount
+  useEffect(() => {
+    fetchAssets();
+  }, []);
+
+  const fetchAssets = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get('/api/assets');
+      if (response.data.success) {
+        setAssets(response.data.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch assets:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // File type detection
   const getFileType = (file) => {
@@ -619,7 +639,14 @@ const handleDeleteAsset = async (assetUuid, assetId) => {
 
         {/* Assets List */}
         <div className="flex-1 overflow-y-auto">
-          {filteredAssets.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="w-8 h-8 mx-auto mb-4 border-2 border-current border-t-transparent rounded-full animate-spin" style={{ color: 'var(--color-primary)' }}></div>
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                Loading assets...
+              </p>
+            </div>
+          ) : filteredAssets.length === 0 ? (
             <div className="text-center py-8">
               <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
                 <FileImage className="w-8 h-8" style={{ color: 'var(--color-text-muted)' }} />
