@@ -217,6 +217,8 @@ const filterTabs = [
     try {
       const response = await axios.post('/api/assets/remove-background', {
         assetId: asset.id
+      }, {
+        timeout: 120000  // 120 seconds timeout to match backend
       });
 
       if (response.data.success) {
@@ -228,9 +230,12 @@ const filterTabs = [
         };
 
         setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
+        alert('✅ Background removed successfully!');
       }
     } catch (error) {
       console.error('Background removal failed:', error);
+      const errorMessage = error.response?.data?.message || 'Background removal failed. Please try again.';
+      alert('❌ ' + errorMessage);
     } finally {
       setProcessingRemoveBg(null);
     }
@@ -324,8 +329,10 @@ const handleDeleteAsset = async (assetUuid, assetId) => {
               
               {/* Processing Overlay */}
               {isProcessing && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-2">
                   <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="text-white text-xs font-medium">Removing background...</div>
+                  <div className="text-white text-xs opacity-75">This may take up to 2 minutes</div>
                 </div>
               )}
 
