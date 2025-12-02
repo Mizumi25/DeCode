@@ -23,6 +23,7 @@ import {
   Volume2
 } from 'lucide-react';
 import axios from 'axios';
+import ConfirmationDialog from '@/Components/ConfirmationDialog';
 
 const AssetsPanel = ({ onAssetDrop, onAssetSelect }) => {
   const [assets, setAssets] = useState([]);
@@ -35,6 +36,17 @@ const AssetsPanel = ({ onAssetDrop, onAssetSelect }) => {
   const [filterType, setFilterType] = useState('all'); // 'all', 'images', 'videos', 'audio', 'documents'
   const [showPreview, setShowPreview] = useState(null);
   const [processingRemoveBg, setProcessingRemoveBg] = useState(null);
+  
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState({
+    show: false,
+    title: '',
+    message: '',
+    type: 'info', // 'success', 'error', 'warning', 'info'
+    confirmText: 'OK',
+    onConfirm: null,
+    showCancel: false,
+  });
   
 
 
@@ -120,8 +132,16 @@ const filterTabs = [
     }
   } catch (error) {
     console.error('Upload failed:', error);
-    // Add user-facing error message
-    alert('Upload failed: ' + (error.response?.data?.message || error.message));
+    
+    setConfirmDialog({
+      show: true,
+      title: 'Upload Failed',
+      message: error.response?.data?.message || error.message || 'Failed to upload asset. Please try again.',
+      type: 'error',
+      confirmText: 'OK',
+      onConfirm: () => setConfirmDialog(prev => ({ ...prev, show: false })),
+      showCancel: false,
+    });
   } finally {
     setUploading(false);
     setUploadProgress(0);
@@ -155,6 +175,8 @@ const filterTabs = [
 
   // Asset drag start (for dragging to canvas)
   const handleAssetDragStart = (e, asset) => {
+    console.log('🎬 Asset drag start:', asset.name);
+    
     e.dataTransfer.effectAllowed = 'copy';
     e.dataTransfer.setData('application/json', JSON.stringify({
       type: 'asset',
@@ -207,6 +229,189 @@ const filterTabs = [
       }
     }, 100);
   };
+  
+  // 🔥 Asset drag system with threshold (like useCustomDrag)
+  const [isDragging, setIsDragging] = useState(false);
+  const [draggedAsset, setDraggedAsset] = useState(null);
+  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+  const dragInteractionRef = useRef({
+    isWatching: false,
+    startX: 0,
+    startY: 0,
+    hasCrossedThreshold: false,
+    asset: null,
+    longPressTimer: null,
+  });
+  
+  const DRAG_THRESHOLD = 8; // Pixels to move before starting drag
+  const LONG_PRESS_DURATION = 300; // 300ms long press before drag activates
+  
+  const handleManualDragStart = (e, asset) => {
+    // Don't prevent default yet - allow click events
+    
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    console.log('👆 Press start:', asset.name);
+    
+    // Start watching for drag
+    dragInteractionRef.current = {
+      isWatching: true,
+      startX: clientX,
+      startY: clientY,
+      hasCrossedThreshold: false,
+      asset: asset,
+      longPressTimer: null,
+    };
+    
+    // 🔥 Long press for mobile - vibrate when drag activates
+    dragInteractionRef.current.longPressTimer = setTimeout(() => {
+      if (dragInteractionRef.current.isWatching && !dragInteractionRef.current.hasCrossedThreshold) {
+        console.log('📳 Long press activated - vibrate');
+        
+        // Vibrate on mobile
+        if (navigator.vibrate) {
+          navigator.vibrate(50); // Short vibration
+        }
+        
+        // Force start drag on long press
+        dragInteractionRef.current.hasCrossedThreshold = true;
+        setIsDragging(true);
+        setDraggedAsset(asset);
+        setDragPosition({ x: clientX, y: clientY });
+      }
+    }, LONG_PRESS_DURATION);
+    
+    // Add global listeners
+    document.addEventListener('mousemove', handleManualDragMove);
+    document.addEventListener('mouseup', handleManualDragEnd);
+    document.addEventListener('touchmove', handleManualDragMove, { passive: false });
+    document.addEventListener('touchend', handleManualDragEnd);
+  };
+  
+  const handleManualDragMove = (e) => {
+    if (!dragInteractionRef.current.isWatching) return;
+    
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    // 🔥 Threshold check - only start drag if moved enough
+    if (!dragInteractionRef.current.hasCrossedThreshold) {
+      const deltaX = Math.abs(clientX - dragInteractionRef.current.startX);
+      const deltaY = Math.abs(clientY - dragInteractionRef.current.startY);
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+      
+      if (distance < DRAG_THRESHOLD) {
+        return; // Not moved enough yet
+      }
+      
+      // Threshold crossed - start drag
+      console.log('🎯 Threshold crossed, starting drag');
+      e.preventDefault(); // Now prevent default
+      
+      dragInteractionRef.current.hasCrossedThreshold = true;
+      setIsDragging(true);
+      setDraggedAsset(dragInteractionRef.current.asset);
+      
+      // Clear long press timer if user moved before timeout
+      if (dragInteractionRef.current.longPressTimer) {
+        clearTimeout(dragInteractionRef.current.longPressTimer);
+      }
+      
+      // Vibrate on drag start
+      if (navigator.vibrate) {
+        navigator.vibrate(30);
+      }
+    }
+    
+    // Update position during drag
+    if (dragInteractionRef.current.hasCrossedThreshold) {
+      e.preventDefault(); // Prevent scrolling during drag
+      setDragPosition({ x: clientX, y: clientY });
+    }
+  };
+  
+  const handleManualDragEnd = (e) => {
+    if (!dragInteractionRef.current.isWatching) return;
+    
+    const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+    const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+    
+    // Clear long press timer
+    if (dragInteractionRef.current.longPressTimer) {
+      clearTimeout(dragInteractionRef.current.longPressTimer);
+    }
+    
+    // 🔥 If threshold was never crossed, treat as click (don't drop)
+    if (!dragInteractionRef.current.hasCrossedThreshold) {
+      console.log('✅ Click detected (no drag)');
+      dragInteractionRef.current.isWatching = false;
+      
+      // Cleanup listeners
+      document.removeEventListener('mousemove', handleManualDragMove);
+      document.removeEventListener('mouseup', handleManualDragEnd);
+      document.removeEventListener('touchmove', handleManualDragMove);
+      document.removeEventListener('touchend', handleManualDragEnd);
+      
+      return; // Let the click event fire normally
+    }
+    
+    console.log('🎯 Drag end');
+    
+    // Find canvas element at drop position
+    const canvasEl = document.querySelector('[data-canvas-area]');
+    if (canvasEl) {
+      const rect = canvasEl.getBoundingClientRect();
+      const isOverCanvas = clientX >= rect.left && clientX <= rect.right &&
+                          clientY >= rect.top && clientY <= rect.bottom;
+      
+      if (isOverCanvas) {
+        console.log('✅ Dropped on canvas');
+        
+        // Vibrate on successful drop
+        if (navigator.vibrate) {
+          navigator.vibrate([30, 50, 30]); // Double vibration
+        }
+        
+        // Trigger drop event on canvas
+        const dropEvent = new DragEvent('drop', {
+          bubbles: true,
+          cancelable: true,
+          clientX: clientX,
+          clientY: clientY,
+        });
+        
+        // Add our data to the event
+        Object.defineProperty(dropEvent, 'dataTransfer', {
+          value: {
+            getData: (format) => {
+              if (format === 'application/json') {
+                return JSON.stringify({
+                  type: 'asset',
+                  assetType: dragInteractionRef.current.asset.type,
+                  asset: dragInteractionRef.current.asset
+                });
+              }
+              return '';
+            }
+          }
+        });
+        
+        canvasEl.dispatchEvent(dropEvent);
+      }
+    }
+    
+    // Cleanup
+    setIsDragging(false);
+    setDraggedAsset(null);
+    dragInteractionRef.current.isWatching = false;
+    dragInteractionRef.current.hasCrossedThreshold = false;
+    
+    document.removeEventListener('mousemove', handleManualDragMove);
+    document.removeEventListener('mouseup', handleManualDragEnd);
+    document.removeEventListener('touchmove', handleManualDragMove);
+    document.removeEventListener('touchend', handleManualDragEnd);
+  };
 
   // Remove background (for images)
   const handleRemoveBackground = async (asset) => {
@@ -230,29 +435,78 @@ const filterTabs = [
         };
 
         setAssets(prev => prev.map(a => a.id === asset.id ? updatedAsset : a));
-        alert('✅ Background removed successfully!');
+        
+        setConfirmDialog({
+          show: true,
+          title: 'Success!',
+          message: 'Background removed successfully! Your image now has a transparent background.',
+          type: 'success',
+          confirmText: 'OK',
+          onConfirm: () => setConfirmDialog(prev => ({ ...prev, show: false })),
+          showCancel: false,
+        });
       }
     } catch (error) {
       console.error('Background removal failed:', error);
       const errorMessage = error.response?.data?.message || 'Background removal failed. Please try again.';
-      alert('❌ ' + errorMessage);
+      
+      setConfirmDialog({
+        show: true,
+        title: 'Background Removal Failed',
+        message: errorMessage,
+        type: 'error',
+        confirmText: 'OK',
+        onConfirm: () => setConfirmDialog(prev => ({ ...prev, show: false })),
+        showCancel: false,
+      });
     } finally {
       setProcessingRemoveBg(null);
     }
   };
 
- // replace the delete handler
-const handleDeleteAsset = async (assetUuid, assetId) => {
-  try {
-    await axios.delete(`/api/assets/${assetUuid}`);
-    setAssets(prev => prev.filter(a => a.id !== assetId));
-    if (selectedAsset?.id === assetId) {
-      setSelectedAsset(null);
-    }
-  } catch (error) {
-    console.error('Delete failed:', error);
-    alert(error.response?.data?.message || 'Delete failed');
-  }
+ // Delete asset with confirmation
+const handleDeleteAsset = async (asset) => {
+  setConfirmDialog({
+    show: true,
+    title: 'Delete Asset',
+    message: `Are you sure you want to delete "${asset?.name || 'this asset'}"? This action cannot be undone.`,
+    type: 'warning',
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    onConfirm: async () => {
+      try {
+        await axios.delete(`/api/assets/${asset.uuid}`);
+        setAssets(prev => prev.filter(a => a.id !== asset.id));
+        if (selectedAsset?.id === asset.id) {
+          setSelectedAsset(null);
+        }
+        
+        setConfirmDialog({
+          show: true,
+          title: 'Deleted',
+          message: 'Asset deleted successfully.',
+          type: 'success',
+          confirmText: 'OK',
+          onConfirm: () => setConfirmDialog(prev => ({ ...prev, show: false })),
+          showCancel: false,
+        });
+      } catch (error) {
+        console.error('Delete failed:', error);
+        
+        setConfirmDialog({
+          show: true,
+          title: 'Delete Failed',
+          message: error.response?.data?.message || 'Failed to delete asset. Please try again.',
+          type: 'error',
+          confirmText: 'OK',
+          onConfirm: () => setConfirmDialog(prev => ({ ...prev, show: false })),
+          showCancel: false,
+        });
+      }
+    },
+    onCancel: () => setConfirmDialog(prev => ({ ...prev, show: false })),
+    showCancel: true,
+  });
 };
 
   // Filter assets
@@ -299,13 +553,16 @@ const handleDeleteAsset = async (assetUuid, assetId) => {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
-              className="group relative aspect-square border rounded-xl overflow-hidden cursor-pointer hover:border-primary transition-all"
+              className="group relative aspect-square border rounded-xl overflow-hidden cursor-grab active:cursor-grabbing hover:border-primary transition-all"
               style={{ 
                 backgroundColor: 'var(--color-surface)',
-                borderColor: selectedAsset?.id === asset.id ? 'var(--color-primary)' : 'var(--color-border)'
+                borderColor: selectedAsset?.id === asset.id ? 'var(--color-primary)' : 'var(--color-border)',
+                touchAction: 'none', // Prevent scroll during drag
               }}
               draggable
               onDragStart={(e) => handleAssetDragStart(e, asset)}
+              onMouseDown={(e) => handleManualDragStart(e, asset)}
+              onTouchStart={(e) => handleManualDragStart(e, asset)}
               onClick={() => setSelectedAsset(selectedAsset?.id === asset.id ? null : asset)}
             >
               {/* Asset Preview */}
@@ -363,10 +620,9 @@ const handleDeleteAsset = async (assetUuid, assetId) => {
                   )}
                   
                   <button
-                    // update callers (grid)
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDeleteAsset(asset.uuid, asset.id);
+                      handleDeleteAsset(asset);
                     }}
                     className="w-8 h-8 bg-red-500/90 rounded-full flex items-center justify-center hover:bg-red-500 transition-colors"
                   >
@@ -441,6 +697,8 @@ const handleDeleteAsset = async (assetUuid, assetId) => {
               }}
               draggable
               onDragStart={(e) => handleAssetDragStart(e, asset)}
+              onMouseDown={(e) => handleManualDragStart(e, asset)}
+              onTouchStart={(e) => handleManualDragStart(e, asset)}
               onClick={() => setSelectedAsset(selectedAsset?.id === asset.id ? null : asset)}
             >
               {/* Thumbnail/Icon */}
@@ -498,10 +756,9 @@ const handleDeleteAsset = async (assetUuid, assetId) => {
                 )}
                 
                 <button
-                  // update callers (grid)
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDeleteAsset(asset.uuid, asset.id);
+                    handleDeleteAsset(asset);
                   }}
                   className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
                   style={{ backgroundColor: 'var(--color-bg-hover)' }}
@@ -588,13 +845,21 @@ const handleDeleteAsset = async (assetUuid, assetId) => {
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-2 rounded transition-colors ${viewMode === 'grid' ? 'bg-[var(--color-primary)] text-white' : 'hover:bg-[var(--color-bg-hover)]'}`}
+                className="p-2 rounded transition-colors"
+                style={{
+                  backgroundColor: viewMode === 'grid' ? 'var(--color-primary)' : 'transparent',
+                  color: viewMode === 'grid' ? 'white' : 'var(--color-text-muted)'
+                }}
               >
                 <Grid3X3 className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 rounded transition-colors ${viewMode === 'list' ? 'bg-[var(--color-primary)] text-white' : 'hover:bg-[var(--color-bg-hover)]'}`}
+                className="p-2 rounded transition-colors"
+                style={{
+                  backgroundColor: viewMode === 'list' ? 'var(--color-primary)' : 'transparent',
+                  color: viewMode === 'list' ? 'white' : 'var(--color-text-muted)'
+                }}
               >
                 <List className="w-4 h-4" />
               </button>
@@ -670,6 +935,55 @@ const handleDeleteAsset = async (assetUuid, assetId) => {
           )}
         </div>
 
+        {/* Drag Preview Ghost */}
+        {isDragging && draggedAsset && (
+          <div
+            style={{
+              position: 'fixed',
+              left: dragPosition.x - 50,
+              top: dragPosition.y - 50,
+              width: '100px',
+              height: '100px',
+              pointerEvents: 'none',
+              zIndex: 10000,
+              opacity: 0.8,
+              transform: 'scale(1.1)',
+            }}
+          >
+            {draggedAsset.thumbnail ? (
+              <img 
+                src={draggedAsset.thumbnail} 
+                alt={draggedAsset.name}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  borderRadius: '8px',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+                  border: '2px solid var(--color-primary)',
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: 'var(--color-primary)',
+                  borderRadius: '8px',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+                }}
+              >
+                {React.createElement(getFileIcon(draggedAsset.type), {
+                  className: 'w-12 h-12 text-white'
+                })}
+              </div>
+            )}
+          </div>
+        )}
+        
         {/* Preview Modal */}
         <AnimatePresence>
           {showPreview && (
@@ -729,6 +1043,19 @@ const handleDeleteAsset = async (assetUuid, assetId) => {
           )}
         </AnimatePresence>
       </div>
+      
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        show={confirmDialog.show}
+        onClose={() => setConfirmDialog(prev => ({ ...prev, show: false }))}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmText={confirmDialog.confirmText}
+        cancelText={confirmDialog.cancelText}
+        type={confirmDialog.type}
+        variant={confirmDialog.type === 'success' ? 'primary' : confirmDialog.type === 'error' ? 'danger' : confirmDialog.type === 'warning' ? 'warning' : 'primary'}
+      />
     </div>
   );
 };
