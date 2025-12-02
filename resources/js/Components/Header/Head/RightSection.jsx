@@ -41,6 +41,12 @@ const RightSection = ({
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteWorkspaceId, setInviteWorkspaceId] = useState(null)
   const [forceInviteMode, setForceInviteMode] = useState(false)
+  const [myRole, setMyRole] = useState(null)
+  
+  // Permission: Only owner and editors can invite
+  const currentWorkspace = props.currentWorkspace
+  const isOwner = currentWorkspace?.owner?.id === user?.id
+  const canInvite = isOwner || myRole === 'editor' || myRole === 'admin'
 
   // Get current frame and project from page props
   const currentFrame = props.frame
@@ -140,6 +146,32 @@ const RightSection = ({
   // Comment mode from global editor store (use separate selectors to avoid new object each render)
   const commentMode = useEditorStore((s) => s.commentMode)
   const toggleCommentMode = useEditorStore((s) => s.toggleCommentMode)
+  
+  // Fetch current user's role
+  React.useEffect(() => {
+    const fetchMyRole = async () => {
+      if (!currentWorkspace?.uuid) return
+      
+      try {
+        const response = await fetch(`/api/workspaces/${currentWorkspace.uuid}/roles/my-role`, {
+          headers: { 'Accept': 'application/json' }
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success) {
+            setMyRole(data.data.role)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch role:', error)
+      }
+    }
+    
+    if (currentWorkspace?.uuid) {
+      fetchMyRole()
+    }
+  }, [currentWorkspace?.uuid])
 
   // Enhanced Save Button Component
   const SaveButton = () => {
@@ -317,15 +349,17 @@ const RightSection = ({
               onInviteClick={handleInviteClick}
             />
 
-            {/* === Invite Button === */}
-            <button
-              onClick={() => handleInviteClick(null)} // null will use current workspace
-              className="flex items-center gap-2 px-3 py-2 bg-[var(--color-bg)] hover:bg-[var(--color-bg-hover)] rounded-lg text-[var(--color-text)] transition-colors shadow-sm shadow-[var(--color-primary)]"
-              title="Invite team members"
-            >
-              <Users className="w-4 h-4" />
-              <span className="hidden md:flex text-sm font-medium">Invite</span>
-            </button>
+            {/* === Invite Button (Only for Owner/Editor) === */}
+            {canInvite && (
+              <button
+                onClick={() => handleInviteClick(null)} // null will use current workspace
+                className="flex items-center gap-2 px-3 py-2 bg-[var(--color-bg)] hover:bg-[var(--color-bg-hover)] rounded-lg text-[var(--color-text)] transition-colors shadow-sm shadow-[var(--color-primary)]"
+                title="Invite team members"
+              >
+                <Users className="w-4 h-4" />
+                <span className="hidden md:flex text-sm font-medium">Invite</span>
+              </button>
+            )}
 
             {/* === Mobile Search Button === */}
             <button

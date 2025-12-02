@@ -514,9 +514,11 @@ const getFrameStyles = () => {
     top: y,
     width: `${size.w * 4}px`,
     height: `${size.h * 4}px`,
-    backgroundColor: 'var(--color-surface)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: isDark ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+    border: `2px solid ${isDark ? 'rgba(100, 100, 100, 0.5)' : 'rgba(200, 200, 200, 0.5)'}`,
+    borderRadius: '12px',
     backdropFilter: 'blur(10px)',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
     zIndex: dndIsDragging ? 1000 : 10,
     transform: dndIsDragging ? 'scale(1.05)' : 'scale(1)',
     willChange: dndIsDragging ? 'transform' : 'auto',
@@ -582,9 +584,11 @@ const style = useMemo(() => {
     top: y,
     width: `${size.w * 4}px`,
     height: `${size.h * 4}px`,
-    backgroundColor: 'var(--color-surface)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: isDark ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+    border: `2px solid ${isDark ? 'rgba(100, 100, 100, 0.5)' : 'rgba(200, 200, 200, 0.5)'}`,
+    borderRadius: '12px',
     backdropFilter: 'blur(10px)',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
     zIndex: dndIsDragging ? 1000 : 10,
     transform: dndIsDragging ? 'scale(1.05)' : 'scale(1)',
     willChange: dndIsDragging ? 'transform' : 'auto',
@@ -614,7 +618,7 @@ const style = useMemo(() => {
   }
 
   return baseStyles
-}, [x, y, size.w, size.h, dndIsDragging, lockStatus, transform])
+}, [x, y, size.w, size.h, dndIsDragging, lockStatus, transform, isDark])
 
 
 

@@ -22,6 +22,7 @@ use App\Http\Controllers\AssetController;
 use App\Http\Controllers\CollaborationController;
 use App\Http\Controllers\AiController;
 use App\Http\Controllers\FrameContainerController;
+use App\Http\Controllers\WorkspaceRoleController;
 /*
 |--------------------------------------------------------------------------
 | API Routes - All using UUIDs for resource identification
@@ -215,6 +216,11 @@ Route::prefix('workspaces/{workspaceId}/messages')->group(function () {
     // Workspace user management
     Route::put('/workspaces/{workspace:uuid}/users/{user}', [WorkspaceController::class, 'updateUserRole']);
     Route::delete('/workspaces/{workspace:uuid}/users/{user}', [WorkspaceController::class, 'removeUser']);
+    
+    // New role management routes
+    Route::post('/workspaces/{workspace:uuid}/roles/update', [WorkspaceRoleController::class, 'updateRole']);
+    Route::post('/workspaces/{workspace:uuid}/roles/transfer-ownership', [WorkspaceRoleController::class, 'transferOwnership']);
+    Route::get('/workspaces/{workspace:uuid}/roles/my-role', [WorkspaceRoleController::class, 'getMyRole']);
     
     // Workspace invites
     Route::get('/workspaces/{workspace:uuid}/invites', [InviteController::class, 'getWorkspaceInvites']);

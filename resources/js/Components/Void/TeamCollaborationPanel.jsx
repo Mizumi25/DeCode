@@ -39,6 +39,8 @@ export default function TeamCollaborationPanel() {
     currentWorkspace.user_role === 'editor'
   )
   const isOwner = currentWorkspace?.owner?.id === user?.id
+  const [myRole, setMyRole] = useState(null)
+  const canInvite = isOwner || myRole === 'editor' || myRole === 'admin'
 
   // Available disciplines
   const disciplines = [
@@ -413,7 +415,7 @@ const handleDisciplineChange = async (userId, discipline) => {
         <div className="flex items-center justify-between mb-3">
           <h4 className="font-semibold text-[var(--color-text)]">Team Collaboration</h4>
           <div className="flex items-center gap-2">
-            {canManageUsers && (
+            {canInvite && (
               <button 
                 onClick={() => setShowInviteModal(true)}
                 className="p-1.5 rounded hover:bg-[var(--color-bg-hover)] text-[var(--color-primary)]"
@@ -424,10 +426,21 @@ const handleDisciplineChange = async (userId, discipline) => {
             )}
             <button 
               onClick={() => setShowUserManagement(true)}
-              className="p-1.5 rounded hover:bg-[var(--color-bg-hover)] text-[var(--color-text-muted)]"
-              title="Manage team"
+              className={`relative p-2.5 rounded-lg transition-all duration-200 ${
+                showUserManagement
+                  ? 'bg-[var(--color-primary)] text-white shadow-lg scale-110'
+                  : 'hover:bg-[var(--color-bg-hover)] text-[var(--color-text)] hover:scale-105'
+              }`}
+              title="⚙️ Workspace Settings & Roles"
             >
-              <Settings className="w-4 h-4" />
+              <Settings className="w-5 h-5" />
+              {isOwner && (
+                <span 
+                  className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-500 rounded-full border-2" 
+                  style={{ borderColor: 'var(--color-bg)' }}
+                  title="Owner Controls"
+                />
+              )}
             </button>
           </div>
         </div>
