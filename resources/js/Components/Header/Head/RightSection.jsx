@@ -161,6 +161,7 @@ const RightSection = ({
           const data = await response.json()
           if (data.success) {
             setMyRole(data.data.role)
+            console.log('RightSection: User role loaded:', data.data.role)
           }
         }
       } catch (error) {
@@ -290,8 +291,8 @@ const RightSection = ({
             {/* Unified Save Button */}
             <SaveButton />
 
-            {/* Comments - Void and Forge Pages */}
-            {(onVoidPage || onForgePage) && (
+            {/* Comments - Void and Forge Pages - Hide for Viewer */}
+            {(onVoidPage || onForgePage) && myRole !== 'viewer' && myRole !== null && (
               <div className="flex flex-col items-center gap-0.5">
                 <button
                   onClick={toggleCommentMode}
@@ -312,8 +313,8 @@ const RightSection = ({
               </div>
             )}
 
-            {/* Share - Only on Void Page */}
-            {onVoidPage && (
+            {/* Share - Only on Void Page - Hide for Viewer */}
+            {onVoidPage && myRole !== 'viewer' && myRole !== null && (
               <div className="flex flex-col items-center gap-0.5">
                 <button className="p-0.5 hover:bg-[var(--color-bg-muted)] rounded transition-colors">
                   <Share2 className="w-2.5 h-2.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)]" />
@@ -322,20 +323,24 @@ const RightSection = ({
               </div>
             )}
 
-            {/* Export */}
-            <div className="flex flex-col items-center gap-0.5">
-              <button className="p-0.5 bg-pink-100 dark:bg-pink-900/30 hover:bg-pink-200 dark:hover:bg-pink-900/50 rounded transition-colors">
-                <Download className="w-2.5 h-2.5 text-pink-600 dark:text-pink-400" />
-              </button>
-              <span className="text-[7px] text-[var(--color-text-muted)]">Export</span>
-            </div>
+            {/* Export - Hide for Viewer */}
+            {myRole !== 'viewer' && myRole !== null && (
+              <div className="flex flex-col items-center gap-0.5">
+                <button className="p-0.5 bg-pink-100 dark:bg-pink-900/30 hover:bg-pink-200 dark:hover:bg-pink-900/50 rounded transition-colors">
+                  <Download className="w-2.5 h-2.5 text-pink-600 dark:text-pink-400" />
+                </button>
+                <span className="text-[7px] text-[var(--color-text-muted)]">Export</span>
+              </div>
+            )}
 
-            {/* Edit/View Toggle */}
-            <BinaryToggle 
-              activeMode={editMode} 
-              setActiveMode={setEditMode}
-              options={editOptions}
-            />
+            {/* Edit/View Toggle - Hide for Viewer */}
+            {myRole !== 'viewer' && myRole !== null && (
+              <BinaryToggle 
+                activeMode={editMode} 
+                setActiveMode={setEditMode}
+                options={editOptions}
+              />
+            )}
           </>
         )}
 
@@ -379,7 +384,8 @@ const RightSection = ({
           setDropdownOpen={setProfileDropdownOpen}
         />
 
-        {(onForgePage || onSourcePage || onVoidPage) && (
+        {/* Preview/Publish Button - Hide for Viewer */}
+        {(onForgePage || onSourcePage || onVoidPage) && myRole !== 'viewer' && myRole !== null && (
           <button 
             onClick={() => {
               const { toggleForgePanel } = useForgeStore.getState();

@@ -133,12 +133,36 @@ const useFrameLockStore = create(
             console.log('Received lock request:', e)
             get().addLockRequest(e.request)
             
+            // Create INTERACTIVE notification with action buttons
             get().addNotification({
+              id: `request-${e.request.uuid}`,
               type: 'lock_request',
               title: 'Frame Access Request',
-              message: `${e.request.requester.name} wants to access "${e.request.frame.name}"`,
+              message: `${e.request.requester.name} wants to access this frame`,
+              userName: e.request.requester.name,
+              persistent: true, // Won't auto-dismiss
+              interactive: true, // Shows action buttons
               data: e.request,
-              action: 'request_received',
+              actions: [
+                {
+                  label: 'Accept',
+                  icon: 'check',
+                  variant: 'success',
+                  onClick: async () => {
+                    await get().respondToLockRequest(e.request.uuid, 'approve');
+                    get().removeNotification(`request-${e.request.uuid}`);
+                  }
+                },
+                {
+                  label: 'Decline',
+                  icon: 'x',
+                  variant: 'danger',
+                  onClick: async () => {
+                    await get().respondToLockRequest(e.request.uuid, 'reject');
+                    get().removeNotification(`request-${e.request.uuid}`);
+                  }
+                }
+              ]
             })
             
             // Show browser notification if permission granted

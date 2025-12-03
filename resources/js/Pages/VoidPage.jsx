@@ -151,9 +151,11 @@ const zoomLevelRef = useRef(zoomLevel)
     }
   }, [project?.workspace_id, workspaces, currentWorkspace?.id, setCurrentWorkspace]);
 
-  // Fetch user's discipline for access control
+  // Fetch user's discipline and role for access control
+  const [myRole, setMyRole] = useState(null);
+  
   useEffect(() => {
-    const fetchMyDiscipline = async () => {
+    const fetchMyRoleAndDiscipline = async () => {
       if (!currentWorkspace?.uuid) return;
       
       try {
@@ -165,16 +167,17 @@ const zoomLevelRef = useRef(zoomLevel)
           const data = await response.json();
           if (data.success) {
             setMyDiscipline(data.data.discipline);
-            console.log('VoidPage: User discipline:', data.data.discipline);
+            setMyRole(data.data.role);
+            console.log('VoidPage: User discipline:', data.data.discipline, 'Role:', data.data.role);
           }
         }
       } catch (error) {
-        console.error('Failed to fetch discipline:', error);
+        console.error('Failed to fetch role/discipline:', error);
       }
     };
     
     if (currentWorkspace?.uuid) {
-      fetchMyDiscipline();
+      fetchMyRoleAndDiscipline();
     }
   }, [currentWorkspace?.uuid]);
 
@@ -1553,17 +1556,23 @@ useEffect(() => {
             }}
             zoom={zoom}
             isDark={isDark}
+            hideHeader={myRole === 'viewer'}
           />
         </div>
 
         {/* UI Elements - z-index: 20+ (above everything) */}
-        <FloatingToolbox tools={floatingTools} />
+        {/* FloatingToolbox - Hide for Viewer */}
+        {myRole !== 'viewer' && (
+          <FloatingToolbox tools={floatingTools} />
+        )}
 
-        <DeleteButton 
-          zoom={zoom} 
-          onFrameDrop={handleFrameDropDelete}
-          isDragActive={isFrameDragging}
-        />
+        {/* DeleteButton - Hide for Viewer */}
+        {myRole !== 'viewer' && (
+          <DeleteButton 
+            zoom={zoom} 
+            onFrameDrop={handleFrameDropDelete}
+          />
+        )}
 
         {overlayRect && currentComments && currentComments.map((c) => (
           <div
@@ -1626,8 +1635,8 @@ useEffect(() => {
           </div>
         )}
         
-        {/* Dynamic Dockable Panel System */}
-        {hasOpenPanels && (
+        {/* Dynamic Dockable Panel System - Hide for Viewer */}
+        {hasOpenPanels && myRole !== 'viewer' && (
           <Panel
             isOpen={true}
             panels={activePanels}

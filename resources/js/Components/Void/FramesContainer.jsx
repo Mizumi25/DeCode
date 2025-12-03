@@ -9,7 +9,8 @@ export default function FramesContainer({
   onFrameClick,
   onFrameDelete,
   zoom = 1,
-  isDark = false
+  isDark = false,
+  hideHeader = false
 }) {
   // Auto-scroll handler for frame dragging
   const handleAutoScroll = useCallback((scrollDelta) => {
@@ -45,12 +46,13 @@ export default function FramesContainer({
         onFrameDelete={onFrameDelete}
         zoom={zoom}
         isDark={isDark}
-        isDraggable={true}
+        isDraggable={!hideHeader} // Disable dragging for viewers
         scrollPosition={scrollPosition}
         onAutoScroll={handleAutoScroll}
+        hideHeader={hideHeader}
       />
     ))
-  , [frames, onFrameClick, onFrameDelete, zoom, isDark, scrollPosition, handleAutoScroll])
+  , [frames, onFrameClick, onFrameDelete, zoom, isDark, scrollPosition, handleAutoScroll, hideHeader])
 
   return (
     <div 

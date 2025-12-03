@@ -1,4 +1,4 @@
-// app/Events/FrameLockRequestCreated.php
+<?php
 
 namespace App\Events;
 

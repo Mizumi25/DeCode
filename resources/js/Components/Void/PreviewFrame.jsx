@@ -36,10 +36,11 @@ export default function PreviewFrame({
   onFrameClick,
   onFrameDelete,
   zoom = 1,
-  isDraggable = true,
+  isDraggable = true, // Will be set to false for viewers
   isDark = false,
   scrollPosition = { x: 0, y: 0 },
-  onAutoScroll = null
+  onAutoScroll = null,
+  hideHeader = false // New prop to hide header for viewers
 }) {
   const size = sizes[index % sizes.length]
   const { getLockStatus, subscribeToFrame, requestFrameAccess, addNotification } = useFrameLockStore()
@@ -996,11 +997,28 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Enhanced Header with thumbnail status */}
-      <div 
-        ref={headerRef}
-        className={`frame-header flex items-center justify-between mb-3 -mt-1 min-w-0 hover:bg-white/5 dark:hover:bg-black/5 rounded-lg p-1 -m-1 transition-colors`}
-      >
+      {/* Frame Title - Always visible, even for viewers */}
+      {hideHeader ? (
+        // Viewer: Just show title, NOT draggable (no ref, no drag class)
+        <div className="mb-3 -mt-1 select-none" style={{ pointerEvents: 'none' }}>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h3 
+              className="text-xs font-medium text-[var(--color-text)] truncate"
+              style={{
+                textShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                cursor: 'default'
+              }}
+            >
+              {title}
+            </h3>
+          </div>
+        </div>
+      ) : (
+        // Full header for non-viewers
+        <div 
+          ref={headerRef}
+          className={`frame-header flex items-center justify-between mb-3 -mt-1 min-w-0 hover:bg-white/5 dark:hover:bg-black/5 rounded-lg p-1 -m-1 transition-colors`}
+        >
         <div className="flex items-center gap-2 text-xs min-w-0 flex-1" style={{ color: 'var(--color-text-muted)' }}>
           <span className="font-semibold text-sm truncate max-w-[120px]" title={title}>
             {title}
@@ -1091,6 +1109,7 @@ useEffect(() => {
           </div>
         </div>
       </div>
+      )}
 
       {/* ENHANCED: Content Area with real-time thumbnail */}
       <div className="rounded-lg mb-3 flex-1 relative overflow-hidden">

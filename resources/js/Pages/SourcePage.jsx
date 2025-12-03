@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import Panel from '@/Components/Panel';
 // Import components
 import ExplorerPanel from '@/Components/Source/ExplorerPanel';
@@ -12,8 +12,16 @@ import { useSourceStore } from '@/stores/useSourceStore';
 import { useCodeSyncStore } from '@/stores/useCodeSyncStore';
 import EnhancedToastContainer from '@/Components/Notifications/EnhancedToast';
 import useFrameLockStore from '@/stores/useFrameLockStore';
+import LockAccessRequestDialog from '@/Components/Forge/LockAccessRequestDialog';
 
-export default function SourcePage({ projectId, frameId }) {
+export default function SourcePage({ projectId, frameId, frame }) {
+  // Frame lock store for notifications and access requests
+  const lockNotifications = useFrameLockStore(state => state.notifications);
+  const removeNotification = useFrameLockStore(state => state.removeNotification);
+  const lockRequests = useFrameLockStore(state => state.lockRequests);
+  const respondToLockRequest = useFrameLockStore(state => state.respondToLockRequest);
+  const initializeEcho = useFrameLockStore(state => state.initialize);
+  
   // Use Source Store for panel management
   const {
     toggleSourcePanel,
@@ -33,6 +41,16 @@ export default function SourcePage({ projectId, frameId }) {
   } = useCodeSyncStore();
   
   const [editorValue, setEditorValue] = useState('');
+  
+  const { props } = usePage();
+  const { auth } = props;
+
+  // Initialize Echo for lock requests
+  useEffect(() => {
+    if (auth?.user?.id) {
+      initializeEcho(auth.user.id);
+    }
+  }, [auth?.user?.id, initializeEcho]);
   
   // Sync code from Forge to Source editor
   useEffect(() => {
@@ -207,7 +225,10 @@ export default function SourcePage({ projectId, frameId }) {
       headerProps={{
         onPanelToggle: handlePanelToggle,
         panelStates: legacyPanelStates, // Keep for compatibility
-        onModeSwitch: handleModeSwitch
+        onModeSwitch: handleModeSwitch,
+        currentFrame: frame?.uuid || frameId, // Pass frame UUID for lock button
+        projectId: projectId,
+        frame: frame
       }}
     >
       <Head title="Source - Code Editor" />
@@ -319,9 +340,10 @@ export default function SourcePage({ projectId, frameId }) {
       {/* Enhanced Toast Notifications */}
       <EnhancedToastContainer 
         position="top-right"
-        notifications={useFrameLockStore.getState().notifications}
-        onRemoveNotification={(id) => useFrameLockStore.getState().removeNotification(id)}
+        notifications={lockNotifications}
+        onRemoveNotification={removeNotification}
       />
+      
     </AuthenticatedLayout>
   );
 }

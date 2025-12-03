@@ -23,7 +23,13 @@ export default function Header({
   currentRoute = '/projects', 
   onThemeChange, 
   onPanelToggle, 
-  onModeSwitch  
+  onModeSwitch,
+  currentFrame,
+  projectId,
+  frame,
+  canvasComponents,
+  handleUndo,
+  handleRedo
 }) {
   const { props, url } = usePage()
   const user = props.auth?.user
@@ -181,12 +187,12 @@ export default function Header({
               setGridVisible={setGridVisible}
               containerMode={props.containerMode}
               setContainerMode={props.setContainerMode}
-              // ADD THESE:
-              projectId={props.project?.uuid || null}
-              currentFrame={props.frame?.uuid || null}
-              canvasComponents={props.frame?.canvas_data?.components || []}
-              handleUndo={props.onUndo}
-              handleRedo={props.onRedo}
+              // Use props passed from page, fallback to global props
+              projectId={projectId || props.project?.uuid || null}
+              currentFrame={currentFrame || props.frame?.uuid || null}
+              canvasComponents={canvasComponents || props.frame?.canvas_data?.components || []}
+              handleUndo={handleUndo || props.onUndo}
+              handleRedo={handleRedo || props.onRedo}
             />
           )}
 

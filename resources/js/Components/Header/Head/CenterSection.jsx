@@ -11,6 +11,7 @@ import { MousePointer, Hand } from 'lucide-react';
 import { useHeaderStore } from '@/stores/useHeaderStore';
 import { useIconStore } from '@/stores/useIconStore';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 
 
 const fadeIn = {
@@ -54,6 +55,35 @@ const CenterSection = ({
     setClipCanvas
   } = useEditorStore();
   
+  const { currentWorkspace } = useWorkspaceStore();
+  const [myRole, setMyRole] = React.useState(null);
+  
+  // Fetch user's role
+  React.useEffect(() => {
+    const fetchMyRole = async () => {
+      if (!currentWorkspace?.uuid) return;
+      
+      try {
+        const response = await fetch(`/api/workspaces/${currentWorkspace.uuid}/roles/my-role`, {
+          headers: { 'Accept': 'application/json' }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setMyRole(data.data.role);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch role:', error);
+      }
+    };
+    
+    if (currentWorkspace?.uuid) {
+      fetchMyRole();
+    }
+  }, [currentWorkspace?.uuid]);
+  
   const onProjectsPage = currentRoute === '/projects' || currentRoute.includes('/projects');
   const onForgePage = currentRoute.includes('/modeForge');
   const onSourcePage = currentRoute.includes('/modeSource');
@@ -94,11 +124,15 @@ const CenterSection = ({
         custom={2}
         className="flex items-center gap-2 flex-shrink-0" // Reduced gap
       >
-        {/* Undo/Redo */}
-        <VoidUndoRedo size="small" /> {/* Made smaller */}
-        
-        {/* Vertical Divider */}
-        <div className="w-px h-3 bg-[var(--color-border)]"></div>
+        {/* Undo/Redo - Hide for Viewer */}
+        {myRole !== 'viewer' && (
+          <>
+            <VoidUndoRedo size="small" /> {/* Made smaller */}
+            
+            {/* Vertical Divider */}
+            <div className="w-px h-3 bg-[var(--color-border)]"></div>
+          </>
+        )}
 
         {/* FIXED: Pass zoomLevel and setZoomLevel props */}
         <VoidZoomControls 
@@ -110,7 +144,7 @@ const CenterSection = ({
         {/* Vertical Divider */}
         <div className="w-px h-3 bg-[var(--color-border)]"></div>
         
-        {/* Interaction Mode Toggle */}
+        {/* Interaction Mode Toggle - Keep for Viewer */}
         <BinaryToggle 
           activeMode={interactionMode} 
           setActiveMode={setInteractionMode}

@@ -118,6 +118,26 @@ protected static function boot()
     {
         return $this->hasMany(FrameLockRequest::class)->pending();
     }
+    
+    public function presences()
+    {
+        return $this->hasMany(Presence::class);
+    }
+    
+    public function activePresences()
+    {
+        return $this->hasMany(Presence::class)->active();
+    }
+    
+    /**
+     * Check if user has active presence in this frame
+     */
+    public function hasActivePresence(int $userId): bool
+    {
+        return $this->activePresences()
+                    ->where('user_id', $userId)
+                    ->exists();
+    }
 
     // Lock system scopes
     public function scopeLocked($query)
@@ -206,9 +226,11 @@ protected static function boot()
             return true;
         }
         
-        // The user who locked it can enter
+        // The user who locked it can ONLY enter if they're STILL INSIDE
+        // Once they leave, they lose bypass privilege
         if ($this->locked_by_user_id === $userId) {
-            return true;
+            // Check if they have active presence (currently inside)
+            return $this->hasActivePresence($userId);
         }
         
         // Workspace owner can bypass lock

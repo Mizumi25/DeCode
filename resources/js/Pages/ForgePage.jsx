@@ -18,6 +18,7 @@ import { useThumbnail } from '@/hooks/useThumbnail';
 import { useFramePresenceStore } from '@/stores/useFramePresenceStore';
 import EnhancedToastContainer from '@/Components/Notifications/EnhancedToast';
 import useFrameLockStore from '@/stores/useFrameLockStore';
+import LockAccessRequestDialog from '@/Components/Forge/LockAccessRequestDialog';
 
 // Import separated forge components
 import ComponentsPanel from '@/Components/Forge/ComponentsPanel';
@@ -107,6 +108,13 @@ export default function ForgePage({
     set
   } = useForgeStore()
   
+  // Frame lock store for notifications and access requests
+  const lockNotifications = useFrameLockStore(state => state.notifications)
+  const removeNotification = useFrameLockStore(state => state.removeNotification)
+  const lockRequests = useFrameLockStore(state => state.lockRequests)
+  const respondToLockRequest = useFrameLockStore(state => state.respondToLockRequest)
+  const initializeEcho = useFrameLockStore(state => state.initialize)
+  
   const {
     responsiveMode,
     getCurrentCanvasDimensions,
@@ -158,6 +166,15 @@ export default function ForgePage({
   
   // 🔥 ENHANCED: Ensure currentUserId is properly defined for collaboration
   const collaborationUserId = currentUser?.id || window.auth?.user?.id || null;
+  
+  // 🔔 Initialize Echo for frame lock requests
+  useEffect(() => {
+    console.log('🔔 Initializing Frame Lock Echo with user ID:', currentUser?.id);
+    if (currentUser?.id) {
+      initializeEcho(currentUser.id);
+      console.log('✅ Frame Lock Echo initialized');
+    }
+  }, [currentUser?.id, initializeEcho]);
 
   const {
     activeCursors,
@@ -3728,9 +3745,10 @@ if (!componentsLoaded && loadingMessage) {
       {/* Enhanced Toast Notifications */}
       <EnhancedToastContainer 
         position="top-right"
-        notifications={useFrameLockStore.getState().notifications}
-        onRemoveNotification={(id) => useFrameLockStore.getState().removeNotification(id)}
+        notifications={lockNotifications}
+        onRemoveNotification={removeNotification}
       />
+      
     </AuthenticatedLayout>
     </ErrorBoundary>
   );

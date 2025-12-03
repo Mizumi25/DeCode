@@ -59,6 +59,7 @@ const LeftSection = ({
   const { canvasZoom, setCanvasZoom } = useForgeStore();
   const { currentWorkspace } = useWorkspaceStore();
   const [myDiscipline, setMyDiscipline] = React.useState(null);
+  const [myRole, setMyRole] = React.useState(null);
 
   
   const { url, props } = usePage(); 
@@ -72,9 +73,9 @@ const LeftSection = ({
     !onForgePage &&
     !onSourcePage;
 
-  // Fetch user's discipline
+  // Fetch user's discipline and role
   useEffect(() => {
-    const fetchMyDiscipline = async () => {
+    const fetchMyRoleAndDiscipline = async () => {
       if (!currentWorkspace?.uuid) return;
       
       try {
@@ -86,15 +87,16 @@ const LeftSection = ({
           const data = await response.json();
           if (data.success) {
             setMyDiscipline(data.data.discipline);
+            setMyRole(data.data.role);
           }
         }
       } catch (error) {
-        console.error('Failed to fetch discipline:', error);
+        console.error('Failed to fetch role/discipline:', error);
       }
     };
     
     if (currentWorkspace?.uuid) {
-      fetchMyDiscipline();
+      fetchMyRoleAndDiscipline();
     }
   }, [currentWorkspace?.uuid]);
 
@@ -297,25 +299,29 @@ const LeftSection = ({
       {/* Void Page Specific Elements */}
       {onVoidPage && (
         <>
-          {/* Responsive Mode Toggle - Only on Void Page */}
-          <ResponsiveToggle 
-            activeMode={responsiveMode} 
-            setActiveMode={setResponsiveMode}
-            size="small"
-          />
+          {/* Responsive Mode Toggle - Hide for Viewer */}
+          {myRole !== 'viewer' && (
+            <ResponsiveToggle 
+              activeMode={responsiveMode} 
+              setActiveMode={setResponsiveMode}
+              size="small"
+            />
+          )}
 
-          {/* Container Mode Toggle - Only on Void Page */}
-          <button
-            onClick={handleContainerModeToggle}
-            className={`p-0.5 rounded transition-colors ${
-              containerMode 
-                ? 'bg-[var(--color-primary)] text-white' 
-                : 'hover:bg-[var(--color-bg-muted)] text-[var(--color-text)]'
-            }`}
-            title={containerMode ? "Exit Container Mode" : "Add Container"}
-          >
-            <Container className="w-2.5 h-2.5" />
-          </button>
+          {/* Container Mode Toggle - Hide for Viewer */}
+          {myRole !== 'viewer' && (
+            <button
+              onClick={handleContainerModeToggle}
+              className={`p-0.5 rounded transition-colors ${
+                containerMode 
+                  ? 'bg-[var(--color-primary)] text-white' 
+                  : 'hover:bg-[var(--color-bg-muted)] text-[var(--color-text)]'
+              }`}
+              title={containerMode ? "Exit Container Mode" : "Add Container"}
+            >
+              <Container className="w-2.5 h-2.5" />
+            </button>
+          )}
         </>
       )}
     </motion.div>
