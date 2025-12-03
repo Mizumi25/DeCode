@@ -428,22 +428,24 @@ Route::post('/realtime-update', [CollaborationController::class, 'realtimeUpdate
     });
 });
 
-function buildComponentTree($components, $parentId = null) {
-    $tree = [];
-    foreach ($components as $comp) {
-        if ($comp->parent_id == $parentId) {
-            $node = [
-                'id' => $comp->component_instance_id,
-                'type' => $comp->component_type,
-                'props' => $comp->props,
-                'name' => $comp->name,
-                'style' => $comp->style ?? [],
-                'children' => buildComponentTree($components, $comp->id)
-            ];
-            $tree[] = $node;
+if (!function_exists('buildComponentTree')) {
+    function buildComponentTree($components, $parentId = null) {
+        $tree = [];
+        foreach ($components as $comp) {
+            if ($comp->parent_id == $parentId) {
+                $node = [
+                    'id' => $comp->component_instance_id,
+                    'type' => $comp->component_type,
+                    'props' => $comp->props,
+                    'name' => $comp->name,
+                    'style' => $comp->style ?? [],
+                    'children' => buildComponentTree($components, $comp->id)
+                ];
+                $tree[] = $node;
+            }
         }
+        return $tree;
     }
-    return $tree;
 }
 
 

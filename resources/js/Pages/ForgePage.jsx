@@ -16,6 +16,8 @@ import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 import { useThumbnail } from '@/hooks/useThumbnail';
 // Add this import with your other store imports
 import { useFramePresenceStore } from '@/stores/useFramePresenceStore';
+import EnhancedToastContainer from '@/Components/Notifications/EnhancedToast';
+import useFrameLockStore from '@/stores/useFrameLockStore';
 
 // Import separated forge components
 import ComponentsPanel from '@/Components/Forge/ComponentsPanel';
@@ -3722,6 +3724,13 @@ if (!componentsLoaded && loadingMessage) {
           }
         `}</style>
       )}
+      
+      {/* Enhanced Toast Notifications */}
+      <EnhancedToastContainer 
+        position="top-right"
+        notifications={useFrameLockStore.getState().notifications}
+        onRemoveNotification={(id) => useFrameLockStore.getState().removeNotification(id)}
+      />
     </AuthenticatedLayout>
     </ErrorBoundary>
   );

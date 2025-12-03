@@ -10,6 +10,8 @@ import TerminalPanel from '@/Components/Source/TerminalPanel';
 // Import the new Source store
 import { useSourceStore } from '@/stores/useSourceStore';
 import { useCodeSyncStore } from '@/stores/useCodeSyncStore';
+import EnhancedToastContainer from '@/Components/Notifications/EnhancedToast';
+import useFrameLockStore from '@/stores/useFrameLockStore';
 
 export default function SourcePage({ projectId, frameId }) {
   // Use Source Store for panel management
@@ -313,6 +315,13 @@ export default function SourcePage({ projectId, frameId }) {
           <div>All Hidden: {allSourcePanelsHidden ? 'YES' : 'NO'}</div>
         </div>
       )}
+      
+      {/* Enhanced Toast Notifications */}
+      <EnhancedToastContainer 
+        position="top-right"
+        notifications={useFrameLockStore.getState().notifications}
+        onRemoveNotification={(id) => useFrameLockStore.getState().removeNotification(id)}
+      />
     </AuthenticatedLayout>
   );
 }

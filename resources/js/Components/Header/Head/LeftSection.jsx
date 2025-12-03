@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Menu, X, Lock, MousePointer2, Hand, ChevronLeft, Container } from 'lucide-react';
+import { Menu, X, MousePointer2, Hand, ChevronLeft, Container } from 'lucide-react';
 import useContainerStore from '@/stores/useContainerStore';
 import { motion } from 'framer-motion';
 import { router, usePage } from '@inertiajs/react';
@@ -13,6 +13,7 @@ import BinaryToggle from './BinaryToggle';
 import AnimatedBlackHoleLogo from '@/Components/AnimatedBlackHoleLogo';
 import { useForgeStore } from '@/stores/useForgeStore';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
+import FrameLockButton from './FrameLockButton';
 
 
 const fadeIn = {
@@ -217,10 +218,13 @@ const LeftSection = ({
             />
           )}
 
-          {/* Lock Icon */}
-          <button className="p-0.5 hover:bg-[var(--color-bg-muted)] rounded transition-colors">
-            <Lock className="w-2.5 h-2.5 text-[var(--color-text)]" />
-          </button>
+          {/* Frame Lock Button - Owner and Editor can lock/unlock */}
+          {currentFrame && (
+            <FrameLockButton 
+              frameUuid={currentFrame} 
+              currentMode={onForgePage ? 'forge' : 'source'} 
+            />
+          )}
 
           {/* Responsive Mode Toggle - Only on Forge Page */}
           {onForgePage && (

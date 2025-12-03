@@ -65,7 +65,7 @@ class FrameLockRequestCreated implements ShouldBroadcast
                 ],
                 'requested_mode' => $this->lockRequest->requested_mode,
                 'message' => $this->lockRequest->message,
-                'expires_at' => $this->lockRequest->expires_at->toISOString(),
+                'expires_at' => $this->lockRequest->expires_at?->toISOString(),
                 'created_at' => $this->lockRequest->created_at->toISOString(),
             ],
             'timestamp' => now()->toISOString(),

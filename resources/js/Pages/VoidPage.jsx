@@ -79,11 +79,15 @@ export default function VoidPage() {
     echoConnected 
   } = useFrameLockStore()
   
+  // Discipline-based access control
+  const [myDiscipline, setMyDiscipline] = useState(null)
+  
   // Modal states
   const [showFrameCreator, setShowFrameCreator] = useState(false)
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
   const [frameToDelete, setFrameToDelete] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showTesterRestrictionDialog, setShowTesterRestrictionDialog] = useState(false)
   
   // Container state from Zustand store
   const { containerMode, setContainerMode, containers, setContainers, addContainer, updateContainer, removeContainer } = useContainerStore()
@@ -146,6 +150,33 @@ const zoomLevelRef = useRef(zoomLevel)
       }
     }
   }, [project?.workspace_id, workspaces, currentWorkspace?.id, setCurrentWorkspace]);
+
+  // Fetch user's discipline for access control
+  useEffect(() => {
+    const fetchMyDiscipline = async () => {
+      if (!currentWorkspace?.uuid) return;
+      
+      try {
+        const response = await fetch(`/api/workspaces/${currentWorkspace.uuid}/roles/my-role`, {
+          headers: { 'Accept': 'application/json' }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setMyDiscipline(data.data.discipline);
+            console.log('VoidPage: User discipline:', data.data.discipline);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch discipline:', error);
+      }
+    };
+    
+    if (currentWorkspace?.uuid) {
+      fetchMyDiscipline();
+    }
+  }, [currentWorkspace?.uuid]);
 
   // Initialize frame lock system
   useEffect(() => {
@@ -657,10 +688,43 @@ const handleDragEnd = useCallback(async (event) => {
     }
   }
 
-  // Handle frame click for navigation
+  // Handle frame click for navigation - discipline-based routing
   const handleFrameClick = useCallback((frame) => {
-    router.visit(`/void/${project.uuid}/frame=${frame.uuid}/modeForge`)
-  }, [project?.uuid])
+    if (!myDiscipline) {
+      console.warn('Discipline not loaded yet, using default (Forge)');
+      router.visit(`/void/${project.uuid}/frame=${frame.uuid}/modeForge`);
+      return;
+    }
+
+    // Route based on discipline
+    switch (myDiscipline) {
+      case 'Developer':
+        // Full access - goes to Forge
+        router.visit(`/void/${project.uuid}/frame=${frame.uuid}/modeForge`);
+        break;
+      
+      case 'Programmer':
+        // Only Source page access
+        router.visit(`/void/${project.uuid}/frame=${frame.uuid}/modeSource`);
+        break;
+      
+      case 'Designer':
+      case 'ContentManager':
+        // Only Forge page access
+        router.visit(`/void/${project.uuid}/frame=${frame.uuid}/modeForge`);
+        break;
+      
+      case 'Tester':
+        // No access to Forge or Source - stays on Void
+        console.log('Tester role: Cannot access Forge or Source pages');
+        setShowTesterRestrictionDialog(true);
+        break;
+      
+      default:
+        console.warn('Unknown discipline:', myDiscipline, '- defaulting to Forge');
+        router.visit(`/void/${project.uuid}/frame=${frame.uuid}/modeForge`);
+    }
+  }, [project?.uuid, myDiscipline])
 
 
 
@@ -1628,6 +1692,18 @@ useEffect(() => {
           cancelText="Cancel"
           variant="danger"
           isLoading={isDeleting}
+        />
+
+        {/* Tester Restriction Dialog */}
+        <ConfirmationDialog
+          show={showTesterRestrictionDialog}
+          onClose={() => setShowTesterRestrictionDialog(false)}
+          onConfirm={() => setShowTesterRestrictionDialog(false)}
+          type="info"
+          title="Access Restricted"
+          message="As a Tester, you can only view frames on the Void page. Access to Forge and Source pages is restricted to Developers, Programmers, Designers, and Content Managers."
+          confirmText="Okay"
+          variant="primary"
         />
 
         {/* Lock Request Notifications */}

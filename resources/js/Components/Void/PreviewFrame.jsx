@@ -3,7 +3,10 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import ReactDOM from 'react-dom'
 import { Plug, MoreHorizontal, Github, FileCode, Layers, RefreshCw, Camera, AlertTriangle, Copy, Trash2, Files } from 'lucide-react'
 import EnhancedLockButton from './EnhancedLockButton'
+import EnhancedPreviewFrameLock from './EnhancedPreviewFrameLock'
+import FrameAccessDialog from './FrameAccessDialog'
 import useFrameLockStore from '@/stores/useFrameLockStore'
+import { useWorkspaceStore } from '@/stores/useWorkspaceStore'
 import { useThumbnail } from '@/hooks/useThumbnail'
 import { ThumbnailService } from '@/Services/ThumbnailService'
 import RealTimeStackingAvatars from '@/Components/Header/Head/RealTimeStackingAvatars'
@@ -39,10 +42,40 @@ export default function PreviewFrame({
   onAutoScroll = null
 }) {
   const size = sizes[index % sizes.length]
-  const { getLockStatus, subscribeToFrame } = useFrameLockStore()
+  const { getLockStatus, subscribeToFrame, requestFrameAccess, addNotification } = useFrameLockStore()
+  const { currentWorkspace } = useWorkspaceStore()
+  const [myRole, setMyRole] = React.useState(null)
+  const [showAccessDialog, setShowAccessDialog] = React.useState(false)
+  const [isRequestLoading, setIsRequestLoading] = React.useState(false)
   
   // Get lock status from Zustand store - FIRST
   const lockStatus = getLockStatus(frame?.uuid)
+  
+  // Fetch user's workspace role for discipline routing
+  React.useEffect(() => {
+    const fetchMyRole = async () => {
+      if (!currentWorkspace?.uuid) return;
+      
+      try {
+        const response = await fetch(`/api/workspaces/${currentWorkspace.uuid}/roles/my-role`, {
+          headers: { 'Accept': 'application/json' }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setMyRole(data.data.role);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch role:', error);
+      }
+    };
+    
+    if (currentWorkspace?.uuid) {
+      fetchMyRole();
+    }
+  }, [currentWorkspace?.uuid]);
   
   
   
@@ -477,7 +510,57 @@ const enhancedTransform = useMemo(() => {
     }
   }, [isDragging])
 
-  // FIXED: Updated handleFrameClick to properly handle thumbnail actions
+  // Handle access request for editors
+  const handleRequestAccess = async (message) => {
+    setIsRequestLoading(true);
+    
+    try {
+      const success = await requestFrameAccess(frame.uuid, 'forge', message);
+      
+      if (success) {
+        addNotification({
+          type: 'lock_request',
+          title: 'Access Requested',
+          message: `Your request to access "${title}" has been sent.`,
+        });
+        setShowAccessDialog(false);
+      } else {
+        addNotification({
+          type: 'error',
+          title: 'Request Failed',
+          message: 'Failed to send access request. Please try again.',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to request access:', error);
+      addNotification({
+        type: 'error',
+        title: 'Request Error',
+        message: error.message || 'An error occurred.',
+      });
+    } finally {
+      setIsRequestLoading(false);
+    }
+  };
+
+  // Handle owner bypass
+  const handleOwnerBypass = () => {
+    setShowAccessDialog(false);
+    
+    // Owner can enter despite lock
+    if (onFrameClick && frame) {
+      // Show notification to users inside
+      addNotification({
+        type: 'owner_bypass',
+        title: 'Owner Entering',
+        message: `Workspace owner is entering the frame.`,
+      });
+      
+      onFrameClick(frame);
+    }
+  };
+
+  // FIXED: Updated handleFrameClick to properly handle thumbnail actions and lock status
   const handleFrameClick = (e) => {
     // Check if click is on interactive elements or actual thumbnail action buttons
     const isInteractiveElement = e.target.closest('.lock-button') || 
@@ -487,20 +570,35 @@ const enhancedTransform = useMemo(() => {
                                  e.target.closest('button') // This will catch the thumbnail action buttons
     
     // Don't navigate if we're in a dragging state or clicked on interactive elements
-    if (isInteractiveElement ||
-        isDragging) {
-      return
+    if (isInteractiveElement || isDragging) {
+      return;
     }
     
-    if (lockStatus?.is_locked && !lockStatus.locked_by_me && !lockStatus.can_unlock) {
-      console.log('Frame is locked, cannot access')
-      return
+    // Handle locked frame access
+    if (lockStatus?.is_locked && !lockStatus.locked_by_me) {
+      // Check if user can bypass lock (owner)
+      if (lockStatus.can_bypass_lock) {
+        // Owner: show dialog with bypass option
+        setShowAccessDialog(true);
+      } else if (lockStatus.can_request) {
+        // Editor: show dialog with request option
+        setShowAccessDialog(true);
+      } else {
+        // Viewer: cannot access at all
+        addNotification({
+          type: 'error',
+          title: 'Frame Locked',
+          message: `This frame is locked by ${lockStatus.locked_by?.name || 'someone'}.`,
+        });
+      }
+      return;
     }
     
+    // Normal click - navigate to frame
     if (onFrameClick && frame) {
-      onFrameClick(frame)
+      onFrameClick(frame);
     }
-  }
+  };
 
   
 
@@ -936,10 +1034,8 @@ useEffect(() => {
           )}
           
           <div className="lock-button flex-shrink-0">
-            <EnhancedLockButton
+            <EnhancedPreviewFrameLock
               frameUuid={frame?.uuid}
-              currentMode="forge"
-              size="sm"
             />
           </div>
           
@@ -1051,6 +1147,18 @@ useEffect(() => {
         />,
         document.body
       )}
+      
+      {/* Frame Access Dialog for locked frames */}
+      <FrameAccessDialog
+        isOpen={showAccessDialog}
+        onClose={() => setShowAccessDialog(false)}
+        onBypass={handleOwnerBypass}
+        onRequest={handleRequestAccess}
+        lockStatus={lockStatus}
+        userRole={myRole}
+        frameName={title}
+        isLoading={isRequestLoading}
+      />
     </div>
   )
 }

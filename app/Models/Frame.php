@@ -144,18 +144,19 @@ protected static function boot()
             return true;
         }
 
-        // The user who locked it can unlock
+        // The user who locked it can unlock (if inside the frame)
         if ($this->locked_by_user_id === $userId) {
             return true;
         }
 
-        // Workspace owner/admin can unlock
+        // Workspace owner can unlock from anywhere (void or inside)
         if ($this->project->workspace_id) {
             $workspace = $this->project->workspace;
             $userRole = $workspace->getUserRole($userId);
             
-            // Owner and editors can unlock frames
-            if (in_array($userRole, ['owner', 'editor'])) {
+            // Only workspace owner can unlock from outside (void)
+            // Editors who locked can only unlock from inside (handled above)
+            if ($userRole === 'owner') {
                 return true;
             }
         }
@@ -175,17 +176,51 @@ protected static function boot()
             return true;
         }
 
-        // Check workspace permissions
+        // Check workspace permissions - Only Owner and Editor can lock
         if ($this->project->workspace_id) {
             $workspace = $this->project->workspace;
             $userRole = $workspace->getUserRole($userId);
             
-            // Contributors and above can lock frames
-            if (in_array($userRole, ['owner', 'editor', 'contributor'])) {
+            // Only owner and editor can lock frames
+            if (in_array($userRole, ['owner', 'editor'])) {
                 return true;
             }
         }
 
+        return false;
+    }
+    
+    /**
+     * Check if user can access locked frame from outside (void page)
+     * Owner can bypass lock, editors need to request
+     */
+    public function canUserBypassLock($userId): bool
+    {
+        // Not locked, anyone with access can enter
+        if (!$this->is_locked) {
+            return true;
+        }
+        
+        // Owner of the project can always bypass
+        if ($this->project->user_id === $userId) {
+            return true;
+        }
+        
+        // The user who locked it can enter
+        if ($this->locked_by_user_id === $userId) {
+            return true;
+        }
+        
+        // Workspace owner can bypass lock
+        if ($this->project->workspace_id) {
+            $workspace = $this->project->workspace;
+            $userRole = $workspace->getUserRole($userId);
+            
+            if ($userRole === 'owner') {
+                return true;
+            }
+        }
+        
         return false;
     }
 
@@ -283,13 +318,21 @@ protected static function boot()
 
     public function getLockStatusForUser($userId): array
     {
+        // Get user's workspace role
+        $userRole = null;
+        if ($this->project->workspace_id) {
+            $userRole = $this->project->workspace->getUserRole($userId);
+        }
+        
         return [
             'is_locked' => $this->is_locked,
             'locked_by_me' => $this->isLockedBy($userId),
             'can_lock' => $this->canUserLock($userId),
             'can_unlock' => $this->canUserUnlock($userId),
             'can_request' => $this->canUserRequest($userId),
+            'can_bypass_lock' => $this->canUserBypassLock($userId),
             'has_pending_request' => $this->hasActiveLockRequest($userId),
+            'user_role' => $userRole,
             'locked_by' => $this->lockedByUser ? [
                 'id' => $this->lockedByUser->id,
                 'name' => $this->lockedByUser->name,
