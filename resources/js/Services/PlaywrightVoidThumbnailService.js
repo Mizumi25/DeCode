@@ -39,7 +39,7 @@ export class PlaywrightVoidThumbnailService {
       projectId,
       method: 'playwright_with_fallback',
       dimensions: `${width}x${height}`,
-    });
+    };
 
     // STEP 1: Try Playwright (PRIMARY METHOD)
     try {
