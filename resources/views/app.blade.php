@@ -23,17 +23,29 @@
         @inertia
     </body>
     
-    
-    <script>
+<script>
+    @if(config('app.env') === 'production')
+        // Production: Use VITE_ variables (client-side domain)
+        window.REVERB_CONFIG = {
+            key: "{{ env('VITE_REVERB_APP_KEY') }}",
+            cluster: "{{ env('VITE_REVERB_CLUSTER', 'mt1') }}",
+            wsHost: "{{ env('VITE_REVERB_HOST') }}",
+            wsPort: {{ env('VITE_REVERB_PORT', 443) }},
+            wssPort: {{ env('VITE_REVERB_PORT', 443) }},
+            forceTLS: "{{ env('VITE_REVERB_SCHEME', 'https') }}" === 'https'
+        };
+    @else
+        // Local: Use REVERB_ variables (localhost)
         window.REVERB_CONFIG = {
             key: "{{ env('REVERB_APP_KEY') }}",
-            cluster: "{{ env('REVERB_CLUSTER') }}",
-            wsHost: "{{ env('REVERB_HOST') }}",
-            wsPort: {{ env('REVERB_PORT', 80) }},
-            wssPort: {{ env('REVERB_PORT', 443) }},
-            forceTLS: "{{ env('REVERB_SCHEME', 'https') }}" === 'https'
+            cluster: "{{ env('REVERB_CLUSTER', 'mt1') }}",
+            wsHost: "{{ env('REVERB_HOST', '127.0.0.1') }}",
+            wsPort: {{ env('REVERB_PORT', 8080) }},
+            wssPort: {{ env('REVERB_PORT', 8080) }},
+            forceTLS: false
         };
-    </script>
+    @endif
+</script>
 
 
 </html>
