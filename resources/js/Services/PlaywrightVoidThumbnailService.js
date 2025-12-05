@@ -92,7 +92,7 @@ export class PlaywrightVoidThumbnailService {
         fallbackRequired,
         reason: fallbackReason,
         status: error.response?.status,
-      });
+      };
     }
 
     // STEP 2: Fallback to Canvas Rendering (FALLBACK METHOD)
