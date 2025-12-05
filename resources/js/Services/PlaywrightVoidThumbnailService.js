@@ -34,7 +34,8 @@ export class PlaywrightVoidThumbnailService {
       onFallbackFailure = null,
     } = options;
 
-    console.log('🎬 [PlaywrightVoidThumbnail] Starting thumbnail generation', {
+    // Starting thumbnail generation
+    const logData = {
       projectId,
       method: 'playwright_with_fallback',
       dimensions: `${width}x${height}`,
@@ -46,7 +47,7 @@ export class PlaywrightVoidThumbnailService {
         onPlaywrightAttempt();
       }
 
-      console.log('🎬 [PlaywrightVoidThumbnail] Attempting Playwright generation...');
+      // Attempting Playwright generation
 
       const playwrightResult = await axios.post(
         `/api/projects/${projectId}/thumbnail/playwright`,
@@ -62,7 +63,7 @@ export class PlaywrightVoidThumbnailService {
       );
 
       if (playwrightResult.data.success) {
-        console.log('✅ [PlaywrightVoidThumbnail] Playwright generation successful!', playwrightResult.data);
+        // Playwright generation successful
 
         if (onPlaywrightSuccess) {
           onPlaywrightSuccess(playwrightResult.data);
@@ -86,7 +87,8 @@ export class PlaywrightVoidThumbnailService {
       const fallbackRequired = error.response?.data?.fallback_required;
       const fallbackReason = error.response?.data?.method || 'unknown_error';
 
-      console.log('🔄 [PlaywrightVoidThumbnail] Fallback required:', {
+      // Fallback required
+      const fallbackInfo = {
         fallbackRequired,
         reason: fallbackReason,
         status: error.response?.status,
@@ -99,7 +101,7 @@ export class PlaywrightVoidThumbnailService {
         onFallbackAttempt();
       }
 
-      console.log('🎨 [PlaywrightVoidThumbnail] Falling back to canvas rendering...');
+      // Falling back to canvas rendering
 
       const canvasResult = await VoidPageSnapshotService.generateAndUpload(projectId, {
         width,
@@ -110,7 +112,7 @@ export class PlaywrightVoidThumbnailService {
       });
 
       if (canvasResult.success) {
-        console.log('✅ [PlaywrightVoidThumbnail] Canvas fallback successful!', canvasResult);
+        // Canvas fallback successful
 
         if (onFallbackSuccess) {
           onFallbackSuccess(canvasResult);
@@ -151,7 +153,7 @@ export class PlaywrightVoidThumbnailService {
    * Useful for testing or when Playwright is known to be unavailable
    */
   static async generateCanvasOnly(projectId, options = {}) {
-    console.log('🎨 [PlaywrightVoidThumbnail] Generating with canvas only (Playwright skipped)');
+    // Generating with canvas only (Playwright skipped)
 
     try {
       const canvasResult = await VoidPageSnapshotService.generateAndUpload(projectId, {
@@ -183,7 +185,7 @@ export class PlaywrightVoidThumbnailService {
    * Useful for testing or when canvas rendering is not desired
    */
   static async generatePlaywrightOnly(projectId, options = {}) {
-    console.log('🎬 [PlaywrightVoidThumbnail] Generating with Playwright only (no fallback)');
+    // Generating with Playwright only (no fallback)
 
     try {
       const playwrightResult = await axios.post(

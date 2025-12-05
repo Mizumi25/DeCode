@@ -6,12 +6,15 @@ import Checkbox from '@/Components/Checkbox'
 import InputError from '@/Components/InputError'
 import GuestLayout from '@/Layouts/GuestLayout'
 import AnimatedBlackHoleLogo from '@/Components/AnimatedBlackHoleLogo'
+import SessionConflictDialog from '@/Components/Auth/SessionConflictDialog'
 import NProgress from 'nprogress'
 import 'nprogress/nprogress.css'
 
-export default function Login({ status, canResetPassword }) {
+export default function Login({ status, canResetPassword, show_session_conflict, conflict_user_email }) {
   const [showEmailForm, setShowEmailForm] = useState(false)
   const [socialLoading, setSocialLoading] = useState(null) // Track which social login is loading
+  const [showSessionConflict, setShowSessionConflict] = useState(show_session_conflict || false)
+  const [conflictEmail, setConflictEmail] = useState(conflict_user_email || '')
   
   const { data, setData, post, processing, errors, reset } = useForm({
     email: '',
@@ -91,6 +94,16 @@ export default function Login({ status, canResetPassword }) {
       NProgress.done()
     }
   }, [])
+
+  // Handle session conflict detection
+  useEffect(() => {
+    if (show_session_conflict && conflict_user_email) {
+      // Pre-fill the email and show the email form
+      setData('email', conflict_user_email)
+      setShowEmailForm(true)
+      setShowSessionConflict(true)
+    }
+  }, [show_session_conflict, conflict_user_email])
 
   const LoadingSpinner = () => (
     <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -403,6 +416,14 @@ export default function Login({ status, canResetPassword }) {
           </Link>
         </motion.div>
       </motion.div>
+
+      {/* Session Conflict Dialog */}
+      <SessionConflictDialog
+        isOpen={showSessionConflict}
+        onClose={() => setShowSessionConflict(false)}
+        userEmail={conflictEmail || data.email}
+        onForceLogout={handleForceLogout}
+      />
     </GuestLayout>
   )
 }

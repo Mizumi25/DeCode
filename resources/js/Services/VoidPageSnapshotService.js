@@ -24,8 +24,6 @@ export class VoidPageSnapshotService {
     } = options;
 
     try {
-      console.log('🎬 [VoidSnapshot] Starting high-fidelity Void page snapshot for project:', projectId);
-
       // Step 1: Create offscreen container
       const offscreenContainer = this.createOffscreenContainer(width * scale, height * scale);
       
@@ -33,11 +31,9 @@ export class VoidPageSnapshotService {
       await this.mountVoidPageOffscreen(offscreenContainer, projectId);
       
       // Step 3: Wait for render and layout
-      console.log('⏳ [VoidSnapshot] Waiting for components to render...');
       await this.waitForRender(waitForRender);
       
       // Step 4: Capture the rendered output
-      console.log('📸 [VoidSnapshot] Capturing rendered output...');
       const canvas = await this.captureOffscreenContainer(offscreenContainer, width, height, scale);
       
       // Step 5: Clean up offscreen container
@@ -45,12 +41,6 @@ export class VoidPageSnapshotService {
       
       // Step 6: Convert to data URL
       const dataUrl = canvas.toDataURL('image/jpeg', quality);
-      
-      console.log('✅ [VoidSnapshot] High-fidelity snapshot generated!', {
-        width: canvas.width,
-        height: canvas.height,
-        dataUrlLength: dataUrl.length
-      });
 
       return {
         dataUrl,
@@ -69,7 +59,6 @@ export class VoidPageSnapshotService {
    * Create an offscreen container for rendering
    */
   static createOffscreenContainer(width, height) {
-    console.log('🔧 [VoidSnapshot] Creating offscreen container:', { width, height });
     
     const container = document.createElement('div');
     container.id = 'void-snapshot-offscreen-container';
@@ -94,7 +83,6 @@ export class VoidPageSnapshotService {
    * Mount Void Page content into offscreen container
    */
   static async mountVoidPageOffscreen(container, projectId) {
-    console.log('🔧 [VoidSnapshot] Mounting Void Page content offscreen');
     
     // Find the main Void page container
     const voidPageElement = document.querySelector('[data-canvas="true"]');
@@ -147,16 +135,11 @@ export class VoidPageSnapshotService {
     // Mount to container
     container.appendChild(clonedVoidPage);
     
-    // Debug: Check what we actually captured
-    const capturedFrames = clonedVoidPage.querySelectorAll('[data-frame-id]');
-    console.log('✅ [VoidSnapshot] Void Page content mounted to offscreen container');
-    console.log(`🔍 [VoidSnapshot] DEBUG: Found ${capturedFrames.length} frames in cloned container`);
+    // Debug: Check what we actually captured (FIXED: using data-frame-uuid instead of data-frame-id)
+    const capturedFrames = clonedVoidPage.querySelectorAll('[data-frame-uuid]');
     
     if (capturedFrames.length === 0) {
-      console.warn('⚠️ [VoidSnapshot] No frames found! Checking original...');
-      const originalFrames = voidPageElement.querySelectorAll('[data-frame-id]');
-      console.log(`🔍 [VoidSnapshot] Original has ${originalFrames.length} frames`);
-      console.log('🔍 [VoidSnapshot] Cloned element structure:', clonedVoidPage.outerHTML.substring(0, 500));
+      console.warn('⚠️ [VoidSnapshot] No frames found in cloned container');
     }
   }
 
@@ -183,8 +166,6 @@ export class VoidPageSnapshotService {
    * Excludes: Header, Panels, Floating Toolbox, Delete Button, Grid overlays
    */
   static async captureOffscreenContainer(container, targetWidth, targetHeight, scale) {
-    console.log('📸 [VoidSnapshot] Capturing Void Page to canvas');
-    
     // Get the live Void page canvas element
     const liveVoidPage = document.querySelector('[data-canvas="true"]');
     
@@ -194,7 +175,6 @@ export class VoidPageSnapshotService {
 
     // Find all frames in the DOM
     const frames = liveVoidPage.querySelectorAll('[data-frame-uuid]');
-    console.log(`🖼️ [VoidSnapshot] Found ${frames.length} frames to capture`);
 
     // Create canvas
     const canvas = document.createElement('canvas');
@@ -213,7 +193,6 @@ export class VoidPageSnapshotService {
 
     // Step 3: Calculate viewport to capture all frames
     const viewport = this.calculateFramesViewport(frames, liveVoidPage);
-    console.log('📐 [VoidSnapshot] Viewport:', viewport);
 
     // Step 4: Calculate scale to fit frames in target dimensions
     const fitScale = this.calculateFitScale(viewport, targetWidth, targetHeight);
@@ -222,12 +201,9 @@ export class VoidPageSnapshotService {
     const offsetX = (targetWidth - (viewport.width * fitScale)) / 2;
     const offsetY = (targetHeight - (viewport.height * fitScale)) / 2;
 
-    console.log('📐 [VoidSnapshot] Fit scale:', fitScale, 'Offset:', { offsetX, offsetY });
-
     // Step 6: Capture each frame with proper rendering
     await this.captureFrames(ctx, frames, viewport, liveVoidPage, fitScale, offsetX, offsetY);
 
-    console.log('✅ [VoidSnapshot] Canvas rendering complete');
     return canvas;
   }
 
@@ -335,7 +311,7 @@ export class VoidPageSnapshotService {
         // Draw the frame using canvas API
         await this.drawFrameToCanvas(ctx, frame, canvasX, canvasY, canvasWidth, canvasHeight);
         
-        console.log(`✅ [VoidSnapshot] Captured frame ${i + 1}/${frames.length} at (${canvasX.toFixed(0)}, ${canvasY.toFixed(0)})`);
+        // Frame captured successfully
       } catch (err) {
         console.warn(`⚠️ [VoidSnapshot] Failed to capture frame ${i}:`, err);
       }
@@ -433,7 +409,7 @@ export class VoidPageSnapshotService {
   static cleanupOffscreenContainer(container) {
     if (container && container.parentNode) {
       container.parentNode.removeChild(container);
-      console.log('🧹 [VoidSnapshot] Offscreen container cleaned up');
+      // Offscreen container cleaned up
     }
   }
 
@@ -442,16 +418,13 @@ export class VoidPageSnapshotService {
    */
   static async uploadSnapshot(projectId, dataUrl) {
     try {
-      console.log('⬆️ [VoidSnapshot] Uploading snapshot for project:', projectId);
+      // Uploading snapshot
 
       // Convert data URL to blob
       const response = await fetch(dataUrl);
       const blob = await response.blob();
       
-      console.log('📦 [VoidSnapshot] Blob created:', {
-        size: (blob.size / 1024).toFixed(2) + 'KB',
-        type: blob.type
-      });
+      // Blob created successfully
 
       // Create form data - backend expects 'snapshot' not 'thumbnail'
       const formData = new FormData();
@@ -475,7 +448,7 @@ export class VoidPageSnapshotService {
       }
 
       const result = await uploadResponse.json();
-      console.log('✅ [VoidSnapshot] Upload successful:', result);
+      // Upload successful
 
       return result;
 
@@ -490,15 +463,11 @@ export class VoidPageSnapshotService {
    */
   static async generateAndUpload(projectId, options = {}) {
     try {
-      console.log('🚀 [VoidSnapshot] Starting complete snapshot workflow for project:', projectId);
-
       // Generate snapshot
       const snapshot = await this.generateVoidPageSnapshot(projectId, options);
 
       // Upload to backend
       const uploadResult = await this.uploadSnapshot(projectId, snapshot.dataUrl);
-
-      console.log('🎉 [VoidSnapshot] COMPLETE! Project thumbnail updated successfully');
 
       return {
         ...snapshot,

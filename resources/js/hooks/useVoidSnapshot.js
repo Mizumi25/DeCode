@@ -122,7 +122,7 @@ export const useVoidSnapshot = (projectId, options = {}) => {
       clearTimeout(captureTimeoutRef.current);
     }
 
-    console.log(`[useVoidSnapshot] ⏰ Scheduling snapshot in ${delay}ms`);
+    // Removed annoying console log
 
     captureTimeoutRef.current = setTimeout(() => {
       generateSnapshot();

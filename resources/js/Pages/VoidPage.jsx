@@ -212,7 +212,7 @@ const zoomLevelRef = useRef(zoomLevel)
   useEffect(() => {
     if (!project?.uuid || !frames || frames.length === 0) return;
 
-    console.log('[VoidPage] 📸 Frame data changed, scheduling thumbnail capture...');
+    // Removed annoying console log
     scheduleSnapshot(5000); // Debounce: wait 5s after last frame change
 
   }, [frames, scheduleSnapshot, project?.uuid])
@@ -866,9 +866,7 @@ useScrollHandler({
 
 // FORCE: Ensure scroll bounds are always respected
 useEffect(() => {
-  console.log('🌌 SCROLL BOUNDS:', scrollBounds)
-  console.log('📍 Current scroll:', scrollPosition)
-  console.log('🖼️ Frame positions:', frames.map(f => ({ id: f.id, x: f.x, y: f.y })))
+  // Removed annoying console logs
 }, [scrollBounds, scrollPosition, frames])
 
   // Panel handlers

@@ -23,6 +23,10 @@ class User extends Authenticatable
         'github_token_expires_at',
         'avatar',
         'platform_role',
+        'current_session_id',
+        'session_started_at',
+        'session_device',
+        'session_ip',
     ];
 
     protected $hidden = [
