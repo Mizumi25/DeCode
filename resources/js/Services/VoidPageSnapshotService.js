@@ -431,23 +431,18 @@ export class VoidPageSnapshotService {
       formData.append('snapshot', blob, `project-${projectId}-snapshot.jpg`);
       formData.append('method', 'offscreen_rendering');
 
-      // Upload to backend
-      const uploadResponse = await fetch(`/api/projects/${projectId}/thumbnail/snapshot`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        credentials: 'same-origin', // Include cookies for Sanctum auth
-      });
+      // Upload to backend using axios (which handles CSRF automatically via bootstrap.js)
+      const uploadResponse = await window.axios.post(
+        `/api/projects/${projectId}/thumbnail/snapshot`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          }
+        }
+      );
 
-      if (!uploadResponse.ok) {
-        throw new Error(`Upload failed with status ${uploadResponse.status}`);
-      }
-
-      const result = await uploadResponse.json();
+      const result = uploadResponse.data;
       // Upload successful
 
       return result;
