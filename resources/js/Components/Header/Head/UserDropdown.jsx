@@ -13,14 +13,19 @@ import {
   Mail,
   Building,
   CreditCard,
-  Activity
+  Activity,
+  Smartphone,
+  Tablet,
+  Monitor
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { router } from '@inertiajs/react'
+import { detectDeviceType } from '@/utils/deviceDetection'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore'
 import Modal from '@/Components/Modal'
 import Edit from '@/Pages/Profile/Edit'
+import NotificationsModal from '@/Components/Notifications/NotificationsModal'
 
 const UserDropdown = ({ 
   user, 
@@ -30,8 +35,41 @@ const UserDropdown = ({
   setDropdownOpen
 }) => {
   const [showProfileModal, setShowProfileModal] = useState(false)
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const { isDark, toggleTheme } = useThemeStore()
+  const [deviceType, setDeviceType] = useState('desktop')
+  
+  // Detect device type on mount
+  React.useEffect(() => {
+    setDeviceType(detectDeviceType())
+  }, [])
   const { currentWorkspace } = useWorkspaceStore()
+  
+  // Fetch unread notifications count
+  React.useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await fetch('/api/notifications', {
+          headers: { 'Accept': 'application/json' }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setUnreadCount(data.unread_count);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch notifications:', error);
+      }
+    };
+    
+    fetchUnreadCount();
+    
+    // Poll every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [])
 
   const handleLogout = () => {
     setDropdownOpen(false)
@@ -165,6 +203,10 @@ const UserDropdown = ({
                       <h3 className="font-semibold text-[var(--color-text)] truncate">
                         {userName}
                       </h3>
+                      {/* Device Icon */}
+                      {deviceType === 'phone' && <Smartphone className="w-3.5 h-3.5 text-blue-500" title="Mobile" />}
+                      {deviceType === 'tablet' && <Tablet className="w-3.5 h-3.5 text-purple-500" title="Tablet" />}
+                      {deviceType === 'desktop' && <Monitor className="w-3.5 h-3.5 text-green-500" title="Desktop" />}
                       {isAdmin && (
                         <div className="flex items-center gap-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 rounded-full">
                           <Shield className="w-3 h-3 text-purple-600 dark:text-purple-400" />
@@ -208,6 +250,10 @@ const UserDropdown = ({
                 <motion.button
                   whileHover={{ backgroundColor: 'var(--color-bg-muted)', x: 2 }}
                   whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    setShowNotificationsModal(true);
+                    setDropdownOpen(false);
+                  }}
                   className="w-full text-left px-3 py-2.5 text-sm text-[var(--color-text)] hover:text-[var(--color-primary)] rounded-lg transition-colors flex items-center gap-3"
                 >
                   <Bell className="w-4 h-4" />
@@ -215,31 +261,11 @@ const UserDropdown = ({
                     <div className="font-medium">Notifications</div>
                     <div className="text-xs text-[var(--color-text-muted)]">Alerts & updates</div>
                   </div>
-                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                </motion.button>
-
-                <motion.button
-                  whileHover={{ backgroundColor: 'var(--color-bg-muted)', x: 2 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full text-left px-3 py-2.5 text-sm text-[var(--color-text)] hover:text-[var(--color-primary)] rounded-lg transition-colors flex items-center gap-3"
-                >
-                  <CreditCard className="w-4 h-4" />
-                  <div className="flex-1">
-                    <div className="font-medium">Billing</div>
-                    <div className="text-xs text-[var(--color-text-muted)]">Subscription & payments</div>
-                  </div>
-                </motion.button>
-
-                <motion.button
-                  whileHover={{ backgroundColor: 'var(--color-bg-muted)', x: 2 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full text-left px-3 py-2.5 text-sm text-[var(--color-text)] hover:text-[var(--color-primary)] rounded-lg transition-colors flex items-center gap-3"
-                >
-                  <Activity className="w-4 h-4" />
-                  <div className="flex-1">
-                    <div className="font-medium">Activity Log</div>
-                    <div className="text-xs text-[var(--color-text-muted)]">Recent actions</div>
-                  </div>
+                  {unreadCount > 0 && (
+                    <div className="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full font-medium">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </div>
+                  )}
                 </motion.button>
 
                 <div className="border-t border-[var(--color-border)] my-2"></div>
@@ -313,6 +339,12 @@ const UserDropdown = ({
       >
         <Edit />
       </Modal>
+      
+      {/* Notifications Modal */}
+      <NotificationsModal 
+        isOpen={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
+      />
     </>
   )
 }

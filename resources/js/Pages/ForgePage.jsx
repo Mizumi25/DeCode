@@ -11,6 +11,7 @@ import {
 import { useForgeStore } from '@/stores/useForgeStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore';
+import { createUpdateStyleAction, createUpdatePropsAction } from '@/utils/undoRedoActions';
 import { useCodeSyncStore } from '@/stores/useCodeSyncStore';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 import { useThumbnail } from '@/hooks/useThumbnail';
@@ -139,7 +140,8 @@ export default function ForgePage({
     undo,
     redo,
     canUndo,
-    canRedo
+    canRedo,
+    executeAction
   } = useForgeUndoRedoStore();
   
   const { 
@@ -1483,34 +1485,41 @@ const handlePropertyUpdate = useCallback((componentId, propName, value) => {
   const component = findComponent(canvasComponents, componentId);
   const componentName = component?.name || component?.type || 'component';
   
-  // KEEP EVERYTHING BELOW THIS THE SAME - all your existing history logic
-  let actionType = actionTypes.PROP_UPDATE;
-  if (propName === 'position') actionType = actionTypes.MOVE;
-  else if (propName === 'style') actionType = actionTypes.STYLE_UPDATE;
-  
-  if (propName === 'position') {
-    const oldPos = component?.position || { x: 0, y: 0 };
-    const deltaX = Math.abs(value.x - oldPos.x);
-    const deltaY = Math.abs(value.y - oldPos.y);
+  // 🔥 NEW: Create undo/redo action for property changes
+  if (propName === 'style' && component) {
+    const oldStyle = component.style || {};
+    const newStyle = value;
     
-    if (deltaX > 5 || deltaY > 5) {
-      pushHistory(currentFrame, updatedComponents, actionType, {
-        componentName,
-        componentId,
-        propName,
-        value,
-        previousValue: oldPos
-      });
-    }
-  } else {
-    pushHistory(currentFrame, updatedComponents, actionType, {
-      componentName,
+    const action = createUpdateStyleAction(
+      (components) => setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: components
+      })),
       componentId,
-      propName,
-      value,
-      previousValue: propName === 'style' ? component?.style : component?.props?.[propName]
-    });
+      oldStyle,
+      newStyle
+    );
+    
+    executeAction(currentFrame, action);
+    console.log('✅ Style undo action created');
+  } else if ((propName === 'props' || propName === 'animation') && component) {
+    const oldProps = propName === 'props' ? (component.props || {}) : (component.animation || {});
+    const newProps = value;
+    
+    const action = createUpdatePropsAction(
+      (components) => setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: components
+      })),
+      componentId,
+      oldProps,
+      newProps
+    );
+    
+    executeAction(currentFrame, action);
+    console.log('✅ Props undo action created');
   }
+  // Note: Position changes handled separately in drag end
   
   // ENHANCED: Schedule thumbnail update for visual changes
   const shouldUpdateThumbnail = propName !== 'name' && 
@@ -2377,43 +2386,46 @@ const handleUndo = useCallback(() => {
   saveOriginRef.current = 'undo'; // 🔥 Mark as undo to prevent auto-save
   
   try {
-    const previousComponents = undo(currentFrame);
+    // Call undo - this executes the action's undo() function and returns serialized data for broadcast
+    const undoData = undo(currentFrame);
     
-    if (previousComponents) {
-      console.log('ForgePage: Executing undo - restoring', previousComponents.length, 'components');
+    if (undoData) {
+      console.log('✅ Undo executed, broadcasting to other users:', undoData);
       
-      setFrameCanvasComponents(prev => ({
-        ...prev,
-        [currentFrame]: previousComponents
-      }));
+      // Broadcast the undo result to other users (they receive it as a normal action)
+      if (broadcastComponentUpdate && undoData.type) {
+        // The undo data is already the reverse action, broadcast it as a normal update
+        broadcastComponentUpdate(undoData.componentId, undoData, undoData.type);
+      }
       
-      generateCode(previousComponents);
+      // Regenerate code with current state
+      generateCode(canvasComponents);
       
-      // 🔥 CRITICAL: Reset origin immediately after applying undo
-      setTimeout(() => {
-        saveOriginRef.current = 'user';
-      }, 10);
-      
-      // 🔥 Save to backend so other users see the change
+      // Save to backend so it persists
       setTimeout(async () => {
         try {
           await componentLibraryService.saveProjectComponents(
             projectId,
             currentFrame,
-            previousComponents,
-            { silent: false } // Broadcast to other users
+            canvasComponents,
+            { silent: true } // Already broadcasted above
           );
-          console.log('✅ Undo state saved and broadcasted');
+          console.log('✅ Undo state saved to backend');
         } catch (error) {
           console.error('❌ Failed to save undo state:', error);
         }
       }, 100);
+      
+      // Reset origin
+      setTimeout(() => {
+        saveOriginRef.current = 'user';
+      }, 150);
     }
   } catch (error) {
     console.error('ForgePage: Undo failed:', error);
     saveOriginRef.current = 'user'; // Reset on error
   }
-}, [currentFrame, canUndo, undo, projectId, generateCode]);
+}, [currentFrame, canUndo, undo, projectId, generateCode, canvasComponents, broadcastComponentUpdate, componentLibraryService]);
 
 
   
@@ -2431,72 +2443,47 @@ const handleUndo = useCallback(() => {
       componentLibraryService.clearSaveQueue(currentFrame);
     }
     
-    const nextComponents = redo(currentFrame);
-    if (nextComponents) {
-      console.log('ForgePage: Executing redo - restoring', nextComponents.length, 'components');
+    // Call redo - this executes the action's do() function and returns serialized data for broadcast
+    const redoData = redo(currentFrame);
+    
+    if (redoData) {
+      console.log('✅ Redo executed, broadcasting to other users:', redoData);
       
-      setFrameCanvasComponents(prev => ({
-        ...prev,
-        [currentFrame]: nextComponents
-      }));
+      // Broadcast the redo result to other users (they receive it as a normal action)
+      if (broadcastComponentUpdate && redoData.type) {
+        broadcastComponentUpdate(redoData.componentId, redoData, redoData.type);
+      }
       
-      generateCode(nextComponents);
+      // Regenerate code with current state
+      generateCode(canvasComponents);
       
-      // 🔥 CRITICAL: Reset origin immediately after applying redo
-      setTimeout(() => {
-        saveOriginRef.current = 'user';
-      }, 10);
-      
-      // 🔥 Save to backend so other users see the change
+      // Save to backend so it persists
       setTimeout(async () => {
         try {
           await componentLibraryService.saveProjectComponents(
             projectId,
             currentFrame,
-            nextComponents,
-            { silent: false } // Broadcast to other users
+            canvasComponents,
+            { silent: true } // Already broadcasted above
           );
-          console.log('✅ Redo state saved and broadcasted');
+          console.log('✅ Redo state saved to backend');
         } catch (error) {
           console.error('❌ Failed to save redo state:', error);
         }
       }, 100);
       
-      // ENHANCED: Update thumbnail after redo
-      const canvasSettings = {
-        viewport: getCurrentCanvasDimensions(),
-        background_color: frame?.settings?.background_color || '#ffffff',
-        responsive_mode: responsiveMode,
-        zoom_level: zoomLevel,
-        grid_visible: gridVisible
-      };
-      
+      // Reset origin
       setTimeout(() => {
-        scheduleThumbnailUpdate(nextComponents, canvasSettings);
-      }, 200);
-      
-      setTimeout(async () => {
-        try {
-          if (componentLibraryService?.forceSave) {
-            await componentLibraryService.forceSave(projectId, currentFrame, nextComponents);
-            console.log('ForgePage: Redo state saved to database');
-          }
-        } catch (error) {
-          console.error('Failed to save redo state:', error);
-        }
-      }, 100);
-      
-      console.log('ForgePage: Redo completed successfully');
+        saveOriginRef.current = 'user';
+      }, 150);
     }
   } catch (error) {
     console.error('ForgePage: Redo failed:', error);
     saveOriginRef.current = 'user'; // Reset on error
   }
-}, [currentFrame, redo, canRedo, generateCode, projectId, componentLibraryService, 
-    scheduleThumbnailUpdate, getCurrentCanvasDimensions, responsiveMode, zoomLevel, gridVisible, frame?.settings]);
-    
-    
-    
+}, [currentFrame, canRedo, redo, projectId, generateCode, canvasComponents, broadcastComponentUpdate, componentLibraryService]);
+
+
    // 🔥 FIXED: Debounce code generation
 const generateCodeDebounced = useMemo(
   () => debounce((components) => {

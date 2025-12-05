@@ -4,6 +4,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use App\Models\Project;
 use App\Models\Frame;
 use Inertia\Inertia;
@@ -97,7 +98,7 @@ class ForgeController extends Controller
     /**
      * Enhanced show method with proper canvas style decoding
      */
-    public function show(Project $project, Frame $frame): Response
+    public function show(Project $project, Frame $frame): Response|RedirectResponse
     {
         $user = Auth::user();
         
@@ -106,6 +107,10 @@ class ForgeController extends Controller
         }
         
         if (!$this->checkProjectAccess($project, $user)) {
+            // If user is not authenticated, redirect to login
+            if (!$user) {
+                return redirect()->route('login')->with('error', 'Please log in to access this project.');
+            }
             abort(403);
         }
   
@@ -133,10 +138,14 @@ class ForgeController extends Controller
                 ];
             });
   
-        $userPermissions = [
+        $userPermissions = $user ? [
             'canEdit' => $project->user_id === $user->id,
             'canCreateFrames' => $project->user_id === $user->id,
             'canDeleteFrames' => $project->user_id === $user->id,
+        ] : [
+            'canEdit' => false,
+            'canCreateFrames' => false,
+            'canDeleteFrames' => false,
         ];
   
         return Inertia::render('ForgePage', [
@@ -161,6 +170,11 @@ class ForgeController extends Controller
     public function switchFrame(Project $project, Frame $frame, Request $request)
     {
         $user = Auth::user();
+        
+        // Check authentication
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated', 'redirect' => route('login')], 401);
+        }
         
         // Validate access
         if ($frame->project_id !== $project->id) {
@@ -245,6 +259,11 @@ class ForgeController extends Controller
      */
     private function checkProjectAccess(Project $project, $user): bool
     {
+        // If user is not authenticated, only allow public projects
+        if (!$user) {
+            return $project->is_public ?? false;
+        }
+        
         // User owns the project
         if ($project->user_id === $user->id) {
             return true;
@@ -268,6 +287,18 @@ class ForgeController extends Controller
      */
     private function getUserPermissions(Project $project, $user): array
     {
+        // If user is not authenticated, return no permissions
+        if (!$user) {
+            return [
+                'canEdit' => false,
+                'canCreateFrames' => false,
+                'canDeleteFrames' => false,
+                'canInviteUsers' => false,
+                'isOwner' => false,
+                'workspaceRole' => null
+            ];
+        }
+        
         $isOwner = $project->user_id === $user->id;
         $workspaceRole = $project->workspace ? $project->workspace->getUserRole($user->id) : null;
         

@@ -6,6 +6,7 @@ use App\Models\Frame;
 use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -34,9 +35,14 @@ class VoidController extends Controller
 
      
 
-  public function show(Project $project): Response
+  public function show(Project $project): Response|RedirectResponse
   {
       $user = Auth::user();
+      
+      // Check if user is authenticated
+      if (!$user) {
+          return redirect()->route('login')->with('error', 'Please log in to access this project.');
+      }
       
       // Enhanced access control
       $hasAccess = false;

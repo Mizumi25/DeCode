@@ -29,12 +29,31 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse
     {
+        $user = \App\Models\User::where('email', $request->email)->first();
+        
+        // Check if user is already logged in elsewhere
+        if ($user && $user->current_session_id && $user->current_session_id !== session()->getId()) {
+            // User is already logged in on another device
+            return redirect()->back()->withErrors([
+                'email' => 'This account is already logged in on another device.',
+            ])->with('show_session_conflict', true)
+              ->with('conflict_user_email', $request->email);
+        }
+
         $request->authenticate();
         $request->session()->regenerate();
 
         // Ensure the user has a personal workspace
         $user = Auth::user();
         $user->ensurePersonalWorkspace();
+        
+        // Track session
+        $user->update([
+            'current_session_id' => session()->getId(),
+            'session_started_at' => now(),
+            'session_device' => $request->header('User-Agent'),
+            'session_ip' => $request->ip(),
+        ]);
 
         return redirect()->intended(route('projects.index', absolute: false));
     }
@@ -44,6 +63,16 @@ class AuthenticatedSessionController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
+        // Clear session tracking
+        if ($user = Auth::user()) {
+            $user->update([
+                'current_session_id' => null,
+                'session_started_at' => null,
+                'session_device' => null,
+                'session_ip' => null,
+            ]);
+        }
+        
         Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

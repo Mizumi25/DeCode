@@ -1,6 +1,6 @@
 // @/Components/Header/Head/RightSection.jsx
 import React, { useState } from 'react'
-import { Search, Play, MessageCircle, Share2, Download, Edit3, Eye, Users, Save, ChevronDown, History, Circle } from 'lucide-react'
+import { Search, Upload, MessageCircle, Share2, Download, Edit3, Eye, Users, Save, ChevronDown, History, Circle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { usePage } from '@inertiajs/react'
 import UserDropdown from './UserDropdown'
@@ -292,7 +292,7 @@ const RightSection = ({
             <SaveButton />
 
             {/* Comments - Void and Forge Pages - Hide for Viewer */}
-            {(onVoidPage || onForgePage) && myRole !== 'viewer' && myRole !== null && (
+            {(onVoidPage || onForgePage) && myRole !== 'viewer' && (
               <div className="flex flex-col items-center gap-0.5">
                 <button
                   onClick={toggleCommentMode}
@@ -314,7 +314,7 @@ const RightSection = ({
             )}
 
             {/* Share - Only on Void Page - Hide for Viewer */}
-            {onVoidPage && myRole !== 'viewer' && myRole !== null && (
+            {onVoidPage && myRole !== 'viewer' && (
               <div className="flex flex-col items-center gap-0.5">
                 <button className="p-0.5 hover:bg-[var(--color-bg-muted)] rounded transition-colors">
                   <Share2 className="w-2.5 h-2.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)]" />
@@ -323,8 +323,8 @@ const RightSection = ({
               </div>
             )}
 
-            {/* Export - Hide for Viewer */}
-            {myRole !== 'viewer' && myRole !== null && (
+            {/* Export - Only visible in Void page */}
+            {onVoidPage && myRole !== 'viewer' && (
               <div className="flex flex-col items-center gap-0.5">
                 <button className="p-0.5 bg-pink-100 dark:bg-pink-900/30 hover:bg-pink-200 dark:hover:bg-pink-900/50 rounded transition-colors">
                   <Download className="w-2.5 h-2.5 text-pink-600 dark:text-pink-400" />
@@ -334,7 +334,7 @@ const RightSection = ({
             )}
 
             {/* Edit/View Toggle - Hide for Viewer */}
-            {myRole !== 'viewer' && myRole !== null && (
+            {myRole !== 'viewer' && (
               <BinaryToggle 
                 activeMode={editMode} 
                 setActiveMode={setEditMode}
@@ -384,16 +384,17 @@ const RightSection = ({
           setDropdownOpen={setProfileDropdownOpen}
         />
 
-        {/* Preview/Publish Button - Hide for Viewer */}
-        {(onForgePage || onSourcePage || onVoidPage) && myRole !== 'viewer' && myRole !== null && (
+        {/* Publish Button - Only visible in Void page */}
+        {onVoidPage && myRole !== 'viewer' && (
           <button 
             onClick={() => {
-              const { toggleForgePanel } = useForgeStore.getState();
-              toggleForgePanel('preview-panel');
+              // Publish functionality - to be implemented
+              console.log('Publish clicked');
             }}
-            className="bg-[var(--color-primary)] text-white px-2 py-1 rounded-lg flex items-center justify-center shadow-md hover:bg-[var(--color-primary-hover)] transition-colors"
+            className="bg-[var(--color-primary)] text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-md hover:bg-[var(--color-primary-hover)] transition-colors"
           >
-            <Play className="w-3 h-3" />
+            <Upload className="w-3 h-3" />
+            <span className="text-xs font-medium">Publish</span>
           </button>
         )}
 

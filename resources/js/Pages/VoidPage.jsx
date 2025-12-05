@@ -16,6 +16,7 @@ import Modal from '@/Components/Modal'
 import InfiniteGrid from '@/Components/Void/InfiniteGrid'
 import LockRequestNotificationManager from '@/Components/Void/LockRequestNotificationManager'
 import NotificationToastContainer from '@/Components/Notifications/NotificationToast'
+import WorkspaceChat from '@/Components/Workspaces/WorkspaceChat'
 import { useScrollHandler } from '@/Components/Void/ScrollHandler'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useEditorStore } from '@/stores/useEditorStore'
@@ -1720,6 +1721,11 @@ useEffect(() => {
           position="bottom-right"
           maxVisibleRequests={3}
         />
+
+        {/* Workspace Chat - Hide for Viewer */}
+        {myRole !== 'viewer' && currentWorkspace && (
+          <WorkspaceChat workspaceId={currentWorkspace.uuid} />
+        )}
 
         {/* System Notifications */}
         <NotificationToastContainer

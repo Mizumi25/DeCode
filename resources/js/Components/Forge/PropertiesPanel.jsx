@@ -1,6 +1,6 @@
 // @/Components/Forge/PropertiesPanel.jsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Settings, Code, Trash2, RotateCw, Move, RotateCcw, Search, X, Eye, EyeOff, Maximize2, Grid, Layers, Layout, Square } from 'lucide-react';
+import { Settings, Code, Trash2, RotateCw, Move, RotateCcw, Search, X, Eye, EyeOff, Maximize2, Grid, Layers, Layout, Square, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'; // Add this import
 // Import sub-components
@@ -91,7 +91,8 @@ const selectedComponentData = (() => {
     animation: false,
     responsive: false,
     interactions: false,
-    custom: false
+    custom: false,
+    debugInfo: false  // Add debug section collapsed by default
   });
   
   const [internalSearchTerm, setInternalSearchTerm] = useState('');
@@ -405,48 +406,68 @@ if (!selectedComponent || selectedComponent === '__canvas_root__') {
               </>
             ) : selectedComponentData ? (
               <>
-                <div className="grid grid-cols-3 gap-3 text-sm">
-                  <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
-                    <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>{Object.keys(selectedComponentData?.style || {}).length}</div>
-                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Styles</div>
-                  </div>
-                  <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
-                    <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>{Object.keys(selectedComponentData?.props || {}).length}</div>
-                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Props</div>
-                  </div>
-                  <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
-                    <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>{selectedComponentData?.type}</div>
-                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Type</div>
-                  </div>
-                </div>
-                
-                {/* Scrollable Styles */}
-                {selectedComponentData?.style && Object.keys(selectedComponentData.style).length > 0 && (
-                  <div className="rounded-xl p-3 max-h-32 overflow-y-auto border"
-                    style={{ 
-                      backgroundColor: 'var(--color-bg-muted)',
-                      borderColor: 'var(--color-border)'
-                    }}>
-                    <div className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: 'var(--color-text)' }}>
-                      <Code className="w-3 h-3" />
-                      Live Styles
+                <button
+                  onClick={() => setExpandedSections(prev => ({ ...prev, debugInfo: !prev.debugInfo }))}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-80"
+                  style={{ 
+                    backgroundColor: 'var(--color-bg-muted)',
+                    color: 'var(--color-text)',
+                    border: '1px solid var(--color-border)'
+                  }}
+                >
+                  <span className="flex items-center gap-2">
+                    <Code className="w-4 h-4" />
+                    Debug Info
+                  </span>
+                  {expandedSections.debugInfo ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+
+                {expandedSections.debugInfo && (
+                  <>
+                    <div className="grid grid-cols-3 gap-3 text-sm">
+                      <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                        <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>{Object.keys(selectedComponentData?.style || {}).length}</div>
+                        <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Styles</div>
+                      </div>
+                      <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                        <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>{Object.keys(selectedComponentData?.props || {}).length}</div>
+                        <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Props</div>
+                      </div>
+                      <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                        <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>{selectedComponentData?.type}</div>
+                        <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Type</div>
+                      </div>
                     </div>
-                    <div className="space-y-2 font-mono text-xs">
-                      {Object.entries(selectedComponentData.style).map(([key, value]) => (
-                        <div key={key} className="flex items-start gap-2">
-                          <span className="font-semibold flex-shrink-0" style={{ color: 'var(--color-primary)' }}>{key}:</span>
-                          <span className="flex-1 break-all" style={{ color: 'var(--color-accent)' }}>{String(value)}</span>
+                    
+                    {/* Scrollable Styles */}
+                    {selectedComponentData?.style && Object.keys(selectedComponentData.style).length > 0 && (
+                      <div className="rounded-xl p-3 max-h-32 overflow-y-auto border"
+                        style={{ 
+                          backgroundColor: 'var(--color-bg-muted)',
+                          borderColor: 'var(--color-border)'
+                        }}>
+                        <div className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: 'var(--color-text)' }}>
+                          <Code className="w-3 h-3" />
+                          Live Styles
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {(!selectedComponentData?.style || Object.keys(selectedComponentData.style).length === 0) && (
-                  <div className="text-center py-4 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                    <Code className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <div>No styles applied yet</div>
-                  </div>
+                        <div className="space-y-2 font-mono text-xs">
+                          {Object.entries(selectedComponentData.style).map(([key, value]) => (
+                            <div key={key} className="flex items-start gap-2">
+                              <span className="font-semibold flex-shrink-0" style={{ color: 'var(--color-primary)' }}>{key}:</span>
+                              <span className="flex-1 break-all" style={{ color: 'var(--color-accent)' }}>{String(value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {(!selectedComponentData?.style || Object.keys(selectedComponentData.style).length === 0) && (
+                      <div className="text-center py-4 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                        <Code className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <div>No styles applied yet</div>
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             ) : (
@@ -611,48 +632,68 @@ return (
               </>
             ) : selectedComponentData ? (
               <>
-                <div className="grid grid-cols-3 gap-3 text-sm">
-                  <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
-                    <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>{Object.keys(selectedComponentData?.style || {}).length}</div>
-                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Styles</div>
-                  </div>
-                  <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
-                    <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>{Object.keys(selectedComponentData?.props || {}).length}</div>
-                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Props</div>
-                  </div>
-                  <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
-                    <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>{selectedComponentData?.type}</div>
-                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Type</div>
-                  </div>
-                </div>
-                
-                {/* Scrollable Styles */}
-                {selectedComponentData?.style && Object.keys(selectedComponentData.style).length > 0 && (
-                  <div className="rounded-xl p-3 max-h-32 overflow-y-auto border"
-                    style={{ 
-                      backgroundColor: 'var(--color-bg-muted)',
-                      borderColor: 'var(--color-border)'
-                    }}>
-                    <div className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: 'var(--color-text)' }}>
-                      <Code className="w-3 h-3" />
-                      Live Styles
+                <button
+                  onClick={() => setExpandedSections(prev => ({ ...prev, debugInfo: !prev.debugInfo }))}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-80"
+                  style={{ 
+                    backgroundColor: 'var(--color-bg-muted)',
+                    color: 'var(--color-text)',
+                    border: '1px solid var(--color-border)'
+                  }}
+                >
+                  <span className="flex items-center gap-2">
+                    <Code className="w-4 h-4" />
+                    Debug Info
+                  </span>
+                  {expandedSections.debugInfo ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+
+                {expandedSections.debugInfo && (
+                  <>
+                    <div className="grid grid-cols-3 gap-3 text-sm">
+                      <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                        <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>{Object.keys(selectedComponentData?.style || {}).length}</div>
+                        <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Styles</div>
+                      </div>
+                      <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                        <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>{Object.keys(selectedComponentData?.props || {}).length}</div>
+                        <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Props</div>
+                      </div>
+                      <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+                        <div className="font-semibold" style={{ color: 'var(--color-primary)' }}>{selectedComponentData?.type}</div>
+                        <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Type</div>
+                      </div>
                     </div>
-                    <div className="space-y-2 font-mono text-xs">
-                      {Object.entries(selectedComponentData.style).map(([key, value]) => (
-                        <div key={key} className="flex items-start gap-2">
-                          <span className="font-semibold flex-shrink-0" style={{ color: 'var(--color-primary)' }}>{key}:</span>
-                          <span className="flex-1 break-all" style={{ color: 'var(--color-accent)' }}>{String(value)}</span>
+                    
+                    {/* Scrollable Styles */}
+                    {selectedComponentData?.style && Object.keys(selectedComponentData.style).length > 0 && (
+                      <div className="rounded-xl p-3 max-h-32 overflow-y-auto border"
+                        style={{ 
+                          backgroundColor: 'var(--color-bg-muted)',
+                          borderColor: 'var(--color-border)'
+                        }}>
+                        <div className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: 'var(--color-text)' }}>
+                          <Code className="w-3 h-3" />
+                          Live Styles
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {(!selectedComponentData?.style || Object.keys(selectedComponentData.style).length === 0) && (
-                  <div className="text-center py-4 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                    <Code className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <div>No styles applied yet</div>
-                  </div>
+                        <div className="space-y-2 font-mono text-xs">
+                          {Object.entries(selectedComponentData.style).map(([key, value]) => (
+                            <div key={key} className="flex items-start gap-2">
+                              <span className="font-semibold flex-shrink-0" style={{ color: 'var(--color-primary)' }}>{key}:</span>
+                              <span className="flex-1 break-all" style={{ color: 'var(--color-accent)' }}>{String(value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {(!selectedComponentData?.style || Object.keys(selectedComponentData.style).length === 0) && (
+                      <div className="text-center py-4 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                        <Code className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <div>No styles applied yet</div>
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             ) : (

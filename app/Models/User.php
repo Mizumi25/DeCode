@@ -70,6 +70,11 @@ class User extends Authenticatable
         return $this->hasMany(Workspace::class, 'owner_id');
     }
 
+    public function notifications()
+    {
+        return $this->hasMany(Notification::class);
+    }
+
     // Scopes
     public function scopeAdmins($query)
     {

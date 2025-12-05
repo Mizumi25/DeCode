@@ -29,6 +29,18 @@ export default function Login({ status, canResetPassword }) {
       },
     })
   }
+  
+  const handleForceLogout = () => {
+    setShowSessionConflict(false);
+    // Retry login after force logout
+    NProgress.start();
+    post(route('login'), {
+      onFinish: () => {
+        reset('password')
+        NProgress.done()
+      },
+    });
+  }
 
   const handleGoogleLogin = (e) => {
     e.preventDefault()

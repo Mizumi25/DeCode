@@ -222,6 +222,18 @@ Route::prefix('workspaces/{workspaceId}/messages')->group(function () {
     Route::post('/workspaces/{workspace:uuid}/roles/transfer-ownership', [WorkspaceRoleController::class, 'transferOwnership']);
     Route::get('/workspaces/{workspace:uuid}/roles/my-role', [WorkspaceRoleController::class, 'getMyRole']);
     
+    // Notifications
+    Route::get('/notifications', [App\Http\Controllers\NotificationController::class, 'index']);
+    Route::post('/notifications/{uuid}/read', [App\Http\Controllers\NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/mark-all-read', [App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
+    Route::delete('/notifications/{uuid}', [App\Http\Controllers\NotificationController::class, 'delete']);
+});
+
+// Public routes for session conflict
+Route::post('/auth/force-logout', [App\Http\Controllers\Auth\SessionConflictController::class, 'forceLogout']);
+
+Route::middleware(['auth:sanctum'])->group(function () {
+    
     // Workspace invites
     Route::get('/workspaces/{workspace:uuid}/invites', [InviteController::class, 'getWorkspaceInvites']);
     

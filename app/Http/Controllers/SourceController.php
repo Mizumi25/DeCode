@@ -2,6 +2,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use App\Models\Project;
 use App\Models\Frame;
 use Inertia\Inertia;
@@ -10,9 +11,14 @@ use Illuminate\Support\Facades\Auth;
 
 class SourceController extends Controller
 {
-    public function show(Project $project, Frame $frame): Response
+    public function show(Project $project, Frame $frame): Response|RedirectResponse
     {
         $user = Auth::user();
+        
+        // Check if user is authenticated
+        if (!$user) {
+            return redirect()->route('login')->with('error', 'Please log in to access this project.');
+        }
         
         // Check if frame belongs to project
         if ($frame->project_id !== $project->id) {

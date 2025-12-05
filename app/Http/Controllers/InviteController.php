@@ -321,6 +321,25 @@ class InviteController extends Controller
 
             // Mark invite as accepted
             $invite->markAsAccepted();
+            
+            // Create notifications
+            // 1. Notify the inviter that user accepted
+            \App\Models\Notification::createForUser(
+                $invite->invited_by,
+                'invite_accepted',
+                'Invitation Accepted',
+                "{$user->name} has joined your workspace \"{$workspace->name}\"",
+                ['workspace_id' => $workspace->id, 'user_id' => $user->id]
+            );
+            
+            // 2. Welcome notification for the new member
+            \App\Models\Notification::createForUser(
+                $user->id,
+                'welcome',
+                "Welcome to {$workspace->name}!",
+                "You've successfully joined the workspace. Start collaborating with your team!",
+                ['workspace_id' => $workspace->id]
+            );
 
             return response()->json([
                 'success' => true,
@@ -612,6 +631,25 @@ class InviteController extends Controller
 
              // Mark invite as accepted
              $invite->markAsAccepted();
+             
+             // Create notifications
+             // 1. Notify the inviter that user accepted
+             \App\Models\Notification::createForUser(
+                 $invite->invited_by,
+                 'invite_accepted',
+                 'Invitation Accepted',
+                 "{$user->name} has joined your workspace \"{$workspace->name}\"",
+                 ['workspace_id' => $workspace->id, 'user_id' => $user->id]
+             );
+             
+             // 2. Welcome notification for the new member
+             \App\Models\Notification::createForUser(
+                 $user->id,
+                 'welcome',
+                 "Welcome to {$workspace->name}!",
+                 "You've successfully joined the workspace. Start collaborating with your team!",
+                 ['workspace_id' => $workspace->id]
+             );
 
              // Redirect to projects with the workspace selected
              return redirect()->route('workspace.projects', ['workspace' => $workspace->uuid])
