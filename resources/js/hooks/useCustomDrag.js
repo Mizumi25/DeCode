@@ -371,11 +371,10 @@ const detectDropTarget = useCallback((pointerX, pointerY) => {
   const handlePointerMove = useCallback((e) => {
   if (!interactionStateRef.current.isWatching) return;
 
-  // 🔥 FIX: Only preventDefault if we're actually dragging
-  if (interactionStateRef.current.hasCrossedThreshold) {
-    e.preventDefault();
-    e.stopPropagation();
-  }
+  // Note: We don't call preventDefault here because:
+  // 1. The document listeners use { passive: false } so they CAN preventDefault
+  // 2. But we don't need to - the drag works fine without it
+  // 3. This avoids console warnings on passive listeners
 
   const pointerX = e.touches?.[0]?.clientX ?? e.clientX;
   const pointerY = e.touches?.[0]?.clientY ?? e.clientY;
@@ -553,9 +552,10 @@ const detectDropTarget = useCallback((pointerX, pointerY) => {
   const handlePointerDown = useCallback((e) => {
   if (!enabled) return;
   
-  e.preventDefault();
+  // Stop propagation to prevent event bubbling, but don't preventDefault
+  // (preventDefault doesn't work on passive listeners anyway)
   e.stopPropagation();
-
+  
   const dragHandle = e.currentTarget;
   const componentElement = dragHandle.closest('[data-component-id]') || 
                            document.querySelector(`[data-component-id="${componentId}"]`);
@@ -600,8 +600,8 @@ const detectDropTarget = useCallback((pointerX, pointerY) => {
   // 🔥 FIX: Remove { passive: false } from touchmove listener
   document.addEventListener('pointermove', moveHandler);
   document.addEventListener('pointerup', upHandler);
-  document.addEventListener('touchmove', moveHandler); // 🔥 REMOVED { passive: false }
-  document.addEventListener('touchend', upHandler); // 🔥 REMOVED { passive: false }
+  document.addEventListener('touchmove', moveHandler, { passive: false });
+  document.addEventListener('touchend', upHandler, { passive: false });
 
   dragStartPos.current.moveHandler = moveHandler;
   dragStartPos.current.upHandler = upHandler;

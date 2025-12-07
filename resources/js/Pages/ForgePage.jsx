@@ -1490,17 +1490,21 @@ const handlePropertyUpdate = useCallback((componentId, propName, value) => {
     const oldStyle = component.style || {};
     const newStyle = value;
     
+    // ✅ FIX: Pass a proper setter function that works with the frame-based structure
     const action = createUpdateStyleAction(
-      (components) => {
-        // ✅ FIX: Ensure components is an array before setting state
-        if (Array.isArray(components)) {
-          setFrameCanvasComponents(prev => ({
+      (updater) => {
+        // updater is a function: (prevComponents) => newComponents
+        setFrameCanvasComponents(prev => {
+          const currentComponents = prev[currentFrame] || [];
+          const updatedComponents = typeof updater === 'function' 
+            ? updater(currentComponents) 
+            : updater;
+          
+          return {
             ...prev,
-            [currentFrame]: components
-          }));
-        } else {
-          console.error('❌ createUpdateStyleAction received non-array:', components);
-        }
+            [currentFrame]: updatedComponents
+          };
+        });
       },
       componentId,
       oldStyle,
@@ -1513,17 +1517,20 @@ const handlePropertyUpdate = useCallback((componentId, propName, value) => {
     const oldProps = propName === 'props' ? (component.props || {}) : (component.animation || {});
     const newProps = value;
     
+    // ✅ FIX: Same fix for props
     const action = createUpdatePropsAction(
-      (components) => {
-        // ✅ FIX: Ensure components is an array before setting state
-        if (Array.isArray(components)) {
-          setFrameCanvasComponents(prev => ({
+      (updater) => {
+        setFrameCanvasComponents(prev => {
+          const currentComponents = prev[currentFrame] || [];
+          const updatedComponents = typeof updater === 'function' 
+            ? updater(currentComponents) 
+            : updater;
+          
+          return {
             ...prev,
-            [currentFrame]: components
-          }));
-        } else {
-          console.error('❌ createUpdatePropsAction received non-array:', components);
-        }
+            [currentFrame]: updatedComponents
+          };
+        });
       },
       componentId,
       oldProps,
@@ -3327,7 +3334,8 @@ if (!componentsLoaded && loadingMessage) {
   setFrameCanvasComponents={setFrameCanvasComponents}
   frame={frame}
   broadcastDragMove={broadcastDragMove}
-  broadcastComponentUpdate={broadcastComponentUpdate} // 🔥 ADD THIS
+  broadcastComponentUpdate={broadcastComponentUpdate}
+  broadcastStateChanged={broadcastStateChanged} // 🔥 ADD THIS
   updateCursor={updateCursor}
   componentsLoaded={componentsLoaded}
 />

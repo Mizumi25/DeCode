@@ -120,7 +120,7 @@ export default function CodeEditor() {
     mediaQuery.addEventListener('change', updateTheme);
 
     return () => {
-      observer.disconnect();
+      if (observer) observer.disconnect();
       mediaQuery.removeEventListener('change', updateTheme);
     };
   }, [monaco]);

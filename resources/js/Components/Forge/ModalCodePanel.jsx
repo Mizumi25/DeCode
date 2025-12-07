@@ -337,7 +337,7 @@ const ModalCodePanel = ({
     }
 
     return () => {
-      resizeObserver.disconnect();
+      if (resizeObserver) resizeObserver.disconnect();
     };
   }, [editorMounted]);
 

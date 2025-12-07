@@ -359,7 +359,7 @@ const BottomCodePanel = ({
     }
 
     return () => {
-      resizeObserver.disconnect();
+      if (resizeObserver) resizeObserver.disconnect();
     };
   }, [editorMounted]);
 

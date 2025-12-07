@@ -215,7 +215,14 @@ useEffect(() => {
         <div className="flex gap-2">
           <input
             type="color"
-            value={localValue || '#000000'}
+            value={(() => {
+              // Convert color values to hex for color input
+              const color = localValue || '#000000';
+              if (color === 'transparent' || color === 'none') return '#000000';
+              if (color.startsWith('#')) return color;
+              // For other formats (rgb, rgba, hsl, etc), use a default
+              return '#000000';
+            })()}
             onChange={(e) => handleChange(e.target.value)}
             onBlur={handleBlur}
             onFocus={handleFocus}
@@ -228,12 +235,12 @@ useEffect(() => {
           />
           <input
             type="text"
-            value={localValue}
+            value={localValue || ''}
             onChange={(e) => handleChange(e.target.value)}
             onBlur={handleBlur}
             onFocus={handleFocus}
             className={`${baseInputClasses} flex-1`}
-            placeholder="#000000 or rgb() or hsl()"
+            placeholder="#000000 or rgb() or transparent"
             style={{
               backgroundColor: 'var(--color-surface)',
               borderColor: 'var(--color-border)',

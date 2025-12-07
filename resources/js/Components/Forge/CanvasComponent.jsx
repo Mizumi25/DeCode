@@ -133,6 +133,7 @@ const CanvasComponent = ({
   setFrameCanvasComponents,
   frame,
   broadcastDragMove, 
+  broadcastStateChanged, // 🔥 ADD THIS
   updateCursor,      
   componentsLoaded,
   broadcastRealtimeUpdate, // 🔥 ADD THIS LINE
@@ -783,23 +784,12 @@ const {
       detail: { componentId } 
     }));
     
+    // Vibrate only if supported (silent fail if blocked by browser)
     if ('vibrate' in navigator) {
-      navigator.vibrate(50);
-    }
-    
-    // 🔥 NEW: Broadcast drag start
-    const element = document.querySelector(`[data-component-id="${componentId}"]`);
-    if (element && broadcastDragStart) {
-      const rect = element.getBoundingClientRect();
-      const canvasRect = canvasRef.current?.getBoundingClientRect();
-      
-      if (canvasRect) {
-        broadcastDragStart(componentId, comp.name || comp.type, {
-          x: rect.left - canvasRect.left,
-          y: rect.top - canvasRect.top,
-          width: rect.width,
-          height: rect.height,
-        });
+      try {
+        navigator.vibrate(50);
+      } catch (err) {
+        // Vibration blocked - ignore
       }
     }
   },
@@ -1181,7 +1171,11 @@ const handleAddSection = useCallback((targetComponentId, position) => {
   setSelectedComponent(newSection.id);
   
   if ('vibrate' in navigator) {
-    navigator.vibrate(30);
+    try {
+      navigator.vibrate(30);
+    } catch (err) {
+      // Vibration blocked - ignore
+    }
   }
 }, [canvasComponents, currentFrame, flattenForReorder, setFrameCanvasComponents, pushHistory, actionTypes, componentLibraryService, projectId, setSelectedComponent]);
 
@@ -1239,7 +1233,7 @@ const handleComponentDragEnd = useCallback(({ componentId, targetId, intent }) =
       }
     }, 500);
     
-    if ('vibrate' in navigator) navigator.vibrate(30);
+    if ('vibrate' in navigator) { try { navigator.vibrate(30); } catch(e) {} }
     return;
   }
   
@@ -1299,7 +1293,7 @@ const handleComponentDragEnd = useCallback(({ componentId, targetId, intent }) =
         }
       }, 500);
       
-      if ('vibrate' in navigator) navigator.vibrate(30);
+      if ('vibrate' in navigator) { try { navigator.vibrate(30); } catch(e) {} }
       return;
     }
     
@@ -1364,7 +1358,7 @@ const handleComponentDragEnd = useCallback(({ componentId, targetId, intent }) =
       }
     }, 500);
     
-    if ('vibrate' in navigator) navigator.vibrate(30);
+    if ('vibrate' in navigator) { try { navigator.vibrate(30); } catch(e) {} }
     return;
   }
   
@@ -1469,7 +1463,7 @@ const handleComponentDragEnd = useCallback(({ componentId, targetId, intent }) =
     }
   }, 500);
   
-  if ('vibrate' in navigator) navigator.vibrate(30);
+  if ('vibrate' in navigator) { try { navigator.vibrate(30); } catch(e) {} }
 }, [currentFrame, canvasComponents, pushHistory, actionTypes, setFrameCanvasComponents, componentLibraryService, projectId, flattenForReorder]);
 
 const renderComponent = useCallback((component, index, parentStyle = {}, depth = 0, parentId = null) => {

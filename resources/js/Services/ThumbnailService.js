@@ -414,21 +414,64 @@ export class ThumbnailService {
   }
 
   /**
-   * Debounce utility function
+   * Debounce utility function that returns a Promise
    */
   static debounce(func, wait, immediate = false) {
     let timeout;
+    let pendingPromise = null;
+    
     return function executedFunction(...args) {
-      const later = () => {
-        timeout = null;
-        if (!immediate) func(...args);
-      };
-      
-      const callNow = immediate && !timeout;
+      // Clear any existing timeout
       clearTimeout(timeout);
-      timeout = setTimeout(later, wait);
       
-      if (callNow) func(...args);
+      // If there's already a pending promise, return it
+      if (pendingPromise) {
+        return pendingPromise;
+      }
+      
+      // Create new promise for this debounced execution
+      pendingPromise = new Promise((resolve, reject) => {
+        const later = () => {
+          timeout = null;
+          pendingPromise = null;
+          
+          if (!immediate) {
+            try {
+              const result = func(...args);
+              // Handle both Promise and non-Promise returns
+              if (result && typeof result.then === 'function') {
+                result.then(resolve).catch(reject);
+              } else {
+                resolve(result);
+              }
+            } catch (error) {
+              reject(error);
+            }
+          } else {
+            resolve();
+          }
+        };
+        
+        const callNow = immediate && !timeout;
+        timeout = setTimeout(later, wait);
+        
+        if (callNow) {
+          try {
+            const result = func(...args);
+            pendingPromise = null;
+            if (result && typeof result.then === 'function') {
+              result.then(resolve).catch(reject);
+            } else {
+              resolve(result);
+            }
+          } catch (error) {
+            pendingPromise = null;
+            reject(error);
+          }
+        }
+      });
+      
+      return pendingPromise;
     };
   }
 
@@ -468,7 +511,12 @@ export class ThumbnailService {
 
     } catch (error) {
       console.error(`Canvas thumbnail generation failed for frame ${frameUuid}:`, error);
-      throw error;
+      // Don't throw the error - return a failed response instead to prevent breaking the UI
+      return {
+        success: false,
+        error: error.message || 'Thumbnail generation failed',
+        thumbnail_url: null
+      };
     }
   }
 
@@ -486,7 +534,7 @@ export class ThumbnailService {
     // Don't generate if no components
     if (!canvasComponents || canvasComponents.length === 0) {
       
-      return;
+      return Promise.resolve(); // Return resolved promise instead of undefined
     }
 
     

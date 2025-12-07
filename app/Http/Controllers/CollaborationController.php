@@ -83,6 +83,41 @@ class CollaborationController extends Controller
     }
 
     /**
+     * Update component (broadcast to other users)
+     */
+    public function updateComponent(Request $request, Frame $frame): JsonResponse
+    {
+        $validated = $request->validate([
+            'component_id' => 'required|string',
+            'session_id' => 'required|string',
+            'updates' => 'required|array',
+            'update_type' => 'required|string',
+        ]);
+
+        $user = Auth::user();
+
+        // Throttle updates to prevent spam
+        $cacheKey = "component_update:{$frame->id}:{$user->id}:{$validated['component_id']}";
+        
+        if (Cache::has($cacheKey)) {
+            return response()->json(['success' => true, 'throttled' => true]);
+        }
+
+        Cache::put($cacheKey, true, now()->addMilliseconds(100));
+
+        broadcast(new ComponentRealTimeUpdate(
+            frameUuid: $frame->uuid,
+            userId: $user->id,
+            sessionId: $validated['session_id'],
+            componentId: $validated['component_id'],
+            updateType: $validated['update_type'],
+            data: $validated['updates'],
+        ))->toOthers();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
      * 🔥 NEW: Broadcast real-time component update (dragging, live edits)
      */
     public function realtimeUpdate(Request $request, Frame $frame): JsonResponse

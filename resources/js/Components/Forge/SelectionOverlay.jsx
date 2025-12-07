@@ -584,8 +584,8 @@ useEffect(() => {
     window.addEventListener('responsive-mode-changed', handleModeChange);
 
     return () => {
-      resizeObserver.disconnect();
-      mutationObserver.disconnect();
+      if (resizeObserver) resizeObserver.disconnect();
+      if (mutationObserver) mutationObserver.disconnect();
       window.removeEventListener('responsive-mode-changed', handleModeChange);
       
       // Cleanup resize if component unmounts during resize

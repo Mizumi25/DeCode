@@ -205,7 +205,7 @@ const SidebarCodePanel = ({
     }
 
     return () => {
-      resizeObserver.disconnect();
+      if (resizeObserver) resizeObserver.disconnect();
     };
   }, [editorMounted]);
 

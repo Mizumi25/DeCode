@@ -378,7 +378,7 @@ const CodePanel = ({
     }
 
     return () => {
-      resizeObserver.disconnect();
+      if (resizeObserver) resizeObserver.disconnect();
     };
   }, [editorMounted]);
 
