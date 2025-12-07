@@ -1491,10 +1491,17 @@ const handlePropertyUpdate = useCallback((componentId, propName, value) => {
     const newStyle = value;
     
     const action = createUpdateStyleAction(
-      (components) => setFrameCanvasComponents(prev => ({
-        ...prev,
-        [currentFrame]: components
-      })),
+      (components) => {
+        // ✅ FIX: Ensure components is an array before setting state
+        if (Array.isArray(components)) {
+          setFrameCanvasComponents(prev => ({
+            ...prev,
+            [currentFrame]: components
+          }));
+        } else {
+          console.error('❌ createUpdateStyleAction received non-array:', components);
+        }
+      },
       componentId,
       oldStyle,
       newStyle
@@ -1507,10 +1514,17 @@ const handlePropertyUpdate = useCallback((componentId, propName, value) => {
     const newProps = value;
     
     const action = createUpdatePropsAction(
-      (components) => setFrameCanvasComponents(prev => ({
-        ...prev,
-        [currentFrame]: components
-      })),
+      (components) => {
+        // ✅ FIX: Ensure components is an array before setting state
+        if (Array.isArray(components)) {
+          setFrameCanvasComponents(prev => ({
+            ...prev,
+            [currentFrame]: components
+          }));
+        } else {
+          console.error('❌ createUpdatePropsAction received non-array:', components);
+        }
+      },
       componentId,
       oldProps,
       newProps

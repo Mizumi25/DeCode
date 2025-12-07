@@ -161,19 +161,25 @@ export const createMoveComponentAction = (setComponents, componentId, oldState, 
  */
 export const createUpdatePropsAction = (setComponents, componentId, oldProps, newProps) => {
   const updateProps = (targetProps) => {
-    setComponents(prev => {
-      const updateRecursive = (components) => {
-        return components.map(c => {
-          if (c.id === componentId) {
-            return { ...c, props: { ...c.props, ...targetProps } };
-          }
-          if (c.children && c.children.length > 0) {
-            return { ...c, children: updateRecursive(c.children) };
-          }
-          return c;
-        });
-      };
-      return updateRecursive(prev);
+    // ✅ FIX: Same fix as createUpdateStyleAction
+    const updateRecursive = (components) => {
+      return components.map(c => {
+        if (c.id === componentId) {
+          return { ...c, props: { ...c.props, ...targetProps } };
+        }
+        if (c.children && c.children.length > 0) {
+          return { ...c, children: updateRecursive(c.children) };
+        }
+        return c;
+      });
+    };
+    
+    setComponents(prevComponents => {
+      if (!Array.isArray(prevComponents)) {
+        console.error('❌ createUpdatePropsAction: prevComponents is not an array:', prevComponents);
+        return prevComponents;
+      }
+      return updateRecursive(prevComponents);
     });
   };
 
@@ -209,19 +215,27 @@ export const createUpdatePropsAction = (setComponents, componentId, oldProps, ne
  */
 export const createUpdateStyleAction = (setComponents, componentId, oldStyle, newStyle) => {
   const updateStyle = (targetStyle) => {
-    setComponents(prev => {
-      const updateRecursive = (components) => {
-        return components.map(c => {
-          if (c.id === componentId) {
-            return { ...c, style: { ...c.style, ...targetStyle } };
-          }
-          if (c.children && c.children.length > 0) {
-            return { ...c, children: updateRecursive(c.children) };
-          }
-          return c;
-        });
-      };
-      return updateRecursive(prev);
+    // ✅ FIX: setComponents is a callback that expects an array of components
+    // It should NOT receive prev as a parameter since the callback handles that
+    const updateRecursive = (components) => {
+      return components.map(c => {
+        if (c.id === componentId) {
+          return { ...c, style: { ...c.style, ...targetStyle } };
+        }
+        if (c.children && c.children.length > 0) {
+          return { ...c, children: updateRecursive(c.children) };
+        }
+        return c;
+      });
+    };
+    
+    // ✅ Call setComponents as a function that takes (prevComponents) => newComponents
+    setComponents(prevComponents => {
+      if (!Array.isArray(prevComponents)) {
+        console.error('❌ createUpdateStyleAction: prevComponents is not an array:', prevComponents);
+        return prevComponents;
+      }
+      return updateRecursive(prevComponents);
     });
   };
 

@@ -249,7 +249,7 @@ export function useThumbnail(frameUuid, frameType = 'page', options = {}) {
   const scheduleCanvasUpdate = useCallback((canvasComponents, canvasSettings = {}) => {
     if (!frameUuid || !canvasComponents || canvasComponents.length === 0) {
       
-      return;
+      return Promise.resolve(); // ✅ FIX: Return a resolved promise instead of undefined
     }
 
     
