@@ -225,8 +225,13 @@ export default function ForgePage({
   
   // Add these states near your other useState declarations
   const [dragPosition, setDragPosition] = useState(null);
-  const [selectedComponent, setSelectedComponent] = useState('__canvas_root__') // ✅ Default to canvas
-const [isCanvasSelected, setIsCanvasSelected] = useState(true) // ✅ Track canvas selection
+  // ✅ Only pages have canvas root, components start with no selection
+  const [selectedComponent, setSelectedComponent] = useState(() => 
+    frame?.type === 'component' ? null : '__canvas_root__'
+  );
+  const [isCanvasSelected, setIsCanvasSelected] = useState(() => 
+    frame?.type === 'component' ? false : true
+  )
 
   // Canvas state for dropped components - Now frame-specific
  const [frameCanvasComponents, setFrameCanvasComponents] = useState(() => {
@@ -3285,12 +3290,12 @@ if (!componentsLoaded && loadingMessage) {
             {/* Canvas Component with Enhanced Responsive Sizing */}
             {CanvasComponent ? (
                 <div className="relative w-full flex justify-center">
-                    {/* Empty Canvas State for Pages */}
-                    {frame?.type === 'page' && canvasComponents.length === 0 && (
+                    {/* Empty Canvas State - Different for Pages vs Components */}
+                    {canvasComponents.length === 0 && (
                         <EmptyCanvasState
-                            frameType={frame.type}
+                            frameType={frame?.type || 'page'}
                             onAddSection={() => {
-                                // Auto-add a section
+                                // Auto-add a section for pages
                                 const sectionComponent = componentLibraryService?.createLayoutElement('section');
                                 if (sectionComponent) {
                                     const updatedComponents = [sectionComponent];
@@ -3301,14 +3306,28 @@ if (!componentsLoaded && loadingMessage) {
                                     setSelectedComponent(sectionComponent.id);
                                 }
                             }}
+                            onAddElement={() => {
+                                // Auto-add a div for components
+                                const divComponent = componentLibraryService?.createLayoutElement('div');
+                                if (divComponent) {
+                                    const updatedComponents = [divComponent];
+                                    setFrameCanvasComponents(prev => ({
+                                        ...prev,
+                                        [currentFrame]: updatedComponents
+                                    }));
+                                    setSelectedComponent(divComponent.id);
+                                }
+                            }}
                             onDragOver={handleCanvasDragOver}
                             onDrop={handleCanvasDrop}
                             isDragOver={dragState.isDragging}
+                            responsiveMode={responsiveMode}
+                            frame={frame}
                         />
                     )}
                     
-                    {/* Regular Canvas - only show if we have components or frame is component type */}
-                    {(canvasComponents.length > 0 || frame?.type === 'component') && (
+                    {/* Regular Canvas - show when we have components */}
+                    {canvasComponents.length > 0 && (
                  <CanvasComponent
   canvasRef={canvasRef}
   canvasComponents={canvasComponents}

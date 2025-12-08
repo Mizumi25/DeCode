@@ -687,9 +687,19 @@ const handleSmartClick = useCallback((e) => {
   );
   
   if (componentElements.length === 0) {
-    console.log('🎯 Canvas click - selecting canvas root');
+    console.log('🎯 Canvas click - checking frame type');
     
-    // 🔥 FIX: Properly set canvas root selection
+    // ✅ Components don't have canvas root - just deselect
+    if (frame?.type === 'component') {
+      console.log('🎯 Component frame - no canvas root, deselecting');
+      setSelectedComponent(null);
+      setIsCanvasSelected(false);
+      onComponentClick(null, e);
+      return;
+    }
+    
+    // ✅ Pages have canvas root - select it
+    console.log('🎯 Page frame - selecting canvas root');
     setSelectedComponent('__canvas_root__');
     setIsCanvasSelected(true);
     onComponentClick('__canvas_root__', e);
@@ -2138,44 +2148,56 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
           </div>
         )}
         
-     {/* Main Canvas - Acts as Document Body */}
+     {/* Main Canvas - Page: Document Body / Component: Simple Container */}
 
 <div 
   ref={canvasRef}
-  data-component-id="__canvas_root__"
-  data-component-type="canvas"
+  data-component-id={frame?.type === 'component' ? null : "__canvas_root__"}
+  data-component-type={frame?.type === 'component' ? 'component-canvas' : 'canvas'}
   className={`
     relative transition-all duration-500
     ${canvasClasses}
     ${isFrameSwitching ? 'opacity-50 pointer-events-none' : ''}
     ${dragState.isDragging ? 'overflow-visible' : ''}
-    ${selectedComponent === '__canvas_root__' ? 'ring-2 ring-blue-500' : ''}
+    ${frame?.type === 'page' && selectedComponent === '__canvas_root__' ? 'ring-2 ring-blue-500' : ''}
   `}
   style={{
-    ...getCanvasRootStyles(),
-    
-    width: responsiveMode === 'desktop' ? '1440px' : 
-           responsiveMode === 'tablet' ? '768px' : '375px',
-    
-    height: canvasExpansionEnabled 
-      ? 'auto' 
-      : (responsiveMode === 'desktop' ? '900px' : 
-         responsiveMode === 'tablet' ? '1024px' : '667px'),
-    
-    minHeight: responsiveMode === 'desktop' ? '900px' : 
-               responsiveMode === 'tablet' ? '1024px' : '667px',
-    
-    maxHeight: canvasExpansionEnabled ? 'none' : (
-      responsiveMode === 'desktop' ? '900px' : 
-      responsiveMode === 'tablet' ? '1024px' : '667px'
-    ),
-    
-    // 🔥 FIX: Keep overflow as auto when not expanded, even during drag
-    overflow: canvasExpansionEnabled ? 'visible' : 'auto',
-    overflowX: 'hidden',
+    // ✅ Components: Flexible size with transparent grid
+    // ✅ Pages: Fixed responsive sizes with body styles
+    ...(frame?.type === 'component' ? {
+      width: '100%',
+      minHeight: '400px',
+      backgroundColor: 'transparent',
+      backgroundImage: `
+        linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+        linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+        linear-gradient(-45deg, transparent 75%, #e5e7eb 75%)
+      `,
+      backgroundSize: '20px 20px',
+      backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
+      padding: '20px',
+      overflow: 'visible',
+    } : {
+      ...getCanvasRootStyles(),
+      width: responsiveMode === 'desktop' ? '1440px' : 
+             responsiveMode === 'tablet' ? '768px' : '375px',
+      height: canvasExpansionEnabled 
+        ? 'auto' 
+        : (responsiveMode === 'desktop' ? '900px' : 
+           responsiveMode === 'tablet' ? '1024px' : '667px'),
+      minHeight: responsiveMode === 'desktop' ? '900px' : 
+                 responsiveMode === 'tablet' ? '1024px' : '667px',
+      maxHeight: canvasExpansionEnabled ? 'none' : (
+        responsiveMode === 'desktop' ? '900px' : 
+        responsiveMode === 'tablet' ? '1024px' : '667px'
+      ),
+      overflow: canvasExpansionEnabled ? 'visible' : 'auto',
+      overflowX: 'hidden',
+      borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
+    }),
     
     cursor: dragState.isDragging ? 'copy' : 'default',
-    borderRadius: responsiveMode !== 'desktop' ? '1rem' : '0',
     isolation: 'isolate',
   }}
   
@@ -2329,20 +2351,22 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
                 )}
               </div>
               
-              {/* 🔥 NEW: Quick Add Section at Bottom */}
+              {/* 🔥 NEW: Quick Add Section/Element at Bottom */}
       <div className="flex justify-center py-8">
         <button
           onClick={() => {
-            const sectionComponent = componentLibraryService?.createLayoutElement('section');
-            if (sectionComponent) {
-              const updatedComponents = [...canvasComponents, sectionComponent];
+            // ✅ Add section for pages, div for components
+            const elementType = frame?.type === 'component' ? 'div' : 'section';
+            const newComponent = componentLibraryService?.createLayoutElement(elementType);
+            if (newComponent) {
+              const updatedComponents = [...canvasComponents, newComponent];
               setFrameCanvasComponents(prev => ({
                 ...prev,
                 [currentFrame]: updatedComponents
               }));
-              setSelectedComponent(sectionComponent.id);
+              setSelectedComponent(newComponent.id);
               
-              // Scroll to bottom to show new section
+              // Scroll to bottom to show new element
               setTimeout(() => {
                 canvasRef.current?.scrollTo({
                   top: canvasRef.current.scrollHeight,
@@ -2359,7 +2383,7 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
           }}
         >
           <Square className="w-4 h-4" />
-          Add Section
+          {frame?.type === 'component' ? 'Add Element' : 'Add Section'}
         </button>
       </div>
       

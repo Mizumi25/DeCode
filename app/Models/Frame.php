@@ -395,4 +395,25 @@ protected static function boot()
     {
         return $this->isComponentType() && $this->scrolled_component;
     }
+    
+    // Component-Page Assignment relationships
+    public function assignedComponents()
+    {
+        return $this->belongsToMany(Frame::class, 'frame_component_assignments', 'page_frame_id', 'component_frame_id')
+                    ->withPivot(['position', 'x', 'y', 'override_props'])
+                    ->withTimestamps()
+                    ->orderBy('frame_component_assignments.position');
+    }
+    
+    public function assignedToPages()
+    {
+        return $this->belongsToMany(Frame::class, 'frame_component_assignments', 'component_frame_id', 'page_frame_id')
+                    ->withPivot(['position', 'x', 'y', 'override_props'])
+                    ->withTimestamps();
+    }
+    
+    public function componentAssignments()
+    {
+        return $this->hasMany(FrameComponentAssignment::class, 'page_frame_id');
+    }
 }

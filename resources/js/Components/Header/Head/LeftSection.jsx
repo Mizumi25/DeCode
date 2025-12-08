@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Menu, X, MousePointer2, Hand, ChevronLeft, Container } from 'lucide-react';
+import { Menu, X, MousePointer2, Hand, ChevronLeft, Container, Link } from 'lucide-react';
 import useContainerStore from '@/stores/useContainerStore';
 import { motion } from 'framer-motion';
 import { router, usePage } from '@inertiajs/react';
@@ -53,7 +53,10 @@ const LeftSection = ({
   currentFrame,
   canvasComponents,
   handleUndo,
-  handleRedo
+  handleRedo,
+  // ✅ NEW: Link mode props
+  linkMode,
+  setLinkMode
 }) => {
   
   const { canvasZoom, setCanvasZoom } = useForgeStore();
@@ -320,6 +323,28 @@ const LeftSection = ({
               title={containerMode ? "Exit Container Mode" : "Add Container"}
             >
               <Container className="w-2.5 h-2.5" />
+            </button>
+          )}
+
+          {/* Vertical Divider */}
+          <div className="w-px h-2.5 bg-[var(--color-border)]"></div>
+
+          {/* ✅ NEW: Link Mode Toggle - Hide for Viewer */}
+          {myRole !== 'viewer' && setLinkMode && (
+            <button
+              onClick={() => {
+                const newLinkMode = !linkMode;
+                console.log('🔗 Link mode button clicked. New state:', newLinkMode);
+                setLinkMode(newLinkMode);
+              }}
+              className={`p-0.5 rounded transition-colors ${
+                linkMode 
+                  ? 'bg-[var(--color-primary)] text-white' 
+                  : 'hover:bg-[var(--color-bg-muted)] text-[var(--color-text)]'
+              }`}
+              title={linkMode ? "Exit Link Mode" : "Link Components to Pages"}
+            >
+              <Link className="w-2.5 h-2.5" />
             </button>
           )}
         </>

@@ -153,6 +153,12 @@ Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasS
     // Get frames by project UUID (for void page)
     Route::get('/projects/{project:uuid}/frames', [VoidController::class, 'getByProject']);
     
+    // Frame Component Assignments
+    Route::get('/projects/{project:uuid}/frame-assignments', [App\Http\Controllers\FrameComponentAssignmentController::class, 'index']);
+    Route::post('/frame-assignments/assign', [App\Http\Controllers\FrameComponentAssignmentController::class, 'assign']);
+    Route::post('/frame-assignments/unassign', [App\Http\Controllers\FrameComponentAssignmentController::class, 'unassign']);
+    Route::put('/frame-assignments/{assignment}/position', [App\Http\Controllers\FrameComponentAssignmentController::class, 'updatePosition']);
+    
     // Projects CRUD & actions
     Route::get('/projects', [ProjectController::class, 'index']);
     Route::post('/projects', [ProjectController::class, 'store']);

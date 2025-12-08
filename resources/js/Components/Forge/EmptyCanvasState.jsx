@@ -5,6 +5,7 @@ import { Plus, Monitor, Tablet, Smartphone } from 'lucide-react';
 const EmptyCanvasState = ({ 
   frameType = 'page', 
   onAddSection,
+  onAddElement, // For components
   onDragOver,
   onDrop,
   isDragOver = false,
@@ -13,8 +14,14 @@ const EmptyCanvasState = ({
 }) => {
   const canvasStyle = frame?.canvas_style || {};
   
-  // Get canvas dimensions based on responsive mode
+  // Get canvas dimensions based on responsive mode and frame type
   const getCanvasDimensions = () => {
+    // Components have flexible size, not fixed
+    if (frameType === 'component') {
+      return { width: '100%', minHeight: '400px', maxWidth: '100%' };
+    }
+    
+    // Pages have fixed responsive sizes
     switch (responsiveMode) {
       case 'mobile':
         return { width: '375px', minHeight: '667px', maxWidth: '375px' };
@@ -78,7 +85,77 @@ const EmptyCanvasState = ({
     </div>
   );
   
-  return (
+  // Component canvas: transparent grid background
+  const ComponentCanvas = () => (
+    <div 
+      className="relative w-full transition-all duration-300"
+      style={{
+        minHeight: dimensions.minHeight,
+        backgroundColor: 'transparent',
+        backgroundImage: `
+          linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+          linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+          linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+          linear-gradient(-45deg, transparent 75%, #e5e7eb 75%)
+        `,
+        backgroundSize: '20px 20px',
+        backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
+        position: 'relative',
+        boxSizing: 'border-box',
+      }}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      {/* Component Canvas Indicator */}
+      <div 
+        className="absolute top-2 left-2 text-xs font-mono opacity-40 select-none pointer-events-none z-10 bg-white/80 px-2 py-1 rounded"
+        style={{ color: 'var(--color-text-muted)' }}
+      >
+        &lt;Component&gt;
+      </div>
+      
+      {/* Empty State Content with Add Element Button */}
+      <div className="flex items-center justify-center" style={{ minHeight: dimensions.minHeight }}>
+        <div className="text-center">
+          <button
+            onClick={onAddElement}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all hover:scale-105 bg-white border-2"
+            style={{ 
+              borderColor: 'var(--color-primary)',
+              color: 'var(--color-primary)',
+              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+            }}
+          >
+            <Plus className="w-5 h-5" />
+            Add Element
+          </button>
+          <p className="mt-4 text-sm text-gray-500">
+            Click to add an element or drag from the sidebar
+          </p>
+        </div>
+      </div>
+
+      {/* Active Drop Overlay */}
+      {isDragOver && (
+        <div 
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ 
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            border: '3px solid rgba(59, 130, 246, 0.5)',
+            zIndex: 50
+          }}
+        >
+          <div className="bg-white border-2 rounded-xl p-6 shadow-2xl" style={{ borderColor: '#3b82f6' }}>
+            <Plus className="w-12 h-12 mx-auto mb-3 animate-pulse" style={{ color: '#3b82f6' }} />
+            <div className="text-lg font-bold">Drop here</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // Page canvas: browser frame with body
+  const PageCanvas = () => (
     <div 
       className={`
         relative transition-all duration-300
@@ -159,6 +236,8 @@ const EmptyCanvasState = ({
       </div>
     </div>
   );
+
+  return frameType === 'component' ? <ComponentCanvas /> : <PageCanvas />;
 };
 
 export default EmptyCanvasState;

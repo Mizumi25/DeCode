@@ -280,8 +280,25 @@ const commonProps = {
 
 
 // Handle canvas root selection - show canvas properties
-// Handle canvas root selection - show canvas properties
+// ✅ NEW: Components don't have canvas root - show "no selection" instead
 if (!selectedComponent || selectedComponent === '__canvas_root__') {
+  // ✅ If frame is a component and canvas root is selected, show "no selection" instead
+  if (frame?.type === 'component' && selectedComponent === '__canvas_root__') {
+    return (
+      <div className="space-y-6 p-4" style={{ backgroundColor: 'var(--color-bg)' }}>
+        <div className="text-center opacity-50 py-8">
+          <Square className="w-12 h-12 mx-auto mb-4 opacity-30" style={{ color: 'var(--color-text-muted)' }} />
+          <p className="text-sm font-medium mb-2" style={{ color: 'var(--color-text)' }}>No Element Selected</p>
+          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            Components don't have a canvas root.<br/>
+            Select an element to edit its properties.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
+  // ✅ Only show canvas root for pages
   const canvasStyle = frame?.canvas_style || {};
   const canvasProps = frame?.canvas_props || {};
   const canvasAnimation = frame?.canvas_animation || {};

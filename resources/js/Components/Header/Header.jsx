@@ -29,7 +29,10 @@ export default function Header({
   frame,
   canvasComponents,
   handleUndo,
-  handleRedo
+  handleRedo,
+  // ✅ NEW: Link mode props
+  linkMode,
+  setLinkMode
 }) {
   const { props, url } = usePage()
   const user = props.auth?.user
@@ -193,6 +196,9 @@ export default function Header({
               canvasComponents={canvasComponents || props.frame?.canvas_data?.components || []}
               handleUndo={handleUndo || props.onUndo}
               handleRedo={handleRedo || props.onRedo}
+              // ✅ NEW: Link mode props
+              linkMode={linkMode}
+              setLinkMode={setLinkMode}
             />
           )}
 

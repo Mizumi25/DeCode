@@ -1,7 +1,9 @@
 // Components/Void/PreviewFrame.jsx - FIXED click navigation issue
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import ReactDOM from 'react-dom'
-import { Plug, MoreHorizontal, Github, FileCode, Layers, RefreshCw, Camera, AlertTriangle, Copy, Trash2, Files } from 'lucide-react'
+import { Plug, MoreHorizontal, Github, FileCode, Layers, RefreshCw, Camera, AlertTriangle, Copy, Trash2, Files, X } from 'lucide-react'
+import ConfirmDialog from '@/Components/ConfirmDialog'
+import FrameAssignmentModal from '@/Components/Void/FrameAssignmentModal'
 import EnhancedLockButton from './EnhancedLockButton'
 import EnhancedPreviewFrameLock from './EnhancedPreviewFrameLock'
 import FrameAccessDialog from './FrameAccessDialog'
@@ -40,7 +42,13 @@ export default function PreviewFrame({
   isDark = false,
   scrollPosition = { x: 0, y: 0 },
   onAutoScroll = null,
-  hideHeader = false // New prop to hide header for viewers
+  hideHeader = false, // New prop to hide header for viewers
+  linkMode = false, // Link mode active
+  selectedFrameForLink = null, // Currently selected frame for linking
+  frameAssignments = [], // ✅ NEW: Frame assignments for this frame
+  onUnassign = null, // ✅ NEW: Callback to unassign frames
+  allFrames = [], // ✅ NEW: All frames for assignment modal
+  onAssign = null // ✅ NEW: Callback to assign frames
 }) {
   const size = sizes[index % sizes.length]
   const { getLockStatus, subscribeToFrame, requestFrameAccess, addNotification } = useFrameLockStore()
@@ -48,6 +56,19 @@ export default function PreviewFrame({
   const [myRole, setMyRole] = React.useState(null)
   const [showAccessDialog, setShowAccessDialog] = React.useState(false)
   const [isRequestLoading, setIsRequestLoading] = React.useState(false)
+  const [showAssignmentModal, setShowAssignmentModal] = React.useState(false)
+  
+  // ✅ NEW: Calculate assignments for this frame
+  const myAssignments = useMemo(() => {
+    if (!frame || !frameAssignments || frameAssignments.length === 0) return [];
+    
+    // Find assignments where this frame is involved
+    return frameAssignments.filter(assignment => {
+      const pageFrameUuid = assignment.pageFrame?.uuid || assignment.page_frame?.uuid;
+      const componentFrameUuid = assignment.componentFrame?.uuid || assignment.component_frame?.uuid;
+      return pageFrameUuid === frame.uuid || componentFrameUuid === frame.uuid;
+    });
+  }, [frame, frameAssignments])
   
   // Get lock status from Zustand store - FIRST
   const lockStatus = getLockStatus(frame?.uuid)
@@ -570,12 +591,31 @@ const enhancedTransform = useMemo(() => {
                                  e.target.closest('.frame-header') ||
                                  e.target.closest('button') // This will catch the thumbnail action buttons
     
+    console.log('🖱️ Frame clicked:', {
+      frameTitle: frame?.name,
+      linkMode,
+      isInteractiveElement,
+      isDragging,
+      dndIsDragging,
+      hasOnFrameClick: !!onFrameClick
+    });
+    
     // Don't navigate if we're in a dragging state or clicked on interactive elements
-    if (isInteractiveElement || isDragging) {
+    if (isInteractiveElement || dndIsDragging) {
+      console.log('❌ Click blocked:', { isInteractiveElement, isDragging, dndIsDragging });
       return;
     }
     
-    // Handle locked frame access
+    // In link mode, skip lock checks and go straight to onFrameClick
+    if (linkMode) {
+      console.log('🔗 Link mode active, calling onFrameClick');
+      if (onFrameClick && frame) {
+        onFrameClick(frame);
+      }
+      return;
+    }
+    
+    // Handle locked frame access (only in normal mode)
     if (lockStatus?.is_locked && !lockStatus.locked_by_me) {
       // Check if user can bypass lock (owner)
       if (lockStatus.can_bypass_lock) {
@@ -972,6 +1012,9 @@ useEffect(() => {
     setNodeRef(node)
   }, [setNodeRef])
 
+  // Check if this frame is selected for linking
+  const isSelectedForLink = linkMode && selectedFrameForLink?.uuid === frame?.uuid;
+  
   return (
   <div
     ref={combinedRef}  // Use combined ref
@@ -980,7 +1023,8 @@ useEffect(() => {
     data-frame-uuid={frame?.uuid}
     className={`preview-frame absolute rounded-xl p-3 transition-all duration-300 ease-out flex flex-col group ${
       isDragging ? 'shadow-2xl scale-105 z-50' : 'shadow-lg hover:shadow-xl hover:-translate-y-1'
-    } ${lockStatus?.is_locked && !lockStatus.locked_by_me ? 'cursor-not-allowed' : 'cursor-grab'}`}
+    } ${lockStatus?.is_locked && !lockStatus.locked_by_me ? 'cursor-not-allowed' : linkMode ? 'cursor-pointer' : 'cursor-grab'}
+    ${isSelectedForLink ? 'ring-4 ring-[var(--color-primary)] ring-offset-2' : ''}`}
     style={style}
     onClick={handleFrameClick}
     onMouseEnter={() => setShowThumbnailActions(true)}
@@ -993,6 +1037,28 @@ useEffect(() => {
             <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
               Locked by {lockStatus.locked_by?.name}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Link mode indicator */}
+      {linkMode && isSelectedForLink && (
+        <div className="absolute -top-2 -right-2 z-20">
+          <div className="bg-[var(--color-primary)] text-white px-2 py-1 rounded-full text-xs font-bold shadow-lg animate-pulse">
+            Selected
+          </div>
+        </div>
+      )}
+      
+      {/* Link mode helper - show what type of frame this is */}
+      {linkMode && !isSelectedForLink && (
+        <div className="absolute -top-2 -right-2 z-20">
+          <div className={`px-2 py-1 rounded-full text-xs font-medium shadow-lg ${
+            frame?.type === 'page' 
+              ? 'bg-blue-500 text-white' 
+              : 'bg-purple-500 text-white'
+          }`}>
+            {frame?.type === 'page' ? 'Page' : 'Component'}
           </div>
         </div>
       )}
@@ -1037,6 +1103,21 @@ useEffect(() => {
             </div>
           ) : (
             <Plug className="w-3.5 h-3.5 opacity-60 flex-shrink-0" />
+          )}
+          
+          {/* ✅ NEW: Assignment badge - opens professional modal */}
+          {myAssignments.length > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowAssignmentModal(true);
+              }}
+              className="flex items-center gap-1 px-2 py-1 bg-[var(--color-primary)] text-white rounded-full text-xs font-medium hover:bg-[var(--color-primary)]/80 transition-all hover:scale-105 flex-shrink-0"
+              title="View and manage frame assignments"
+            >
+              <Layers className="w-3 h-3" />
+              {myAssignments.length}
+            </button>
           )}
         </div>
         
@@ -1177,6 +1258,24 @@ useEffect(() => {
         userRole={myRole}
         frameName={title}
         isLoading={isRequestLoading}
+      />
+      
+      {/* ✅ NEW: Professional Assignment Manager Modal */}
+      <FrameAssignmentModal
+        isOpen={showAssignmentModal}
+        onClose={() => setShowAssignmentModal(false)}
+        currentFrame={frame}
+        allFrames={allFrames}
+        frameAssignments={frameAssignments}
+        onUnassign={onUnassign}
+        onAssign={onAssign}
+        linkMode={linkMode}
+        onRequestUnlink={(assignment, frameName) => {
+          // Request unlink via parent (VoidPage) to use page-level confirm dialog
+          if (onUnassign) {
+            onUnassign(assignment, frameName, true); // true = show confirm dialog
+          }
+        }}
       />
     </div>
   )

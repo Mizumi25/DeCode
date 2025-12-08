@@ -10,7 +10,14 @@ export default function FramesContainer({
   onFrameDelete,
   zoom = 1,
   isDark = false,
-  hideHeader = false
+  hideHeader = false,
+  // ✅ NEW: Link mode props
+  linkMode = false,
+  selectedFrameForLink = null,
+  frameAssignments = [],
+  onUnassign = null,
+  allFrames = [],
+  onAssign = null
 }) {
   // Auto-scroll handler for frame dragging
   const handleAutoScroll = useCallback((scrollDelta) => {
@@ -50,9 +57,16 @@ export default function FramesContainer({
         scrollPosition={scrollPosition}
         onAutoScroll={handleAutoScroll}
         hideHeader={hideHeader}
+        // ✅ NEW: Link mode visual feedback
+        linkMode={linkMode}
+        selectedFrameForLink={selectedFrameForLink}
+        frameAssignments={frameAssignments}
+        onUnassign={onUnassign}
+        allFrames={allFrames}
+        onAssign={onAssign}
       />
     ))
-  , [frames, onFrameClick, onFrameDelete, zoom, isDark, scrollPosition, handleAutoScroll, hideHeader])
+  , [frames, onFrameClick, onFrameDelete, zoom, isDark, scrollPosition, handleAutoScroll, hideHeader, linkMode, selectedFrameForLink, frameAssignments, onUnassign, allFrames, onAssign])
 
   return (
     <div 

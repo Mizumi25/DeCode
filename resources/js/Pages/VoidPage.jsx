@@ -11,6 +11,7 @@ import FrameContainer from '@/Components/Void/FrameContainer'
 import useContainerStore from '@/stores/useContainerStore'
 import DeleteButton from '@/Components/Void/DeleteButton'
 import FrameCreator from '@/Components/Void/FrameCreator'
+import ConfirmDialog from '@/Components/ConfirmDialog'
 import ConfirmationDialog from '@/Components/ConfirmationDialog'
 import Modal from '@/Components/Modal'
 import InfiniteGrid from '@/Components/Void/InfiniteGrid'
@@ -120,6 +121,46 @@ const zoomLevelRef = useRef(zoomLevel)
   const [showCreateWorkspace, setShowCreateWorkspace] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showProjectSwitcher, setShowProjectSwitcher] = useState(false)
+  
+  // ✅ NEW: Link Mode states
+  const [linkMode, setLinkMode] = useState(false)
+  const [selectedFrameForLink, setSelectedFrameForLink] = useState(null)
+  const [frameAssignments, setFrameAssignments] = useState([])
+  
+  // ✅ NEW: Confirm dialog states
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: null,
+    variant: 'danger'
+  })
+  
+  // Debug: Log when linkMode changes
+  useEffect(() => {
+    console.log('🔗 VoidPage linkMode changed to:', linkMode);
+    if (!linkMode) {
+      // Clear selection when exiting link mode
+      setSelectedFrameForLink(null);
+    }
+  }, [linkMode])
+  
+  // ✅ NEW: Load frame assignments
+  useEffect(() => {
+    const loadAssignments = async () => {
+      if (!project?.uuid) return
+      
+      try {
+        const response = await axios.get(`/api/projects/${project.uuid}/frame-assignments`)
+        setFrameAssignments(response.data)
+        console.log('✅ Loaded frame assignments:', response.data)
+      } catch (error) {
+        console.error('❌ Failed to load frame assignments:', error)
+      }
+    }
+    
+    loadAssignments()
+  }, [project?.uuid])
   
   // ADD this after your state declarations
   const touchStateRef = useRef({
@@ -232,15 +273,34 @@ const zoomLevelRef = useRef(zoomLevel)
           method: result.method,
           url: result.thumbnailUrl || result.thumbnail_url
         });
-        alert(`✅ Project thumbnail generated successfully using ${result.method === 'playwright' ? 'Playwright' : 'Canvas fallback'}!`);
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Thumbnail Generated',
+          message: `Project thumbnail generated successfully using ${result.method === 'playwright' ? 'Playwright' : 'Canvas fallback'}!`,
+          onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false })),
+          variant: 'info',
+          confirmText: 'OK'
+        });
       } else {
         console.error('[VoidPage] ❌ Thumbnail generation failed');
-        alert('❌ Failed to generate thumbnail. Check console for details.');
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Thumbnail Failed',
+          message: 'Failed to generate thumbnail. Check console for details.',
+          onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false })),
+          variant: 'danger'
+        });
       }
       
     } catch (error) {
       console.error('[VoidPage] ❌ Failed to generate thumbnail:', error);
-      alert('❌ Failed to generate thumbnail: ' + error.message);
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Thumbnail Failed',
+        message: 'Failed to generate thumbnail: ' + error.message,
+        onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false })),
+        variant: 'danger'
+      });
     }
   }, [project?.uuid, generateSnapshot])
 
@@ -307,6 +367,32 @@ const zoomLevelRef = useRef(zoomLevel)
       const store = useContainerStore.getState();
       if (!store.containers.some(c => c.uuid === event.container.uuid)) {
         store.addContainer(event.container);
+      }
+    });
+
+    // ✅ NEW: Listen for frame assignments
+    channel.listen('FrameAssignmentCreated', (event) => {
+      console.log('🔗 Frame assignment created event received:', event);
+      if (event.project_uuid === project.uuid) {
+        setFrameAssignments(prev => {
+          // Check if already exists
+          if (prev.some(a => a.id === event.assignment.id)) {
+            return prev;
+          }
+          console.log('✅ Adding new frame assignment');
+          return [...prev, event.assignment];
+        });
+      }
+    });
+
+    channel.listen('FrameAssignmentDeleted', (event) => {
+      console.log('🔗 Frame assignment deleted event received:', event);
+      if (event.project_uuid === project.uuid) {
+        setFrameAssignments(prev => {
+          const filtered = prev.filter(a => a.id !== event.assignment_id);
+          console.log('✅ Removed frame assignment');
+          return filtered;
+        });
       }
     });
 
@@ -692,8 +778,149 @@ const handleDragEnd = useCallback(async (event) => {
     }
   }
 
+  // ✅ NEW: Handle frame linking in link mode (MUST be defined BEFORE handleFrameClick)
+  const handleFrameLinkClick = useCallback(async (frame) => {
+    console.log('🔗 handleFrameLinkClick called with frame:', frame);
+    
+    if (!selectedFrameForLink) {
+      // First click - select this frame
+      setSelectedFrameForLink(frame);
+      console.log('🔗 First frame selected:', frame.name || frame.title, 'Type:', frame.type);
+      return;
+    }
+    
+    // Second click - create link
+    const frame1 = selectedFrameForLink;
+    const frame2 = frame;
+    
+    console.log('🔗 Second frame clicked:', frame2.name || frame2.title, 'Type:', frame2.type);
+    
+    // Check if same frame
+    if (frame1.uuid === frame2.uuid) {
+      console.warn('❌ Cannot link frame to itself');
+      setSelectedFrameForLink(null);
+      return;
+    }
+    
+    // NEW RULES: 
+    // ✅ Component → Page (component used in page)
+    // ✅ Component → Component (component uses other component)
+    // ❌ Page → Page (not allowed - pages can't contain pages)
+    if (frame1.type === 'page' && frame2.type === 'page') {
+      console.warn('❌ Cannot link two pages together');
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Cannot Link Pages',
+        message: 'Cannot link two pages together. Pages can only contain components.',
+        onConfirm: () => {
+          setSelectedFrameForLink(null);
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        },
+        variant: 'warning'
+      });
+      return;
+    }
+    
+    // Determine relationship based on types
+    let pageFrame = null;
+    let componentFrame = null;
+    let parentFrame = null;
+    let childFrame = null;
+    
+    // If one is a page, it's the parent
+    if (frame1.type === 'page') {
+      pageFrame = frame1;
+      componentFrame = frame2;
+      parentFrame = frame1;
+      childFrame = frame2;
+    } else if (frame2.type === 'page') {
+      pageFrame = frame2;
+      componentFrame = frame1;
+      parentFrame = frame2;
+      childFrame = frame1;
+    } else {
+      // Both are components - first selected is parent
+      componentFrame = frame2; // The one being added
+      parentFrame = frame1; // The one selected first
+      childFrame = frame2;
+    }
+    
+    try {
+      console.log('🔗 Creating link:', {
+        parent: parentFrame.name || parentFrame.title,
+        child: childFrame.name || childFrame.title,
+        relationship: pageFrame ? 'page-component' : 'component-component'
+      });
+      
+      const response = await axios.post('/api/frame-assignments/assign', {
+        page_frame_uuid: pageFrame?.uuid || parentFrame.uuid,
+        component_frame_uuid: componentFrame?.uuid || childFrame.uuid
+      });
+      
+      console.log('✅ Link created successfully:', response.data);
+      
+      // Add to state (keep existing + new)
+      setFrameAssignments(prev => [...prev, response.data.assignment]);
+      
+      // DON'T reset selection - keep it selected to link to more frames!
+      // This allows: 1 component -> multiple pages OR multiple components -> 1 page
+      console.log('✅ Frame still selected for more links. Click another frame to continue linking.');
+      
+    } catch (error) {
+      console.error('❌ Failed to create link:', error);
+      const errorMsg = error.response?.data?.error || error.response?.data?.message || 'Failed to link frames';
+      
+      // Check if it's a duplicate assignment error
+      if (errorMsg.includes('already assigned') || errorMsg.includes('duplicate')) {
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Already Linked',
+          message: `${errorMsg}\n\nWould you like to continue linking to other frames?`,
+          onConfirm: () => {
+            // Keep selection to link to more frames - just close dialog
+            setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+          },
+          onCancel: () => {
+            // Deselect - clear the selection
+            setSelectedFrameForLink(null);
+            setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+          },
+          variant: 'warning',
+          confirmText: 'Continue',
+          cancelText: 'Deselect'
+        });
+      } else {
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Link Failed',
+          message: errorMsg,
+          onConfirm: () => {
+            setSelectedFrameForLink(null);
+            setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+          },
+          variant: 'danger'
+        });
+      }
+    }
+  }, [selectedFrameForLink, frameAssignments])
+  
   // Handle frame click for navigation - discipline-based routing
   const handleFrameClick = useCallback((frame) => {
+    console.log('📍 handleFrameClick called:', { 
+      frame: frame.name, 
+      linkMode,
+      myDiscipline 
+    });
+    
+    // ✅ NEW: If link mode is active, handle linking instead of navigation
+    if (linkMode) {
+      console.log('🔗 Link mode active - calling handleFrameLinkClick and preventing navigation');
+      handleFrameLinkClick(frame);
+      return; // STOP HERE - don't navigate!
+    }
+    
+    console.log('🚀 Link mode OFF - proceeding with navigation');
+    
     if (!myDiscipline) {
       console.warn('Discipline not loaded yet, using default (Forge)');
       router.visit(`/void/${project.uuid}/frame=${frame.uuid}/modeForge`);
@@ -728,7 +955,108 @@ const handleDragEnd = useCallback(async (event) => {
         console.warn('Unknown discipline:', myDiscipline, '- defaulting to Forge');
         router.visit(`/void/${project.uuid}/frame=${frame.uuid}/modeForge`);
     }
-  }, [project?.uuid, myDiscipline])
+  }, [project?.uuid, myDiscipline, linkMode, handleFrameLinkClick])
+  
+  // ✅ NEW: Handle unlinking frames (with confirm dialog component)
+  const handleUnlinkFrames = useCallback(async (assignment, otherFrameName, showConfirm = false) => {
+    const performUnlink = async () => {
+      try {
+        const pageFrame = assignment.pageFrame || assignment.page_frame;
+        const componentFrame = assignment.componentFrame || assignment.component_frame;
+        
+        await axios.post('/api/frame-assignments/unassign', {
+          page_frame_uuid: pageFrame.uuid,
+          component_frame_uuid: componentFrame.uuid
+        });
+        
+        console.log('✅ Unlinked frames');
+        
+        // Remove from state
+        setFrameAssignments(prev => prev.filter(a => a.id !== assignment.id));
+        
+      } catch (error) {
+        console.error('❌ Failed to unlink:', error);
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Unlink Failed',
+          message: 'Failed to unlink frames. Please try again.',
+          onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false })),
+          variant: 'danger'
+        });
+      }
+    };
+    
+    // If showConfirm is true, show confirmation dialog first
+    if (showConfirm) {
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Unlink Frame',
+        message: `Are you sure you want to unlink "${otherFrameName}"? This will remove the connection between these frames.`,
+        onConfirm: async () => {
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+          await performUnlink();
+        },
+        onCancel: () => {
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        },
+        variant: 'danger',
+        confirmText: 'Unlink',
+        cancelText: 'Cancel'
+      });
+      return;
+    }
+    
+    // If no confirm needed, just unlink directly
+    await performUnlink();
+  }, [])
+  
+  // ✅ NEW: Handle assigning frames from modal
+  const handleAssignFrames = useCallback(async (fromFrame, toFrame) => {
+    try {
+      // Determine which is page and which is component
+      let pageFrame = null;
+      let componentFrame = null;
+      
+      if (fromFrame.type === 'page') {
+        pageFrame = fromFrame;
+        componentFrame = toFrame;
+      } else if (toFrame.type === 'page') {
+        pageFrame = toFrame;
+        componentFrame = fromFrame;
+      } else {
+        // Both are components - first is parent
+        pageFrame = fromFrame; // Use as parent
+        componentFrame = toFrame;
+      }
+      
+      console.log('🔗 Creating assignment:', {
+        page: pageFrame.name,
+        component: componentFrame.name
+      });
+      
+      const response = await axios.post('/api/frame-assignments/assign', {
+        page_frame_uuid: pageFrame.uuid,
+        component_frame_uuid: componentFrame.uuid
+      });
+      
+      console.log('✅ Assignment created:', response.data);
+      
+      // Add to state
+      setFrameAssignments(prev => [...prev, response.data.assignment]);
+      
+    } catch (error) {
+      console.error('❌ Failed to assign:', error);
+      const errorMsg = error.response?.data?.error || error.response?.data?.message || 'Failed to assign frames';
+      
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Assignment Failed',
+        message: errorMsg,
+        onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false })),
+        variant: 'danger'
+      });
+    }
+  }, [])
 
 
 
@@ -938,11 +1266,23 @@ useEffect(() => {
         setFrames(prev => prev.filter(f => f.id !== frame.id))
       } else {
         console.error('Failed to delete frame')
-        alert('Failed to delete frame')
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Delete Failed',
+          message: 'Failed to delete frame. Please try again.',
+          onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false })),
+          variant: 'danger'
+        });
       }
     } catch (err) {
       console.error('Error deleting frame:', err)
-      alert('Error deleting frame')
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Delete Error',
+        message: 'Error deleting frame. Please try again.',
+        onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false })),
+        variant: 'danger'
+      });
     }
   }, [])
 
@@ -1462,7 +1802,10 @@ useEffect(() => {
         zoomLevel,
         onZoomChange: handleZoom,
         project,
-        frame: null
+        frame: null,
+        // ✅ NEW: Link mode props
+        linkMode,
+        setLinkMode
       }}
     >
       <Head title={`Void - ${project?.name || 'Project'}`} />
@@ -1538,17 +1881,24 @@ useEffect(() => {
                 zoom={zoom}
                 isDark={isDark}
                 isFrameDragging={isFrameDragging}
+                linkMode={linkMode}
+                selectedFrameForLink={selectedFrameForLink}
+                frameAssignments={frameAssignments}
+                onUnassign={handleUnlinkFrames}
+                allFrames={frames}
+                onAssign={handleAssignFrames}
               />
             ))}
           </div>
           
+          
           {/* Render Frames (not in containers) */}
-         <FramesContainer 
+          <FramesContainer 
             frames={frames.filter(f => !f.container_id)} 
             scrollPosition={scrollPosition} 
             scrollBounds={scrollBounds}
             setScrollPosition={setScrollPosition}
-            onFrameClick={handleFrameClick}  // KEEP this
+            onFrameClick={handleFrameClick}
             onFrameDelete={(frameUuid) => {
               console.log('🗑️ Manual frame delete triggered:', frameUuid)
               setFrames(prevFrames => prevFrames.filter(f => f.uuid !== frameUuid))
@@ -1556,6 +1906,12 @@ useEffect(() => {
             zoom={zoom}
             isDark={isDark}
             hideHeader={myRole === 'viewer'}
+            linkMode={linkMode}
+            selectedFrameForLink={selectedFrameForLink}
+            frameAssignments={frameAssignments}
+            onUnassign={handleUnlinkFrames}
+            allFrames={frames}
+            onAssign={handleAssignFrames}
           />
         </div>
 
@@ -1728,6 +2084,18 @@ useEffect(() => {
         {/* System Notifications */}
         <NotificationToastContainer
           position="top-right"
+        />
+        
+        {/* ✅ NEW: Global Confirm Dialog */}
+        <ConfirmDialog
+          isOpen={confirmDialog.isOpen}
+          onClose={confirmDialog.onCancel || (() => setConfirmDialog(prev => ({ ...prev, isOpen: false })))}
+          onConfirm={confirmDialog.onConfirm || (() => setConfirmDialog(prev => ({ ...prev, isOpen: false })))}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmText={confirmDialog.confirmText || 'OK'}
+          cancelText={confirmDialog.cancelText || 'Cancel'}
+          variant={confirmDialog.variant || 'danger'}
         />
       </div>
       </DndContext>

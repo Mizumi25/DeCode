@@ -17,6 +17,12 @@ const FrameContainer = ({
   isDark = false,
   onFrameClick,
   isFrameDragging = false,
+  linkMode = false,
+  selectedFrameForLink = null,
+  frameAssignments = [],
+  onUnassign = null,
+  allFrames = [],
+  onAssign = null,
 }) => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(container.name);
@@ -292,6 +298,12 @@ const FrameContainer = ({
                   isDark={isDark}
                   inContainer={true}
                   onRemoveFromContainer={() => onFrameRemove && onFrameRemove(frame.uuid)}
+                  linkMode={linkMode}
+                  selectedFrameForLink={selectedFrameForLink}
+                  frameAssignments={frameAssignments}
+                  onUnassign={onUnassign}
+                  allFrames={allFrames}
+                  onAssign={onAssign}
                 />
               </div>
             ))}
