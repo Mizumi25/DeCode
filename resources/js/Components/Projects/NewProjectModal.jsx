@@ -160,6 +160,7 @@ export default function NewProjectModal({ show, onClose }) {
     style_framework: 'css', // New: Style framework (css or tailwind)
     css_framework: 'tailwind',
     is_public: false,
+    include_navigation: true, // New: Include navigation in export
     workspace_id: currentWorkspace?.id || null // Set current workspace ID
   });
 
@@ -595,6 +596,31 @@ export default function NewProjectModal({ show, onClose }) {
           })}
         </div>
       </div>
+
+      {/* Navigation Option - Only for HTML projects */}
+      {data.framework === 'html' && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium text-[var(--color-text)]">Export Settings</h3>
+          <div className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={data.include_navigation}
+                onChange={(e) => setData('include_navigation', e.target.checked)}
+                className="w-5 h-5 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-0"
+              />
+              <div className="flex-1">
+                <div className="font-medium text-[var(--color-text)]">
+                  Include Default Navigation
+                </div>
+                <div className="text-sm text-[var(--color-text-muted)] mt-1">
+                  Add a navigation bar with frame switching in exported projects (ZIP/GitHub)
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+      )}
 
       {/* Privacy Toggle */}
       <div className="space-y-4">

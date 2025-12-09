@@ -3186,9 +3186,8 @@ const handleCanvasClick = useCallback((e) => {
     defaultPanels.forEach(panel => {
       const isOpen = isForgePanelOpen(panel.id);
       
-      if (panel.id === 'properties-panel' || panel.id === 'assets-panel') {
-        panels.push(panel);
-      } else if (isOpen) {
+      // All panels (including properties and assets) now use their toggle state
+      if (isOpen) {
         panels.push(panel);
       }
     });

@@ -94,12 +94,7 @@ setPreviewPanelResponsiveMode: (mode) => set({
       isForgePanelOpen: (panelId) => {
         const state = get()
         
-        // Properties and assets panels are always considered open (unless all hidden)
-        if (panelId === 'properties-panel' || panelId === 'assets-panel') {
-          return !state.allPanelsHidden;
-        }
-        
-        // All other panels (including code-panel) use their toggle state
+        // All panels (including properties and assets) now use their toggle state
         const isOpen = state.forgePanelStates[panelId] && !state.allPanelsHidden;
         
         // Debug logging for code panel specifically
@@ -117,10 +112,8 @@ setPreviewPanelResponsiveMode: (mode) => set({
         
         let count = 0;
         Object.entries(state.forgePanelStates).forEach(([panelId, isOpen]) => {
-          // Always count properties and assets as open
-          if (panelId === 'properties-panel' || panelId === 'assets-panel') {
-            count++;
-          } else if (isOpen) {
+          // Count all panels based on their actual state
+          if (isOpen) {
             count++;
           }
         });

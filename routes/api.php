@@ -364,7 +364,8 @@ Route::post('/realtime-update', [CollaborationController::class, 'realtimeUpdate
     Route::post('/ai/generate-template', [AiController::class, 'generateTemplate']);
     
     // Export routes
-    Route::get('/projects/{project:uuid}/export/zip', [App\Http\Controllers\ExportController::class, 'exportAsZip']);
+    Route::post('/projects/{project:uuid}/export/preview', [App\Http\Controllers\ExportController::class, 'previewExport']);
+    Route::post('/projects/{project:uuid}/export/zip', [App\Http\Controllers\ExportController::class, 'exportAsZip']);
     Route::post('/projects/{project:uuid}/export/github', [App\Http\Controllers\ExportController::class, 'exportToGitHub']);
 
     // Test thumbnail generation endpoint

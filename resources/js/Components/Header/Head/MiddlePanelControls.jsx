@@ -8,7 +8,8 @@ import {
   Settings,
   EyeOff,
   Eye,
-  PackageOpen
+  PackageOpen,
+  Image
 } from 'lucide-react'
 import { useHeaderStore } from '@/stores/useHeaderStore'
 import { useForgeStore } from '@/stores/useForgeStore'
@@ -42,25 +43,28 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {}, on
 
   // Handle panel toggle based on page type with enhanced logging
   const handlePanelToggle = (panelId) => {
-    
+    console.log('🔵 handlePanelToggle called with:', panelId)
     
     if (onForgePage) {
       // Map button positions to panel IDs for Forge page
       const forgePanelMap = {
         'components': 'components-panel',
         'code': 'code-panel', 
-        'layers': 'layers-panel'
+        'layers': 'layers-panel',
+        'assets': 'assets-panel',
+        'properties': 'properties-panel'
       }
       
       const actualPanelId = forgePanelMap[panelId]
+      console.log('🔵 Mapped to actualPanelId:', actualPanelId)
       
       if (actualPanelId) {
-        
+        console.log('🔵 Calling toggleForgePanel for:', actualPanelId)
         toggleForgePanel(actualPanelId)
         
         // Log state after toggle (use setTimeout to see the updated state)
         setTimeout(() => {
-          
+          console.log('🔵 Panel states after toggle:', forgePanelStates)
         }, 0);
       }
     } else if (onSourcePage) {
@@ -120,7 +124,9 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {}, on
       const forgePanelMap = {
         'components': 'components-panel',
         'code': 'code-panel',
-        'layers': 'layers-panel'
+        'layers': 'layers-panel',
+        'assets': 'assets-panel',
+        'properties': 'properties-panel'
       }
       const actualPanelId = forgePanelMap[panelId]
       const isActive = actualPanelId ? isForgePanelOpen(actualPanelId) : false;
@@ -215,54 +221,31 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {}, on
         }`} />
       </button>
 
-     {/* Info - Fifth Icon - TOGGLES property and asset panels */}
-    <button 
-      onClick={() => {
-        if (onForgePage) {
-          // Check if either property or asset panel is open
-          const isPropertiesOpen = isForgePanelOpen('properties-panel');
-          const isAssetsOpen = isForgePanelOpen('assets-panel');
-          
-          // If either is open, close both. If both closed, open both.
-          const shouldOpen = !isPropertiesOpen && !isAssetsOpen;
-          
-          // Set both panels to the same state
-          if (shouldOpen) {
-            // Ensure panels are visible
-            if (allPanelsHidden) {
-              toggleAllForgePanels();
-            }
-            // Open both panels
-            set((state) => ({
-              forgePanelStates: {
-                ...state.forgePanelStates,
-                'properties-panel': true,
-                'assets-panel': true
-              },
-              _triggerUpdate: state._triggerUpdate + 1
-            }));
-          } else {
-            // Close both panels
-            set((state) => ({
-              forgePanelStates: {
-                ...state.forgePanelStates,
-                'properties-panel': false,
-                'assets-panel': false
-              },
-              _triggerUpdate: state._triggerUpdate + 1
-            }));
-          }
-        }
-      }}
-      className="p-1 md:p-1 hover:bg-[var(--color-bg-muted)] rounded md:rounded transition-colors"
-      title="Toggle Properties & Assets Panels"
-    >
-      <Info className={`w-4 h-4 md:w-3 md:h-3 ${
-        (onForgePage && (isForgePanelOpen('properties-panel') || isForgePanelOpen('assets-panel'))) 
-          ? 'text-[var(--color-primary)]' 
-          : 'text-[var(--color-text)]'
-      }`} />
-    </button>
+     {/* Assets Panel - Fifth Icon - NEW! */}
+      {onForgePage && (
+        <button 
+          onClick={() => handlePanelToggle('assets')}
+          className="p-1 md:p-1 hover:bg-[var(--color-bg-muted)] rounded md:rounded transition-colors"
+          title="Toggle Assets Panel"
+        >
+          <Image className={`w-4 h-4 md:w-3 md:h-3 ${
+            isPanelActive('assets') ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'
+          }`} />
+        </button>
+      )}
+
+      {/* Properties Panel - Sixth Icon (Info) */}
+      {onForgePage && (
+        <button 
+          onClick={() => handlePanelToggle('properties')}
+          className="p-1 md:p-1 hover:bg-[var(--color-bg-muted)] rounded md:rounded transition-colors"
+          title="Toggle Properties Panel"
+        >
+          <Info className={`w-4 h-4 md:w-3 md:h-3 ${
+            isPanelActive('properties') ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'
+          }`} />
+        </button>
+      )}
     
     
       {/* Vertical Divider */}

@@ -44,4 +44,10 @@ export const useHeaderStore = create((set, get) => ({
   openStyleModal: () => set({ isStyleModalOpen: true }),
   closeStyleModal: () => set({ isStyleModalOpen: false }),
   toggleStyleModal: () => set((state) => ({ isStyleModalOpen: !state.isStyleModalOpen })),
+
+  // Export Modal
+  isExportModalOpen: false,
+  openExportModal: () => set({ isExportModalOpen: true }),
+  closeExportModal: () => set({ isExportModalOpen: false }),
+  toggleExportModal: () => set((state) => ({ isExportModalOpen: !state.isExportModalOpen })),
 }))

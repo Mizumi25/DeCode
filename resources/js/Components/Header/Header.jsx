@@ -11,6 +11,7 @@ import RightSection from './Head/RightSection'
 import MobileSearch from './Head/MobileSearch'
 import HeaderToggleButton from './Head/HeaderToggleButton'
 import StyleModal from './Head/StyleModal'
+import ExportModal from './Head/ExportModal'
 
 // Import Zustand stores
 import { useThemeStore } from '@/stores/useThemeStore'
@@ -244,6 +245,7 @@ export default function Header({
 
       {/* Style Modal */}
       <StyleModal />
+      <ExportModal />
     </>
   )
 }

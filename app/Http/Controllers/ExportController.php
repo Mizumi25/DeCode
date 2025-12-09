@@ -14,9 +14,9 @@ use ZipArchive;
 class ExportController extends Controller
 {
     /**
-     * Export project as ZIP
+     * Preview export code (for preview modal)
      */
-    public function exportAsZip(Project $project): mixed
+    public function previewExport(Request $request, Project $project): JsonResponse
     {
         try {
             $user = auth()->user();
@@ -29,8 +29,182 @@ class ExportController extends Controller
                 ], 403);
             }
 
-            // Generate project structure
-            $projectPath = $this->generateProjectStructure($project);
+            // Get export options from request
+            $framework = $request->input('framework', $project->output_format ?? 'html');
+            $styleFramework = $request->input('style_framework', $project->style_framework ?? 'css');
+            
+            // Get frames
+            $frames = Frame::where('project_id', $project->id)->get();
+            
+            $previewFrames = [];
+            
+            foreach ($frames as $frame) {
+                $components = \App\Models\ProjectComponent::where('frame_id', $frame->uuid)->get();
+                
+                $framePreview = [
+                    'name' => $frame->name,
+                    'html' => null,
+                    'jsx' => null,
+                    'css' => null,
+                ];
+                
+                if ($framework === 'html') {
+                    // Generate HTML
+                    $html = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n";
+                    $html .= "  <meta charset=\"UTF-8\">\n";
+                    $html .= "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n";
+                    $html .= "  <title>{$frame->name}</title>\n";
+                    
+                    if ($styleFramework === 'css') {
+                        $html .= "  <link rel=\"stylesheet\" href=\"../styles/global.css\">\n";
+                    } else {
+                        $html .= "  <script src=\"https://cdn.tailwindcss.com\"></script>\n";
+                    }
+                    
+                    $html .= "</head>\n<body>\n";
+                    $html .= "  <div class=\"frame-container\">\n";
+                    
+                    foreach ($components as $component) {
+                        $html .= "    " . $this->componentToHTML($component, $styleFramework, 2) . "\n";
+                    }
+                    
+                    $html .= "  </div>\n</body>\n</html>";
+                    
+                    $framePreview['html'] = $html;
+                    
+                    // Generate CSS if needed
+                    if ($styleFramework === 'css') {
+                        $css = "/* Styles for {$frame->name} */\n\n";
+                        foreach ($components as $component) {
+                            $className = $this->generateComponentClassName($component);
+                            $css .= ".{$className} {\n";
+                            $style = $component->style ?? [];
+                            foreach ($style as $property => $value) {
+                                $cssProperty = $this->convertCamelToKebab($property);
+                                $css .= "  {$cssProperty}: {$value};\n";
+                            }
+                            $css .= "}\n\n";
+                        }
+                        $framePreview['css'] = $css;
+                    }
+                    
+                } else {
+                    // Generate React JSX
+                    $jsx = "import React from 'react'\n\n";
+                    $jsx .= "const " . Str::studly($frame->name) . " = () => {\n";
+                    $jsx .= "  return (\n";
+                    $jsx .= "    <div className=\"frame-container\">\n";
+                    
+                    foreach ($components as $component) {
+                        $jsx .= "      " . $this->componentToReact($component, $styleFramework, 3) . "\n";
+                    }
+                    
+                    $jsx .= "    </div>\n";
+                    $jsx .= "  )\n";
+                    $jsx .= "}\n\n";
+                    $jsx .= "export default " . Str::studly($frame->name);
+                    
+                    $framePreview['jsx'] = $jsx;
+                    
+                    // Generate CSS for React if needed
+                    if ($styleFramework === 'css') {
+                        $css = "/* Styles for {$frame->name} */\n\n";
+                        foreach ($components as $component) {
+                            $className = $this->generateComponentClassName($component);
+                            $css .= ".{$className} {\n";
+                            $style = $component->style ?? [];
+                            foreach ($style as $property => $value) {
+                                $cssProperty = $this->convertCamelToKebab($property);
+                                $css .= "  {$cssProperty}: {$value};\n";
+                            }
+                            $css .= "}\n\n";
+                        }
+                        $framePreview['css'] = $css;
+                    }
+                }
+                
+                $previewFrames[] = $framePreview;
+            }
+
+            return response()->json([
+                'success' => true,
+                'preview' => [
+                    'frames' => $previewFrames,
+                    'framework' => $framework,
+                    'style_framework' => $styleFramework,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Preview generation failed', [
+                'project_id' => $project->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate preview: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Convert component to React JSX
+     */
+    private function componentToReact($component, string $styleFramework, int $indent = 0): string
+    {
+        $spaces = str_repeat(' ', $indent);
+        $type = $this->mapComponentTypeToHTML($component->component_type);
+        $props = $component->props ?? [];
+        
+        $attributes = [];
+        if ($styleFramework === 'tailwind') {
+            $attributes[] = 'className="' . $this->generateTailwindClasses($component) . '"';
+        } else {
+            $className = $this->generateComponentClassName($component);
+            $attributes[] = 'className="' . $className . '"';
+        }
+
+        $attrString = implode(' ', $attributes);
+        $text = $props['text'] ?? '';
+
+        if ($text) {
+            return "{$spaces}<{$type} {$attrString}>{$text}</{$type}>";
+        } else {
+            return "{$spaces}<{$type} {$attrString}></{$type}>";
+        }
+    }
+
+    /**
+     * Export project as ZIP (with framework selection)
+     */
+    public function exportAsZip(Request $request, Project $project): mixed
+    {
+        try {
+            $user = auth()->user();
+            
+            // Check permissions
+            if ($project->user_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 403);
+            }
+
+            // Get export options from request
+            $framework = $request->input('framework', $project->output_format ?? 'html');
+            $styleFramework = $request->input('style_framework', $project->style_framework ?? 'css');
+            $includeNavigation = $request->input('include_navigation', true);
+
+            // Store export preferences temporarily
+            $exportOptions = [
+                'framework' => $framework,
+                'style_framework' => $styleFramework,
+                'include_navigation' => $includeNavigation,
+            ];
+
+            // Generate project structure with export options
+            $projectPath = $this->generateProjectStructure($project, $exportOptions);
             
             // Create ZIP file
             $exportsDir = storage_path("app/exports");
@@ -66,7 +240,11 @@ class ExportController extends Controller
         $validated = $request->validate([
             'repository_name' => 'nullable|string|max:255',
             'is_private' => 'boolean',
-            'create_new_repo' => 'boolean'
+            'create_new_repo' => 'boolean',
+            'framework' => 'nullable|string|in:html,react',
+            'style_framework' => 'nullable|string|in:css,tailwind',
+            'include_navigation' => 'nullable|boolean',
+            'repo_url' => 'nullable|string',
         ]);
 
         try {
@@ -88,8 +266,19 @@ class ExportController extends Controller
                 ], 401);
             }
 
-            // Generate project structure
-            $projectPath = $this->generateProjectStructure($project);
+            // Get export options from request
+            $framework = $validated['framework'] ?? $project->output_format ?? 'html';
+            $styleFramework = $validated['style_framework'] ?? $project->style_framework ?? 'css';
+            $includeNavigation = $validated['include_navigation'] ?? true;
+
+            $exportOptions = [
+                'framework' => $framework,
+                'style_framework' => $styleFramework,
+                'include_navigation' => $includeNavigation,
+            ];
+
+            // Generate project structure with export options
+            $projectPath = $this->generateProjectStructure($project, $exportOptions);
             
             // Push to GitHub
             $repoUrl = $this->pushToGitHub($project, $projectPath, $validated, $user);
@@ -119,10 +308,12 @@ class ExportController extends Controller
     /**
      * Generate complete project structure with all files
      */
-    private function generateProjectStructure(Project $project): string
+    private function generateProjectStructure(Project $project, array $exportOptions = []): string
     {
-        $framework = $project->framework ?? 'html';
-        $styleFramework = $project->style_framework ?? 'css';
+        // Use export options if provided, otherwise fall back to project settings
+        $framework = $exportOptions['framework'] ?? $project->framework ?? 'html';
+        $styleFramework = $exportOptions['style_framework'] ?? $project->style_framework ?? 'css';
+        $includeNavigation = $exportOptions['include_navigation'] ?? true;
         $projectType = $project->project_type ?? 'manual';
         
         // Create temporary directory for export
@@ -159,7 +350,7 @@ class ExportController extends Controller
         }
 
         // Update main entry point to include frames
-        $this->updateMainEntryPoint($project, $exportPath, $framework, $frames);
+        $this->updateMainEntryPoint($project, $exportPath, $framework, $frames, $includeNavigation);
 
         return $exportPath;
     }
@@ -470,7 +661,7 @@ class ExportController extends Controller
     /**
      * Update main entry point to include frames
      */
-    private function updateMainEntryPoint(Project $project, string $exportPath, string $framework, $frames): void
+    private function updateMainEntryPoint(Project $project, string $exportPath, string $framework, $frames, bool $includeNavigation = true): void
     {
         if ($framework === 'react') {
             $appPath = "{$exportPath}/src/App.jsx";
@@ -498,19 +689,26 @@ class ExportController extends Controller
             
             file_put_contents($appPath, $content);
         } else {
-            // HTML project - update index.html with frame navigation
-            $indexPath = "{$exportPath}/index.html";
-            $content = $this->generateIndexHTML($project, $frames);
-            file_put_contents($indexPath, $content);
-            
-            // Update main.js with frame switching logic
-            $scriptsPath = "{$exportPath}/scripts";
-            if (!file_exists($scriptsPath)) {
-                mkdir($scriptsPath, 0755, true);
+            // HTML project - use the navigation setting from export options
+            if ($includeNavigation) {
+                // Update index.html with frame navigation
+                $indexPath = "{$exportPath}/index.html";
+                $content = $this->generateIndexHTML($project, $frames);
+                file_put_contents($indexPath, $content);
+                
+                // Update main.js with frame switching logic
+                $scriptsPath = "{$exportPath}/scripts";
+                if (!file_exists($scriptsPath)) {
+                    mkdir($scriptsPath, 0755, true);
+                }
+                $mainJsPath = "{$scriptsPath}/main.js";
+                $jsContent = $this->generateMainJS($frames);
+                file_put_contents($mainJsPath, $jsContent);
+            } else {
+                // No navigation - keep default welcome page
+                // index.html already exists from template, just leave it as is
+                // Users can manually open frames/frame_name.html
             }
-            $mainJsPath = "{$scriptsPath}/main.js";
-            $jsContent = $this->generateMainJS($frames);
-            file_put_contents($mainJsPath, $jsContent);
         }
     }
 

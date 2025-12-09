@@ -699,6 +699,7 @@ public function store(Request $request): RedirectResponse
             'responsive_breakpoints.tablet' => 'nullable|integer|min:768|max:1024', 
             'responsive_breakpoints.desktop' => 'nullable|integer|min:1024|max:3840',
             'is_public' => 'boolean',
+            'include_navigation' => 'boolean',
             'template_id' => 'nullable|integer|exists:projects,id',
             'workspace_id' => 'required|integer|exists:workspaces,id'
         ]);
@@ -762,7 +763,8 @@ public function store(Request $request): RedirectResponse
             'mobile' => 375,
             'tablet' => 768,
             'desktop' => 1440
-        ]
+        ],
+        'include_navigation' => $validated['include_navigation'] ?? true
     ]);
     $validated['export_settings'] = Project::getDefaultExportSettings();
     $validated['status'] = 'draft';
