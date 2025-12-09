@@ -6,6 +6,29 @@ class ComponentLibraryService {
   constructor() {
     this.components = new Map();
     this.componentDefinitions = new Map();
+    
+    // 🔥 Register frame-component-instance renderer
+    this.registerFrameComponentInstance();
+  }
+  
+  // 🔥 Register frame component instance as a special component type
+  registerFrameComponentInstance() {
+    const frameComponentDef = {
+      type: 'frame-component-instance',
+      name: 'Frame Component Instance',
+      description: 'Instance of a linked frame component',
+      default_props: {},
+      variants: []
+    };
+    
+    this.componentDefinitions.set('frame-component-instance', frameComponentDef);
+    this.components.set('frame-component-instance', {
+      id: 'frame-component-instance',
+      name: 'Frame Component Instance',
+      description: 'Instance of a linked frame component',
+      render: (props, id) => this.renderFrameComponentInstance(props, id),
+      generateCode: (props) => `<!-- Frame Component Instance: ${props.sourceFrameName || 'Unknown'} -->`
+    });
   }
 
   // Load all components from the API
@@ -421,6 +444,10 @@ getDeviceCanvasDimensions(responsiveMode) {
         
         
                switch (componentDef.type) {
+          // 🔥 NEW: Frame component instance
+          case 'frame-component-instance':
+            return this.renderFrameComponentInstance(mergedProps, id);
+          
           // ✅ EXISTING CASES...
           case 'button':
             return this.renderButton(mergedProps, id);
@@ -1544,6 +1571,166 @@ renderIconElement(props, id) {
   
 
   // Enhanced generic renderer with size constraints
+// 🔥 FRAME COMPONENT INSTANCE RENDERER
+renderFrameComponentInstance(props, id) {
+  console.log('🎨 Rendering frame component instance:', id, props);
+  
+  const frameName = props.frameName || props.sourceFrameName || 'Linked Frame';
+  const sourceFrameId = props.sourceFrameId || null;
+  const projectComponents = props.projectComponents || [];
+  
+  console.log('📦 Project components count:', projectComponents.length);
+  
+  // If no project components, show placeholder
+  if (!projectComponents || projectComponents.length === 0) {
+    return React.createElement('div', {
+      key: id,
+      'data-component-id': id,
+      'data-component-type': 'frame-component-instance',
+      'data-source-frame-id': sourceFrameId,
+      'data-is-layout': false,
+      style: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: '200px',
+        minHeight: '150px',
+        padding: '24px',
+        border: '2px dashed #8b5cf6',
+        borderRadius: '12px',
+        backgroundColor: 'rgba(139, 92, 246, 0.05)',
+        ...props.style
+      }
+    }, [
+      React.createElement('div', { key: `${id}-icon`, style: { fontSize: '32px', marginBottom: '12px' } }, '🔗'),
+      React.createElement('div', { key: `${id}-name`, style: { fontSize: '14px', fontWeight: '600', color: '#8b5cf6', marginBottom: '4px' } }, frameName),
+      React.createElement('div', { key: `${id}-label`, style: { fontSize: '12px', color: '#64748b' } }, 'Empty Component')
+    ]);
+  }
+  
+  // Build component tree from flat array
+  const buildTree = (components) => {
+    const map = new Map();
+    const roots = [];
+    
+    components.forEach(comp => {
+      map.set(comp.id, { ...comp, children: [] });
+    });
+    
+    components.forEach(comp => {
+      const node = map.get(comp.id);
+      if (comp.parent_id && map.has(comp.parent_id)) {
+        map.get(comp.parent_id).children.push(node);
+      } else {
+        roots.push(node);
+      }
+    });
+    
+    return roots;
+  };
+  
+  // Render component recursively using the actual component renderer
+  // Render component recursively using the proper component renderers
+  const renderProjectComponent = (comp, depth = 0) => {
+    // Get the component definition for this type
+    const compDef = this.componentDefinitions.get(comp.component_type);
+    
+    if (!compDef) {
+      console.warn('No definition for component type:', comp.component_type);
+      return null;
+    }
+    
+    // Parse the component's style and props
+    const compStyle = comp.style || {};
+    const compProps = comp.props || {};
+    const parsedStyle = typeof compStyle === 'string' ? JSON.parse(compStyle) : compStyle;
+    const parsedProps = typeof compProps === 'string' ? JSON.parse(compProps) : compProps;
+    
+    // Build the props object for rendering
+    const renderProps = {
+      ...parsedProps,
+      style: {
+        ...parsedStyle,
+        pointerEvents: 'none' // Prevent interaction with nested elements
+      },
+      content: comp.text_content || parsedProps.content || parsedProps.text || parsedProps.children,
+      text: comp.text_content || parsedProps.text,
+      children: comp.text_content || parsedProps.children
+    };
+    
+    // Recursively render children if they exist
+    if (comp.children && comp.children.length > 0) {
+      // For layout containers, render children inside
+      const childElements = comp.children.map(child => renderProjectComponent(child, depth + 1));
+      
+      // Use the proper renderer for this component type
+      return this.renderComponent(compDef, { ...renderProps, children: childElements }, `${id}-proj-${comp.id}`);
+    }
+    
+    // Use the proper renderer for this component type
+    return this.renderComponent(compDef, renderProps, `${id}-proj-${comp.id}`);
+  };
+
+  
+  const componentTree = buildTree(projectComponents);
+  
+  // 🔥 CRITICAL: If there's only ONE root component, render it DIRECTLY without wrapper
+  // This makes a button render as a button, not a button inside a div
+  if (componentTree.length === 1) {
+    const singleComp = componentTree[0];
+    const compDef = this.componentDefinitions.get(singleComp.component_type);
+    
+    if (!compDef) {
+      console.warn('No definition for component type:', singleComp.component_type);
+      return null;
+    }
+    
+    // Parse the component's style and props
+    const compStyle = singleComp.style || {};
+    const compProps = singleComp.props || {};
+    const parsedStyle = typeof compStyle === 'string' ? JSON.parse(compStyle) : compStyle;
+    const parsedProps = typeof compProps === 'string' ? JSON.parse(compProps) : compProps;
+    
+    // Build the props object for rendering - DON'T merge positioning!
+    // CanvasComponent's wrapper handles positioning (position, left, top, etc.)
+    // The component should only have its intrinsic styles
+    const renderProps = {
+      ...parsedProps,
+      style: {
+        ...parsedStyle
+        // 🔥 DON'T merge props.style here - it has positioning that belongs on wrapper!
+      },
+      content: singleComp.text_content || parsedProps.content || parsedProps.text || parsedProps.children,
+      text: singleComp.text_content || parsedProps.text,
+      children: singleComp.text_content || parsedProps.children
+    };
+    
+    // Render the single component DIRECTLY using proper renderer
+    // The button will have ONLY button styles, CanvasComponent wrapper handles position
+    return this.renderComponent(compDef, renderProps, id);
+  }
+  
+  // Multiple components: wrap in container
+  // Render the frame component instance as a wrapper with the actual components inside
+  // This wrapper should be the selectable/draggable element
+  return React.createElement('div', {
+    key: id,
+    'data-component-id': id,
+    'data-component-type': 'frame-component-instance',
+    'data-source-frame-id': sourceFrameId,
+    'data-is-layout': false,
+    style: {
+      position: 'relative',
+      display: 'block',
+      border: '1px solid rgba(139, 92, 246, 0.3)', // 🔥 Visual indicator
+      boxShadow: '0 0 0 1px rgba(139, 92, 246, 0.1)', // 🔥 Subtle glow
+      pointerEvents: 'auto', // 🔥 Allow interaction with wrapper
+      ...props.style
+    }
+  }, componentTree.map(comp => renderProjectComponent(comp)));
+}
+
 renderGeneric(props, id, componentDef) {
   const containerStyle = {
     maxWidth: '200px',
@@ -1876,15 +2063,15 @@ getCardClasses(props) {
 
   // Client-side code generation with enhanced variant support
   // Around line 500 in ComponentLibraryService.js
-    clientSideCodeGeneration(allComponents, style) {
+    clientSideCodeGeneration(allComponents, style, frameName = 'Generated Component') {
         
         
         
         const codeMap = {
-          'react-tailwind': () => this.generateReactTailwindCode(allComponents),
-          'react-css': () => this.generateReactCSSCode(allComponents),
-          'html-css': () => this.generateHTMLCSSCode(allComponents),
-          'html-tailwind': () => this.generateHTMLTailwindCode(allComponents)
+          'react-tailwind': () => this.generateReactTailwindCode(allComponents, frameName),
+          'react-css': () => this.generateReactCSSCode(allComponents, frameName),
+          'html-css': () => this.generateHTMLCSSCode(allComponents, frameName),
+          'html-tailwind': () => this.generateHTMLTailwindCode(allComponents, frameName)
         };
         
         return codeMap[style]?.() || { react: '', html: '', css: '', tailwind: '' };
@@ -1926,9 +2113,24 @@ generateReactTailwindCode(allComponents) {
     };
   }
 
+  // 🔥 NEW: Collect frame-component-instances for imports
+  const frameComponentInstances = allComponents.filter(c => c.type === 'frame-component-instance' || c.component_type === 'frame-component-instance');
+  const componentImports = frameComponentInstances.map(instance => {
+    const frameName = instance.props?.sourceFrameName || instance.name || 'Component';
+    const componentName = frameName.replace(/[^a-zA-Z0-9]/g, '');
+    return `import ${componentName} from './${componentName}';`;
+  }).filter((v, i, a) => a.indexOf(v) === i); // Remove duplicates
+
   const renderComponentTree = (components, depth = 0) => {
     return components.map(comp => {
       const indent = '  '.repeat(depth + 2);
+      
+      // 🔥 NEW: Handle frame-component-instance
+      if (comp.type === 'frame-component-instance' || comp.component_type === 'frame-component-instance') {
+        const frameName = comp.props?.sourceFrameName || comp.name || 'Component';
+        const componentName = frameName.replace(/[^a-zA-Z0-9]/g, '');
+        return `${indent}<${componentName} />`;
+      }
       
       // 🔥 CRITICAL FIX: Handle text nodes properly
       if (comp.type === 'text-node') {
@@ -1980,11 +2182,18 @@ generateReactTailwindCode(allComponents) {
 
   const reactComponents = renderComponentTree(allComponents);
 
+  const importsSection = componentImports.length > 0 ? componentImports.join('\n') + '\n' : '';
+
   return {
-    react: `import React from 'react';\n\nconst GeneratedComponent = () => {\n  return (\n    <div className="w-full min-h-screen">\n${reactComponents}\n    </div>\n  );\n};\n\nexport default GeneratedComponent;`,
-    tailwind: allComponents.map(comp => 
-      `// ${comp.name} (${comp.type})\n${this.sanitizeClassName(this.buildDynamicTailwindClasses(comp))}`
-    ).join('\n\n')
+    react: `import React from 'react';\n${importsSection}\nconst ${frameName.replace(/[^a-zA-Z0-9]/g, '')} = () => {\n  return (\n    <div className="w-full min-h-screen">\n${reactComponents}\n    </div>\n  );\n};\n\nexport default ${frameName.replace(/[^a-zA-Z0-9]/g, '')};`,
+    tailwind: allComponents.map(comp => {
+      // Skip frame-component-instances in tailwind output
+      if (comp.type === 'frame-component-instance' || comp.component_type === 'frame-component-instance') {
+        const name = comp.props?.sourceFrameName || comp.name || 'Component';
+        return `// ${name} (frame-component-instance)\n// Imported component - styles defined in its own file`;
+      }
+      return `// ${comp.name} (${comp.type})\n${this.sanitizeClassName(this.buildDynamicTailwindClasses(comp))}`;
+    }).join('\n\n')
   };
 }
 
@@ -2257,13 +2466,14 @@ getComponentTag(type) {
 
 
   // Around line 750 - REPLACE generateReactCSSCode
-generateReactCSSCode(allComponents) {
+generateReactCSSCode(allComponents, frameName = 'Generated Component') {
   if (!allComponents || allComponents.length === 0) {
+    const componentName = frameName.replace(/[^a-zA-Z0-9]/g, '');
     return {
       react: `import React from 'react';
-import './GeneratedComponent.css';
+import './${componentName}.css';
 
-const GeneratedComponent = () => {
+const ${componentName} = () => {
   return (
     <div className="canvas-container">
       {/* No components yet */}
@@ -2271,15 +2481,30 @@ const GeneratedComponent = () => {
   );
 };
 
-export default GeneratedComponent;`,
+export default ${componentName};`,
       css: this.generateModernCSS([])
     };
   }
+
+  // 🔥 NEW: Collect frame-component-instances for imports
+  const frameComponentInstances = allComponents.filter(c => c.type === 'frame-component-instance' || c.component_type === 'frame-component-instance');
+  const componentImports = frameComponentInstances.map(instance => {
+    const name = instance.props?.sourceFrameName || instance.name || 'Component';
+    const componentName = name.replace(/[^a-zA-Z0-9]/g, '');
+    return `import ${componentName} from './${componentName}';`;
+  }).filter((v, i, a) => a.indexOf(v) === i);
 
   // 🔥 FIXED: Recursive React component rendering with CSS classes
   const renderReactTree = (components, depth = 0) => {
     return components.map(comp => {
       const indent = '  '.repeat(depth + 2);
+      
+      // 🔥 NEW: Handle frame-component-instance
+      if (comp.type === 'frame-component-instance' || comp.component_type === 'frame-component-instance') {
+        const name = comp.props?.sourceFrameName || comp.name || 'Component';
+        const componentName = name.replace(/[^a-zA-Z0-9]/g, '');
+        return `${indent}<${componentName} />`;
+      }
       
       // Handle text-node (no wrapper)
       if (comp.type === 'text-node') {
@@ -2324,12 +2549,14 @@ export default GeneratedComponent;`,
   };
 
   const reactComponents = renderReactTree(allComponents);
+  const componentName = frameName.replace(/[^a-zA-Z0-9]/g, '');
+  const importsSection = componentImports.length > 0 ? componentImports.join('\n') + '\n' : '';
 
   return {
     react: `import React from 'react';
-import './GeneratedComponent.css';
+${importsSection}import './${componentName}.css';
 
-const GeneratedComponent = () => {
+const ${componentName} = () => {
   return (
     <div className="canvas-container">
 ${reactComponents}
@@ -2337,13 +2564,13 @@ ${reactComponents}
   );
 };
 
-export default GeneratedComponent;`,
+export default ${componentName};`,
     css: this.generateModernCSS(allComponents)
   };
 }
 
 // Around line 800 - REPLACE generateHTMLCSSCode
-generateHTMLCSSCode(allComponents) {
+generateHTMLCSSCode(allComponents, frameName = 'Generated Component') {
   if (!allComponents || allComponents.length === 0) {
     return {
       html: `<!DOCTYPE html>
@@ -2351,7 +2578,7 @@ generateHTMLCSSCode(allComponents) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generated Component</title>
+    <title>${frameName}</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -2368,6 +2595,13 @@ generateHTMLCSSCode(allComponents) {
   const renderHTMLTree = (components, depth = 0) => {
     return components.map(comp => {
       const indent = '  '.repeat(depth + 2);
+      
+      // 🔥 NEW: Handle frame-component-instance
+      if (comp.type === 'frame-component-instance' || comp.component_type === 'frame-component-instance') {
+        const name = comp.props?.sourceFrameName || comp.name || 'Component';
+        const className = `component-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+        return `${indent}<div class="${className}"><!-- ${name} component instance --></div>`;
+      }
       
       // Handle text-node (no wrapper)
       if (comp.type === 'text-node') {
@@ -2423,7 +2657,7 @@ generateHTMLCSSCode(allComponents) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generated Component</title>
+    <title>${frameName}</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -2554,7 +2788,7 @@ ${cssProperties}
 
   // REPLACE generateHTMLTailwindCode method
 // Around line 850 - REPLACE generateHTMLTailwindCode
-generateHTMLTailwindCode(allComponents) {
+generateHTMLTailwindCode(allComponents, frameName = 'Generated Component') {
   if (!allComponents || allComponents.length === 0) {
     return {
       html: `<!DOCTYPE html>
@@ -2562,7 +2796,7 @@ generateHTMLTailwindCode(allComponents) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generated Component</title>
+    <title>${frameName}</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
@@ -2579,6 +2813,12 @@ generateHTMLTailwindCode(allComponents) {
 const renderHTMLTree = (components, depth = 0) => {
   return components.map(comp => {
     const indent = '  '.repeat(depth + 2);
+    
+    // 🔥 NEW: Handle frame-component-instance
+    if (comp.type === 'frame-component-instance' || comp.component_type === 'frame-component-instance') {
+      const name = comp.props?.sourceFrameName || comp.name || 'Component';
+      return `${indent}<div class="component-instance"><!-- ${name} component instance --></div>`;
+    }
     
     // 🔥 CRITICAL: Handle text-node specially (NO wrapper element)
     if (comp.type === 'text-node') {
@@ -2634,7 +2874,7 @@ const renderHTMLTree = (components, depth = 0) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generated Component</title>
+    <title>${frameName}</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
@@ -3096,6 +3336,12 @@ buildHTMLAttributes(comp) {
 // @/Services/ComponentLibraryService.js - ADD/REPLACE this method (around line 100)
 
 normalizeComponentStyles(component) {
+  // 🔥 NEW: Don't normalize frame-component-instance - preserve props as-is
+  if (component.type === 'frame-component-instance' || component.component_type === 'frame-component-instance') {
+    console.log('🔥 Skipping normalization for frame-component-instance:', component.name, component.props);
+    return component;
+  }
+
   // 🔥 CRITICAL: Move ANY style-related properties from props to style
   const styleProps = [
     // Display & Positioning
@@ -3178,12 +3424,11 @@ async saveProjectComponents(projectId, frameId, components, options = {}) {
         
         
         
-        const response = await axios.post('/api/project-components/bulk-update', {
-            project_id: projectId,
-            frame_id: frameId,
-            components: flattenedComponents.map((comp, index) => ({
+        const mappedComponents = flattenedComponents.map((comp, index) => {
+            const mapped = {
                 id: comp.id,                              
-                type: comp.type,                          
+                type: comp.type,
+                component_type: comp.component_type || comp.type, // 🔥 NEW: Include component_type for frame-component-instance
                 props: comp.props || {},
                 name: comp.name || comp.type,
                 zIndex: comp.zIndex || 0,
@@ -3194,7 +3439,24 @@ async saveProjectComponents(projectId, frameId, components, options = {}) {
                 isLayoutContainer: comp.isLayoutContainer || false,
                 children: comp.children || [],            
                 parentId: comp.parentId || null,
-            })),
+            };
+            
+            // 🔥 Log frame-component-instances
+            if (mapped.component_type === 'frame-component-instance') {
+                console.log('💾 Saving frame-component-instance:', {
+                    name: mapped.name,
+                    props: mapped.props,
+                    style: mapped.style
+                });
+            }
+            
+            return mapped;
+        });
+
+        const response = await axios.post('/api/project-components/bulk-update', {
+            project_id: projectId,
+            frame_id: frameId,
+            components: mappedComponents,
             create_revision: false,
             silent: silent, // 🔥 Pass silent flag to backend
             session_id: window.currentSessionId || 'unknown' // 🔥 Pass session ID for filtering own events

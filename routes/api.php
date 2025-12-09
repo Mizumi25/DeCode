@@ -119,6 +119,9 @@ Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasS
             Route::post('/heartbeat', [FramePresenceController::class, 'heartbeat']);
             Route::get('/', [FramePresenceController::class, 'index']);
         });
+        
+        // 🔥 NEW: Get frame assignments (linked components) for a specific frame
+        Route::get('/{frame:uuid}/assignments', [App\Http\Controllers\FrameComponentAssignmentController::class, 'getForFrame']);
     });
     
     // Frame Container routes

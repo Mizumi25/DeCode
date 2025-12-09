@@ -755,19 +755,28 @@ export default function FrameCreator({ project, onFrameCreated, onClose }) {
               AI Design Prompt (Optional)
             </label>
             <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
-              Describe what you want to create and AI will assemble pre-styled components for you. Leave empty for manual design.
+              {data.type === 'component' 
+                ? 'Describe the component you want to create. AI will build a reusable component without page-level settings like canvas background.'
+                : 'Describe the page layout you want. AI will create a complete page with sections and components, including canvas styling.'
+              }
             </p>
             <textarea
               value={aiPrompt}
               onChange={(e) => setAiPrompt(e.target.value)}
-              placeholder="e.g., Create a hero section with a heading, subheading, and a primary button"
+              placeholder={data.type === 'component'
+                ? 'e.g., Create a card component with an image, title, description, and a button'
+                : 'e.g., Create a hero section with a heading, subheading, and a primary button'
+              }
               rows={4}
               className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-all resize-none"
             />
             {aiPrompt.trim() && (
               <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <p className="text-xs text-blue-700 dark:text-blue-300">
-                  ✨ AI will use existing components from your library to build this design
+                  {data.type === 'component'
+                    ? '✨ AI will create a reusable component using elements from your library (no canvas background or page-level settings)'
+                    : '✨ AI will use existing components from your library to build this page layout'
+                  }
                 </p>
               </div>
             )}

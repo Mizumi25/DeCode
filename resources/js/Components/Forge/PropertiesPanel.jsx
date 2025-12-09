@@ -821,14 +821,40 @@ return (
       
       {/* Scrollable Content */}
       <div className="p-4 space-y-4">
+        {/* 🔥 FRAME COMPONENT INSTANCE - Show read-only info */}
+        {selectedComponentData?.type === 'frame-component-instance' && (
+          <div className="p-4 rounded-lg space-y-3" style={{
+            backgroundColor: 'var(--color-surface)',
+            border: '2px solid rgba(139, 92, 246, 0.3)'
+          }}>
+            <div className="flex items-center gap-2">
+              <div className="text-2xl">🔗</div>
+              <div>
+                <h4 className="font-semibold" style={{ color: 'var(--color-text)' }}>
+                  Frame Component Instance
+                </h4>
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  Linked from: {selectedComponentData?.props?.sourceFrameName || 'Unknown Frame'}
+                </p>
+              </div>
+            </div>
+            <div className="text-sm space-y-2" style={{ color: 'var(--color-text-muted)' }}>
+              <p>• This is a reference to a frame component</p>
+              <p>• You can move and resize it</p>
+              <p>• To edit the content, go to the source frame</p>
+            </div>
+          </div>
+        )}
+        
         {/* 🔥 TEXT CONTENT INPUTS - FIXED with direct text_content field */}
         {(() => {
           const textElements = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 
               'small', 'label', 'blockquote', 'button', 'link', 'text-node'];
           
           const canHaveText = textElements.includes(selectedComponentData?.type);
+          const isFrameInstance = selectedComponentData?.type === 'frame-component-instance';
           
-          if (!canHaveText) return null;
+          if (!canHaveText || isFrameInstance) return null;
           
           return (
             <div className="p-4 mb-4 bg-blue-50 border-2 border-blue-300 rounded-lg space-y-4">
@@ -865,13 +891,19 @@ return (
             </div>
           );
         })()}
-        <LayoutSection {...commonProps} />
-        <TypographySection {...commonProps} />
-        <StylingSection {...commonProps} />
-        <AnimationSection {...commonProps} />
-        <ResponsiveSection {...commonProps} />
-        <InteractionsSection {...commonProps} />
-        <CustomSection {...commonProps} />
+        
+        {/* 🔥 Hide property sections for frame-component-instance */}
+        {selectedComponentData?.type !== 'frame-component-instance' && (
+          <>
+            <LayoutSection {...commonProps} />
+            <TypographySection {...commonProps} />
+            <StylingSection {...commonProps} />
+            <AnimationSection {...commonProps} />
+            <ResponsiveSection {...commonProps} />
+            <InteractionsSection {...commonProps} />
+            <CustomSection {...commonProps} />
+          </>
+        )}
       </div>
 
       {/* Actions */}

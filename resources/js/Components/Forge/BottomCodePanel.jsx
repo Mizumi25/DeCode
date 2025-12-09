@@ -46,7 +46,8 @@ const BottomCodePanel = ({
   canvasComponents,
   setCodePanelPosition,
   isMobile,
-  windowDimensions
+  windowDimensions,
+  currentFrame // 🔥 NEW: Add frame to get name
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartY, setDragStartY] = useState(0);

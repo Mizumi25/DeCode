@@ -38,6 +38,7 @@ import LayoutPresets from '@/Components/Forge/LayoutPresets';
 import EmptyCanvasState from '@/Components/Forge/EmptyCanvasState';
 import SectionDropZone from '@/Components/Forge/SectionDropZone';
 import IconWindowPanel from '@/Components/Forge/IconWindowPanel';
+import LinkedComponentsModal from '@/Components/Forge/LinkedComponentsModal';
 
 
 
@@ -108,6 +109,9 @@ export default function ForgePage({
     _triggerUpdate,
     set
   } = useForgeStore()
+  
+  // 🔥 Get linked components modal state from Zustand
+  const showLinkedComponentsModal = useForgeStore(state => state.forgePanelStates['linked-components-modal'])
   
   // Frame lock store for notifications and access requests
   const lockNotifications = useFrameLockStore(state => state.notifications)
@@ -280,6 +284,10 @@ export default function ForgePage({
     dragPreview: null,
     variant: null
   })
+  
+  // ✅ NEW: Linked Components Modal state
+  // 🔥 Moved showLinkedComponentsModal to Zustand above
+  const [frameAssignments, setFrameAssignments] = useState([])
 
   // WindowPanel state
   const [windowPanelState, setWindowPanelState] = useState({
@@ -348,6 +356,21 @@ useEffect(() => {
       setActiveComment(prev => prev && prev.id === parentId ? { ...prev, replies: [...(prev.replies || []), reply] } : prev)
     })
   } catch {}
+}, [frame?.uuid])
+
+// 🔥 NEW: Fetch frame assignments (linked components) when frame changes
+useEffect(() => {
+  if (!frame?.uuid) return
+  
+  axios.get(`/api/frames/${frame.uuid}/assignments`)
+    .then(response => {
+      console.log('📦 Loaded frame assignments:', response.data?.length || 0, 'assignments')
+      setFrameAssignments(response.data || [])
+    })
+    .catch(error => {
+      console.error('Failed to fetch frame assignments:', error)
+      setFrameAssignments([])
+    })
 }, [frame?.uuid])
 
 const openCommentModal = useCallback((c) => {
@@ -435,23 +458,25 @@ const isLayoutElement = (type) => LAYOUT_TYPES.includes(type);
     // MODIFY existing generateCode callback
   const generateCode = useCallback(async (components) => {
     try {
+      const frameName = frame?.name || currentFrame?.name || 'Generated Component';
+      
       if (!componentLibraryService || !componentLibraryService.clientSideCodeGeneration) {
         const mockCode = {
-          react: `// Generated React Code for Frame: ${currentFrame}\nfunction App() {\n  return (\n    <div>\n      {/* ${components.length} components */}\n    </div>\n  );\n}`,
-          html: `<!-- Generated HTML for Frame: ${currentFrame} -->\n<div>\n  <!-- ${components.length} components -->\n</div>`,
-          css: `/* Generated CSS for Frame: ${currentFrame} */\n.container {\n  /* Styles for ${components.length} components */\n}`,
-          tailwind: `<!-- Generated Tailwind for Frame: ${currentFrame} -->\n<div class="container">\n  <!-- ${components.length} components -->\n</div>`
+          react: `// Generated React Code for Frame: ${frameName}\nfunction App() {\n  return (\n    <div>\n      {/* ${components.length} components */}\n    </div>\n  );\n}`,
+          html: `<!-- Generated HTML for Frame: ${frameName} -->\n<div>\n  <!-- ${components.length} components -->\n</div>`,
+          css: `/* Generated CSS for Frame: ${frameName} */\n.container {\n  /* Styles for ${components.length} components */\n}`,
+          tailwind: `<!-- Generated Tailwind for Frame: ${frameName} -->\n<div class="container">\n  <!-- ${components.length} components -->\n</div>`
         };
         setGeneratedCode(mockCode);
-        updateSyncedCode(mockCode); // ADD THIS LINE
+        updateSyncedCode(mockCode);
         return;
       }
   
-      const code = await componentLibraryService.clientSideCodeGeneration(components, codeStyle);
+      const code = await componentLibraryService.clientSideCodeGeneration(components, codeStyle, frameName);
       setGeneratedCode(code);
-      updateSyncedCode(code); // ADD THIS LINE
+      updateSyncedCode(code);
       
-      console.log('Code generated and synced successfully for frame:', currentFrame, Object.keys(code));
+      console.log('Code generated and synced successfully for frame:', frameName, Object.keys(code));
     } catch (error) {
       console.error('Failed to generate code:', error);
       const mockCode = {
@@ -461,9 +486,9 @@ const isLayoutElement = (type) => LAYOUT_TYPES.includes(type);
         tailwind: `<!-- Error generating code -->`
       };
       setGeneratedCode(mockCode);
-      updateSyncedCode(mockCode); // ADD THIS LINE
+      updateSyncedCode(mockCode);
     }
-  }, [codeStyle, currentFrame, updateSyncedCode]);
+  }, [codeStyle, frame, currentFrame, updateSyncedCode]);
 
  // REPLACE existing setCodeStyle with: 
   const handleCodeStyleChange = useCallback((newStyle) => {
@@ -1308,6 +1333,11 @@ const handleAssetDrop = useCallback((e) => {
     }
   }, [toggleForgePanel])
 
+  // 🔥 NEW: Handle linked components modal - use Zustand
+  const handleLinkedComponentsClick = useCallback(() => {
+    toggleForgePanel('linked-components-modal')
+  }, [toggleForgePanel])
+
   const handleComponentTabChange = useCallback((tab) => {
     setActiveComponentTab(tab)
   }, [])
@@ -2036,19 +2066,80 @@ const handleCanvasDrop = useCallback((e) => {
     // 🔥 FIX: Handle BOTH formats (panel vs canvas)
     const componentType = dragData.componentType || dragData.type;
     const variant = dragData.variant || null;
+    const isLinkedComponent = dragData.isLinkedComponent || false;
+    const sourceFrame = dragData.sourceFrame || null;
     
     if (!componentType) {
       console.error('❌ No componentType');
       return;
     }
     
-    console.log('🎨 Creating:', componentType, variant?.name);
+    console.log('🎨 Creating:', componentType, variant?.name, isLinkedComponent ? '(Linked Component)' : '');
     
     const canvasRect = canvasRef.current.getBoundingClientRect();
     const dropX = e.clientX - canvasRect.left;
     const dropY = e.clientY - canvasRect.top;
 
-    // Get component definition
+    // 🔥 NEW: Special handling for linked component instances
+    if (isLinkedComponent && sourceFrame) {
+      // Get the project_components from the source frame
+      const sourceProjectComponents = sourceFrame.project_components || sourceFrame.projectComponents || [];
+      
+      const newComponent = {
+        id: `frame_component_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: 'frame-component-instance',
+        component_type: 'frame-component-instance',
+        props: {
+          sourceFrameId: sourceFrame.id,
+          sourceFrameUuid: sourceFrame.uuid,
+          sourceFrameName: sourceFrame.name,
+          componentFrameId: sourceFrame.id,
+          projectComponents: sourceProjectComponents // 🔥 Store the components data
+        },
+        name: sourceFrame.name,
+        style: {
+          position: 'absolute',
+          left: `${dropX - 50}px`,
+          top: `${dropY - 20}px`,
+          width: 'auto',
+          height: 'auto'
+        },
+        animation: {},
+        children: [],
+        isLayoutContainer: false,
+        zIndex: 0,
+        sortOrder: canvasComponents.length,
+        position: { x: dropX - 50, y: dropY - 20 }
+      };
+
+      console.log('✅ NEW LINKED COMPONENT INSTANCE:', newComponent);
+
+      const updatedComponents = [...canvasComponents, newComponent];
+      
+      saveOriginRef.current = 'user';
+      setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: updatedComponents
+      }));
+      
+      setSelectedComponent(newComponent.id);
+      handleComponentDragEnd();
+      
+      if (pushHistory && actionTypes) {
+        pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
+          componentName: newComponent.name,
+          componentType: newComponent.type,
+          componentId: newComponent.id
+        });
+      }
+      
+      generateCode(updatedComponents);
+      
+      console.log('✅ LINKED COMPONENT DROP COMPLETE');
+      return;
+    }
+
+    // Get component definition for regular components
     let componentDef = componentLibraryService?.getComponentDefinition(componentType);
     
     // 🔥 FIX: Merge default props + variant props correctly
@@ -3150,6 +3241,7 @@ if (!componentsLoaded && loadingMessage) {
         onPanelToggle: handlePanelToggle,
         panelStates: {},
         onModeSwitch: () => {},
+        onLinkedComponentsClick: handleLinkedComponentsClick,
         project: project,
         frame: frame,
         canvasComponents: canvasComponents,
@@ -3220,7 +3312,8 @@ if (!componentsLoaded && loadingMessage) {
       headerProps={{
         onPanelToggle: handlePanelToggle,
         panelStates: {},
-        onModeSwitch: () => {}
+        onModeSwitch: () => {},
+        onLinkedComponentsClick: handleLinkedComponentsClick
       }}
     >
       <Head title={`Forge - ${frame?.name || 'Visual Builder'}`} />
@@ -3775,6 +3868,21 @@ if (!componentsLoaded && loadingMessage) {
         position="top-right"
         notifications={lockNotifications}
         onRemoveNotification={removeNotification}
+      />
+      
+      {/* 🔥 NEW: Linked Components Modal */}
+      <LinkedComponentsModal
+        isOpen={showLinkedComponentsModal}
+        onClose={() => toggleForgePanel('linked-components-modal')}
+        currentFrame={frame}
+        allFrames={projectFrames}
+        frameAssignments={frameAssignments}
+        onDragStart={(component) => {
+          console.log('🎬 Dragging linked component:', component.name)
+        }}
+        onDragEnd={(e) => {
+          console.log('🎯 Linked component drag ended')
+        }}
       />
       
     </AuthenticatedLayout>

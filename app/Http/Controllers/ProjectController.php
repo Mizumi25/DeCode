@@ -727,7 +727,7 @@ public function store(Request $request): RedirectResponse
     if (!$hasAccess) {
         \Log::error('User does not have access to workspace: ' . $workspaceId);
         \Log::info('Workspace users: ', $workspace->users->pluck('id')->toArray());
-        \Log::info('Workspace owner: ', $workspace->owner_id);
+        \Log::info('Workspace owner: ' . $workspace->owner_id);
         \Log::info('=== PROJECT CREATION DEBUG END (NO ACCESS) ===');
         return redirect()->back()->withErrors([
             'workspace_id' => 'You do not have access to this workspace.'

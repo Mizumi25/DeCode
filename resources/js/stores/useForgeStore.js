@@ -12,7 +12,8 @@ export const useForgeStore = create(
         'code-modal-panel': false,
         'layers-panel': false,
         'properties-panel': false,  // Changed from true to false
-        'assets-panel': false       // Changed from true to false
+        'assets-panel': false,       // Changed from true to false
+        'linked-components-modal': false  // 🔥 NEW: Linked components modal state
       },
             
       // ADD THESE LINES (after codePanelMode: 'bottom',)

@@ -416,4 +416,9 @@ protected static function boot()
     {
         return $this->hasMany(FrameComponentAssignment::class, 'page_frame_id');
     }
+    
+    public function projectComponents()
+    {
+        return $this->hasMany(ProjectComponent::class, 'frame_id');
+    }
 }

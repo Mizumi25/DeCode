@@ -122,4 +122,26 @@ class FrameComponentAssignmentController extends Controller
             'message' => 'Position updated successfully'
         ]);
     }
+
+    /**
+     * 🔥 NEW: Get all assignments for a specific frame (page)
+     * Returns all components linked to this page
+     */
+    public function getForFrame(Frame $frame)
+    {
+        // Get all assignments where this frame is the page
+        $assignments = FrameComponentAssignment::where('page_frame_id', $frame->id)
+            ->with([
+                'pageFrame', 
+                'componentFrame',
+                'componentFrame.projectComponents' => function($query) {
+                    // Get all components for the frame to use for thumbnail generation
+                    $query->orderBy('z_index')->orderBy('created_at');
+                }
+            ])
+            ->orderBy('position')
+            ->get();
+
+        return response()->json($assignments);
+    }
 }

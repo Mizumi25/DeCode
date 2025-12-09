@@ -7,13 +7,14 @@ import {
   Info,
   Settings,
   EyeOff,
-  Eye
+  Eye,
+  PackageOpen
 } from 'lucide-react'
 import { useHeaderStore } from '@/stores/useHeaderStore'
 import { useForgeStore } from '@/stores/useForgeStore'
 import { useSourceStore } from '@/stores/useSourceStore'
 
-const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) => {
+const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {}, onLinkedComponentsClick }) => {
   const onForgePage = currentRoute.includes('/modeForge')
   const onSourcePage = currentRoute.includes('/modeSource')
   
@@ -183,11 +184,25 @@ const MiddlePanelControls = ({ currentRoute, onPanelToggle, panelStates = {} }) 
         }`} />
       </button>
 
-      {/* Puzzle - Third Icon (placeholder) */}
-      <button className="p-1 md:p-1 hover:bg-[var(--color-bg-muted)] rounded md:rounded transition-colors"
-        title="Coming Soon">
-        <Puzzle className="w-4 h-4 md:w-3 md:h-3 text-[var(--color-text)]" />
-      </button>
+      {/* Linked Components - Third Icon (only on Forge page) */}
+      {onForgePage ? (
+        <button 
+          onClick={onLinkedComponentsClick}
+          className={`p-1 md:p-1 rounded md:rounded transition-colors ${
+            isForgePanelOpen('linked-components-modal')
+              ? 'bg-[var(--color-primary)] text-white' 
+              : 'hover:bg-[var(--color-bg-muted)] text-[var(--color-text)]'
+          }`}
+          title="Linked Components (imported to this page)"
+        >
+          <PackageOpen className="w-4 h-4 md:w-3 md:h-3" />
+        </button>
+      ) : (
+        <button className="p-1 md:p-1 hover:bg-[var(--color-bg-muted)] rounded md:rounded transition-colors"
+          title="Coming Soon">
+          <Puzzle className="w-4 h-4 md:w-3 md:h-3 text-[var(--color-text)]" />
+        </button>
+      )}
 
       {/* Layers Panel Toggle - Fourth Icon - UPDATED for Source page support */}
       <button 

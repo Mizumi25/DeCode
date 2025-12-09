@@ -34,7 +34,8 @@ const CenterSection = ({
   interactionMode,
   setInteractionMode,
   onPanelToggle,
-  panelStates
+  panelStates,
+  onLinkedComponentsClick // 🔥 NEW: Add callback for linked components
 }) => {
   const { 
     toggleStyleModal 
@@ -171,6 +172,7 @@ const CenterSection = ({
             currentRoute={currentRoute}
             onPanelToggle={onPanelToggle}
             panelStates={panelStates}
+            onLinkedComponentsClick={onLinkedComponentsClick}
           />
           
           {/* Icon Panel Button */}
@@ -203,6 +205,7 @@ const CenterSection = ({
                 currentRoute={currentRoute}
                 onPanelToggle={onPanelToggle}
                 panelStates={panelStates}
+                onLinkedComponentsClick={onLinkedComponentsClick}
               />
               
               {/* Icon Panel Button */}

@@ -32,7 +32,9 @@ export default function Header({
   handleRedo,
   // ✅ NEW: Link mode props
   linkMode,
-  setLinkMode
+  setLinkMode,
+  // 🔥 NEW: Linked components modal callback
+  onLinkedComponentsClick
 }) {
   const { props, url } = usePage()
   const user = props.auth?.user
@@ -211,6 +213,7 @@ export default function Header({
             setInteractionMode={setInteractionMode}
             onPanelToggle={onPanelToggle || togglePanel}
             panelStates={panelStates}
+            onLinkedComponentsClick={onLinkedComponentsClick}
           />
 
           {/* Right Section */}

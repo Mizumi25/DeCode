@@ -51,7 +51,7 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
         'frame_id' => $frameId,
         'parent_id' => $parentDbId,
         'component_instance_id' => $componentData['id'],
-        'component_type' => $componentData['type'],
+        'component_type' => $componentData['component_type'] ?? $componentData['type'], // 🔥 Use component_type if exists
         'props' => $componentData['props'] ?? [],
         'text_content' => $textContent,
         'name' => $componentData['name'],
@@ -315,6 +315,7 @@ private function normalizeStyleData($componentData)
             'silent' => 'boolean',
             'components.*.id' => 'required|string',
             'components.*.type' => 'required|string',
+            'components.*.component_type' => 'nullable|string', // 🔥 NEW: Allow component_type for frame-component-instance
             'components.*.props' => 'nullable|array',
             'components.*.name' => 'required|string',
             'components.*.zIndex' => 'nullable|integer',
