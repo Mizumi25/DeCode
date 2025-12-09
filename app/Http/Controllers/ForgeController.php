@@ -152,6 +152,9 @@ class ForgeController extends Controller
             'project' => [
                 'uuid' => $project->uuid,
                 'name' => $project->name,
+                'settings' => $project->settings ?? [], // Include settings for StyleModal
+                'output_format' => $project->output_format,
+                'style_framework' => $project->style_framework,
             ],
             'frame' => $frameData, // 🔥 Now includes properly decoded canvas_style
             'projectFrames' => $projectFrames,

@@ -1,6 +1,7 @@
 // @/Components/Header/Head/RightSection.jsx
 import React, { useState } from 'react'
 import { Search, Upload, MessageCircle, Share2, Download, Edit3, Eye, Users, Save, ChevronDown, History, Circle } from 'lucide-react'
+import ExportDropdown from './ExportDropdown'
 import { motion } from 'framer-motion'
 import { usePage } from '@inertiajs/react'
 import UserDropdown from './UserDropdown'
@@ -324,13 +325,13 @@ const RightSection = ({
             )}
 
             {/* Export - Only visible in Void page */}
-            {onVoidPage && myRole !== 'viewer' && (
-              <div className="flex flex-col items-center gap-0.5">
-                <button className="p-0.5 bg-pink-100 dark:bg-pink-900/30 hover:bg-pink-200 dark:hover:bg-pink-900/50 rounded transition-colors">
-                  <Download className="w-2.5 h-2.5 text-pink-600 dark:text-pink-400" />
-                </button>
-                <span className="text-[7px] text-[var(--color-text-muted)]">Export</span>
-              </div>
+            {onVoidPage && myRole !== 'viewer' && currentProject && (
+              <ExportDropdown 
+                projectUuid={currentProject.uuid}
+                projectName={currentProject.name}
+                onExportStart={(type) => console.log('Export started:', type)}
+                onExportComplete={(type, success) => console.log('Export completed:', type, success)}
+              />
             )}
 
             {/* Edit/View Toggle - Hide for Viewer */}

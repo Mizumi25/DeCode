@@ -678,6 +678,14 @@ public function store(Request $request): RedirectResponse
             ],
             'viewport_width' => 'nullable|integer|min:320|max:3840',
             'viewport_height' => 'nullable|integer|min:240|max:2160',
+            'framework' => [
+                'required',
+                Rule::in(['react', 'html'])
+            ],
+            'style_framework' => [
+                'required',
+                Rule::in(['css', 'tailwind'])
+            ],
             'css_framework' => [
                 'nullable',
                 Rule::in(['tailwind', 'bootstrap', 'vanilla', 'styled_components', 'emotion'])
@@ -764,6 +772,9 @@ public function store(Request $request): RedirectResponse
     $validated['viewport_width'] = $validated['viewport_width'] ?? 1440;
     $validated['viewport_height'] = $validated['viewport_height'] ?? 900;
     $validated['css_framework'] = $validated['css_framework'] ?? 'tailwind';
+    $validated['framework'] = $validated['framework'] ?? 'html';
+    $validated['style_framework'] = $validated['style_framework'] ?? 'css';
+    $validated['project_type'] = 'manual'; // Mark as manually created
     $validated['output_format'] = $validated['output_format'] ?? 'html';
 
     // Initialize canvas data with default frame structure
@@ -1096,6 +1107,59 @@ public function store(Request $request): RedirectResponse
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to move project: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update project style settings (from StyleModal)
+     */
+    public function updateStyleSettings(Request $request, Project $project): JsonResponse
+    {
+        $user = Auth::user();
+        
+        // Check ownership
+        if ($project->user_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to update this project'
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'style_variables' => 'required|array',
+        ]);
+
+        try {
+            $settings = $project->settings ?? [];
+            $settings['style_variables'] = $validated['style_variables'];
+            
+            $project->update(['settings' => $settings]);
+
+            \Log::info('Project style settings updated', [
+                'project_id' => $project->id,
+                'user_id' => $user->id,
+                'style_variables' => $validated['style_variables']
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Style settings saved successfully',
+                'data' => [
+                    'style_variables' => $validated['style_variables']
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to update project style settings', [
+                'project_id' => $project->id,
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to save style settings: ' . $e->getMessage()
             ], 500);
         }
     }

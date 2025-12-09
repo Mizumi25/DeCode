@@ -67,6 +67,56 @@ const PROJECT_TYPES = [
   }
 ];
 
+// SVG Icons for frameworks
+const ReactIcon = () => (
+  <svg width="48" height="48" viewBox="0 0 30 30" className="w-12 h-12">
+    <path fill="#61DAFB" d="M 10.679688 4.1816406 C 10.068687 4.1816406 9.502 4.3184219 9 4.6074219 C 7.4311297 5.5132122 6.8339651 7.7205462 7.1503906 10.46875 C 4.6127006 11.568833 3 13.188667 3 15 C 3 16.811333 4.6127006 18.431167 7.1503906 19.53125 C 6.8341285 22.279346 7.4311297 24.486788 9 25.392578 C 9.501 25.681578 10.067687 25.818359 10.679688 25.818359 C 11.982314 25.818359 13.48785 25.164589 15 24.042969 C 16.512282 25.164589 18.01964 25.818359 19.322266 25.818359 C 19.933266 25.818359 20.499953 25.681578 21.001953 25.392578 C 22.570823 24.486788 23.167988 22.279346 22.851562 19.53125 C 25.388297 18.431167 27 16.811333 27 15 C 27 13.188667 25.388297 11.568833 22.851562 10.46875 C 23.167988 7.7205462 22.570823 5.5132122 21.001953 4.6074219 C 20.500953 4.3174219 19.934266 4.1816406 19.322266 4.1816406 C 18.019639 4.1816406 16.512282 4.8354109 15 5.9570312 C 13.48785 4.8354109 11.982314 4.1816406 10.679688 4.1816406 z M 10.679688 5.9316406 C 11.461321 5.9316406 12.730466 6.41083 14.044922 7.4199219 C 12.937384 8.3606929 11.83479 9.5012071 10.796875 10.767578 C 9.2057865 10.920335 7.8031683 11.175176 6.6425781 11.505859 C 6.3969308 9.3608811 6.8347345 7.6485393 7.8359375 7.0605469 C 8.3355375 6.7675469 9.0056867 6.0128906 10.679688 5.9316406 z M 19.322266 5.9316406 C 20.996266 5.9316406 21.666453 6.7675469 22.166016 7.0605469 C 23.168416 7.6495393 23.604453 9.3608811 23.359375 11.505859 C 22.197877 11.17519 20.796062 10.920333 19.203125 10.767578 C 18.16821 9.5022069 17.065384 8.3606929 15.957031 7.4199219 C 17.271488 6.41083 18.540633 5.9316406 19.322266 5.9316406 z"/>
+  </svg>
+);
+
+const HtmlIcon = () => (
+  <svg width="48" height="48" viewBox="0 0 48 48" className="w-12 h-12">
+    <path fill="#E65100" d="M41,5H7l3,34l14,4l14-4L41,5L41,5z"></path>
+    <path fill="#FF6D00" d="M24 8L24 39.9 35.2 36.7 37.7 8z"></path>
+    <path fill="#FFF" d="M24,25v-4h8.6l-0.7,11.5L24,35.1v-4.2l4.1-1.4l0.3-4.5H24z M32.9,17l0.3-4H24v4H32.9z"></path>
+    <path fill="#EEE" d="M24,30.9v4.2l-7.9-2.6L15.7,27h4l0.2,2.5L24,30.9z M19.1,17H24v-4h-9.1l0.7,12H24v-4h-4.6L19.1,17z"></path>
+  </svg>
+);
+
+// Framework choices (React/HTML)
+const FRAMEWORKS = [
+  {
+    id: 'react',
+    name: 'React',
+    description: 'Component-based with JSX',
+    icon: ReactIcon
+  },
+  {
+    id: 'html',
+    name: 'HTML',
+    description: 'Standard HTML pages',
+    icon: HtmlIcon
+  }
+];
+
+// Style choices (CSS/Tailwind)
+const STYLE_FRAMEWORKS = [
+  { 
+    id: 'css', 
+    name: 'CSS', 
+    logo: CssLogo, 
+    color: 'text-blue-500',
+    description: 'Pure CSS with full control'
+  },
+  { 
+    id: 'tailwind', 
+    name: 'Tailwind', 
+    logo: TailwindLogo, 
+    color: 'text-cyan-500',
+    description: 'Utility-first CSS framework'
+  }
+];
+
 const CSS_FRAMEWORKS = [
   { 
     id: 'tailwind', 
@@ -106,6 +156,8 @@ export default function NewProjectModal({ show, onClose }) {
     type: 'website',
     viewport_width: 1440,
     viewport_height: 900,
+    framework: 'react', // New: Framework selection (react or html)
+    style_framework: 'css', // New: Style framework (css or tailwind)
     css_framework: 'tailwind',
     is_public: false,
     workspace_id: currentWorkspace?.id || null // Set current workspace ID
@@ -466,47 +518,82 @@ export default function NewProjectModal({ show, onClose }) {
         </div>
       </div>
 
-      {/* Configuration Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* CSS Framework */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-medium text-[var(--color-text)]">CSS Framework</h3>
-          <div className="space-y-3">
-            {CSS_FRAMEWORKS.map((framework) => {
-              const LogoComponent = framework.logo;
-              const isSelected = data.css_framework === framework.id;
-              return (
-                <motion.button
-                  key={framework.id}
-                  type="button"
-                  onClick={() => setData('css_framework', framework.id)}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
-                  className={`w-full p-4 rounded-xl border-2 transition-all text-left flex items-center gap-4 ${
-                    isSelected
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
-                      : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/30'
-                  }`}
-                >
-                  <div className={`w-10 h-10 rounded-lg bg-[var(--color-bg-muted)] flex items-center justify-center ${framework.color}`}>
-                    <LogoComponent />
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-medium text-[var(--color-text)]">{framework.name}</div>
-                    <div className="text-sm text-[var(--color-text-muted)]">{framework.description}</div>
-                  </div>
-                  {isSelected && (
-                    <div className="w-5 h-5 rounded-full bg-[var(--color-primary)] flex items-center justify-center">
-                      <div className="w-2 h-2 rounded-full bg-white"></div>
-                    </div>
-                  )}
-                </motion.button>
-              );
-            })}
-          </div>
+      {/* Framework Selection */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium text-[var(--color-text)]">Framework</h3>
+        <div className="grid grid-cols-2 gap-4">
+          {FRAMEWORKS.map((framework) => {
+            const isSelected = data.framework === framework.id;
+            const IconComponent = framework.icon;
+            return (
+              <motion.button
+                key={framework.id}
+                type="button"
+                onClick={() => setData('framework', framework.id)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`p-6 rounded-xl border-2 transition-all text-center ${
+                  isSelected
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
+                    : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/30'
+                }`}
+              >
+                <div className="flex justify-center mb-3">
+                  <IconComponent />
+                </div>
+                <div className="font-semibold text-[var(--color-text)] mb-1">{framework.name}</div>
+                <div className="text-sm text-[var(--color-text-muted)]">{framework.description}</div>
+                {isSelected && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="mt-3 w-6 h-6 mx-auto rounded-full bg-[var(--color-primary)] flex items-center justify-center"
+                  >
+                    <div className="w-2 h-2 rounded-full bg-white"></div>
+                  </motion.div>
+                )}
+              </motion.button>
+            );
+          })}
         </div>
+      </div>
 
-       
+      {/* Style Framework Selection */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium text-[var(--color-text)]">Style</h3>
+        <div className="grid grid-cols-2 gap-4">
+          {STYLE_FRAMEWORKS.map((framework) => {
+            const LogoComponent = framework.logo;
+            const isSelected = data.style_framework === framework.id;
+            return (
+              <motion.button
+                key={framework.id}
+                type="button"
+                onClick={() => setData('style_framework', framework.id)}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                className={`p-5 rounded-xl border-2 transition-all text-left flex items-center gap-4 ${
+                  isSelected
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
+                    : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/30'
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-lg bg-[var(--color-bg-muted)] flex items-center justify-center ${framework.color}`}>
+                  <LogoComponent />
+                </div>
+                <div className="flex-1">
+                  <div className="font-medium text-[var(--color-text)]">{framework.name}</div>
+                  <div className="text-sm text-[var(--color-text-muted)]">{framework.description}</div>
+                </div>
+                {isSelected && (
+                  <div className="w-5 h-5 rounded-full bg-[var(--color-primary)] flex items-center justify-center">
+                    <div className="w-2 h-2 rounded-full bg-white"></div>
+                  </div>
+                )}
+              </motion.button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Privacy Toggle */}

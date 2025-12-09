@@ -35,6 +35,51 @@ export default function RepositoryList({ onSelectRepo, selectedRepo, disabled = 
   const filteredRepos = useMemo(() => {
     let filtered = repos;
 
+    // 🔥 FIRST: Filter only HTML/React projects with CSS/Tailwind
+    filtered = filtered.filter(repo => {
+      const language = (repo.language || '').toLowerCase();
+      const name = (repo.name || '').toLowerCase();
+      const description = (repo.description || '').toLowerCase();
+      
+      // Check if it's a web frontend project (NO TypeScript yet)
+      const isWebProject = 
+        language === 'javascript' ||
+        language === 'html' ||
+        language === 'jsx' ||
+        name.includes('react') ||
+        name.includes('html') ||
+        name.includes('web') ||
+        name.includes('frontend') ||
+        description.includes('react') ||
+        description.includes('html') ||
+        description.includes('website') ||
+        description.includes('web app');
+      
+      // Explicitly exclude TypeScript projects
+      const isTypeScript = 
+        language === 'typescript' ||
+        language === 'tsx' ||
+        name.includes('typescript') ||
+        description.includes('typescript');
+      
+      // Exclude backend-only projects
+      const isBackendOnly =
+        language === 'python' ||
+        language === 'java' ||
+        language === 'ruby' ||
+        language === 'go' ||
+        language === 'rust' ||
+        language === 'c++' ||
+        language === 'c#' ||
+        name.includes('api') ||
+        name.includes('backend') ||
+        name.includes('server') ||
+        description.includes('api only') ||
+        description.includes('backend');
+      
+      return isWebProject && !isBackendOnly && !isTypeScript;
+    });
+
     // Apply type filter
     if (filter === 'public') {
       filtered = filtered.filter(repo => !repo.private);
@@ -112,6 +157,55 @@ export default function RepositoryList({ onSelectRepo, selectedRepo, disabled = 
       React: '#61dafb'
     };
     return colors[language] || '#64748b';
+  };
+
+  // Detect framework from repo
+  const detectFramework = (repo) => {
+    const name = (repo.name || '').toLowerCase();
+    const description = (repo.description || '').toLowerCase();
+    const language = (repo.language || '').toLowerCase();
+    
+    // Check for React (most specific first)
+    if (name.includes('react') || 
+        description.includes('react') || 
+        language === 'jsx' ||
+        name.includes('next') || 
+        description.includes('next.js') ||
+        name.includes('gatsby') ||
+        description.includes('gatsby')) {
+      return 'React';
+    }
+    
+    // Check for HTML
+    if (language === 'html' || name.includes('html') || description.includes('html')) {
+      return 'HTML';
+    }
+    
+    // If it's JavaScript but not React, show JavaScript badge
+    if (language === 'javascript') {
+      return 'JavaScript';
+    }
+    
+    return null;
+  };
+
+  // Detect styling framework from repo
+  const detectStyleFramework = (repo) => {
+    const name = (repo.name || '').toLowerCase();
+    const description = (repo.description || '').toLowerCase();
+    
+    // Check for Tailwind
+    if (name.includes('tailwind') || description.includes('tailwind')) {
+      return 'Tailwind';
+    }
+    
+    // Check for CSS/Vanilla
+    if (name.includes('css') || description.includes('css')) {
+      return 'CSS';
+    }
+    
+    // Default assumption
+    return 'CSS';
   };
 
   if (loading) {
@@ -241,17 +335,66 @@ export default function RepositoryList({ onSelectRepo, selectedRepo, disabled = 
                         </p>
                       )}
                       
-                      <div className="flex items-center gap-4 text-xs text-[var(--color-text-muted)]">
+                      {/* Framework & Style Badges */}
+                      <div className="flex items-center gap-2 mb-3 flex-wrap">
+                        {/* Language Badge */}
                         {repo.language && (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--color-bg-muted)] border border-[var(--color-border)]">
                             <div 
-                              className="w-3 h-3 rounded-full"
+                              className="w-2 h-2 rounded-full"
                               style={{ backgroundColor: getLanguageColor(repo.language) }}
                             />
-                            <span>{repo.language}</span>
+                            <span className="text-xs font-medium text-[var(--color-text)]">{repo.language}</span>
                           </div>
                         )}
                         
+                        {/* Framework Badge - Show React badge if detected */}
+                        {(() => {
+                          const framework = detectFramework(repo);
+                          // Show React badge for React projects
+                          if (framework === 'React') {
+                            return (
+                              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-cyan-500/10 border border-cyan-500/30">
+                                <svg width="12" height="12" viewBox="0 0 30 30" className="flex-shrink-0">
+                                  <path fill="#61DAFB" d="M 10.679688 4.1816406 C 10.068687 4.1816406 9.502 4.3184219 9 4.6074219 C 7.4311297 5.5132122 6.8339651 7.7205462 7.1503906 10.46875 C 4.6127006 11.568833 3 13.188667 3 15 C 3 16.811333 4.6127006 18.431167 7.1503906 19.53125 C 6.8341285 22.279346 7.4311297 24.486788 9 25.392578 C 9.501 25.681578 10.067687 25.818359 10.679688 25.818359 C 11.982314 25.818359 13.48785 25.164589 15 24.042969 C 16.512282 25.164589 18.01964 25.818359 19.322266 25.818359 C 19.933266 25.818359 20.499953 25.681578 21.001953 25.392578 C 22.570823 24.486788 23.167988 22.279346 22.851562 19.53125 C 25.388297 18.431167 27 16.811333 27 15 C 27 13.188667 25.388297 11.568833 22.851562 10.46875 C 23.167988 7.7205462 22.570823 5.5132122 21.001953 4.6074219 C 20.500953 4.3174219 19.934266 4.1816406 19.322266 4.1816406 C 18.019639 4.1816406 16.512282 4.8354109 15 5.9570312 C 13.48785 4.8354109 11.982314 4.1816406 10.679688 4.1816406 z M 10.679688 5.9316406 C 11.461321 5.9316406 12.730466 6.41083 14.044922 7.4199219 C 12.937384 8.3606929 11.83479 9.5012071 10.796875 10.767578 C 9.2057865 10.920335 7.8031683 11.175176 6.6425781 11.505859 C 6.3969308 9.3608811 6.8347345 7.6485393 7.8359375 7.0605469 C 8.3355375 6.7675469 9.0056867 6.0128906 10.679688 5.9316406 z M 19.322266 5.9316406 C 20.996266 5.9316406 21.666453 6.7675469 22.166016 7.0605469 C 23.168416 7.6495393 23.604453 9.3608811 23.359375 11.505859 C 22.197877 11.17519 20.796062 10.920333 19.203125 10.767578 C 18.16821 9.5022069 17.065384 8.3606929 15.957031 7.4199219 C 17.271488 6.41083 18.540633 5.9316406 19.322266 5.9316406 z"/>
+                                </svg>
+                                <span className="text-xs font-medium text-cyan-600 dark:text-cyan-400">React</span>
+                              </div>
+                            );
+                          }
+                          // Don't show anything for vanilla JS (already shown in language badge)
+                          // Don't show anything for HTML (already shown in language badge)
+                          return null;
+                        })()}
+                        
+                        {/* Style Framework Badge */}
+                        {(() => {
+                          const styleFramework = detectStyleFramework(repo);
+                          if (styleFramework === 'Tailwind') {
+                            return (
+                              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-sky-500/10 border border-sky-500/30">
+                                <svg width="12" height="12" viewBox="0 0 24 24" className="flex-shrink-0">
+                                  <path fill="#06B6D4" d="M12 6c-2.67 0-4.33 1.33-5 4 1-1.33 2.17-1.83 3.5-1.5.76.19 1.31.74 1.91 1.35.98 1 2.09 2.15 4.59 2.15 2.67 0 4.33-1.33 5-4-1 1.33-2.17 1.83-3.5 1.5-.76-.19-1.3-.74-1.91-1.35C15.61 7.15 14.5 6 12 6m-5 6c-2.67 0-4.33 1.33-5 4 1-1.33 2.17-1.83 3.5-1.5.76.19 1.3.74 1.91 1.35C8.39 16.85 9.5 18 12 18c2.67 0 4.33-1.33 5-4-1 1.33-2.17 1.83-3.5 1.5-.76-.19-1.3-.74-1.91-1.35C10.61 13.15 9.5 12 7 12z"/>
+                                </svg>
+                                <span className="text-xs font-medium text-sky-600 dark:text-sky-400">Tailwind</span>
+                              </div>
+                            );
+                          } else if (styleFramework === 'CSS') {
+                            return (
+                              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-500/10 border border-blue-500/30">
+                                <svg width="12" height="12" viewBox="0 0 48 48" className="flex-shrink-0">
+                                  <path fill="#0277BD" d="M41,5H7l3,34l14,4l14-4L41,5L41,5z"></path>
+                                  <path fill="#039BE5" d="M24 8L24 39.9 35.2 36.7 37.7 8z"></path>
+                                </svg>
+                                <span className="text-xs font-medium text-blue-600 dark:text-blue-400">CSS</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                      
+                      <div className="flex items-center gap-4 text-xs text-[var(--color-text-muted)]">
                         {repo.stargazers_count > 0 && (
                           <div className="flex items-center gap-1">
                             <Star className="w-3 h-3" />

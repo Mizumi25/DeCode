@@ -1,0 +1,730 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Project;
+use App\Models\Frame;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use ZipArchive;
+
+class ExportController extends Controller
+{
+    /**
+     * Export project as ZIP
+     */
+    public function exportAsZip(Project $project): mixed
+    {
+        try {
+            $user = auth()->user();
+            
+            // Check permissions
+            if ($project->user_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 403);
+            }
+
+            // Generate project structure
+            $projectPath = $this->generateProjectStructure($project);
+            
+            // Create ZIP file
+            $exportsDir = storage_path("app/exports");
+            if (!file_exists($exportsDir)) {
+                mkdir($exportsDir, 0755, true);
+            }
+            $zipPath = storage_path("app/exports/{$project->uuid}.zip");
+            $this->createZipFromDirectory($projectPath, $zipPath);
+            
+            // Clean up temporary files
+            Storage::deleteDirectory("temp/export_{$project->uuid}");
+            
+            return response()->download($zipPath, "{$project->name}.zip")->deleteFileAfterSend(true);
+            
+        } catch (\Exception $e) {
+            Log::error('Export ZIP failed', [
+                'project_id' => $project->uuid,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to export project: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export project to GitHub
+     */
+    public function exportToGitHub(Request $request, Project $project): JsonResponse
+    {
+        $validated = $request->validate([
+            'repository_name' => 'nullable|string|max:255',
+            'is_private' => 'boolean',
+            'create_new_repo' => 'boolean'
+        ]);
+
+        try {
+            $user = auth()->user();
+            
+            // Check permissions
+            if ($project->user_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 403);
+            }
+
+            // Check GitHub connection
+            if (!$user->github_id || !$user->isGitHubTokenValid()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'GitHub account not connected'
+                ], 401);
+            }
+
+            // Generate project structure
+            $projectPath = $this->generateProjectStructure($project);
+            
+            // Push to GitHub
+            $repoUrl = $this->pushToGitHub($project, $projectPath, $validated, $user);
+            
+            // Clean up
+            Storage::deleteDirectory("temp/export_{$project->uuid}");
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Successfully exported to GitHub',
+                'repository_url' => $repoUrl
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Export to GitHub failed', [
+                'project_id' => $project->uuid,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to export to GitHub: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate complete project structure with all files
+     */
+    private function generateProjectStructure(Project $project): string
+    {
+        $framework = $project->framework ?? 'html';
+        $styleFramework = $project->style_framework ?? 'css';
+        $projectType = $project->project_type ?? 'manual';
+        
+        // Create temporary directory for export
+        $exportPath = storage_path("app/temp/export_{$project->uuid}");
+        if (!file_exists($exportPath)) {
+            mkdir($exportPath, 0755, true);
+        }
+
+        // Copy boilerplate based on framework
+        $templatePath = storage_path("app/templates/{$framework}");
+        $this->copyDirectory($templatePath, $exportPath);
+
+        // Create frames directory
+        $framesPath = $framework === 'react' 
+            ? "{$exportPath}/src/frames"
+            : "{$exportPath}/frames";
+        
+        if (!file_exists($framesPath)) {
+            mkdir($framesPath, 0755, true);
+        }
+
+        // Generate frames
+        $frames = Frame::where('project_id', $project->id)->get();
+        foreach ($frames as $frame) {
+            $this->generateFrameFile($frame, $framesPath, $framework, $styleFramework);
+        }
+
+        // Generate global CSS from settings
+        $this->generateGlobalCSS($project, $exportPath, $framework);
+
+        // Handle linked CSS files (for imported projects)
+        if ($projectType === 'imported' && !empty($project->preserved_files)) {
+            $this->restorePreservedFiles($project, $exportPath);
+        }
+
+        // Update main entry point to include frames
+        $this->updateMainEntryPoint($project, $exportPath, $framework, $frames);
+
+        return $exportPath;
+    }
+
+    /**
+     * Generate frame file (JSX or HTML)
+     */
+    private function generateFrameFile(Frame $frame, string $framesPath, string $framework, string $styleFramework): void
+    {
+        $fileName = Str::slug($frame->name, '_');
+        
+        if ($framework === 'react') {
+            // Generate React component
+            $content = $this->generateReactComponent($frame, $styleFramework);
+            $filePath = "{$framesPath}/{$fileName}.jsx";
+        } else {
+            // Generate HTML file
+            $content = $this->generateHTMLFile($frame, $styleFramework);
+            $filePath = "{$framesPath}/{$fileName}.html";
+        }
+
+        file_put_contents($filePath, $content);
+
+        // Generate linked CSS if needed
+        if (!empty($frame->linked_css_files) && $styleFramework === 'css') {
+            $this->generateLinkedCSS($frame, $framesPath);
+        }
+    }
+
+    /**
+     * Generate React component from frame
+     */
+    private function generateReactComponent(Frame $frame, string $styleFramework): string
+    {
+        $componentName = Str::studly($frame->name);
+        $imports = ["import React from 'react'"];
+        
+        if ($styleFramework === 'css' && !empty($frame->linked_css_files)) {
+            foreach ($frame->linked_css_files as $cssFile) {
+                $imports[] = "import './styles/" . basename($cssFile) . "'";
+            }
+        }
+
+        // Get frame components
+        $components = \App\Models\ProjectComponent::where('frame_id', $frame->uuid)->get();
+        
+        // Generate JSX from components
+        $jsx = $this->generateJSXFromComponents($components, $styleFramework);
+
+        $content = implode("\n", $imports) . "\n\n";
+        $content .= "function {$componentName}() {\n";
+        $content .= "  return (\n";
+        $content .= "    {$jsx}\n";
+        $content .= "  )\n";
+        $content .= "}\n\n";
+        $content .= "export default {$componentName}\n";
+
+        return $content;
+    }
+
+    /**
+     * Generate HTML file from frame
+     */
+    private function generateHTMLFile(Frame $frame, string $styleFramework): string
+    {
+        $components = \App\Models\ProjectComponent::where('frame_id', $frame->uuid)->get();
+        
+        $html = "<!DOCTYPE html>\n";
+        $html .= "<html lang=\"en\">\n";
+        $html .= "<head>\n";
+        $html .= "  <meta charset=\"UTF-8\">\n";
+        $html .= "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n";
+        $html .= "  <title>{$frame->name}</title>\n";
+        $html .= "  <link rel=\"stylesheet\" href=\"../styles/global.css\">\n";
+        
+        if (!empty($frame->linked_css_files)) {
+            foreach ($frame->linked_css_files as $cssFile) {
+                $html .= "  <link rel=\"stylesheet\" href=\"styles/" . basename($cssFile) . "\">\n";
+            }
+        }
+        
+        $html .= "</head>\n";
+        $html .= "<body>\n";
+        $html .= $this->generateHTMLFromComponents($components, $styleFramework);
+        $html .= "</body>\n";
+        $html .= "</html>\n";
+
+        return $html;
+    }
+
+    /**
+     * Generate JSX from components
+     */
+    private function generateJSXFromComponents($components, string $styleFramework): string
+    {
+        if ($components->isEmpty()) {
+            return "    <div className=\"frame-container\">\n      <p>Empty frame</p>\n    </div>";
+        }
+
+        $jsx = "    <div className=\"frame-container\">\n";
+        
+        foreach ($components as $component) {
+            $jsx .= $this->componentToJSX($component, $styleFramework, 6);
+        }
+        
+        $jsx .= "    </div>";
+
+        return $jsx;
+    }
+
+    /**
+     * Convert component to JSX
+     */
+    private function componentToJSX($component, string $styleFramework, int $indent = 0): string
+    {
+        $spaces = str_repeat(' ', $indent);
+        $type = $this->mapComponentTypeToJSX($component->component_type);
+        $props = $component->props ?? [];
+        
+        // Build style/className
+        $attributes = [];
+        if ($styleFramework === 'tailwind') {
+            $attributes[] = 'className="' . $this->generateTailwindClasses($component) . '"';
+        } else {
+            $attributes[] = 'style={' . json_encode($component->style ?? []) . '}';
+        }
+
+        // Add other props
+        if (isset($props['text'])) {
+            $text = $props['text'];
+        }
+
+        $attrString = implode(' ', $attributes);
+        
+        if (isset($text)) {
+            return "{$spaces}<{$type} {$attrString}>{$text}</{$type}>\n";
+        } else {
+            return "{$spaces}<{$type} {$attrString} />\n";
+        }
+    }
+
+    /**
+     * Generate HTML from components
+     */
+    private function generateHTMLFromComponents($components, string $styleFramework): string
+    {
+        if ($components->isEmpty()) {
+            return "  <div class=\"frame-container\">\n    <p>Empty frame</p>\n  </div>\n";
+        }
+
+        $html = "  <div class=\"frame-container\">\n";
+        
+        foreach ($components as $component) {
+            $html .= $this->componentToHTML($component, $styleFramework, 4);
+        }
+        
+        $html .= "  </div>\n";
+
+        return $html;
+    }
+
+    /**
+     * Convert component to HTML
+     */
+    private function componentToHTML($component, string $styleFramework, int $indent = 0): string
+    {
+        $spaces = str_repeat(' ', $indent);
+        $type = $this->mapComponentTypeToHTML($component->component_type);
+        $props = $component->props ?? [];
+        
+        $attributes = [];
+        if ($styleFramework === 'tailwind') {
+            $attributes[] = 'class="' . $this->generateTailwindClasses($component) . '"';
+        } else {
+            // For CSS framework, use generated class name
+            $className = $this->generateComponentClassName($component);
+            $attributes[] = 'class="' . $className . '"';
+        }
+
+        $attrString = implode(' ', $attributes);
+        $text = $props['text'] ?? '';
+
+        if ($text) {
+            return "{$spaces}<{$type} {$attrString}>{$text}</{$type}>\n";
+        } else {
+            return "{$spaces}<{$type} {$attrString}></{$type}>\n";
+        }
+    }
+
+    /**
+     * Generate global CSS from project settings
+     */
+    private function generateGlobalCSS(Project $project, string $exportPath, string $framework): void
+    {
+        $settings = $project->settings ?? [];
+        $styleVars = $settings['style_variables'] ?? [];
+
+        $cssPath = $framework === 'react'
+            ? "{$exportPath}/src/styles/global.css"
+            : "{$exportPath}/styles/global.css";
+
+        $css = "/* DeCode Global Styles - Generated from Settings */\n";
+        $css .= ":root {\n";
+        
+        // Complete default variables from StyleModal
+        $defaults = [
+            '--color-primary' => '#3b82f6',
+            '--color-surface' => '#ffffff',
+            '--color-bg' => '#ffffff',
+            '--color-text' => '#1f2937',
+            '--color-border' => '#e5e7eb',
+            '--color-bg-muted' => '#f9fafb',
+            '--color-text-muted' => '#6b7280',
+            '--font-size-base' => '14px',
+            '--font-weight-normal' => '400',
+            '--line-height-base' => '1.5',
+            '--letter-spacing' => '0',
+            '--radius-md' => '6px',
+            '--radius-lg' => '8px',
+            '--container-width' => '1200px',
+            '--shadow-sm' => '0 1px 2px rgba(0,0,0,0.05)',
+            '--shadow-md' => '0 4px 6px rgba(0,0,0,0.07)',
+            '--shadow-lg' => '0 10px 15px rgba(0,0,0,0.1)',
+            '--spacing-xs' => '4px',
+            '--spacing-sm' => '8px',
+            '--spacing-md' => '16px',
+            '--spacing-lg' => '24px',
+            '--transition-duration' => '200ms',
+            '--transition-easing' => 'cubic-bezier(0.4, 0, 0.2, 1)',
+            '--z-modal' => '1000',
+        ];
+
+        // Merge saved style variables with defaults
+        $allVars = array_merge($defaults, $styleVars);
+        foreach ($allVars as $var => $value) {
+            $css .= "  {$var}: {$value};\n";
+        }
+
+        $css .= "}\n\n";
+        $css .= "* {\n  margin: 0;\n  padding: 0;\n  box-sizing: border-box;\n}\n\n";
+        $css .= "body {\n  font-family: system-ui, -apple-system, sans-serif;\n  background-color: var(--color-bg);\n  color: var(--color-text);\n}\n\n";
+        
+        // Add frame container styles
+        $css .= ".frame-container {\n  width: 100%;\n  min-height: 100vh;\n  padding: var(--spacing-md);\n}\n\n";
+        
+        // For HTML+CSS projects, extract component styles to global.css
+        if ($project->output_format === 'html' && $project->style_framework === 'css') {
+            $frames = Frame::where('project_id', $project->id)->get();
+            $css .= $this->generateFrameComponentStyles($frames);
+        }
+
+        file_put_contents($cssPath, $css);
+    }
+
+    /**
+     * Generate CSS classes from frame components (for HTML+CSS projects)
+     */
+    private function generateFrameComponentStyles($frames): string
+    {
+        $css = "/* Component Styles */\n";
+        $generatedClasses = [];
+        
+        foreach ($frames as $frame) {
+            $components = \App\Models\ProjectComponent::where('frame_id', $frame->uuid)->get();
+            
+            foreach ($components as $component) {
+                $className = $this->generateComponentClassName($component);
+                
+                // Avoid duplicate class definitions
+                if (in_array($className, $generatedClasses)) {
+                    continue;
+                }
+                
+                $generatedClasses[] = $className;
+                $css .= ".{$className} {\n";
+                
+                $style = $component->style ?? [];
+                foreach ($style as $property => $value) {
+                    $cssProperty = $this->convertCamelToKebab($property);
+                    $css .= "  {$cssProperty}: {$value};\n";
+                }
+                
+                $css .= "}\n\n";
+            }
+        }
+        
+        return $css;
+    }
+
+    /**
+     * Generate a unique class name for a component
+     */
+    private function generateComponentClassName($component): string
+    {
+        $type = $component->component_type ?? 'component';
+        $id = substr($component->uuid ?? uniqid(), 0, 8);
+        return "component-{$type}-{$id}";
+    }
+
+    /**
+     * Convert camelCase to kebab-case
+     */
+    private function convertCamelToKebab(string $string): string
+    {
+        return strtolower(preg_replace('/([a-z])([A-Z])/', '$1-$2', $string));
+    }
+
+    /**
+     * Update main entry point to include frames
+     */
+    private function updateMainEntryPoint(Project $project, string $exportPath, string $framework, $frames): void
+    {
+        if ($framework === 'react') {
+            $appPath = "{$exportPath}/src/App.jsx";
+            $content = "import React from 'react'\n";
+            
+            foreach ($frames as $frame) {
+                $componentName = Str::studly($frame->name);
+                $fileName = Str::slug($frame->name, '_');
+                $content .= "import {$componentName} from './frames/{$fileName}.jsx'\n";
+            }
+            
+            $content .= "\nfunction App() {\n";
+            $content .= "  return (\n";
+            $content .= "    <div className=\"app\">\n";
+            
+            foreach ($frames as $frame) {
+                $componentName = Str::studly($frame->name);
+                $content .= "      <{$componentName} />\n";
+            }
+            
+            $content .= "    </div>\n";
+            $content .= "  )\n";
+            $content .= "}\n\n";
+            $content .= "export default App\n";
+            
+            file_put_contents($appPath, $content);
+        } else {
+            // HTML project - update index.html with frame navigation
+            $indexPath = "{$exportPath}/index.html";
+            $content = $this->generateIndexHTML($project, $frames);
+            file_put_contents($indexPath, $content);
+            
+            // Update main.js with frame switching logic
+            $scriptsPath = "{$exportPath}/scripts";
+            if (!file_exists($scriptsPath)) {
+                mkdir($scriptsPath, 0755, true);
+            }
+            $mainJsPath = "{$scriptsPath}/main.js";
+            $jsContent = $this->generateMainJS($frames);
+            file_put_contents($mainJsPath, $jsContent);
+        }
+    }
+
+    /**
+     * Generate index.html with frame navigation
+     */
+    private function generateIndexHTML(Project $project, $frames): string
+    {
+        $html = "<!DOCTYPE html>\n";
+        $html .= "<html lang=\"en\">\n";
+        $html .= "<head>\n";
+        $html .= "    <meta charset=\"UTF-8\">\n";
+        $html .= "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n";
+        $html .= "    <title>{$project->name}</title>\n";
+        $html .= "    <link rel=\"stylesheet\" href=\"styles/global.css\">\n";
+        $html .= "    <style>\n";
+        $html .= "        .navigation {\n";
+        $html .= "            position: fixed;\n";
+        $html .= "            top: 0;\n";
+        $html .= "            left: 0;\n";
+        $html .= "            right: 0;\n";
+        $html .= "            background: var(--color-surface);\n";
+        $html .= "            border-bottom: 1px solid var(--color-border);\n";
+        $html .= "            padding: var(--spacing-md);\n";
+        $html .= "            display: flex;\n";
+        $html .= "            gap: var(--spacing-sm);\n";
+        $html .= "            z-index: 1000;\n";
+        $html .= "        }\n";
+        $html .= "        .nav-button {\n";
+        $html .= "            padding: var(--spacing-sm) var(--spacing-md);\n";
+        $html .= "            background: var(--color-bg-muted);\n";
+        $html .= "            border: 1px solid var(--color-border);\n";
+        $html .= "            border-radius: var(--radius-md);\n";
+        $html .= "            cursor: pointer;\n";
+        $html .= "            transition: all var(--transition-duration) var(--transition-easing);\n";
+        $html .= "        }\n";
+        $html .= "        .nav-button:hover {\n";
+        $html .= "            background: var(--color-primary);\n";
+        $html .= "            color: white;\n";
+        $html .= "        }\n";
+        $html .= "        .nav-button.active {\n";
+        $html .= "            background: var(--color-primary);\n";
+        $html .= "            color: white;\n";
+        $html .= "        }\n";
+        $html .= "        .frame-viewer {\n";
+        $html .= "            margin-top: 80px;\n";
+        $html .= "            width: 100%;\n";
+        $html .= "            height: calc(100vh - 80px);\n";
+        $html .= "            border: none;\n";
+        $html .= "        }\n";
+        $html .= "    </style>\n";
+        $html .= "</head>\n";
+        $html .= "<body>\n";
+        $html .= "    <div class=\"navigation\">\n";
+        
+        foreach ($frames as $index => $frame) {
+            $fileName = Str::slug($frame->name, '_');
+            $active = $index === 0 ? ' active' : '';
+            $html .= "        <button class=\"nav-button{$active}\" data-frame=\"frames/{$fileName}.html\">{$frame->name}</button>\n";
+        }
+        
+        $html .= "    </div>\n";
+        $html .= "    <iframe id=\"frame-viewer\" class=\"frame-viewer\" src=\"";
+        
+        if ($frames->isNotEmpty()) {
+            $firstFrame = $frames->first();
+            $fileName = Str::slug($firstFrame->name, '_');
+            $html .= "frames/{$fileName}.html";
+        }
+        
+        $html .= "\"></iframe>\n";
+        $html .= "    <script src=\"scripts/main.js\"></script>\n";
+        $html .= "</body>\n";
+        $html .= "</html>\n";
+        
+        return $html;
+    }
+
+    /**
+     * Generate main.js with frame switching logic
+     */
+    private function generateMainJS($frames): string
+    {
+        $js = "// DeCode Project - Frame Navigation\n\n";
+        $js .= "document.addEventListener('DOMContentLoaded', function() {\n";
+        $js .= "    const frameViewer = document.getElementById('frame-viewer');\n";
+        $js .= "    const navButtons = document.querySelectorAll('.nav-button');\n\n";
+        $js .= "    navButtons.forEach(button => {\n";
+        $js .= "        button.addEventListener('click', function() {\n";
+        $js .= "            // Remove active class from all buttons\n";
+        $js .= "            navButtons.forEach(btn => btn.classList.remove('active'));\n";
+        $js .= "            \n";
+        $js .= "            // Add active class to clicked button\n";
+        $js .= "            this.classList.add('active');\n";
+        $js .= "            \n";
+        $js .= "            // Load the frame\n";
+        $js .= "            const frameSrc = this.getAttribute('data-frame');\n";
+        $js .= "            frameViewer.src = frameSrc;\n";
+        $js .= "        });\n";
+        $js .= "    });\n";
+        $js .= "});\n";
+        
+        return $js;
+    }
+
+    /**
+     * Utility: Copy directory recursively
+     */
+    private function copyDirectory(string $src, string $dest): void
+    {
+        if (!is_dir($src)) {
+            return;
+        }
+
+        if (!is_dir($dest)) {
+            mkdir($dest, 0755, true);
+        }
+
+        $files = scandir($src);
+        foreach ($files as $file) {
+            if ($file !== '.' && $file !== '..') {
+                $srcPath = "{$src}/{$file}";
+                $destPath = "{$dest}/{$file}";
+                
+                if (is_dir($srcPath)) {
+                    $this->copyDirectory($srcPath, $destPath);
+                } else {
+                    copy($srcPath, $destPath);
+                }
+            }
+        }
+    }
+
+    /**
+     * Create ZIP from directory
+     */
+    private function createZipFromDirectory(string $source, string $destination): bool
+    {
+        if (!extension_loaded('zip')) {
+            throw new \Exception('ZIP extension not loaded');
+        }
+
+        $zip = new ZipArchive();
+        if (!$zip->open($destination, ZipArchive::CREATE | ZipArchive::OVERWRITE)) {
+            return false;
+        }
+
+        $source = realpath($source);
+        $files = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($source),
+            \RecursiveIteratorIterator::LEAVES_ONLY
+        );
+
+        foreach ($files as $file) {
+            if (!$file->isDir()) {
+                $filePath = $file->getRealPath();
+                $relativePath = substr($filePath, strlen($source) + 1);
+                $zip->addFile($filePath, $relativePath);
+            }
+        }
+
+        return $zip->close();
+    }
+
+    /**
+     * Helper methods for mapping
+     */
+    private function mapComponentTypeToJSX(string $type): string
+    {
+        $map = [
+            'button' => 'button',
+            'text' => 'p',
+            'heading' => 'h2',
+            'input' => 'input',
+            'image' => 'img',
+            'container' => 'div',
+        ];
+        return $map[$type] ?? 'div';
+    }
+
+    private function mapComponentTypeToHTML(string $type): string
+    {
+        return $this->mapComponentTypeToJSX($type);
+    }
+
+    private function generateTailwindClasses($component): string
+    {
+        // Simplified - you can enhance this
+        return 'component';
+    }
+
+    private function generateInlineStyle(array $style): string
+    {
+        $parts = [];
+        foreach ($style as $key => $value) {
+            $cssKey = str_replace('_', '-', $key);
+            $parts[] = "{$cssKey}: {$value}";
+        }
+        return implode('; ', $parts);
+    }
+
+    private function generateLinkedCSS($frame, $framesPath): void
+    {
+        // Placeholder for linked CSS generation
+    }
+
+    private function restorePreservedFiles($project, $exportPath): void
+    {
+        // Placeholder for restoring preserved files from imported projects
+    }
+
+    private function pushToGitHub($project, $projectPath, $validated, $user): string
+    {
+        // Placeholder for GitHub push functionality
+        return 'https://github.com/example/repo';
+    }
+}

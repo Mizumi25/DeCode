@@ -175,6 +175,7 @@ Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasS
     Route::post('/projects/{project:uuid}/duplicate', [ProjectController::class, 'duplicate']);
     Route::post('/projects/{project:uuid}/move', [ProjectController::class, 'moveToWorkspace']);
     Route::post('/projects/{project:uuid}/thumbnail', [ProjectController::class, 'updateThumbnail']);
+    Route::put('/projects/{project:uuid}/style-settings', [ProjectController::class, 'updateStyleSettings']);
     
     // Project thumbnail generation - Playwright PRIMARY, Canvas FALLBACK
     Route::post('/projects/{project:uuid}/thumbnail/playwright', [ProjectController::class, 'generateThumbnailPlaywright']);
@@ -361,6 +362,10 @@ Route::post('/realtime-update', [CollaborationController::class, 'realtimeUpdate
     
     // AI generation route
     Route::post('/ai/generate-template', [AiController::class, 'generateTemplate']);
+    
+    // Export routes
+    Route::get('/projects/{project:uuid}/export/zip', [App\Http\Controllers\ExportController::class, 'exportAsZip']);
+    Route::post('/projects/{project:uuid}/export/github', [App\Http\Controllers\ExportController::class, 'exportToGitHub']);
 
     // Test thumbnail generation endpoint
     Route::get('/test-thumbnails', function() {

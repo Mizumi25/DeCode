@@ -12,7 +12,7 @@ class Project extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'uuid', // Add this
+        'uuid',
         'user_id',
         'name',
         'description',
@@ -29,7 +29,16 @@ class Project extends Model
         'viewport_height',
         'css_framework',
         'output_format',
-        'workspace_id', 
+        'workspace_id',
+        // 🔥 Import/Export metadata
+        'project_type',
+        'source_repo_url',
+        'source_repo_branch',
+        'last_synced_at',
+        'framework',
+        'style_framework',
+        'preserved_files',
+        'boilerplate_template',
     ];
 
     protected $casts = [
@@ -39,7 +48,10 @@ class Project extends Model
         'last_opened_at' => 'datetime',
         'is_public' => 'boolean',
         'viewport_width' => 'integer',
-        'viewport_height' => 'integer'
+        'viewport_height' => 'integer',
+        // 🔥 Import/Export metadata
+        'preserved_files' => 'array',
+        'last_synced_at' => 'datetime',
     ];
 
     protected $dates = [

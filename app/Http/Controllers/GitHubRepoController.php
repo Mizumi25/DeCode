@@ -42,32 +42,100 @@ class GitHubRepoController extends Controller
             if ($response->successful()) {
                 $repositories = $response->json();
                 
-                // Filter and enhance repository data
-                $filteredRepos = collect($repositories)->map(function ($repo) {
-                    return [
-                        'id' => $repo['id'],
-                        'name' => $repo['name'],
-                        'full_name' => $repo['full_name'],
-                        'description' => $repo['description'],
-                        'html_url' => $repo['html_url'],
-                        'clone_url' => $repo['clone_url'],
-                        'ssh_url' => $repo['ssh_url'],
-                        'private' => $repo['private'],
-                        'fork' => $repo['fork'],
-                        'language' => $repo['language'],
-                        'stargazers_count' => $repo['stargazers_count'],
-                        'forks_count' => $repo['forks_count'],
-                        'size' => $repo['size'],
-                        'default_branch' => $repo['default_branch'],
-                        'created_at' => $repo['created_at'],
-                        'updated_at' => $repo['updated_at'],
-                        'pushed_at' => $repo['pushed_at'],
-                    ];
-                })->toArray();
+                // Filter and enhance repository data - ONLY HTML/React projects
+                $filteredRepos = collect($repositories)
+                    ->filter(function ($repo) use ($user) {
+                        // Only include web frontend projects
+                        $language = strtolower($repo['language'] ?? '');
+                        $name = strtolower($repo['name'] ?? '');
+                        $description = strtolower($repo['description'] ?? '');
+                        
+                        // Explicitly exclude backend keywords in name/description
+                        $backendKeywords = ['api', 'backend', 'server', 'express-api', 'rest-api', 'node-api', 'blog-api'];
+                        foreach ($backendKeywords as $keyword) {
+                            if (str_contains($name, $keyword) || str_contains($description, $keyword)) {
+                                return false;
+                            }
+                        }
+                        
+                        // Exclude non-web languages
+                        $backendLanguages = ['python', 'java', 'ruby', 'go', 'rust', 'c++', 'c#', 'php'];
+                        if (in_array($language, $backendLanguages)) {
+                            return false;
+                        }
+                        
+                        // For JavaScript repos, verify they have frontend code
+                        if ($language === 'javascript') {
+                            // Check if it has React, Vue, or frontend indicators
+                            $hasFrontendIndicator = 
+                                str_contains($name, 'react') ||
+                                str_contains($name, 'vue') ||
+                                str_contains($name, 'frontend') ||
+                                str_contains($name, 'ui') ||
+                                str_contains($name, 'web') ||
+                                str_contains($description, 'react') ||
+                                str_contains($description, 'vue') ||
+                                str_contains($description, 'frontend') ||
+                                str_contains($description, 'website') ||
+                                str_contains($description, 'web app');
+                            
+                            // Additional check: Look at package.json for frontend dependencies
+                            if (!$hasFrontendIndicator) {
+                                $hasFrontendDeps = $this->hasFrontendDependencies($repo['id'], $user);
+                                if (!$hasFrontendDeps) {
+                                    return false; // Exclude backend-only JS projects
+                                }
+                            }
+                        }
+                        
+                        // Include HTML projects
+                        if ($language === 'html') {
+                            return true;
+                        }
+                        
+                        // Include JSX projects
+                        if ($language === 'jsx') {
+                            return true;
+                        }
+                        
+                        // Include JavaScript projects that passed the frontend check
+                        if ($language === 'javascript') {
+                            return true;
+                        }
+                        
+                        return false;
+                    })
+                    ->map(function ($repo) {
+                        return [
+                            'id' => $repo['id'],
+                            'name' => $repo['name'],
+                            'full_name' => $repo['full_name'],
+                            'description' => $repo['description'],
+                            'html_url' => $repo['html_url'],
+                            'clone_url' => $repo['clone_url'],
+                            'ssh_url' => $repo['ssh_url'],
+                            'private' => $repo['private'],
+                            'fork' => $repo['fork'],
+                            'language' => $repo['language'],
+                            'stargazers_count' => $repo['stargazers_count'],
+                            'forks_count' => $repo['forks_count'],
+                            'size' => $repo['size'],
+                            'default_branch' => $repo['default_branch'],
+                            'created_at' => $repo['created_at'],
+                            'updated_at' => $repo['updated_at'],
+                            'pushed_at' => $repo['pushed_at'],
+                        ];
+                    })
+                    ->values()
+                    ->toArray();
                 
                 return response()->json([
                     'success' => true,
-                    'repositories' => $filteredRepos
+                    'repositories' => $filteredRepos,
+                    'total_filtered' => count($filteredRepos),
+                    'message' => count($filteredRepos) > 0 
+                        ? "Found " . count($filteredRepos) . " HTML/React repositories"
+                        : "No HTML or React repositories found. Only HTML and React projects with CSS or Tailwind are supported."
                 ]);
             }
 
@@ -159,6 +227,23 @@ class GitHubRepoController extends Controller
             // Analyze repository for frontend files BEFORE creating project
             $frontendFiles = $this->analyzeFrontendFiles($validated['repository_id'], $user);
             
+            // Detect framework from frontend files
+            $detectedFrameworks = $this->detectFrameworks($frontendFiles);
+            
+            // Check package.json for React if not detected from file extensions
+            $hasReact = in_array('React', $detectedFrameworks) || 
+                        $this->hasReactInPackageJson($validated['repository_id'], $user);
+            
+            $framework = $hasReact ? 'react' : 'html';
+            $styleFramework = $validated['css_framework'] === 'tailwind' ? 'tailwind' : 'css';
+            
+            Log::info('Framework detection', [
+                'repo_id' => $validated['repository_id'],
+                'detected_from_files' => $detectedFrameworks,
+                'has_react_in_package' => $this->hasReactInPackageJson($validated['repository_id'], $user),
+                'final_framework' => $framework
+            ]);
+            
             // Create project first
             $project = Project::create([
                 'uuid' => Str::uuid(),
@@ -172,6 +257,12 @@ class GitHubRepoController extends Controller
                 'viewport_height' => $validated['viewport_height'],
                 'css_framework' => $validated['css_framework'],
                 'is_public' => $validated['is_public'] ?? false,
+                'project_type' => 'imported',
+                'source_repo_url' => $validated['repository_url'],
+                'source_repo_branch' => 'main',
+                'framework' => $framework,
+                'style_framework' => $styleFramework,
+                'last_synced_at' => now(),
                 'settings' => array_merge(
                     Project::getDefaultSettings(),
                     [
@@ -639,8 +730,8 @@ class GitHubRepoController extends Controller
         $frameworks = [];
         
         foreach ($frontendFiles as $file) {
-            $extension = strtolower($file['extension']);
-            $filename = strtolower($file['filename']);
+            $extension = strtolower($file['extension'] ?? '');
+            $filename = strtolower($file['filename'] ?? $file['name'] ?? '');
             
             if (in_array($extension, ['jsx', 'tsx'])) {
                 $frameworks['React'] = true;
@@ -656,6 +747,124 @@ class GitHubRepoController extends Controller
         }
         
         return array_keys($frameworks);
+    }
+    
+    /**
+     * Check if repository has React by examining package.json
+     */
+    private function hasReactInPackageJson($repoId, $user): bool
+    {
+        try {
+            $headers = $user->getGitHubApiHeaders();
+            $response = Http::withHeaders($headers)
+                ->timeout(10)
+                ->get("https://api.github.com/repositories/{$repoId}/contents/package.json");
+            
+            if (!$response->successful()) {
+                return false;
+            }
+            
+            $packageData = $response->json();
+            
+            // GitHub returns base64 encoded content
+            if (isset($packageData['content'])) {
+                $content = base64_decode($packageData['content']);
+                $packageJson = json_decode($content, true);
+                
+                if ($packageJson) {
+                    // Check for React in dependencies or devDependencies
+                    $deps = array_merge(
+                        $packageJson['dependencies'] ?? [],
+                        $packageJson['devDependencies'] ?? []
+                    );
+                    
+                    return isset($deps['react']) || 
+                           isset($deps['next']) || 
+                           isset($deps['gatsby']);
+                }
+            }
+            
+            return false;
+            
+        } catch (\Exception $e) {
+            Log::debug('Failed to check package.json for React', [
+                'repo_id' => $repoId,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+    
+    /**
+     * Check if repository has frontend dependencies in package.json
+     */
+    private function hasFrontendDependencies($repoId, $user): bool
+    {
+        try {
+            $headers = $user->getGitHubApiHeaders();
+            $response = Http::withHeaders($headers)
+                ->timeout(10)
+                ->get("https://api.github.com/repositories/{$repoId}/contents/package.json");
+            
+            if (!$response->successful()) {
+                return false;
+            }
+            
+            $packageData = $response->json();
+            
+            if (isset($packageData['content'])) {
+                $content = base64_decode($packageData['content']);
+                $packageJson = json_decode($content, true);
+                
+                if ($packageJson) {
+                    $deps = array_merge(
+                        $packageJson['dependencies'] ?? [],
+                        $packageJson['devDependencies'] ?? []
+                    );
+                    
+                    // Frontend frameworks/libraries
+                    $frontendDeps = [
+                        'react', 'react-dom', 'vue', 'angular', '@angular/core',
+                        'next', 'gatsby', 'nuxt', 'svelte', 'solid-js',
+                        'preact', 'lit', 'alpine.js'
+                    ];
+                    
+                    foreach ($frontendDeps as $dep) {
+                        if (isset($deps[$dep])) {
+                            return true;
+                        }
+                    }
+                    
+                    // Backend-only indicators (if found, it's NOT frontend)
+                    $backendDeps = [
+                        'express', 'koa', 'fastify', 'hapi', '@nestjs/core',
+                        'mongoose', 'sequelize', 'typeorm', 'prisma',
+                        'socket.io', 'ws', 'cors', 'helmet', 'morgan'
+                    ];
+                    
+                    $backendCount = 0;
+                    foreach ($backendDeps as $dep) {
+                        if (isset($deps[$dep])) {
+                            $backendCount++;
+                        }
+                    }
+                    
+                    // If it has multiple backend deps and no frontend, it's backend-only
+                    if ($backendCount >= 2) {
+                        return false;
+                    }
+                }
+            }
+            
+            return false;
+            
+        } catch (\Exception $e) {
+            Log::debug('Failed to check package.json for frontend deps', [
+                'repo_id' => $repoId,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
     }
 
     /**
