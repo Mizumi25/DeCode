@@ -78,20 +78,12 @@ export function ForgeFrameOffscreenPreview({ frame, width, height, onMounted }) 
     }
   }, [components]);
 
-  // Render components using ComponentLibraryService
+  // 🔥 UNIFIED: Render components using unified renderer
   const renderComponent = (component, index) => {
     try {
-      const rendered = componentLibraryService.renderComponent(
+      const rendered = componentLibraryService.renderUnified(
         component,
-        index,
-        null, // selectedComponentId - not needed for thumbnail
-        () => {}, // handleComponentClick - not needed
-        () => {}, // handleComponentDoubleClick - not needed
-        () => {}, // handlePropertyChange - not needed
-        false, // isDragging
-        null, // activeDragId
-        containerRef, // parentRef
-        { 'data-component-type': component.type } // Add data attribute for counting
+        component.id || `component_${index}`
       );
       return rendered;
     } catch (error) {

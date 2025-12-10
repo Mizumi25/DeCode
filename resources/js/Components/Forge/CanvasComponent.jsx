@@ -918,44 +918,48 @@ const {
   },
 });
 
-  const style = {
-    opacity: isDragging ? 0.3 : 1,
-    zIndex: isDragging ? 9999 : component.zIndex || depth,
-  };
-
-    const getDeviceAwareStyles = () => {
-  const baseStyles = {
-    display: isLayout ? 'block' : 'inline-block',
-    width: isLayout ? '100%' : 'auto',
-    minHeight: isLayout ? '100px' : 'auto',
-    backgroundColor: 'transparent',
-  };
-  
-  // 🔥 FIX: For layouts, skip responsive calculations
-  if (isLayout) {
-    return {
-      ...baseStyles,
-      ...component.style,  // User styles applied directly
-      ...style,            // Drag transform
-    };
-  }
-  
-  // For non-layout components, use responsive calculations
-  const serviceStyles = componentLibraryService?.calculateResponsiveStyles(
+  // 🔥 FIXED: Wrapper mimics component's layout behavior
+  const componentStyles = componentLibraryService?.calculateResponsiveStyles(
     component, 
     responsiveMode, 
     canvasDimensions,
-    { isLayoutContainer: false, responsiveMode }
-  );
+    {}
+  ) || component.style;
   
-  return {
-    ...baseStyles,
-    ...serviceStyles,
-    ...style,
+  // Wrapper should match component's display mode to avoid layout issues
+  const wrapperStyle = {
+    // Match component's positioning
+    position: componentStyles?.position || (isLayout ? 'relative' : 'static'),
+    // Match component's display
+    display: componentStyles?.display || (isLayout ? 'block' : 'inline-block'),
+    // Match component's width if block
+    width: (componentStyles?.display === 'block' || isLayout) ? (componentStyles?.width || '100%') : 'auto',
+    // Drag states
+    opacity: isDragging ? 0.3 : 1,
+    zIndex: isDragging ? 9999 : (component.zIndex || depth),
+    // Event handling
+    pointerEvents: 'auto',
+    cursor: isDragging ? 'grabbing' : 'grab',
   };
-};
-
-  const componentStyles = getDeviceAwareStyles();
+  
+  // If wrapper is handling positioning, remove from component to avoid double positioning
+  const finalComponentStyles = { ...componentStyles };
+  if (wrapperStyle.position === 'absolute' || wrapperStyle.position === 'fixed') {
+    wrapperStyle.top = componentStyles?.top;
+    wrapperStyle.left = componentStyles?.left;
+    wrapperStyle.right = componentStyles?.right;
+    wrapperStyle.bottom = componentStyles?.bottom;
+    delete finalComponentStyles.position;
+    delete finalComponentStyles.top;
+    delete finalComponentStyles.left;
+    delete finalComponentStyles.right;
+    delete finalComponentStyles.bottom;
+  }
+  
+  // If wrapper is handling width, remove from component
+  if (wrapperStyle.width !== 'auto') {
+    delete finalComponentStyles.width;
+  }
   
 
 // Auto-save components when they change
@@ -989,162 +993,131 @@ useEffect(() => {
   return () => clearTimeout(timeoutId);
 }, [canvasComponents, projectId, currentFrame, componentsLoaded, isFrameSwitching]);
 
-if (isLayout) {
-    return (
-      <div
-        key={component.id}
-        style={{...componentStyles, ...style}}
-        data-component-id={component.id}
-        data-depth={depth}
-        data-is-layout="true"
-        data-parent-id={parentId || 'root'}
-        data-responsive-mode={responsiveMode}
-        className={`
-          relative group layout-container 
-          ${isSelected ? 'ring-2 ring-blue-500' : ''}
-          ${isDragging ? 'opacity-40' : ''}
-          ${dropTarget?.id === component.id ? 'ring-2 ring-green-400' : ''}
-          transition-opacity duration-150
-          responsive-${responsiveMode}
-        `}
-        {...dragHandlers}
-        onClick={handleSmartClick}
-        onDoubleClick={(e) => handleDoubleClickText(e, component.id)}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-      >
-        {/* 🔥 NEW: Drop animation */}
-        <DropAnimation componentId={component.id} triggerKey={dropAnimationKey} />
-        {/* 🔥 NEW: Framer-style hover add lines for sections */}
-        {isLayout && !isDragging && !activeDragId && (
-          <>
-            <SectionHoverAddLine 
-              position="top" 
-              componentId={component.id}
-              onAdd={handleAddSection}
-            />
-            <SectionHoverAddLine 
-              position="bottom" 
-              componentId={component.id}
-              onAdd={handleAddSection}
-            />
-          </>
-        )}
-        
-        {/* Nested components */}
-       {component.children && component.children.length > 0 ? (
-            component.children.map((child, childIndex) => (
-             
- <DraggableComponent
-                key={child.id}
-                component={child}
-                depth={depth + 1}
-                parentId={component.id}
-                index={childIndex}
-                parentStyle={componentStyles}
-                responsiveMode={responsiveMode}
-                onDragEnd={handleComponentDragEnd}
-    setSelectedComponent={setSelectedComponent}  // 🔥 ADD THIS
-    setIsCanvasSelected={setIsCanvasSelected}    // 🔥 ADD THIS
-                currentFrame={currentFrame}
-                canvasComponents={canvasComponents}
-                flattenForReorder={flattenForReorder}
-                onDragStateChange={({ activeId, position }) => {
-                  setActiveDragId(activeId);
-                  setDragPosition(position);
-                }}
-              />
-            ))
-        ) : (
-          !activeDragId && ( // 🔥 Hide empty state during drag
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-60">
-              <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
-                Drop here • {component.type} • {responsiveMode}
-                {componentStyles._responsiveScale && ` • Scale: ${componentStyles._responsiveScale.toFixed(2)}`}
-              </div>
-            </div>
-          )
-        )}
-        
-         {isSelected && !activeDragId && (
-          <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
-            {component.name} • {component.children?.length || 0} children • {responsiveMode}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Non-layout component rendering with responsive styles
-  const componentRenderer = componentLibraryService?.getComponent(component.type);
-  let renderedContent = null;
-
-  if (componentRenderer?.render) {
-    try {
-      const mergedProps = {
-        ...component.props,
-        style: componentStyles // 🔥 Use responsive styles
-      };
-      renderedContent = componentRenderer.render(mergedProps, component.id);
-    } catch (error) {
-      console.warn('Render error:', error);
-      renderedContent = <div className="p-2 border rounded">{component.name}</div>;
-    }
-  }
-
-  const wrapperStyles = {
-  position: 'relative',
-  display: componentStyles.display === 'inline-flex' || 
-           componentStyles.display === 'inline-block' || 
-           componentStyles.display === 'inline' 
-           ? 'inline-block'
-           : 'block',
-  zIndex: component.zIndex || depth,
-  // 🔥 CRITICAL: NO padding on wrapper
-  padding: '0',
-  margin: '0',
-};
-
-return (
-  <div
-    key={component.id}
-    style={{...wrapperStyles, ...style}}
-    data-component-id={component.id}
-    data-depth={depth}
-    data-is-layout="false"
-    data-parent-id={parentId || 'root'}
-    data-responsive-mode={responsiveMode}
+  // 🔥 UNIFIED RENDERING - One path for ALL components (layout or not)
+  // The wrapper is ONLY for drag/drop interaction, the unified renderer handles ALL styling
+  return (
+    <div
+      key={component.id}
+      style={wrapperStyle}
+      data-component-id={component.id}
+      data-component-type={component.type}
+      data-depth={depth}
+      data-parent-id={parentId || 'root'}
+      data-responsive-mode={responsiveMode}
+      data-is-layout={isLayout}
       className={`
-        group
+        draggable-component
+        ${isLayout ? 'layout-container' : 'content-component'}
         ${isSelected ? 'ring-2 ring-blue-500' : ''}
         ${isDragging ? 'opacity-40' : ''}
+        ${dropTarget?.id === component.id ? 'ring-2 ring-green-400' : ''}
         transition-opacity duration-150
         responsive-${responsiveMode}
       `}
       {...dragHandlers}
       onClick={handleSmartClick}
       onDoubleClick={(e) => handleDoubleClickText(e, component.id)}
-   >
-      {/* 🔥 NEW: Drop animation */}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Drop animation */}
       <DropAnimation componentId={component.id} triggerKey={dropAnimationKey} />
       
-      {/* Component content wrapper */}
-      <div 
-        style={{ 
-          position: 'relative', 
-          zIndex: 2,
-          pointerEvents: 'none',
-          display: 'inline-block',
-          padding: '0',
-        }}
-      >
-        {renderedContent}
-      </div>
+      {/* Framer-style hover add lines for layout containers */}
+      {isLayout && !isDragging && !activeDragId && (
+        <>
+          <SectionHoverAddLine 
+            position="top" 
+            componentId={component.id}
+            onAdd={handleAddSection}
+          />
+          <SectionHoverAddLine 
+            position="bottom" 
+            componentId={component.id}
+            onAdd={handleAddSection}
+          />
+        </>
+      )}
+      
+      {/* 🔥 DROP ZONES: Show when this component can accept drops */}
+      {dropTarget?.id === component.id && activeDragId && (
+        <>
+          {/* Before drop zone */}
+          {dropIntent === 'before' && (
+            <SectionDropZone 
+              position="top"
+              componentId={component.id}
+              isDragOver={true}
+              isVisible={true}
+            />
+          )}
+          
+          {/* Inside drop zone (for containers) */}
+          {dropIntent === 'inside' && canAcceptChildren(component) && (
+            <div className="absolute inset-0 border-2 border-dashed border-blue-500 bg-blue-50/20 rounded-lg pointer-events-none z-10 flex items-center justify-center">
+              <div className="bg-blue-500 text-white px-3 py-1 rounded text-sm font-medium">
+                Drop Inside
+              </div>
+            </div>
+          )}
+          
+          {/* After drop zone */}
+          {dropIntent === 'after' && (
+            <SectionDropZone 
+              position="bottom"
+              componentId={component.id}
+              isDragOver={true}
+              isVisible={true}
+            />
+          )}
+        </>
+      )}
+      
+      {/* 🔥 UNIFIED: Render the actual component with responsive styles */}
+      {componentLibraryService?.renderUnified 
+        ? componentLibraryService.renderUnified({
+            ...component,
+            style: finalComponentStyles  // Apply responsive styles (without duplicated wrapper props)
+          }, component.id)
+        : null
+      }
+      
+      {/* 🔥 UNIFIED: Always render children the same way */}
+      {component.children && component.children.length > 0 ? (
+        component.children.map((child, childIndex) => (
+          <DraggableComponent
+            key={child.id}
+            component={child}
+            depth={depth + 1}
+            parentId={component.id}
+            index={childIndex}
+            parentStyle={componentStyles}
+            responsiveMode={responsiveMode}
+            onDragEnd={handleComponentDragEnd}
+            setSelectedComponent={setSelectedComponent}
+            setIsCanvasSelected={setIsCanvasSelected}
+            currentFrame={currentFrame}
+            canvasComponents={canvasComponents}
+            flattenForReorder={flattenForReorder}
+            onDragStateChange={({ activeId, position }) => {
+              setActiveDragId(activeId);
+              setDragPosition(position);
+            }}
+          />
+        ))
+      ) : isLayout && !activeDragId ? (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-60">
+          <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
+            Drop here • {component.type} • {responsiveMode}
+            {componentStyles._responsiveScale && ` • Scale: ${componentStyles._responsiveScale.toFixed(2)}`}
+          </div>
+        </div>
+      ) : null}
       
       {/* Selection label */}
-       {isSelected && !activeDragId && (
-        <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50 pointer-events-none">
-          {component.name} • {responsiveMode}
+      {isSelected && !activeDragId && (
+        <div className="absolute -top-6 left-0 px-2 py-1 rounded text-xs font-medium bg-blue-500 text-white z-50">
+          {component.name} • {component.children?.length || 0} items • {responsiveMode}
         </div>
       )}
     </div>

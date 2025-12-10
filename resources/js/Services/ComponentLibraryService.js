@@ -2,6 +2,141 @@
 import axios from 'axios';
 import React from 'react';
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔥 COMPLETE DOM-LIKE UNIFIED RENDERING SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * ALL valid HTML5 elements mapped to themselves
+ * This makes the system truly universal - supports ANY HTML element
+ */
+const ALL_HTML_ELEMENTS = [
+  // Document structure
+  'html', 'head', 'body', 'title', 'meta', 'link', 'style', 'script',
+  
+  // Sections
+  'header', 'nav', 'main', 'section', 'article', 'aside', 'footer',
+  
+  // Content grouping
+  'div', 'span', 'p', 'pre', 'blockquote', 'hr', 'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+  
+  // Text semantics
+  'a', 'strong', 'em', 'b', 'i', 'u', 's', 'mark', 'small', 'sub', 'sup', 'code', 'kbd', 'samp', 'var', 'time', 'abbr', 'dfn', 'cite', 'q',
+  
+  // Headings
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  
+  // Forms
+  'form', 'input', 'textarea', 'button', 'select', 'option', 'optgroup', 'label', 'fieldset', 'legend', 'datalist', 'output', 'progress', 'meter',
+  
+  // Interactive
+  'details', 'summary', 'dialog',
+  
+  // Embedded content
+  'img', 'iframe', 'embed', 'object', 'param', 'video', 'audio', 'source', 'track', 'canvas', 'svg', 'math',
+  
+  // Tables
+  'table', 'caption', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'col', 'colgroup',
+  
+  // Other
+  'figure', 'figcaption', 'picture', 'template', 'slot'
+];
+
+/**
+ * Create self-mapping for ALL HTML elements
+ * e.g., 'button' -> 'button', 'div' -> 'div', etc.
+ */
+const HTML_TAG_MAP = Object.fromEntries(
+  ALL_HTML_ELEMENTS.map(tag => [tag, tag])
+);
+
+/**
+ * Add custom component type mappings
+ * These are your database component types that map to HTML elements
+ */
+Object.assign(HTML_TAG_MAP, {
+  // Custom type aliases for elements
+  'text-node': 'span',
+  'link': 'a',
+  'image': 'img',
+  'gif': 'img',
+  'checkbox': 'input',
+  'radio': 'input',
+  'toggle': 'input',
+  'file-input': 'input',
+  'range': 'input',
+  
+  // Layout aliases
+  'container': 'div',
+  'flex': 'div',
+  'grid': 'div',
+  
+  // Complex components (wrapper divs - children defined in DB)
+  'card': 'div',
+  'badge': 'span',
+  'avatar': 'div',
+  'navbar': 'nav',
+  'navbar-component': 'nav',
+  'searchbar': 'div',
+  'hero': 'section',
+  'accordion': 'div',
+  'tabs': 'div',
+  'modal': 'div',
+  'tooltip': 'div',
+  'dropdown': 'div',
+  'carousel': 'div',
+  'sidebar': 'aside',
+  'footer-component': 'footer',
+  'cta': 'section',
+  
+  // Special
+  'icon': 'span',
+  'frame-component-instance': 'div'
+});
+
+/**
+ * Maps component props to HTML attributes
+ */
+const PROP_TO_ATTR_MAP = {
+  // Form attributes
+  'placeholder': 'placeholder',
+  'disabled': 'disabled',
+  'value': 'value',
+  'defaultValue': 'defaultValue',
+  'checked': 'checked',
+  'defaultChecked': 'defaultChecked',
+  'type': 'type',
+  'name': 'name',
+  'id': 'id',
+  'required': 'required',
+  'readonly': 'readOnly',
+  'min': 'min',
+  'max': 'max',
+  'step': 'step',
+  'pattern': 'pattern',
+  'accept': 'accept',
+  'multiple': 'multiple',
+  
+  // Link/Media attributes
+  'href': 'href',
+  'target': 'target',
+  'src': 'src',
+  'alt': 'alt',
+  'title': 'title',
+  'autoplay': 'autoplay',
+  'loop': 'loop',
+  'controls': 'controls',
+  'muted': 'muted',
+  'poster': 'poster',
+  
+  // Accessibility
+  'aria-label': 'aria-label',
+  'aria-labelledby': 'aria-labelledby',
+  'aria-describedby': 'aria-describedby',
+  'role': 'role',
+  'tabindex': 'tabIndex'
+};
+
 class ComponentLibraryService {
   constructor() {
     this.components = new Map();
@@ -11,6 +146,355 @@ class ComponentLibraryService {
     this.registerFrameComponentInstance();
   }
   
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔥 UNIFIED RENDERING METHODS - Replace 30+ specialized methods
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  /**
+   * 🔥 COMPLETE UNIFIED RENDERER - Handles EVERYTHING like a DOM
+   * - Single HTML elements (button, input, div, etc.)
+   * - Complex components (card, navbar, hero, etc.)
+   * - ALL HTML5 elements
+   * - Nested children (handled by CanvasComponent)
+   * 
+   * This ONE method replaces 30+ specialized render methods
+   */
+  renderUnified(component, id) {
+    // 1. Get component definition from database
+    const componentDef = this.componentDefinitions.get(component.type);
+    
+    // 2. Check if this is a complex component with internal structure
+    const isComplexComponent = componentDef?.component_type === 'component';
+    
+    // 3. Get HTML tag for this component type
+    const htmlTag = this.getHTMLTag(component.type);
+    
+    // 4. Merge props with correct priority (defaults < variant < instance)
+    const mergedProps = this.mergeComponentProps(component, componentDef);
+    
+    // 5. Build HTML attributes from props
+    const htmlAttrs = this.getHTMLAttributes(mergedProps, id, component.type, componentDef);
+    
+    // 6. Get children content
+    // For simple elements: text content
+    // For complex components: null (children rendered by CanvasComponent from component.children array)
+    const children = this.getElementChildren(mergedProps, component.children);
+    
+    // 7. Create React element - ONE universal pattern for ALL
+    return React.createElement(htmlTag, htmlAttrs, children);
+  }
+  
+  /**
+   * Get HTML tag for component type
+   * @param {string} type - Component type (button, input, card, navbar, hero, etc.)
+   * @returns {string} HTML tag name
+   * 
+   * Supports ALL HTML5 elements + custom component types
+   */
+  getHTMLTag(type) {
+    // Check if it's a known type (HTML element or custom component)
+    if (HTML_TAG_MAP[type]) {
+      return HTML_TAG_MAP[type];
+    }
+    
+    // Unknown type - default to div (safest wrapper)
+    console.warn(`Unknown component type: ${type}, defaulting to 'div'`);
+    return 'div';
+  }
+  
+  /**
+   * Check if element type can accept children (like real DOM)
+   * 🔥 Only self-closing elements can't have children
+   */
+  canAcceptChildren(type) {
+    const selfClosingTypes = ['input', 'img', 'br', 'hr', 'meta', 'link', 'area', 'base', 'col', 'embed', 'source', 'track', 'wbr'];
+    return !selfClosingTypes.includes(type);
+  }
+  
+  /**
+   * Merge component props with correct priority:
+   * default_props (lowest) < variant.props < component.props < component.style (highest)
+   */
+  mergeComponentProps(component, componentDef) {
+    const defaultProps = componentDef?.default_props || {};
+    const instanceProps = component.props || {};
+    const instanceStyle = component.style || {};
+    
+    // Merge all props
+    let mergedProps = {
+      ...defaultProps,
+      ...instanceProps
+    };
+    
+    // Build final styles with correct priority
+    let finalStyle = {
+      ...(defaultProps.style || {}),
+      ...(instanceProps.style || {}),
+      ...instanceStyle  // Instance style ALWAYS wins
+    };
+    
+    mergedProps.style = finalStyle;
+    
+    return mergedProps;
+  }
+  
+  /**
+   * Convert component props to HTML attributes
+   * Handles both simple elements and complex components
+   */
+  getHTMLAttributes(props, id, type, componentDef) {
+    const attrs = {
+      key: id,
+      // 🔥 Add data attribute for SelectionOverlay to find the actual rendered component
+      // But use different attribute name than wrapper to avoid drop detection confusion
+      'data-component-element': id,
+      'data-element-type': type,
+      style: {
+        ...(props.style || {}),
+        // 🔥 CRITICAL: Component should NOT capture events - wrapper handles drag/select
+        pointerEvents: 'none',
+      }
+    };
+    
+    // Handle special input types (checkbox, radio, toggle, range, file-input)
+    if (['checkbox', 'radio', 'toggle'].includes(type)) {
+      attrs.type = type === 'toggle' ? 'checkbox' : type;
+    } else if (type === 'range') {
+      attrs.type = 'range';
+    } else if (type === 'file-input') {
+      attrs.type = 'file';
+    }
+    
+    // Map props to HTML attributes
+    Object.keys(props).forEach(propKey => {
+      // Skip special props that aren't HTML attributes
+      if ([
+        'style', 
+        'text', 
+        'content', 
+        'children', 
+        'variant', 
+        'isLayoutContainer',
+        // Complex component props (these are for logic, not HTML)
+        'title',
+        'subtitle',
+        'description',
+        'logoText',
+        'navLinks',
+        'ctaText',
+        'brandName',
+        'items',
+        'showDots',
+        'showArrows',
+        'position',
+        'padding',
+        'size'
+      ].includes(propKey)) {
+        return;
+      }
+      
+      // Map to HTML attribute
+      const attrKey = PROP_TO_ATTR_MAP[propKey] || propKey;
+      const value = props[propKey];
+      
+      // Handle boolean attributes
+      if (typeof value === 'boolean') {
+        if (value) attrs[attrKey] = true;
+      } else if (value !== null && value !== undefined) {
+        attrs[attrKey] = value;
+      }
+    });
+    
+    // Add className if exists
+    if (props.className) {
+      attrs.className = props.className;
+    }
+    
+    // Generate className for complex components (card, badge, navbar, hero, etc.)
+    if (!attrs.className) {
+      attrs.className = this.getComponentClassName(type, props, componentDef);
+    }
+    
+    return attrs;
+  }
+  
+  /**
+   * Get className for component based on type and props
+   * Handles both simple elements and complex components dynamically
+   */
+  getComponentClassName(type, props, componentDef) {
+    const classNames = [];
+    
+    // 🔥 FIXED: Base classes WITHOUT hardcoded display/positioning
+    // Let the component's style.display handle display, not Tailwind classes
+    const typeClasses = {
+      // Simple elements - NO display classes (use style.display instead)
+      'button': '',  // No hardcoded classes - respect component.style
+      'input': 'border border-gray-300 rounded px-3 py-2',
+      'textarea': 'border border-gray-300 rounded px-3 py-2',
+      'select': 'border border-gray-300 rounded px-3 py-2',
+      
+      // Layout elements - NO display classes (use style.display instead)
+      'container': 'max-w-7xl mx-auto px-4',
+      'flex': '',  // Display comes from style.display: 'flex'
+      'grid': '',  // Display comes from style.display: 'grid'
+      'section': '',  // Width comes from style.width
+      
+      // Complex components (minimal base - variants add more)
+      'card': 'rounded-lg shadow-md border border-gray-200 p-4 bg-white',
+      'badge': 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+      'avatar': 'rounded-full flex items-center justify-center overflow-hidden',
+      'navbar': 'flex items-center justify-between p-4 bg-white border-b border-gray-200',
+      'searchbar': 'flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg bg-white',
+      'hero': 'min-h-screen flex items-center justify-center',
+      'accordion': 'border border-gray-200 rounded-lg',
+      'modal': 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50',
+      'tooltip': 'absolute z-50 px-2 py-1 text-xs bg-gray-900 text-white rounded shadow-lg',
+      'dropdown': 'absolute z-50 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg',
+      'carousel': 'relative overflow-hidden',
+      'tabs': 'border-b border-gray-200',
+      'sidebar': 'w-64 h-screen bg-white border-r border-gray-200',
+      'footer-component': 'w-full bg-gray-100 border-t border-gray-200 p-8',
+      'cta': 'w-full py-16 bg-gradient-to-r from-blue-600 to-purple-600 text-white'
+    };
+    
+    // Add base classes
+    if (typeClasses[type]) {
+      classNames.push(typeClasses[type]);
+    }
+    
+    // Add variant-specific classes
+    if (props.variant) {
+      const variantClass = this.getVariantClassName(type, props.variant);
+      if (variantClass) {
+        classNames.push(variantClass);
+      }
+    }
+    
+    // Add padding classes (for complex components)
+    if (props.padding) {
+      const paddingMap = {
+        'sm': 'p-2',
+        'md': 'p-4',
+        'lg': 'p-6',
+        'xl': 'p-8'
+      };
+      if (paddingMap[props.padding]) {
+        classNames.push(paddingMap[props.padding]);
+      }
+    }
+    
+    // Add size classes (for badges, buttons, etc.)
+    if (props.size) {
+      const sizeMap = {
+        'sm': 'text-sm',
+        'md': 'text-base',
+        'lg': 'text-lg'
+      };
+      if (sizeMap[props.size]) {
+        classNames.push(sizeMap[props.size]);
+      }
+    }
+    
+    return classNames.join(' ');
+  }
+  
+  /**
+   * Get variant-specific className
+   */
+  getVariantClassName(type, variant) {
+    const variantMap = {
+      // Badge variants
+      'badge': {
+        'default': 'bg-gray-100 text-gray-800',
+        'primary': 'bg-blue-100 text-blue-800',
+        'success': 'bg-green-100 text-green-800',
+        'warning': 'bg-yellow-100 text-yellow-800',
+        'danger': 'bg-red-100 text-red-800',
+        'gradient': 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+      },
+      // Button variants
+      'button': {
+        'primary': 'bg-blue-600 text-white hover:bg-blue-700',
+        'secondary': 'bg-gray-600 text-white hover:bg-gray-700',
+        'outline': 'border-2 border-blue-600 text-blue-600 hover:bg-blue-50',
+        'ghost': 'hover:bg-gray-100'
+      },
+      // Card variants
+      'card': {
+        'elevated': 'shadow-2xl',
+        'outlined': 'border-2',
+        'glass': 'bg-white/10 backdrop-blur-2xl border border-white/20',
+        'gradient': 'bg-gradient-to-br from-purple-100 to-blue-100'
+      },
+      // Navbar variants
+      'navbar': {
+        'solid': 'bg-white border-b',
+        'transparent': 'bg-transparent',
+        'glass': 'bg-white/10 backdrop-blur-2xl border-b border-white/20'
+      },
+      // Hero variants
+      'hero': {
+        'centered': 'text-center',
+        'split': 'grid md:grid-cols-2',
+        'gradient': 'bg-gradient-to-br from-purple-600 via-blue-600 to-cyan-600 text-white'
+      }
+    };
+    
+    return variantMap[type]?.[variant] || '';
+  }
+  
+  /**
+   * Get element children (text content, options, or null for nested components)
+   * Nested component children are handled by CanvasComponent recursively
+   */
+  getElementChildren(props, childrenArray) {
+    // Text content takes priority
+    if (props.text) return props.text;
+    if (props.content) return props.content;
+    if (props.children && typeof props.children === 'string') return props.children;
+    
+    // For select elements, render options
+    if (props.options && Array.isArray(props.options)) {
+      return props.options.map((opt, idx) => 
+        React.createElement('option', { key: idx, value: opt.value || opt }, opt.label || opt)
+      );
+    }
+    
+    // For complex components with title/subtitle/description props, render them inline
+    // (This is for components that don't have children array but have content props)
+    if (props.title || props.subtitle || props.description) {
+      const contentElements = [];
+      
+      if (props.title) {
+        contentElements.push(
+          React.createElement('div', { key: 'title', className: 'font-bold text-lg mb-2' }, props.title)
+        );
+      }
+      
+      if (props.subtitle) {
+        contentElements.push(
+          React.createElement('div', { key: 'subtitle', className: 'text-sm text-gray-600 mb-2' }, props.subtitle)
+        );
+      }
+      
+      if (props.description) {
+        contentElements.push(
+          React.createElement('p', { key: 'description', className: 'text-gray-700' }, props.description)
+        );
+      }
+      
+      // Only return if there are no children array (children take priority)
+      if (!childrenArray || childrenArray.length === 0) {
+        return contentElements.length > 0 ? contentElements : null;
+      }
+    }
+    
+    // For components with nested children array, return null
+    // CanvasComponent will handle recursive rendering of children
+    return null;
+  }
+
   // 🔥 Register frame component instance as a special component type
   registerFrameComponentInstance() {
     const frameComponentDef = {
@@ -26,7 +510,17 @@ class ComponentLibraryService {
       id: 'frame-component-instance',
       name: 'Frame Component Instance',
       description: 'Instance of a linked frame component',
-      render: (props, id) => this.renderFrameComponentInstance(props, id),
+      render: (props, id) => {
+        // Use unified renderer for frame component instances
+        const component = {
+          id,
+          type: 'frame-component-instance',
+          props,
+          style: props.style || {},
+          children: props.children || []
+        };
+        return this.renderUnified(component, id);
+      },
       generateCode: (props) => `<!-- Frame Component Instance: ${props.sourceFrameName || 'Unknown'} -->`
     });
   }
@@ -236,50 +730,11 @@ getDeviceCanvasDimensions(responsiveMode) {
   
   return dimensions[responsiveMode] || dimensions.desktop;
 }
+
   
-  
-  
-  
-  renderIcon(props, id) {
-    const iconStyle = {
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      width: props.size ? `${props.size}px` : '24px',
-      height: props.size ? `${props.size}px` : '24px',
-      color: props.color || 'currentColor',
-      ...props.style
-    };
-    
-    // Handle different icon types
-    if (props.iconType === 'svg' && props.svgData) {
-      return React.createElement('div', {
-        key: id,
-        className: 'icon-svg',
-        style: iconStyle,
-        dangerouslySetInnerHTML: { __html: props.svgData }
-      });
-    }
-    
-    if (props.iconType === 'lottie') {
-      // Lottie animation placeholder
-      return React.createElement('div', {
-        key: id,
-        className: 'icon-lottie',
-        style: iconStyle
-      }, '🎬');
-    }
-    
-    // For Lucide/Heroicons, show icon name placeholder
-    return React.createElement('div', {
-      key: id,
-      className: 'icon-element',
-      style: iconStyle,
-      title: `${props.iconName} (${props.iconType})`
-    }, React.createElement('span', {
-      style: { fontSize: '12px' }
-    }, '🎨'));
-  }
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔥 HELPER METHODS
+  // ═══════════════════════════════════════════════════════════════════════════
   
   
     // In ComponentLibraryService.js - ADD this method
@@ -332,7 +787,12 @@ getDeviceCanvasDimensions(responsiveMode) {
           propDefinitions: componentDef.prop_definitions,
           variants: componentDef.variants || [],
           
-          // Dynamic render function
+          // 🔥 NEW: Unified render function (backwards compatible)
+          renderUnified: (component, id) => {
+              return this.renderUnified(component, id);
+          },
+          
+          // OLD: Dynamic render function (kept for backwards compatibility)
           render: (props, id) => {
               return this.renderComponent(componentDef, props, id);
           },
@@ -344,15 +804,11 @@ getDeviceCanvasDimensions(responsiveMode) {
       };
   }
 
-    // REPLACE renderComponent method
+    /**
+     * 🔥 REPLACED: Old renderComponent now uses unified renderer
+     * This is kept for backwards compatibility with old code
+     */
     renderComponent(componentDef, props, id) {
-        // CRITICAL: Add data attribute for selection system
-        const baseDataAttrs = {
-            'data-component-id': id,
-            'data-component-type': componentDef?.type || props.type,
-            'data-is-layout': props.isLayoutContainer || false,
-        };
-        
         // Get the component definition if not passed
         if (!componentDef && this.componentDefinitions.has(props.type || props.component_type)) {
             componentDef = this.componentDefinitions.get(props.type || props.component_type);
@@ -360,1896 +816,33 @@ getDeviceCanvasDimensions(responsiveMode) {
         
         if (!componentDef) {
             console.warn('No component definition found for:', props.type || props.component_type);
-            return this.renderGeneric(props, id, { name: props.type || 'Unknown', type: props.type || 'unknown' });
-        }
-        
-                // ✅ CRITICAL FIX: Props merging priority
-        // 1. Start with component defaults (lowest priority)
-        // 2. Add variant styles (medium priority)
-        // 3. Add instance styles (HIGHEST priority - should never be overwritten)
-        
-        const defaultProps = componentDef?.default_props || {};
-        const instanceProps = props?.props || {};
-        const directProps = { ...props };
-        delete directProps.props;
-        delete directProps.children;
-        
-        // 🔥 CRITICAL: Build styles with correct priority
-        let finalStyle = {};
-        
-        // Step 1: Default styles from component definition
-        if (defaultProps.style) {
-            finalStyle = { ...defaultProps.style };
-        }
-        
-        // Step 2: Variant styles (if variant exists)
-        if (props.variant && props.variant.style) {
-            
-            finalStyle = {
-                ...finalStyle,
-                ...props.variant.style
+            // Fallback: create minimal component object
+            const fallbackComponent = {
+                id: id,
+                type: props.type || props.component_type || 'div',
+                props: props,
+                style: props.style || {},
+                children: props.children || []
             };
+            return this.renderUnified(fallbackComponent, id);
         }
         
-        // Step 3: Instance styles (HIGHEST PRIORITY - overwrites everything)
-        if (props.style) {
-            
-            finalStyle = {
-                ...finalStyle,
-                ...props.style  // ✅ Instance styles ALWAYS win
-            };
-        }
-        
-        const mergedProps = { 
-            ...defaultProps,
-            ...instanceProps,
-            ...directProps,
-            style: finalStyle,  // ✅ Final merged styles
+        // Build component object for unified renderer
+        const component = {
+            id: id,
+            type: componentDef.type,
+            props: props,
+            style: props.style || {},
+            children: props.children || []
         };
         
-        
-        
-        // Check if this is a layout container
-        const isLayoutContainer = props.isLayoutContainer || 
-                                 ['section', 'container', 'div', 'flex', 'grid'].includes(componentDef.type);
-        
-        if (isLayoutContainer) {
-            return this.renderLayoutContainer(componentDef, mergedProps, id, props.children || []);
-        }
-   
-
-        
-        // Check if there's a variant being used
-        if (props.variant && componentDef.variants) {
-            const variantData = componentDef.variants.find(v => v.name === props.variant.name);
-            if (variantData) {
-                // If variant has preview code, use it
-                if (variantData.preview_code) {
-                    return React.createElement('div', {
-                        key: id,
-                        dangerouslySetInnerHTML: {
-                            __html: variantData.preview_code.replace(/className=/g, 'class=')
-                        }
-                    });
-                }
-                
-                  // Merge variant props with merged props
-                if (variantData.props) {
-                    Object.assign(mergedProps, variantData.props);
-                }
-            }
-        }
-        
-        
-        
-        
-               switch (componentDef.type) {
-          // 🔥 NEW: Frame component instance
-          case 'frame-component-instance':
-            return this.renderFrameComponentInstance(mergedProps, id);
-          
-          // ✅ EXISTING CASES...
-          case 'button':
-            return this.renderButton(mergedProps, id);
-          case 'input':
-            return this.renderInput(mergedProps, id);
-            
-          // 🔥 NEW TEXT ELEMENT CASES
-          case 'text-node':
-             return this.renderTextNode(mergedProps, id);
-            
-          case 'h1':
-          case 'h2':
-          case 'h3':
-          case 'h4':
-          case 'h5':
-          case 'h6':
-            return this.renderHeading(componentDef.type, mergedProps, id);
-            
-          case 'p':
-            return this.renderParagraph(mergedProps, id);
-            
-          case 'span':
-            return this.renderSpan(mergedProps, id);
-            
-          case 'strong':
-            return this.renderStrong(mergedProps, id);
-            
-          case 'em':
-            return this.renderEm(mergedProps, id);
-            
-          case 'small':
-            return this.renderSmall(mergedProps, id);
-            
-          case 'label':
-            return this.renderLabel(mergedProps, id);
-            
-          case 'blockquote':
-            return this.renderBlockquote(mergedProps, id);
-            
-          case 'link':
-            return this.renderLink(mergedProps, id);
-            
-          case 'checkbox':
-            return this.renderCheckbox(mergedProps, id);
-            
-          case 'radio':
-            return this.renderRadio(mergedProps, id);
-            
-          case 'select':
-            return this.renderSelect(mergedProps, id);
-            
-          case 'textarea':
-            return this.renderTextarea(mergedProps, id);
-            
-          case 'toggle':
-            return this.renderToggle(mergedProps, id);
-            
-          case 'file':
-            return this.renderFileInput(mergedProps, id);
-            
-          case 'range':
-            return this.renderRange(mergedProps, id);
-            
-          case 'badge':
-            return this.renderBadge(mergedProps, id);
-          
-          case 'navbar':
-             return this.renderNavbarComponent(mergedProps, id);
-          
-          // 🔥 NEW MEDIA ELEMENTS
-          case 'image':
-            return this.renderImage(mergedProps, id);
-            
-          case 'video':
-            return this.renderVideo(mergedProps, id);
-            
-          case 'audio':
-            return this.renderAudio(mergedProps, id);
-            
-          case 'gif':
-            return this.renderGif(mergedProps, id);
-            
-          case 'icon':
-            return this.renderIconElement(mergedProps, id);
-          
-          // 🔥 SMART FALLBACK
-          default:
-            // Try smart code rendering first if variant has preview_code
-            if (mergedProps.variant?.preview_code) {
-              return this.smartCodeToUI(mergedProps.variant.preview_code, id);
-            }
-            
-            // Final fallback
-            return this.renderGeneric(mergedProps, id, componentDef);
-        }
-    }
-    
-    
-    
-    
-    // ADD this new method after loadComponents
-renderCanvasRoot(frame, canvasRef) {
-  if (!frame || !canvasRef?.current) return;
-  
-  const canvasStyle = frame.canvas_style || {};
-  const canvas = canvasRef.current;
-  
-  // Apply styles directly to canvas element
-  Object.entries(canvasStyle).forEach(([key, value]) => {
-    const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
-    canvas.style[key] = value;
-  });
-  
-  
-}
-    
-    
-    
-    
-    
-renderLayoutContainer(componentDef, props, id, children) {
-    // 🔥 CRITICAL FIX: Apply ALL style properties
-    const containerStyle = {
-        // Start with essential defaults
-        display: this.getDefaultDisplay(componentDef.type),
-        width: '100%',
-        minHeight: this.getDefaultMinHeight(componentDef.type),
-        padding: this.getDefaultPadding(componentDef.type),
-        boxSizing: 'border-box',
-        
-        // 🔥 CRITICAL: Apply ALL style props
-        // This MUST come last to override defaults
-        ...props.style,
-    };
-
-    return React.createElement('div', {
-        key: id,
-        'data-layout-type': componentDef.type,
-        'data-component-id': id,
-        'data-component-type': componentDef.type,
-        'data-is-layout': true,
-        className: `layout-container ${componentDef.type}-container`,
-        style: containerStyle
-    }, children && children.length > 0 ? children.map(child => 
-        this.renderComponent(this.componentDefinitions.get(child.type), child, child.id)
-    ) : null);
-}
-    
-    // Helper methods
-    getDefaultDisplay(type) {
-        const displayMap = {
-            'flex': 'flex',
-            'grid': 'grid',
-            'section': 'block',
-            'container': 'block',
-            'div': 'block'
-        };
-        return displayMap[type] || 'block';
-    }
-    
-    getDefaultMinHeight(type) {
-        const minHeightMap = {
-            'section': '200px',
-            'container': '100px',
-            'div': '50px',
-            'flex': '100px',
-            'grid': '100px'
-        };
-        return minHeightMap[type] || 'auto';
-    }
-    
-    getDefaultPadding(type) {
-        const paddingMap = {
-            'section': '48px 24px',
-            'container': '24px',
-            'div': '16px',
-            'flex': '16px',
-            'grid': '16px'
-        };
-        return paddingMap[type] || '0';
+        // 🔥 Use unified renderer for ALL components
+        return this.renderUnified(component, id);
     }
 
-      
-renderButton(props, id, layoutStyles = {}) {
-    const buttonText = props.children || props.content || props.text || 'Button';
-    
-    // 🔥 CRITICAL: Use props.style directly (already merged with variant)
-    const buttonStyle = {
-        ...props.style,        // 🔥 This already contains variant styles
-        ...layoutStyles,       // Layout positioning
-        cursor: 'pointer',
-        border: 'none',
-        outline: 'none',
-    };
-    
-    return React.createElement('button', {
-        key: id,
-        onClick: (e) => {
-            e.stopPropagation();
-        },
-        disabled: props.disabled || false,
-        style: buttonStyle,  // 🔥 All styles applied here
-        'data-component-id': id,
-        'data-component-type': 'button',
-        'data-is-layout': false,
-    }, buttonText);
-}
-
-
-
-
-// ADD NEW METHOD (around line 450):
-applyLayoutStyles(baseStyle, props) {
-    // 🔥 NEW: Apply ALL layout properties to ANY component
-    return {
-        ...baseStyle,
-        // Position properties
-        position: props.style?.position || baseStyle.position,
-        top: props.style?.top,
-        right: props.style?.right,
-        bottom: props.style?.bottom,
-        left: props.style?.left,
-        zIndex: props.style?.zIndex || baseStyle.zIndex,
-        
-        // Display properties
-        display: props.style?.display || baseStyle.display,
-        
-        // Flexbox (even for non-layout - needed for internal flex)
-        flexDirection: props.style?.flexDirection,
-        justifyContent: props.style?.justifyContent,
-        alignItems: props.style?.alignItems,
-        gap: props.style?.gap,
-        
-        // Size properties
-        width: props.style?.width || baseStyle.width,
-        height: props.style?.height || baseStyle.height,
-        minWidth: props.style?.minWidth,
-        maxWidth: props.style?.maxWidth,
-        minHeight: props.style?.minHeight,
-        maxHeight: props.style?.maxHeight,
-        
-        // Spacing
-        margin: props.style?.margin,
-        padding: props.style?.padding || baseStyle.padding,
-        
-        // All other style properties
-        ...props.style
-    };
-}
-
-
-
-
-  // Avatar renderer
-  renderAvatar(props, id) {
-    const className = this.getAvatarClasses(props);
-    
-    if (props.src) {
-      return React.createElement('div', {
-        key: id,
-        className
-      }, React.createElement('img', {
-        src: props.src,
-        alt: props.alt || 'Avatar',
-        className: 'w-full h-full object-cover'
-      }));
-    }
-    
-    const initials = props.initials || props.name?.charAt(0) || 'A';
-    return React.createElement('div', {
-      key: id,
-      className,
-      style: props.style,
-      // CRITICAL: Add these
-        'data-component-id': id,
-        'data-component-type': 'avatar',
-        'data-is-layout': false,
-    }, React.createElement('span', {
-      className: 'font-medium'
-    }, initials));
-  }
-
-
-
-  // Input renderer
-  renderInput(props, id, layoutStyles = {}) {
-      const className = this.getInputClasses(props);
-      
-      const inputStyle = {
-          width: props.width || '100%',
-          maxWidth: props.maxWidth || '250px',
-          ...layoutStyles,
-          ...props.style
-      };
-      
-      return React.createElement('input', {
-          key: id,
-          type: props.type || 'text',
-          placeholder: props.placeholder || '',
-          className,
-          disabled: props.disabled || false,
-          required: props.required || false,
-          style: inputStyle,
-          // CRITICAL: Add these
-          'data-component-id': id,
-          'data-component-type': 'input',
-          'data-is-layout': false,
-      });
-  }
-
-  // Searchbar renderer
-  renderSearchbar(props, id) {
-    const className = this.getSearchbarClasses(props);
-    
-    return React.createElement('div', {
-      key: id,
-      className,
-      style: props.style
-    }, [
-      React.createElement('input', {
-        key: `${id}-input`,
-        type: 'text',
-        placeholder: props.placeholder || 'Search...',
-        className: 'flex-1 bg-transparent outline-none'
-      }),
-      React.createElement('svg', {
-        key: `${id}-icon`,
-        className: 'w-5 h-5 text-gray-400',
-        fill: 'none',
-        stroke: 'currentColor',
-        viewBox: '0 0 24 24'
-      }, React.createElement('path', {
-        strokeLinecap: 'round',
-        strokeLinejoin: 'round',
-        strokeWidth: 2,
-        d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
-      }))
-    ]);
-  }
-
-  // Card renderer
-  renderCard(props, id, layoutStyles = {}) {
-      const cardClassName = this.getCardClasses(props);
-      
-      const cardStyle = {
-          ...layoutStyles,
-          ...props.style
-      };
-      
-      return React.createElement('div', {
-          key: id,
-          className: cardClassName,
-          style: cardStyle,
-          // CRITICAL: Add these
-          'data-component-id': id,
-          'data-component-type': 'card',
-          'data-is-layout': false,
-      }, [
-          props.title && React.createElement('h3', {
-              key: `${id}-title`,
-              className: 'font-semibold text-lg mb-2 text-gray-900'
-          }, props.title),
-          React.createElement('div', {
-              key: `${id}-content`,
-              className: 'text-gray-600'
-          }, props.content || props.children || 'Card content')
-      ]);
-  }
-  
-  
-  
-
-// @/Services/ComponentLibraryService.js - REPLACE renderTextNode method
-
-renderTextNode(props, id) {
-  const content = props.content || props.text_content || '';
-  
-  // 🔥 CRITICAL: Text node is ALWAYS independent with wrapper for selection
-  return React.createElement('span', {
-    key: id,
-    'data-component-id': id,
-    'data-component-type': 'text-node',
-    'data-is-layout': false,
-    'data-is-pseudo': true,
-    className: 'text-node-independent inline-block min-w-[20px] min-h-[1em]',
-    style: {
-      cursor: 'grab',
-      userSelect: 'none',
-      display: 'inline-block',
-      position: 'relative',
-      ...props.style
-    },
-    onClick: (e) => {
-      e.stopPropagation();
-      if (window.forgeSelectComponent) {
-        window.forgeSelectComponent(id);
-      }
-    },
-    onDoubleClick: (e) => {
-      e.stopPropagation();
-      // Enable inline editing
-      const span = e.currentTarget;
-      span.contentEditable = true;
-      span.focus();
-      
-      // Select all text
-      const range = document.createRange();
-      range.selectNodeContents(span);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
-      
-      const handleBlur = () => {
-        span.contentEditable = false;
-        const newContent = span.textContent;
-        if (props.onContentChange) {
-          props.onContentChange(id, newContent);
-        }
-      };
-      
-      span.addEventListener('blur', handleBlur, { once: true });
-    }
-  }, content || '\u00A0'); // Empty space if no content
-}
-
-
-
-renderHeading(level, props, id) {
-  const content = props.children || props.content || props.text || 'Heading';
-  
-  const sizeClasses = {
-    h1: 'text-6xl',
-    h2: 'text-4xl',
-    h3: 'text-3xl',
-    h4: 'text-2xl',
-    h5: 'text-xl',
-    h6: 'text-lg'
-  };
-  
-  const baseClasses = `${sizeClasses[level]} font-bold`;
-  const variantClasses = props.variant === 'gradient' 
-    ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600'
-    : 'text-gray-900';
-  
-  return React.createElement(level, {
-    key: id,
-    className: `${baseClasses} ${variantClasses} ${props.className || ''}`,
-    style: props.style,
-    'data-component-id': id,
-    'data-component-type': level,
-    'data-is-layout': false,
-  }, content);
-}
-
-
-// 🔥 PARAGRAPH RENDERER
-renderParagraph(props, id) {
-  const content = props.children || props.content || props.text || 'Paragraph text';
-  
-  return React.createElement('p', {
-    key: id,
-    className: `text-base leading-relaxed text-gray-700 ${props.className || ''}`,
-    style: props.style,
-    'data-component-id': id,
-    'data-component-type': 'p',
-    'data-is-layout': false,
-  }, content);
-}
-
-
-
-
-
-renderBadge(props, id, layoutStyles = {}) {
-  const content = props.content || props.text || 'Badge';
-  const hasIndicator = props.indicator !== false;
-  
-  const badgeStyle = {
-    ...props.style,
-    ...layoutStyles,
-  };
-  
-  return React.createElement('span', {
-    key: id,
-    style: badgeStyle,
-    'data-component-id': id,
-    'data-component-type': 'badge',
-    'data-is-layout': false,
-  }, [
-    hasIndicator && React.createElement('span', {
-      key: `${id}-indicator`,
-      style: {
-        width: '8px',
-        height: '8px',
-        background: '#10b981',
-        borderRadius: '50%',
-      }
-    }),
-    content
-  ]);
-}
-
-renderNavbar(props, id, layoutStyles = {}) {
-  const logoText = props.logoText || 'Logo';
-  const navLinks = props.navLinks || ['Home', 'About', 'Contact'];
-  const ctaText = props.ctaText || 'Button';
-  
-  const navStyle = {
-    ...props.style,
-    ...layoutStyles,
-  };
-  
-  return React.createElement('nav', {
-    key: id,
-    style: navStyle,
-    'data-component-id': id,
-    'data-component-type': 'navbar',
-    'data-is-layout': true,
-  }, [
-    // Logo
-    React.createElement('div', {
-      key: `${id}-logo`,
-      style: {
-        fontSize: '20px',
-        fontWeight: '700',
-        color: '#000000',
-      }
-    }, logoText),
-    
-    // Nav Links
-    React.createElement('div', {
-      key: `${id}-links`,
-      style: {
-        display: 'flex',
-        gap: '32px',
-        alignItems: 'center',
-      }
-    }, navLinks.map((link, index) => 
-      React.createElement('a', {
-        key: `${id}-link-${index}`,
-        href: '#',
-        style: {
-          fontSize: '16px',
-          color: '#374151',
-          textDecoration: 'none',
-        },
-        onClick: (e) => e.preventDefault(),
-      }, link)
-    )),
-    
-    // CTA Button
-    React.createElement('button', {
-      key: `${id}-cta`,
-      style: {
-        padding: '12px 24px',
-        fontSize: '16px',
-        fontWeight: '600',
-        borderRadius: '9999px',
-        background: '#000000',
-        color: '#ffffff',
-        border: 'none',
-        cursor: 'pointer',
-      }
-    }, ctaText)
-  ]);
-}
-
-
-
-renderNavbarComponent(props, id) {
-  const logoText = props.logoText || 'Logo';
-  const navLinks = props.navLinks || ['Home', 'About', 'Contact'];
-  const ctaText = props.ctaText || 'Button';
-  
-  // 🔥 CRITICAL: Navbar is a FLEX container with children
-  const navStyle = {
-    width: '100%',
-    display: 'flex',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '24px 48px',
-    background: 'rgba(255, 255, 255, 0.9)',
-    backdropFilter: 'blur(12px)',
-    borderBottom: '1px solid rgba(0, 0, 0, 0.1)',
-    position: props.style?.position || 'static',  // 🔥 Allow position override
-    top: props.style?.top || 'auto',
-    left: props.style?.left || 'auto',
-    right: props.style?.right || 'auto',
-    zIndex: props.style?.zIndex || 'auto',
-    ...props.style,
-  };
-  
-  return React.createElement('nav', {
-    key: id,
-    style: navStyle,
-    'data-component-id': id,
-    'data-component-type': 'navbar',
-    'data-is-layout': true,
-  }, [
-    // Logo (text-node child)
-    React.createElement('div', {
-      key: `${id}-logo`,
-      'data-component-id': `${id}-logo`,
-      'data-component-type': 'text-node',
-      'data-parent-id': id,
-      style: {
-        fontSize: '20px',
-        fontWeight: '700',
-        color: '#000000',
-      }
-    }, logoText),
-    
-    // Nav Links Container
-    React.createElement('div', {
-      key: `${id}-links`,
-      'data-component-id': `${id}-links-container`,
-      'data-component-type': 'flex',
-      'data-parent-id': id,
-      'data-is-layout': true,
-      style: {
-        display: 'flex',
-        gap: '32px',
-        alignItems: 'center',
-      }
-    }, navLinks.map((link, index) => 
-      React.createElement('a', {
-        key: `${id}-link-${index}`,
-        'data-component-id': `${id}-link-${index}`,
-        'data-component-type': 'link',
-        'data-parent-id': `${id}-links-container`,
-        href: '#',
-        style: {
-          fontSize: '16px',
-          color: '#374151',
-          textDecoration: 'none',
-        },
-        onClick: (e) => e.preventDefault(),
-      }, link)
-    )),
-    
-    // CTA Button
-    React.createElement('button', {
-      key: `${id}-cta`,
-      'data-component-id': `${id}-cta`,
-      'data-component-type': 'button',
-      'data-parent-id': id,
-      style: {
-        padding: '12px 24px',
-        fontSize: '16px',
-        fontWeight: '600',
-        borderRadius: '9999px',
-        background: '#000000',
-        color: '#ffffff',
-        border: 'none',
-        cursor: 'pointer',
-      }
-    }, ctaText)
-  ]);
-}
-
-
-
-
-// 🔥 SPAN RENDERER
-renderSpan(props, id) {
-  const content = props.content || props.text || '';
-  
-  return React.createElement('span', {
-    key: id,
-    className: props.className || '',
-    style: props.style,
-    'data-component-id': id,
-    'data-component-type': 'span',
-    'data-is-layout': false,
-  }, content);
-}
-
-// 🔥 STRONG RENDERER
-renderStrong(props, id) {
-  const content = props.content || props.text || '';
-  
-  return React.createElement('strong', {
-    key: id,
-    className: `font-bold ${props.className || ''}`,
-    style: props.style,
-    'data-component-id': id,
-    'data-component-type': 'strong',
-    'data-is-layout': false,
-  }, content);
-}
-
-// 🔥 EM RENDERER
-renderEm(props, id) {
-  const content = props.content || props.text || '';
-  
-  return React.createElement('em', {
-    key: id,
-    className: `italic ${props.className || ''}`,
-    style: props.style,
-    'data-component-id': id,
-    'data-component-type': 'em',
-    'data-is-layout': false,
-  }, content);
-}
-
-// 🔥 SMALL RENDERER
-renderSmall(props, id) {
-  const content = props.content || props.text || '';
-  
-  return React.createElement('small', {
-    key: id,
-    className: `text-sm text-gray-600 ${props.className || ''}`,
-    style: props.style,
-    'data-component-id': id,
-    'data-component-type': 'small',
-    'data-is-layout': false,
-  }, content);
-}
-
-// 🔥 LABEL RENDERER
-renderLabel(props, id) {
-  const content = props.content || props.text || '';
-  
-  return React.createElement('label', {
-    key: id,
-    htmlFor: props.for || props.htmlFor,
-    className: `block text-sm font-medium text-gray-700 ${props.className || ''}`,
-    style: props.style,
-    'data-component-id': id,
-    'data-component-type': 'label',
-    'data-is-layout': false,
-  }, content);
-}
-
-// 🔥 BLOCKQUOTE RENDERER
-renderBlockquote(props, id) {
-  const content = props.content || props.text || '';
-  const cite = props.cite || '';
-  
-  return React.createElement('blockquote', {
-    key: id,
-    className: `border-l-4 border-purple-600 pl-6 py-4 italic text-gray-700 ${props.className || ''}`,
-    style: props.style,
-    'data-component-id': id,
-    'data-component-type': 'blockquote',
-    'data-is-layout': false,
-  }, [
-    React.createElement('p', { key: `${id}-text`, className: 'text-lg mb-2' }, content),
-    cite && React.createElement('cite', { key: `${id}-cite`, className: 'text-sm text-gray-500 not-italic' }, `— ${cite}`)
-  ]);
-}
-
-// 🔥 LINK RENDERER
-renderLink(props, id) {
-  const content = props.children || props.content || props.text || 'Link';
-  
-  return React.createElement('a', {
-    key: id,
-    href: props.href || '#',
-    target: props.target || '_self',
-    className: `text-blue-600 hover:text-blue-800 underline ${props.className || ''}`,
-    style: props.style,
-    'data-component-id': id,
-    'data-component-type': 'link',
-    'data-is-layout': false,
-    onClick: (e) => e.preventDefault()
-  }, content);
-}
-
-// 🔥 CHECKBOX RENDERER
-renderCheckbox(props, id) {
-  const label = props.label || props.content || '';
-  
-  return React.createElement('label', {
-    key: id,
-    className: 'flex items-center gap-3 cursor-pointer',
-    'data-component-id': id,
-    'data-component-type': 'checkbox',
-    'data-is-layout': false,
-  }, [
-    React.createElement('input', {
-      key: `${id}-input`,
-      type: 'checkbox',
-      checked: props.checked || false,
-      disabled: props.disabled || false,
-      className: 'w-5 h-5 rounded border-2 border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-600/20',
-      onChange: () => {} // Prevent errors in editor
-    }),
-    React.createElement('span', {
-      key: `${id}-label`,
-      className: 'text-gray-700'
-    }, label)
-  ]);
-}
-
-// 🔥 RADIO RENDERER
-renderRadio(props, id) {
-  const label = props.label || props.content || '';
-  
-  return React.createElement('label', {
-    key: id,
-    className: 'flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-600 transition',
-    'data-component-id': id,
-    'data-component-type': 'radio',
-    'data-is-layout': false,
-  }, [
-    React.createElement('input', {
-      key: `${id}-input`,
-      type: 'radio',
-      name: props.name || 'radio-group',
-      checked: props.checked || false,
-      className: 'w-5 h-5 text-blue-600',
-      onChange: () => {}
-    }),
-    React.createElement('span', {
-      key: `${id}-label`,
-      className: 'font-semibold'
-    }, label)
-  ]);
-}
-
-// 🔥 SELECT RENDERER
-renderSelect(props, id) {
-  const options = props.options || ['Option 1', 'Option 2', 'Option 3'];
-  
-  return React.createElement('select', {
-    key: id,
-    className: 'w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-600 focus:outline-none',
-    style: props.style,
-    'data-component-id': id,
-    'data-component-type': 'select',
-    'data-is-layout': false,
-    disabled: props.disabled || false,
-  }, options.map((opt, idx) => 
-    React.createElement('option', { key: `${id}-opt-${idx}`, value: opt }, opt)
-  ));
-}
-
-// 🔥 TEXTAREA RENDERER
-renderTextarea(props, id) {
-  const content = props.content || props.value || '';
-  
-  return React.createElement('textarea', {
-    key: id,
-    rows: props.rows || 4,
-    placeholder: props.placeholder || '',
-    value: content,
-    className: 'block w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-600 focus:outline-none resize-vertical',
-    style: props.style,
-    'data-component-id': id,
-    'data-component-type': 'textarea',
-    'data-is-layout': false,
-    disabled: props.disabled || false,
-    onChange: () => {}
-  });
-}
-
-// 🔥 TOGGLE RENDERER
-renderToggle(props, id) {
-  const label = props.label || props.content || '';
-  
-  return React.createElement('label', {
-    key: id,
-    className: 'flex items-center justify-between cursor-pointer',
-    'data-component-id': id,
-    'data-component-type': 'toggle',
-    'data-is-layout': false,
-  }, [
-    React.createElement('span', {
-      key: `${id}-label`,
-      className: 'text-gray-700'
-    }, label),
-    React.createElement('div', {
-      key: `${id}-switch`,
-      className: 'relative inline-block w-12 h-6'
-    }, [
-      React.createElement('input', {
-        key: `${id}-input`,
-        type: 'checkbox',
-        checked: props.checked || false,
-        className: 'sr-only peer',
-        onChange: () => {}
-      }),
-      React.createElement('div', {
-        key: `${id}-track`,
-        className: 'w-12 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 peer-checked:after:translate-x-full after:content-[""] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all'
-      })
-    ])
-  ]);
-}
-
-// 🔥 FILE INPUT RENDERER
-renderFileInput(props, id) {
-  return React.createElement('label', {
-    key: id,
-    className: 'flex flex-col items-center justify-center w-full h-48 border-2 border-gray-300 border-dashed rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition',
-    'data-component-id': id,
-    'data-component-type': 'file',
-    'data-is-layout': false,
-  }, [
-    React.createElement('div', {
-      key: `${id}-content`,
-      className: 'flex flex-col items-center'
-    }, [
-      React.createElement('svg', {
-        key: `${id}-icon`,
-        className: 'w-10 h-10 mb-3 text-gray-400',
-        fill: 'none',
-        stroke: 'currentColor',
-        viewBox: '0 0 24 24'
-      }, React.createElement('path', {
-        strokeLinecap: 'round',
-        strokeLinejoin: 'round',
-        strokeWidth: 2,
-        d: 'M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12'
-      })),
-      React.createElement('p', {
-        key: `${id}-text`,
-        className: 'text-sm text-gray-500'
-      }, 'Click to upload or drag and drop')
-    ]),
-    React.createElement('input', {
-      key: `${id}-input`,
-      type: 'file',
-      className: 'hidden',
-      multiple: props.multiple || false,
-      accept: props.accept || ''
-    })
-  ]);
-}
-
-// 🔥 RANGE RENDERER
-renderRange(props, id) {
-  const value = props.value || 50;
-  const min = props.min || 0;
-  const max = props.max || 100;
-  
-  return React.createElement('div', {
-    key: id,
-    className: 'w-full',
-    'data-component-id': id,
-    'data-component-type': 'range',
-    'data-is-layout': false,
-  }, [
-    props.showValue && React.createElement('div', {
-      key: `${id}-header`,
-      className: 'flex justify-between mb-2'
-    }, [
-      React.createElement('span', {
-        key: `${id}-label`,
-        className: 'text-sm font-semibold'
-      }, props.label || 'Value'),
-      React.createElement('span', {
-        key: `${id}-value`,
-        className: 'text-sm font-semibold'
-      }, `${value}%`)
-    ]),
-    React.createElement('input', {
-      key: `${id}-input`,
-      type: 'range',
-      min,
-      max,
-      value,
-      step: props.step || 1,
-      className: 'w-full h-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full appearance-none cursor-pointer',
-      onChange: () => {}
-    })
-  ]);
-}
-
-// 🔥 MEDIA ELEMENT RENDERERS
-
-renderImage(props, id) {
-  const url = props.url || props.src || '';
-  const alt = props.alt || '';
-  const loading = props.loading || 'lazy';
-  
-  return React.createElement('img', {
-    key: id,
-    src: url || 'https://via.placeholder.com/400x300?text=Image',
-    alt: alt || 'Image',
-    loading: loading,
-    'data-component-id': id,
-    'data-component-type': 'image',
-    'data-is-layout': false,
-    style: {
-      maxWidth: '100%',
-      height: 'auto',
-      display: 'block',
-      ...props.style
-    }
-  });
-}
-
-renderVideo(props, id) {
-  const url = props.url || props.src || '';
-  
-  return React.createElement('video', {
-    key: id,
-    src: url,
-    autoPlay: props.autoplay || false,
-    controls: props.controls !== false,
-    loop: props.loop || false,
-    muted: props.muted || false,
-    'data-component-id': id,
-    'data-component-type': 'video',
-    'data-is-layout': false,
-    style: {
-      width: '100%',
-      maxWidth: '100%',
-      height: 'auto',
-      display: 'block',
-      ...props.style
-    }
-  });
-}
-
-renderAudio(props, id) {
-  const url = props.url || props.src || '';
-  
-  return React.createElement('audio', {
-    key: id,
-    src: url,
-    autoPlay: props.autoplay || false,
-    controls: props.controls !== false,
-    loop: props.loop || false,
-    'data-component-id': id,
-    'data-component-type': 'audio',
-    'data-is-layout': false,
-    style: {
-      width: '100%',
-      ...props.style
-    }
-  });
-}
-
-renderGif(props, id) {
-  const url = props.url || props.src || '';
-  const alt = props.alt || '';
-  
-  return React.createElement('img', {
-    key: id,
-    src: url || 'https://via.placeholder.com/400x300?text=GIF',
-    alt: alt || 'Animated GIF',
-    'data-component-id': id,
-    'data-component-type': 'gif',
-    'data-is-layout': false,
-    style: {
-      maxWidth: '100%',
-      height: 'auto',
-      display: 'block',
-      ...props.style
-    }
-  });
-}
-
-renderIconElement(props, id) {
-  const size = props.size || 24;
-  const url = props.url || '';
-  const svgCode = props.svgCode || '';
-  
-  // If SVG code is provided, use it
-  if (svgCode) {
-    return React.createElement('div', {
-      key: id,
-      'data-component-id': id,
-      'data-component-type': 'icon',
-      'data-is-layout': false,
-      style: {
-        width: `${size}px`,
-        height: `${size}px`,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        ...props.style
-      },
-      dangerouslySetInnerHTML: { __html: svgCode }
-    });
-  }
-  
-  // If URL is provided, use it
-  if (url) {
-    return React.createElement('img', {
-      key: id,
-      src: url,
-      alt: props.name || 'Icon',
-      'data-component-id': id,
-      'data-component-type': 'icon',
-      'data-is-layout': false,
-      style: {
-        width: `${size}px`,
-        height: `${size}px`,
-        display: 'block',
-        ...props.style
-      }
-    });
-  }
-  
-  // Fallback placeholder
-  return React.createElement('div', {
-    key: id,
-    'data-component-id': id,
-    'data-component-type': 'icon',
-    'data-is-layout': false,
-    style: {
-      width: `${size}px`,
-      height: `${size}px`,
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: 'rgba(0, 0, 0, 0.1)',
-      borderRadius: '4px',
-      ...props.style
-    },
-    title: props.name || 'Icon'
-  }, '🎨');
-}
-  
-  
-  
-
-  // Enhanced generic renderer with size constraints
-// 🔥 FRAME COMPONENT INSTANCE RENDERER
-renderFrameComponentInstance(props, id) {
-  console.log('🎨 Rendering frame component instance:', id, props);
-  
-  const frameName = props.frameName || props.sourceFrameName || 'Linked Frame';
-  const sourceFrameId = props.sourceFrameId || null;
-  const projectComponents = props.projectComponents || [];
-  
-  console.log('📦 Project components count:', projectComponents.length);
-  
-  // If no project components, show placeholder
-  if (!projectComponents || projectComponents.length === 0) {
-    return React.createElement('div', {
-      key: id,
-      'data-component-id': id,
-      'data-component-type': 'frame-component-instance',
-      'data-source-frame-id': sourceFrameId,
-      'data-is-layout': false,
-      style: {
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minWidth: '200px',
-        minHeight: '150px',
-        padding: '24px',
-        border: '2px dashed #8b5cf6',
-        borderRadius: '12px',
-        backgroundColor: 'rgba(139, 92, 246, 0.05)',
-        ...props.style
-      }
-    }, [
-      React.createElement('div', { key: `${id}-icon`, style: { fontSize: '32px', marginBottom: '12px' } }, '🔗'),
-      React.createElement('div', { key: `${id}-name`, style: { fontSize: '14px', fontWeight: '600', color: '#8b5cf6', marginBottom: '4px' } }, frameName),
-      React.createElement('div', { key: `${id}-label`, style: { fontSize: '12px', color: '#64748b' } }, 'Empty Component')
-    ]);
-  }
-  
-  // Build component tree from flat array
-  const buildTree = (components) => {
-    const map = new Map();
-    const roots = [];
-    
-    components.forEach(comp => {
-      map.set(comp.id, { ...comp, children: [] });
-    });
-    
-    components.forEach(comp => {
-      const node = map.get(comp.id);
-      if (comp.parent_id && map.has(comp.parent_id)) {
-        map.get(comp.parent_id).children.push(node);
-      } else {
-        roots.push(node);
-      }
-    });
-    
-    return roots;
-  };
-  
-  // Render component recursively using the actual component renderer
-  // Render component recursively using the proper component renderers
-  const renderProjectComponent = (comp, depth = 0) => {
-    // Get the component definition for this type
-    const compDef = this.componentDefinitions.get(comp.component_type);
-    
-    if (!compDef) {
-      console.warn('No definition for component type:', comp.component_type);
-      return null;
-    }
-    
-    // Parse the component's style and props
-    const compStyle = comp.style || {};
-    const compProps = comp.props || {};
-    const parsedStyle = typeof compStyle === 'string' ? JSON.parse(compStyle) : compStyle;
-    const parsedProps = typeof compProps === 'string' ? JSON.parse(compProps) : compProps;
-    
-    // Build the props object for rendering
-    const renderProps = {
-      ...parsedProps,
-      style: {
-        ...parsedStyle,
-        pointerEvents: 'none' // Prevent interaction with nested elements
-      },
-      content: comp.text_content || parsedProps.content || parsedProps.text || parsedProps.children,
-      text: comp.text_content || parsedProps.text,
-      children: comp.text_content || parsedProps.children
-    };
-    
-    // Recursively render children if they exist
-    if (comp.children && comp.children.length > 0) {
-      // For layout containers, render children inside
-      const childElements = comp.children.map(child => renderProjectComponent(child, depth + 1));
-      
-      // Use the proper renderer for this component type
-      return this.renderComponent(compDef, { ...renderProps, children: childElements }, `${id}-proj-${comp.id}`);
-    }
-    
-    // Use the proper renderer for this component type
-    return this.renderComponent(compDef, renderProps, `${id}-proj-${comp.id}`);
-  };
-
-  
-  const componentTree = buildTree(projectComponents);
-  
-  // 🔥 CRITICAL: If there's only ONE root component, render it DIRECTLY without wrapper
-  // This makes a button render as a button, not a button inside a div
-  if (componentTree.length === 1) {
-    const singleComp = componentTree[0];
-    const compDef = this.componentDefinitions.get(singleComp.component_type);
-    
-    if (!compDef) {
-      console.warn('No definition for component type:', singleComp.component_type);
-      return null;
-    }
-    
-    // Parse the component's style and props
-    const compStyle = singleComp.style || {};
-    const compProps = singleComp.props || {};
-    const parsedStyle = typeof compStyle === 'string' ? JSON.parse(compStyle) : compStyle;
-    const parsedProps = typeof compProps === 'string' ? JSON.parse(compProps) : compProps;
-    
-    // Build the props object for rendering - DON'T merge positioning!
-    // CanvasComponent's wrapper handles positioning (position, left, top, etc.)
-    // The component should only have its intrinsic styles
-    const renderProps = {
-      ...parsedProps,
-      style: {
-        ...parsedStyle
-        // 🔥 DON'T merge props.style here - it has positioning that belongs on wrapper!
-      },
-      content: singleComp.text_content || parsedProps.content || parsedProps.text || parsedProps.children,
-      text: singleComp.text_content || parsedProps.text,
-      children: singleComp.text_content || parsedProps.children
-    };
-    
-    // Render the single component DIRECTLY using proper renderer
-    // The button will have ONLY button styles, CanvasComponent wrapper handles position
-    return this.renderComponent(compDef, renderProps, id);
-  }
-  
-  // Multiple components: wrap in container
-  // Render the frame component instance as a wrapper with the actual components inside
-  // This wrapper should be the selectable/draggable element
-  return React.createElement('div', {
-    key: id,
-    'data-component-id': id,
-    'data-component-type': 'frame-component-instance',
-    'data-source-frame-id': sourceFrameId,
-    'data-is-layout': false,
-    style: {
-      position: 'relative',
-      display: 'block',
-      border: '1px solid rgba(139, 92, 246, 0.3)', // 🔥 Visual indicator
-      boxShadow: '0 0 0 1px rgba(139, 92, 246, 0.1)', // 🔥 Subtle glow
-      pointerEvents: 'auto', // 🔥 Allow interaction with wrapper
-      ...props.style
-    }
-  }, componentTree.map(comp => renderProjectComponent(comp)));
-}
-
-renderGeneric(props, id, componentDef) {
-  const containerStyle = {
-    maxWidth: '200px',
-    overflow: 'hidden',
-    ...props.style
-  };
-  
-  return React.createElement('div', {
-    key: id,
-    className: 'p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 text-center shrink-0',
-    title: `${componentDef.name} component`,
-    style: containerStyle
-  }, [
-    React.createElement('div', {
-      key: `${id}-name`,
-      className: 'font-semibold text-gray-700 truncate'
-    }, componentDef.name),
-    React.createElement('div', {
-      key: `${id}-type`,
-      className: 'text-xs text-gray-500 mt-1 truncate'
-    }, `(${componentDef.type})`)
-  ]);
-}
-
-
-
-/**
- * 🔥 SMART CODE TO UI RENDERER
- * Intelligently parses HTML/JSX code and renders it as UI
- */
-smartCodeToUI(codeString, componentId) {
-  try {
-    // Parse HTML/JSX string
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = codeString;
-    
-    const firstChild = tempDiv.firstElementChild;
-    if (!firstChild) {
-      // Pure text node
-      return document.createTextNode(codeString);
-    }
-    
-    // Extract tag, classes, styles, and content
-    const tagName = firstChild.tagName.toLowerCase();
-    const classes = firstChild.className;
-    const inlineStyle = firstChild.getAttribute('style');
-    const textContent = firstChild.textContent;
-    
-    // Create React element with parsed attributes
-    return React.createElement(tagName, {
-      key: componentId,
-      className: classes,
-      style: this.parseInlineStyle(inlineStyle),
-      'data-component-id': componentId,
-      dangerouslySetInnerHTML: { __html: firstChild.innerHTML }
-    });
-  } catch (error) {
-    console.warn('Smart code parsing failed, falling back to raw display:', error);
-    return React.createElement('div', {
-      key: componentId,
-      dangerouslySetInnerHTML: { __html: codeString }
-    });
-  }
-}
-
-/**
- * Parse inline style string to React style object
- */
-parseInlineStyle(styleString) {
-  if (!styleString) return {};
-  
-  const styles = {};
-  styleString.split(';').forEach(rule => {
-    const [prop, value] = rule.split(':').map(s => s.trim());
-    if (prop && value) {
-      // Convert kebab-case to camelCase
-      const camelProp = prop.replace(/-([a-z])/g, g => g[1].toUpperCase());
-      styles[camelProp] = value;
-    }
-  });
-  
-  return styles;
-}
-
-
-
-// Enhanced button classes with proper width constraints
-getButtonClasses(props) {
-  const baseClasses = "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 shrink-0";
-  
-  const variantClasses = {
-    primary: "bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 focus:ring-purple-500 shadow-lg hover:shadow-xl",
-    secondary: "bg-white text-gray-900 border-2 border-gray-200 hover:bg-gray-50 focus:ring-gray-500 shadow-sm hover:shadow-md",
-    success: "bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:from-emerald-600 hover:to-teal-700 focus:ring-emerald-500 shadow-lg hover:shadow-xl",
-    warning: "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 focus:ring-amber-500 shadow-lg hover:shadow-xl",
-    danger: "bg-gradient-to-r from-red-500 to-pink-600 text-white hover:from-red-600 hover:to-pink-700 focus:ring-red-500 shadow-lg hover:shadow-xl",
-    ghost: "bg-transparent text-purple-600 hover:bg-purple-50 focus:ring-purple-500 border border-transparent hover:border-purple-200",
-    gradient: "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all",
-    neon: "bg-black border-2 border-cyan-400 text-cyan-400 shadow-lg shadow-cyan-400/50 hover:shadow-cyan-400/75",
-    glass: "bg-white/20 backdrop-blur-md border border-white/30 text-white shadow-xl",
-    outline: "border-2 border-purple-600 text-purple-600 hover:bg-purple-600 hover:text-white",
-    minimal: "text-gray-700 hover:text-gray-900 hover:bg-gray-100",
-    default: "bg-gray-100 text-gray-900 hover:bg-gray-200"
-  };
-  
-  // Enhanced size classes with max-width constraints
-  const sizeClasses = {
-    xs: "px-2 py-1 text-xs min-w-[40px] max-w-[120px]",
-    sm: "px-3 py-1.5 text-sm min-w-[50px] max-w-[150px]", 
-    md: "px-6 py-2.5 text-base min-w-[60px] max-w-[200px]",
-    lg: "px-8 py-4 text-lg min-w-[80px] max-w-[250px]",
-    xl: "px-10 py-5 text-xl min-w-[100px] max-w-[300px]"
-  };
-  
-  const variant = props.variant || 'primary';
-  const size = props.size || 'md';
-  
-  return `${baseClasses} ${variantClasses[variant] || variantClasses.primary} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
-}
-
-
-
-
-
-// 🔥 NEW: Auto-wrap text content for any element
-wrapTextContent(elementType, props, id, textContent) {
-    if (!textContent || typeof textContent !== 'string') return textContent;
-    
-    const textNodeId = `${id}-text`;
-    
-    return React.createElement('span', {
-        key: textNodeId,
-        'data-component-id': textNodeId,
-        'data-component-type': 'text-node',
-        'data-parent-id': id,
-        'data-is-layout': false,
-        'data-is-pseudo': true,
-        'data-auto-wrapped': true, // 🔥 FLAG
-        className: 'text-node-child inline-block',
-        style: {
-            cursor: 'text',
-            userSelect: 'none',
-            pointerEvents: 'auto',
-            minWidth: '1ch',
-            minHeight: '1em'
-        },
-        onClick: (e) => {
-            e.stopPropagation();
-            if (window.forgeSelectComponent) {
-                window.forgeSelectComponent(textNodeId);
-            }
-        },
-        onDoubleClick: (e) => {
-            e.stopPropagation();
-            if (window.forgeHandleDoubleClickText) {
-                window.forgeHandleDoubleClickText(e, textNodeId, id);
-            }
-        }
-    }, textContent);
-}
-
-
-
-// Enhanced avatar classes with size constraints
-getAvatarClasses(props) {
-  const baseClasses = "rounded-full flex items-center justify-center overflow-hidden shrink-0";
-  
-  const variantClasses = {
-    default: "bg-gray-300 text-gray-600",
-    primary: "bg-purple-100 text-purple-600",
-    success: "bg-green-100 text-green-600",
-    warning: "bg-yellow-100 text-yellow-600",
-    danger: "bg-red-100 text-red-600",
-    gradient: "bg-gradient-to-r from-purple-400 to-pink-400 text-white",
-    bordered: "bg-white border-2 border-gray-300 text-gray-600"
-  };
-  
-  // Fixed size classes with exact dimensions
-  const sizeClasses = {
-    xs: "w-6 h-6 text-xs min-w-[24px] max-w-[24px]",
-    sm: "w-8 h-8 text-sm min-w-[32px] max-w-[32px]",
-    md: "w-12 h-12 text-base min-w-[48px] max-w-[48px]",
-    lg: "w-16 h-16 text-lg min-w-[64px] max-w-[64px]",
-    xl: "w-20 h-20 text-xl min-w-[80px] max-w-[80px]"
-  };
-  
-  const variant = props.variant || 'default';
-  const size = props.size || 'md';
-  
-  return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
-}
-
-// Enhanced badge classes with size constraints
-getBadgeClasses(props) {
-  const baseClasses = "inline-block rounded-full font-medium shrink-0";
-  
-  const variantClasses = {
-    default: "bg-gray-100 text-gray-800",
-    primary: "bg-blue-100 text-blue-800",
-    success: "bg-green-100 text-green-800",
-    warning: "bg-yellow-100 text-yellow-800",
-    danger: "bg-red-100 text-red-800",
-    info: "bg-cyan-100 text-cyan-800",
-    gradient: "bg-gradient-to-r from-purple-400 to-pink-400 text-white",
-    outline: "border-2 border-gray-300 bg-transparent text-gray-700"
-  };
-  
-  // Size classes with max-width to prevent overflow
-  const sizeClasses = {
-    xs: "px-1.5 py-0.5 text-xs max-w-[80px]",
-    sm: "px-2 py-0.5 text-xs max-w-[100px]",
-    md: "px-2.5 py-1 text-sm max-w-[120px]",
-    lg: "px-3 py-1.5 text-base max-w-[150px]"
-  };
-  
-  const variant = props.variant || 'default';
-  const size = props.size || 'md';
-  
-  return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
-}
-
-// Enhanced input classes with width constraints
-getInputClasses(props) {
-  const baseClasses = "block rounded-lg border transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 shrink-0";
-  
-  const variantClasses = {
-    default: "border-gray-300 focus:border-blue-500 focus:ring-blue-500",
-    error: "border-red-300 focus:border-red-500 focus:ring-red-500",
-    success: "border-green-300 focus:border-green-500 focus:ring-green-500",
-    minimal: "border-0 border-b-2 border-gray-300 rounded-none focus:border-blue-500",
-    filled: "bg-gray-100 border-gray-100 focus:bg-white focus:border-blue-500"
-  };
-  
-  // Size classes with width constraints
-  const sizeClasses = {
-    sm: "px-3 py-1.5 text-sm w-full max-w-[200px]",
-    md: "px-4 py-2.5 text-base w-full max-w-[250px]",
-    lg: "px-5 py-3 text-lg w-full max-w-[300px]"
-  };
-  
-  const variant = props.variant || 'default';
-  const size = props.size || 'md';
-  
-  return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
-}
-
-// Enhanced searchbar classes with width constraints
-getSearchbarClasses(props) {
-  const baseClasses = "flex items-center rounded-lg border transition-colors duration-200 shrink-0";
-  
-  const variantClasses = {
-    default: "bg-white border-gray-300 focus-within:border-blue-500",
-    filled: "bg-gray-100 border-gray-100 focus-within:bg-white focus-within:border-blue-500",
-    minimal: "bg-transparent border-0 border-b-2 border-gray-300 rounded-none focus-within:border-blue-500",
-    elevated: "bg-white shadow-md border-0 focus-within:shadow-lg"
-  };
-  
-  // Size classes with width constraints
-  const sizeClasses = {
-    sm: "px-3 py-1.5 w-full max-w-[200px]",
-    md: "px-4 py-2.5 w-full max-w-[250px]",
-    lg: "px-5 py-3 w-full max-w-[300px]"
-  };
-  
-  const variant = props.variant || 'default';
-  const size = props.size || 'md';
-  
-  return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${sizeClasses[size] || sizeClasses.md} ${props.className || ''}`;
-}
-
-// Enhanced card classes with width constraints
-getCardClasses(props) {
-  const baseClasses = "rounded-lg shrink-0";
-  
-  const variantClasses = {
-    default: "bg-white border border-gray-200",
-    outlined: "bg-transparent border-2 border-gray-300",
-    elevated: "bg-white shadow-lg border-0",
-    flat: "bg-gray-50 border-0",
-    gradient: "bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200",
-    glass: "bg-white/20 backdrop-blur-md border border-white/30"
-  };
-  
-  const paddingClasses = {
-    none: "p-0",
-    sm: "p-3",
-    md: "p-4",
-    lg: "p-6",
-    xl: "p-8"
-  };
-  
-  // Size constraints for cards
-  const sizeClasses = {
-    sm: "max-w-[200px]",
-    md: "max-w-[300px]", 
-    lg: "max-w-[400px]",
-    xl: "max-w-[500px]",
-    full: "w-full max-w-full"
-  };
-  
-  const variant = props.variant || 'default';
-  const padding = props.padding || 'md';
-  const size = props.size || 'md';
-  const shadow = (props.shadow && variant !== 'elevated') ? 'shadow-sm' : '';
-  
-  return `${baseClasses} ${variantClasses[variant] || variantClasses.default} ${paddingClasses[padding] || paddingClasses.md} ${sizeClasses[size] || sizeClasses.md} ${shadow} ${props.className || ''}`;
-}
-
-
-
-  // Enhanced code generation with variant support
-  async generateComponentCode(componentDef, props, allComponents, style) {
-    try {
-      // Try server-side generation first
-      const response = await axios.post('/api/components/generate-code', {
-        components: allComponents,
-        style: style
-      });
-      
-      if (response.data.success) {
-        return response.data.data;
-      }
-    } catch (error) {
-      console.warn('Server-side code generation failed, using client-side fallback:', error);
-    }
-    
-    // Fallback to client-side generation
-    return this.clientSideCodeGeneration(allComponents, style);
-  }
-
-  // Client-side code generation with enhanced variant support
-  // Around line 500 in ComponentLibraryService.js
-    clientSideCodeGeneration(allComponents, style, frameName = 'Generated Component') {
-        
-        
-        
-        const codeMap = {
-          'react-tailwind': () => this.generateReactTailwindCode(allComponents, frameName),
-          'react-css': () => this.generateReactCSSCode(allComponents, frameName),
-          'html-css': () => this.generateHTMLCSSCode(allComponents, frameName),
-          'html-tailwind': () => this.generateHTMLTailwindCode(allComponents, frameName)
-        };
-        
-        const result = codeMap[style]?.() || { react: '', html: '', css: '', tailwind: '' };
-        
-        // 🔥 NEW: Ensure componentLineMap exists
-        if (!result.componentLineMap) {
-          result.componentLineMap = {};
-        }
-        
-        console.log('📍 Generated code with line mapping:', {
-          style,
-          componentCount: allComponents.length,
-          mappedComponents: Object.keys(result.componentLineMap).length
-        });
-        
-        return result;
-    }
-    
-    // ADD THIS NEW METHOD right after clientSideCodeGeneration
-    getTabsForStyle(style) {
-        const tabMap = {
-          'react-tailwind': ['react'], // Single combined tab
-          'react-css': ['react', 'css'], // Two separate tabs
-          'html-css': ['html', 'css'], // Two separate tabs
-          'html-tailwind': ['html'] // Single combined tab
-        };
-        
-        return tabMap[style] || ['react'];
-    }
-
-// ENHANCE the sanitizeClassName method
-sanitizeClassName(className) {
-  if (!className || typeof className !== 'string') return '';
-  
-  return className
-    .split(' ') // Split by spaces for multiple classes
-    .map(cls => cls
-      .replace(/[^a-zA-Z0-9-_:/.]/g, '') // Keep only safe characters
-      .replace(/(^-|-$)/g, '') // Remove leading/trailing hyphens
-      .trim()
-    )
-    .filter(cls => cls.length > 0) // Remove empty strings
-    .join(' ');
-}
-
-// REPLACE the generateReactTailwindCode method
-generateReactTailwindCode(allComponents, frameName = 'GeneratedComponent') {
-  if (!allComponents || allComponents.length === 0) {
-    return {
-      react: `import React from 'react';\n\nconst GeneratedComponent = () => {\n  return (\n    <div className="w-full min-h-screen">\n      {/* No components yet */}\n    </div>\n  );\n};\n\nexport default GeneratedComponent;`,
-      tailwind: '// No components to generate classes for',
-      componentLineMap: {}
-    };
-  }
-
-  // 🔥 NEW: Collect frame-component-instances for imports
-  const frameComponentInstances = allComponents.filter(c => c.type === 'frame-component-instance' || c.component_type === 'frame-component-instance');
-  const componentImports = frameComponentInstances.map(instance => {
-    const frameName = instance.props?.sourceFrameName || instance.name || 'Component';
-    const componentName = frameName.replace(/[^a-zA-Z0-9]/g, '');
-    return `import ${componentName} from './${componentName}';`;
-  }).filter((v, i, a) => a.indexOf(v) === i); // Remove duplicates
-
-  // 🔥 NEW: Line mapping tracking
-  const componentLineMap = {};
-  let currentLine = 1; // Start at line 1
-  
-  // Count import lines
-  currentLine++; // import React
-  currentLine += componentImports.length;
-  currentLine++; // empty line
-  currentLine++; // const ComponentName = () => {
-  currentLine++; // return (
-  currentLine++; // <div className="...">
-
-  const renderComponentTree = (components, depth = 0) => {
-    return components.map(comp => {
-      const indent = '  '.repeat(depth + 2);
-      
-      // 🔥 NEW: Track start line for this component
-      const startLine = currentLine;
-      
-      // 🔥 NEW: Handle frame-component-instance
-      if (comp.type === 'frame-component-instance' || comp.component_type === 'frame-component-instance') {
-        const frameName = comp.props?.sourceFrameName || comp.name || 'Component';
-        const componentName = frameName.replace(/[^a-zA-Z0-9]/g, '');
-        const jsx = `${indent}<${componentName} />`;
-        currentLine += 1;
-        
-        // Store line mapping
-        componentLineMap[comp.id] = {
-          react: { startLine, endLine: currentLine - 1 }
-        };
-        
-        return jsx;
-      }
-      
-      // 🔥 CRITICAL FIX: Handle text nodes properly
-      if (comp.type === 'text-node') {
-        const textContent = comp.props?.content || comp.props?.text || comp.text_content || '';
-        currentLine += 1;
-        return `${indent}${this.escapeJSXText(textContent)}`;
-      }
-      
-      const classes = this.sanitizeClassName(this.buildDynamicTailwindClasses(comp));
-      const content = this.extractComponentContent(comp);
-      const hasChildren = comp.children && comp.children.length > 0;
-      
-      const reactTag = this.getComponentTag(comp.type);
-      
-      let jsx = `${indent}<${reactTag}`;
-      
-      // Add className if it exists
-      if (classes) {
-        jsx += ` className="${classes}"`;
-      }
-      
-      // Add other props
-      const otherProps = this.buildReactProps(comp);
-      if (otherProps) {
-        jsx += ` ${otherProps}`;
-      }
-      
-      // Handle self-closing tags
-      const selfClosingTags = ['input', 'img', 'br', 'hr'];
-      if (selfClosingTags.includes(comp.type) && !hasChildren && !content) {
-        jsx += ' />';
-        currentLine += 1;
-        
-        // Store line mapping
-        componentLineMap[comp.id] = {
-          react: { startLine, endLine: currentLine - 1 }
-        };
-        
-        return jsx;
-      }
-      
-      jsx += '>';
-      currentLine += 1;
-      
-      // Handle content and children
-      if (hasChildren) {
-        jsx += '\n' + renderComponentTree(comp.children, depth + 1);
-        jsx += `\n${indent}</${reactTag}>`;
-        currentLine += 1;
-      } else if (content) {
-        jsx += `\n${indent}  ${this.escapeJSXText(content)}\n${indent}</${reactTag}>`;
-        currentLine += 2;
-      } else {
-        jsx += `</${reactTag}>`;
-      }
-      
-      // Store line mapping
-      componentLineMap[comp.id] = {
-        react: { startLine, endLine: currentLine - 1 }
-      };
-      
-      return jsx;
-    }).join('\n');
-  };
-
-  const reactComponents = renderComponentTree(allComponents);
-
-  const importsSection = componentImports.length > 0 ? componentImports.join('\n') + '\n' : '';
-
-  return {
-    react: `import React from 'react';\n${importsSection}\nconst ${frameName.replace(/[^a-zA-Z0-9]/g, '')} = () => {\n  return (\n    <div className="w-full min-h-screen">\n${reactComponents}\n    </div>\n  );\n};\n\nexport default ${frameName.replace(/[^a-zA-Z0-9]/g, '')};`,
-    tailwind: allComponents.map(comp => {
-      // Skip frame-component-instances in tailwind output
-      if (comp.type === 'frame-component-instance' || comp.component_type === 'frame-component-instance') {
-        const name = comp.props?.sourceFrameName || comp.name || 'Component';
-        return `// ${name} (frame-component-instance)\n// Imported component - styles defined in its own file`;
-      }
-      return `// ${comp.name} (${comp.type})\n${this.sanitizeClassName(this.buildDynamicTailwindClasses(comp))}`;
-    }).join('\n\n'),
-    componentLineMap // 🔥 NEW: Include line mapping
-  };
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔥 CODE GENERATION METHODS
+// ═══════════════════════════════════════════════════════════════════════════
 
 // ADD this helper method for escaping JSX text
 escapeJSXText(text) {
@@ -3406,6 +1999,16 @@ buildHTMLAttributes(comp) {
   // Get component definition
   getComponentDefinition(type) {
     return this.componentDefinitions.get(type);
+  }
+  
+  // 🔥 NEW: Convenience method to check if unified rendering is available
+  supportsUnifiedRendering(type) {
+    return HTML_TAG_MAP.hasOwnProperty(type);
+  }
+  
+  // 🔥 NEW: Get all supported component types for unified rendering
+  getUnifiedRenderingTypes() {
+    return Object.keys(HTML_TAG_MAP);
   }
 
   // Get all components

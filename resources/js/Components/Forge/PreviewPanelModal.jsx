@@ -120,8 +120,7 @@ export default function PreviewPanelModal({
                 </div>
               ) : (
                 canvasComponents.map((component) => 
-                  componentLibraryService.renderComponent(
-                    componentLibraryService.getComponentDefinition(component.type),
+                  componentLibraryService.renderUnified(
                     component,
                     component.id
                   )

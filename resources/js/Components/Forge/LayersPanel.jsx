@@ -97,10 +97,21 @@ const LayerItem = ({ component, depth = 0, isSelected, onSelect, onDelete, path 
       );
     }
     
-    // 🔥 Fallback: Try to render the actual component but scaled down
+    // 🔥 UNIFIED: Try to render using unified renderer
     try {
-      const renderer = componentLibraryService?.getComponent(component.type);
-      if (renderer?.render) {
+      if (componentLibraryService?.renderUnified) {
+        const previewElement = componentLibraryService.renderUnified({
+          ...component,
+          props: { ...component.props },
+          style: {
+            ...component.props?.style,
+            width: 'auto',
+            height: 'auto',
+            maxWidth: '100%',
+            maxHeight: '100%',
+          }
+        }, `thumb-${component.id}`);
+        
         return (
           <div style={{
             width: "24px",
@@ -112,16 +123,7 @@ const LayerItem = ({ component, depth = 0, isSelected, onSelect, onDelete, path 
             transformOrigin: 'center',
             overflow: 'hidden',
           }}>
-            {renderer.render({
-              ...component.props,
-              style: {
-                ...component.props?.style,
-                width: 'auto',
-                height: 'auto',
-                maxWidth: '100%',
-                maxHeight: '100%',
-              }
-            }, `thumb-${component.id}`)}
+            {previewElement}
           </div>
         );
       }

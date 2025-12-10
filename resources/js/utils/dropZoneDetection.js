@@ -6,16 +6,20 @@
 
 /**
  * Check if a component can accept children (is a container)
+ * 🔥 LIKE REAL DOM: Everything can technically nest (even if semantically wrong)
  */
 export const canAcceptChildren = (component) => {
   if (!component) return false;
   
-  // Layout containers can accept children
-  if (component.isLayoutContainer) return true;
+  // 🔥 NEW: Only exclude self-closing elements that CAN'T have children
+  const selfClosingTypes = ['input', 'img', 'br', 'hr', 'meta', 'link'];
+  if (selfClosingTypes.includes(component.type)) {
+    return false; // These physically can't have children
+  }
   
-  // Specific types that can nest
-  const nestableTypes = ['section', 'container', 'div', 'flex', 'grid', 'nav', 'header', 'footer', 'main', 'article', 'aside'];
-  return nestableTypes.includes(component.type);
+  // 🔥 EVERYTHING ELSE can accept children (like real DOM)
+  // Yes, even buttons, spans, etc. - DOM allows it even if semantically wrong
+  return true;
 };
 
 /**

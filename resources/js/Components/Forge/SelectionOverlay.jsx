@@ -318,7 +318,13 @@ const updateBounds = useCallback(() => {
     return;
   }
 
-  const element = document.querySelector(`[data-component-id="${componentId}"]`);
+  // 🔥 Find the actual rendered component element (not the wrapper)
+  // Try data-component-element first (actual component), fallback to data-component-id (wrapper)
+  let element = document.querySelector(`[data-component-element="${componentId}"]`);
+  if (!element) {
+    element = document.querySelector(`[data-component-id="${componentId}"]`);
+  }
+  
   if (!element) {
     setBounds(null);
     setComputedStyles(null);

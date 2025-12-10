@@ -36,7 +36,7 @@ function ComponentThumbnailPreview({ projectComponents, frameName }) {
 
   const componentTree = buildTree(projectComponents)
 
-  // Render component recursively
+  // 🔥 UNIFIED: Render component using unified renderer
   const renderComponent = (comp) => {
     const style = comp.style || {}
     const props = comp.props || {}
@@ -44,19 +44,28 @@ function ComponentThumbnailPreview({ projectComponents, frameName }) {
     // Parse style if it's a string
     const parsedStyle = typeof style === 'string' ? JSON.parse(style) : style
     
-    // Get text content
-    const textContent = comp.text_content || props.content || props.text || props.children
+    // Import componentLibraryService dynamically
+    const componentLibraryService = window.componentLibraryService || 
+      require('@/Services/ComponentLibraryService').default;
+    
+    // Build component object for unified renderer
+    const component = {
+      id: comp.id,
+      type: comp.component_type || comp.type || 'div',
+      props: {
+        ...props,
+        text: comp.text_content || props.content || props.text
+      },
+      style: parsedStyle,
+      children: comp.children || []
+    };
 
     return (
-      <div
-        key={comp.id}
-        style={{
-          ...parsedStyle,
-          zIndex: comp.z_index || 0,
-        }}
-        className={comp.class_name || ''}
-      >
-        {textContent && <span>{textContent}</span>}
+      <div key={comp.id} style={{ position: 'relative' }}>
+        {componentLibraryService?.renderUnified 
+          ? componentLibraryService.renderUnified(component, comp.id)
+          : <div style={parsedStyle}>{component.props.text}</div>
+        }
         {comp.children && comp.children.map(child => renderComponent(child))}
       </div>
     )
