@@ -59,6 +59,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{component:uuid}', [ComponentController::class, 'update']);
         Route::delete('/{component:uuid}', [ComponentController::class, 'destroy']);
         Route::post('/generate-code', [ComponentController::class, 'generateCode']);
+        
+        // Save generated code to frame
+        Route::put('/frames/{frame:uuid}/generated-code', [App\Http\Controllers\VoidController::class, 'saveGeneratedCode']);
     });
 
     // Project component management routes
@@ -90,6 +93,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [VoidController::class, 'store']);
         // Frame canvas styles (BEFORE the generic /{frame:uuid} route)
 Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasStyles']);
+        // Frame generated code (from ForgePage)
+        Route::put('/{frame:uuid}/generated-code', [VoidController::class, 'updateGeneratedCode']);
         Route::get('/{frame:uuid}', [VoidController::class, 'showFrame']);
         Route::put('/{frame:uuid}', [VoidController::class, 'update']);
         Route::delete('/{frame:uuid}', [VoidController::class, 'destroy']);
@@ -367,6 +372,7 @@ Route::post('/realtime-update', [CollaborationController::class, 'realtimeUpdate
     Route::post('/projects/{project:uuid}/export/preview', [App\Http\Controllers\ExportController::class, 'previewExport']);
     Route::post('/projects/{project:uuid}/export/zip', [App\Http\Controllers\ExportController::class, 'exportAsZip']);
     Route::post('/projects/{project:uuid}/export/github', [App\Http\Controllers\ExportController::class, 'exportToGitHub']);
+    Route::post('/projects/{project:uuid}/export/github-ssh', [App\Http\Controllers\ExportController::class, 'generateGitHubSSHCommands']);
 
     // Test thumbnail generation endpoint
     Route::get('/test-thumbnails', function() {

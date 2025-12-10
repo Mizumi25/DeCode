@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Settings, Code, Trash2, RotateCw, Move, RotateCcw, Search, X, Eye, EyeOff, Maximize2, Grid, Layers, Layout, Square, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'; // Add this import
+import { usePage } from '@inertiajs/react'; // Import usePage for project info
 // Import sub-components
 import LayoutSection from './PropertySections/LayoutSection';
 import TypographySection from './PropertySections/TypographySection';
@@ -21,6 +22,10 @@ const PropertiesPanel = (allProps) => {
   console.log('🎯 ALL PROPS RECEIVED:', Object.keys(allProps));
   console.log('🔍 selectedComponent prop:', allProps.selectedComponent);
   console.log('🔍 canvasComponents prop:', allProps.canvasComponents?.length);
+  
+  // Get project info for style framework
+  const { project } = usePage().props;
+  const styleFramework = project?.style_framework || 'css';
   
   // Now destructure
   const { 
@@ -275,7 +280,8 @@ const commonProps = {
   expandedSections,
   setExpandedSections,
   selectedComponentData,
-  searchTerm: activeSearchTerm
+  searchTerm: activeSearchTerm,
+  styleFramework: styleFramework // Pass style framework for CSS variable selector
 };
 
 

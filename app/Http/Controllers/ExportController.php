@@ -39,7 +39,9 @@ class ExportController extends Controller
             $previewFrames = [];
             
             foreach ($frames as $frame) {
-                $components = \App\Models\ProjectComponent::where('frame_id', $frame->uuid)->get();
+                // 🔥 NEW: Check for pre-generated code first
+                $canvasData = $frame->canvas_data ?? [];
+                $generatedCode = $canvasData['generated_code'] ?? null;
                 
                 $framePreview = [
                     'name' => $frame->name,
@@ -47,6 +49,37 @@ class ExportController extends Controller
                     'jsx' => null,
                     'css' => null,
                 ];
+                
+                // 🔥 NEW: Use pre-generated code if available
+                if ($generatedCode && !empty($generatedCode)) {
+                    \Log::info('Preview using pre-generated code', [
+                        'frame_id' => $frame->uuid,
+                        'frame_name' => $frame->name,
+                        'has_react' => isset($generatedCode['react']),
+                        'has_html' => isset($generatedCode['html']),
+                        'has_css' => isset($generatedCode['css'])
+                    ]);
+                    
+                    if ($framework === 'html') {
+                        $framePreview['html'] = $generatedCode['html'] ?? null;
+                        $framePreview['css'] = $generatedCode['css'] ?? null;
+                    } else {
+                        $framePreview['jsx'] = $generatedCode['react'] ?? null;
+                        $framePreview['css'] = $generatedCode['css'] ?? null;
+                    }
+                    
+                    $previewFrames[] = $framePreview;
+                    continue; // Skip component-based generation
+                }
+                
+                // 🔥 FALLBACK: Generate from components if no pre-generated code
+                \Log::info('Preview generating from components (no saved code)', [
+                    'frame_id' => $frame->uuid,
+                    'frame_name' => $frame->name
+                ]);
+                
+                // Read components from ProjectComponent table (use frame numeric ID, not UUID)
+                $components = \App\Models\ProjectComponent::where('frame_id', $frame->id)->get();
                 
                 if ($framework === 'html') {
                     // Generate HTML
@@ -233,6 +266,199 @@ class ExportController extends Controller
     }
 
     /**
+     * Generate or retrieve SSH key for project
+     */
+    private function ensureSSHKey(Project $project): array
+    {
+        // Check if project already has SSH key
+        if ($project->ssh_public_key && $project->ssh_private_key) {
+            return [
+                'public_key' => $project->ssh_public_key,
+                'private_key' => $project->ssh_private_key,
+                'is_new' => false
+            ];
+        }
+
+        // Generate new SSH key pair
+        $keyPath = storage_path("app/ssh_keys/{$project->uuid}");
+        if (!file_exists(dirname($keyPath))) {
+            mkdir(dirname($keyPath), 0700, true);
+        }
+
+        // Generate SSH key using ssh-keygen
+        $email = "deploy-{$project->uuid}@decode.app";
+        $command = "ssh-keygen -t ed25519 -C \"{$email}\" -f {$keyPath} -N '' 2>&1";
+        exec($command, $output, $returnVar);
+
+        if ($returnVar !== 0) {
+            throw new \Exception('Failed to generate SSH key: ' . implode("\n", $output));
+        }
+
+        // Read the keys
+        $privateKey = file_get_contents($keyPath);
+        $publicKey = file_get_contents("{$keyPath}.pub");
+
+        // Save to database
+        $project->ssh_public_key = $publicKey;
+        $project->ssh_private_key = $privateKey;
+        $project->ssh_key_generated_at = now();
+        $project->save();
+
+        // Clean up temp files
+        unlink($keyPath);
+        unlink("{$keyPath}.pub");
+
+        return [
+            'public_key' => $publicKey,
+            'private_key' => $privateKey,
+            'is_new' => true
+        ];
+    }
+
+    /**
+     * Automated GitHub deployment with SSH
+     */
+    public function generateGitHubSSHCommands(Request $request, Project $project): JsonResponse
+    {
+        $validated = $request->validate([
+            'framework' => 'nullable|string|in:html,react',
+            'style_framework' => 'nullable|string|in:css,tailwind',
+            'include_navigation' => 'nullable|boolean',
+            'repo_url' => 'required|string',
+        ]);
+
+        try {
+            $user = auth()->user();
+            
+            // Check permissions
+            if ($project->user_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 403);
+            }
+
+            $repoUrl = $validated['repo_url'];
+            
+            // Extract owner and repo name from URL
+            preg_match('/github\.com[\/:]([^\/]+)\/([^\/\.]+)/', $repoUrl, $matches);
+            
+            if (count($matches) < 3) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid GitHub repository URL format'
+                ], 400);
+            }
+            
+            $owner = $matches[1];
+            $repo = $matches[2];
+            $sshUrl = "git@github.com:{$owner}/{$repo}.git";
+            
+            // Generate or get SSH key
+            $sshKey = $this->ensureSSHKey($project);
+            
+            // If it's a new key, return instructions first
+            if ($sshKey['is_new']) {
+                return response()->json([
+                    'success' => true,
+                    'needs_setup' => true,
+                    'ssh_public_key' => $sshKey['public_key'],
+                    'ssh_url' => $sshUrl,
+                    'message' => 'SSH key generated! Please add it to your GitHub repository.'
+                ]);
+            }
+            
+            // Key already exists, proceed with automated deployment
+            $exportOptions = [
+                'framework' => $validated['framework'] ?? $project->output_format ?? 'html',
+                'style_framework' => $validated['style_framework'] ?? $project->style_framework ?? 'css',
+                'include_navigation' => $validated['include_navigation'] ?? true,
+            ];
+
+            // Generate project files
+            $projectPath = $this->generateProjectStructure($project, $exportOptions);
+            
+            // Create temporary SSH key file for this deployment
+            $tempKeyPath = storage_path("app/temp/ssh_key_{$project->uuid}");
+            file_put_contents($tempKeyPath, $sshKey['private_key']);
+            chmod($tempKeyPath, 0600);
+            
+            try {
+                // Verify project path exists
+                if (!file_exists($projectPath)) {
+                    throw new \Exception("Export directory does not exist: {$projectPath}");
+                }
+                
+                // Clean up any existing git repository first
+                if (file_exists("{$projectPath}/.git")) {
+                    exec("rm -rf {$projectPath}/.git 2>&1");
+                }
+                
+                // Change to project directory and execute git commands
+                $output = [];
+                $returnVar = 0;
+                
+                // Single command with cd && chaining to ensure we stay in directory
+                $gitCommands = implode(' && ', [
+                    "cd {$projectPath}",
+                    "git init --initial-branch=main",
+                    "git config user.email 'deploy@decode.app'",
+                    "git config user.name 'DeCode Deploy'",
+                    "git add .",
+                    "git commit -m 'Deploy from DeCode - {$project->name}'",
+                    "git remote add origin {$sshUrl}",
+                    "GIT_SSH_COMMAND='ssh -i {$tempKeyPath} -o StrictHostKeyChecking=no' git push -u origin main --force",
+                ]);
+                
+                exec($gitCommands . " 2>&1", $output, $returnVar);
+                
+                if ($returnVar !== 0) {
+                    Log::error('Git deployment failed', [
+                        'project_path' => $projectPath,
+                        'commands' => $gitCommands,
+                        'output' => implode("\n", $output),
+                        'return_code' => $returnVar
+                    ]);
+                    throw new \Exception('Git deployment failed: ' . implode("\n", $output));
+                }
+                
+                // Clean up
+                unlink($tempKeyPath);
+                Storage::deleteDirectory("temp/export_{$project->uuid}");
+                
+                Log::info('Successfully deployed to GitHub via SSH', [
+                    'project' => $project->name,
+                    'repo' => $sshUrl
+                ]);
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Successfully deployed to GitHub!',
+                    'repo_url' => $repoUrl
+                ]);
+                
+            } catch (\Exception $e) {
+                // Clean up on error
+                if (file_exists($tempKeyPath)) {
+                    unlink($tempKeyPath);
+                }
+                throw $e;
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to generate SSH commands', [
+                'project_id' => $project->uuid,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate SSH commands: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Export project to GitHub
      */
     public function exportToGitHub(Request $request, Project $project): JsonResponse
@@ -385,6 +611,32 @@ class ExportController extends Controller
      */
     private function generateReactComponent(Frame $frame, string $styleFramework): string
     {
+        // 🔥 NEW: Check if frame has pre-generated code
+        $canvasData = $frame->canvas_data ?? [];
+        $generatedCode = $canvasData['generated_code'] ?? null;
+        $metadata = $frame->metadata ?? [];
+        $savedCodeStyle = $metadata['code_style'] ?? null;
+        
+        // Use pre-generated code if available and matches the style
+        if ($generatedCode && isset($generatedCode['react']) && !empty($generatedCode['react'])) {
+            \Log::info('Using pre-generated React code from frame', [
+                'frame_id' => $frame->uuid,
+                'frame_name' => $frame->name,
+                'saved_style' => $savedCodeStyle,
+                'requested_style' => $styleFramework
+            ]);
+            
+            // Return the pre-generated React code
+            return $generatedCode['react'];
+        }
+        
+        // Fallback to component-based generation
+        \Log::info('Generating React code from components', [
+            'frame_id' => $frame->uuid,
+            'frame_name' => $frame->name,
+            'reason' => 'No pre-generated code available'
+        ]);
+        
         $componentName = Str::studly($frame->name);
         $imports = ["import React from 'react'"];
         
@@ -394,8 +646,8 @@ class ExportController extends Controller
             }
         }
 
-        // Get frame components
-        $components = \App\Models\ProjectComponent::where('frame_id', $frame->uuid)->get();
+        // Get frame components from ProjectComponent table (use numeric ID, not UUID)
+        $components = \App\Models\ProjectComponent::where('frame_id', $frame->id)->get();
         
         // Generate JSX from components
         $jsx = $this->generateJSXFromComponents($components, $styleFramework);
@@ -416,7 +668,30 @@ class ExportController extends Controller
      */
     private function generateHTMLFile(Frame $frame, string $styleFramework): string
     {
-        $components = \App\Models\ProjectComponent::where('frame_id', $frame->uuid)->get();
+        // 🔥 NEW: Check if frame has pre-generated code
+        $canvasData = $frame->canvas_data ?? [];
+        $generatedCode = $canvasData['generated_code'] ?? null;
+        
+        // Use pre-generated HTML if available
+        if ($generatedCode && isset($generatedCode['html']) && !empty($generatedCode['html'])) {
+            \Log::info('Using pre-generated HTML code from frame', [
+                'frame_id' => $frame->uuid,
+                'frame_name' => $frame->name
+            ]);
+            
+            // Return the pre-generated HTML (it's already a complete document)
+            return $generatedCode['html'];
+        }
+        
+        // Fallback to component-based generation
+        \Log::info('Generating HTML code from components', [
+            'frame_id' => $frame->uuid,
+            'frame_name' => $frame->name,
+            'reason' => 'No pre-generated code available'
+        ]);
+        
+        // Read from ProjectComponent table (use numeric ID, not UUID)
+        $components = \App\Models\ProjectComponent::where('frame_id', $frame->id)->get();
         
         $html = "<!DOCTYPE html>\n";
         $html .= "<html lang=\"en\">\n";
@@ -547,12 +822,21 @@ class ExportController extends Controller
     {
         $settings = $project->settings ?? [];
         $styleVars = $settings['style_variables'] ?? [];
+        $styleFramework = $project->style_framework ?? 'css';
 
         $cssPath = $framework === 'react'
             ? "{$exportPath}/src/styles/global.css"
             : "{$exportPath}/styles/global.css";
 
-        $css = "/* DeCode Global Styles - Generated from Settings */\n";
+        $css = "/* DeCode Global Styles - Generated from Settings */\n\n";
+        
+        // Add Tailwind directives for Tailwind projects
+        if ($styleFramework === 'tailwind') {
+            $css .= "@tailwind base;\n";
+            $css .= "@tailwind components;\n";
+            $css .= "@tailwind utilities;\n\n";
+        }
+        
         $css .= ":root {\n";
         
         // Complete default variables from StyleModal
@@ -614,7 +898,19 @@ class ExportController extends Controller
         $generatedClasses = [];
         
         foreach ($frames as $frame) {
-            $components = \App\Models\ProjectComponent::where('frame_id', $frame->uuid)->get();
+            // 🔥 NEW: Check if frame has pre-generated CSS code
+            $canvasData = $frame->canvas_data ?? [];
+            $generatedCode = $canvasData['generated_code'] ?? null;
+            
+            // If frame has pre-generated CSS, use it
+            if ($generatedCode && isset($generatedCode['css']) && !empty($generatedCode['css'])) {
+                $css .= "\n/* Frame: {$frame->name} - Using pre-generated CSS */\n";
+                $css .= $generatedCode['css'] . "\n\n";
+                continue;
+            }
+            
+            // Fallback to component-based generation from ProjectComponent table (use numeric ID)
+            $components = \App\Models\ProjectComponent::where('frame_id', $frame->id)->get();
             
             foreach ($components as $component) {
                 $className = $this->generateComponentClassName($component);
@@ -922,7 +1218,65 @@ class ExportController extends Controller
 
     private function pushToGitHub($project, $projectPath, $validated, $user): string
     {
-        // Placeholder for GitHub push functionality
-        return 'https://github.com/example/repo';
+        $repoUrl = $validated['repo_url'] ?? $project->github_repo_url;
+        
+        if (!$repoUrl) {
+            throw new \Exception('No GitHub repository URL provided');
+        }
+        
+        // Extract owner and repo name from URL
+        // Example: https://github.com/username/repo or git@github.com:username/repo.git
+        preg_match('/github\.com[\/:]([^\/]+)\/([^\/\.]+)/', $repoUrl, $matches);
+        
+        if (count($matches) < 3) {
+            throw new \Exception('Invalid GitHub repository URL format');
+        }
+        
+        $owner = $matches[1];
+        $repo = $matches[2];
+        
+        // Initialize git in the project directory
+        $commands = [
+            "cd {$projectPath}",
+            "git init",
+            "git add .",
+            "git commit -m 'Export from DeCode - {$project->name}'",
+        ];
+        
+        // Set up remote with authentication token
+        if ($user->github_token) {
+            $authenticatedUrl = "https://{$user->github_token}@github.com/{$owner}/{$repo}.git";
+            $commands[] = "git remote add origin {$authenticatedUrl}";
+        } else {
+            $commands[] = "git remote add origin {$repoUrl}";
+        }
+        
+        // Push to GitHub
+        $commands[] = "git branch -M main";
+        $commands[] = "git push -u origin main --force"; // Force push to overwrite
+        
+        // Execute commands
+        $output = [];
+        $returnVar = 0;
+        
+        foreach ($commands as $command) {
+            exec($command . " 2>&1", $output, $returnVar);
+            
+            if ($returnVar !== 0) {
+                Log::error('GitHub push command failed', [
+                    'command' => $command,
+                    'output' => implode("\n", $output),
+                    'return_code' => $returnVar
+                ]);
+                throw new \Exception('Failed to push to GitHub: ' . implode("\n", $output));
+            }
+        }
+        
+        Log::info('Successfully pushed to GitHub', [
+            'repo' => $repoUrl,
+            'project' => $project->name
+        ]);
+        
+        return $repoUrl;
     }
 }

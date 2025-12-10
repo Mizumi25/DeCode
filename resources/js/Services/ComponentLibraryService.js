@@ -2074,7 +2074,20 @@ getCardClasses(props) {
           'html-tailwind': () => this.generateHTMLTailwindCode(allComponents, frameName)
         };
         
-        return codeMap[style]?.() || { react: '', html: '', css: '', tailwind: '' };
+        const result = codeMap[style]?.() || { react: '', html: '', css: '', tailwind: '' };
+        
+        // 🔥 NEW: Ensure componentLineMap exists
+        if (!result.componentLineMap) {
+          result.componentLineMap = {};
+        }
+        
+        console.log('📍 Generated code with line mapping:', {
+          style,
+          componentCount: allComponents.length,
+          mappedComponents: Object.keys(result.componentLineMap).length
+        });
+        
+        return result;
     }
     
     // ADD THIS NEW METHOD right after clientSideCodeGeneration
@@ -2105,11 +2118,12 @@ sanitizeClassName(className) {
 }
 
 // REPLACE the generateReactTailwindCode method
-generateReactTailwindCode(allComponents) {
+generateReactTailwindCode(allComponents, frameName = 'GeneratedComponent') {
   if (!allComponents || allComponents.length === 0) {
     return {
       react: `import React from 'react';\n\nconst GeneratedComponent = () => {\n  return (\n    <div className="w-full min-h-screen">\n      {/* No components yet */}\n    </div>\n  );\n};\n\nexport default GeneratedComponent;`,
-      tailwind: '// No components to generate classes for'
+      tailwind: '// No components to generate classes for',
+      componentLineMap: {}
     };
   }
 
@@ -2121,20 +2135,44 @@ generateReactTailwindCode(allComponents) {
     return `import ${componentName} from './${componentName}';`;
   }).filter((v, i, a) => a.indexOf(v) === i); // Remove duplicates
 
+  // 🔥 NEW: Line mapping tracking
+  const componentLineMap = {};
+  let currentLine = 1; // Start at line 1
+  
+  // Count import lines
+  currentLine++; // import React
+  currentLine += componentImports.length;
+  currentLine++; // empty line
+  currentLine++; // const ComponentName = () => {
+  currentLine++; // return (
+  currentLine++; // <div className="...">
+
   const renderComponentTree = (components, depth = 0) => {
     return components.map(comp => {
       const indent = '  '.repeat(depth + 2);
+      
+      // 🔥 NEW: Track start line for this component
+      const startLine = currentLine;
       
       // 🔥 NEW: Handle frame-component-instance
       if (comp.type === 'frame-component-instance' || comp.component_type === 'frame-component-instance') {
         const frameName = comp.props?.sourceFrameName || comp.name || 'Component';
         const componentName = frameName.replace(/[^a-zA-Z0-9]/g, '');
-        return `${indent}<${componentName} />`;
+        const jsx = `${indent}<${componentName} />`;
+        currentLine += 1;
+        
+        // Store line mapping
+        componentLineMap[comp.id] = {
+          react: { startLine, endLine: currentLine - 1 }
+        };
+        
+        return jsx;
       }
       
       // 🔥 CRITICAL FIX: Handle text nodes properly
       if (comp.type === 'text-node') {
         const textContent = comp.props?.content || comp.props?.text || comp.text_content || '';
+        currentLine += 1;
         return `${indent}${this.escapeJSXText(textContent)}`;
       }
       
@@ -2161,20 +2199,35 @@ generateReactTailwindCode(allComponents) {
       const selfClosingTags = ['input', 'img', 'br', 'hr'];
       if (selfClosingTags.includes(comp.type) && !hasChildren && !content) {
         jsx += ' />';
+        currentLine += 1;
+        
+        // Store line mapping
+        componentLineMap[comp.id] = {
+          react: { startLine, endLine: currentLine - 1 }
+        };
+        
         return jsx;
       }
       
       jsx += '>';
+      currentLine += 1;
       
       // Handle content and children
       if (hasChildren) {
         jsx += '\n' + renderComponentTree(comp.children, depth + 1);
         jsx += `\n${indent}</${reactTag}>`;
+        currentLine += 1;
       } else if (content) {
         jsx += `\n${indent}  ${this.escapeJSXText(content)}\n${indent}</${reactTag}>`;
+        currentLine += 2;
       } else {
         jsx += `</${reactTag}>`;
       }
+      
+      // Store line mapping
+      componentLineMap[comp.id] = {
+        react: { startLine, endLine: currentLine - 1 }
+      };
       
       return jsx;
     }).join('\n');
@@ -2193,7 +2246,8 @@ generateReactTailwindCode(allComponents) {
         return `// ${name} (frame-component-instance)\n// Imported component - styles defined in its own file`;
       }
       return `// ${comp.name} (${comp.type})\n${this.sanitizeClassName(this.buildDynamicTailwindClasses(comp))}`;
-    }).join('\n\n')
+    }).join('\n\n'),
+    componentLineMap // 🔥 NEW: Include line mapping
   };
 }
 
@@ -2587,25 +2641,42 @@ generateHTMLCSSCode(allComponents, frameName = 'Generated Component') {
     </div>
 </body>
 </html>`,
-      css: this.generateModernCSS([])
+      css: this.generateModernCSS([]),
+      componentLineMap: {}
     };
   }
+  
+  // 🔥 NEW: Line mapping tracking
+  const componentLineMap = {};
+  let htmlLine = 11; // Start after <body> and opening div
+  let cssLine = 1; // Start at line 1 for CSS
 
   // 🔥 FIXED: Recursive HTML rendering with CSS classes
   const renderHTMLTree = (components, depth = 0) => {
     return components.map(comp => {
       const indent = '  '.repeat(depth + 2);
       
+      // 🔥 NEW: Track start line
+      const htmlStartLine = htmlLine;
+      
       // 🔥 NEW: Handle frame-component-instance
       if (comp.type === 'frame-component-instance' || comp.component_type === 'frame-component-instance') {
         const name = comp.props?.sourceFrameName || comp.name || 'Component';
         const className = `component-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+        htmlLine += 1;
+        
+        // Store line mapping
+        componentLineMap[comp.id] = {
+          html: { startLine: htmlStartLine, endLine: htmlLine - 1 }
+        };
+        
         return `${indent}<div class="${className}"><!-- ${name} component instance --></div>`;
       }
       
       // Handle text-node (no wrapper)
       if (comp.type === 'text-node') {
         const textContent = comp.props?.content || comp.props?.text || comp.text_content || '';
+        htmlLine += 1;
         return `${indent}${textContent}`;
       }
       
@@ -2631,19 +2702,33 @@ generateHTMLCSSCode(allComponents, frameName = 'Generated Component') {
       }
       
       html += `>`;
+      htmlLine += 1;
       
       if (hasChildren) {
         html += '\n' + renderHTMLTree(comp.children, depth + 1);
         html += `\n${indent}</${htmlTag}>`;
+        htmlLine += 1;
       } else if (content) {
         html += content + `</${htmlTag}>`;
       } else {
         // Self-closing tags
         if (['input', 'img', 'br', 'hr'].includes(comp.type)) {
-          return `${indent}<${htmlTag}${cssClass ? ` class="${cssClass}"` : ''}${attrs ? ` ${attrs}` : ''} />`;
+          const selfClosing = `${indent}<${htmlTag}${cssClass ? ` class="${cssClass}"` : ''}${attrs ? ` ${attrs}` : ''} />`;
+          
+          // Store line mapping
+          componentLineMap[comp.id] = {
+            html: { startLine: htmlStartLine, endLine: htmlLine - 1 }
+          };
+          
+          return selfClosing;
         }
         html += `</${htmlTag}>`;
       }
+      
+      // Store line mapping
+      componentLineMap[comp.id] = {
+        html: { startLine: htmlStartLine, endLine: htmlLine - 1 }
+      };
       
       return html;
     }).join('\n');
@@ -2666,7 +2751,8 @@ ${htmlComponents}
     </div>
 </body>
 </html>`,
-    css: this.generateModernCSS(allComponents)
+    css: this.generateModernCSS(allComponents),
+    componentLineMap // 🔥 NEW: Include line mapping
   };
 }
 

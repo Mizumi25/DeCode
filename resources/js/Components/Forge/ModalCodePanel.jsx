@@ -17,7 +17,11 @@ import {
   Eye,
   EyeOff,
   Move,
-  GripVertical
+  GripVertical,
+  AlignHorizontalDistributeEnd,
+  PanelRight,
+  SquareDashed,
+  ExternalLink
 } from 'lucide-react';
 import gsap from 'gsap';
 import { Draggable } from 'gsap/Draggable';
@@ -551,6 +555,55 @@ const ModalCodePanel = ({
             </div>
             
             <div className="flex items-center gap-1 flex-shrink-0">
+              {/* Mode Switching Buttons */}
+              <button
+                onClick={() => setCodePanelPosition?.('bottom')}
+                className="p-1.5 rounded transition-colors"
+                style={{ 
+                  color: 'var(--color-text-muted)',
+                  backgroundColor: 'transparent'
+                }}
+                title="Bottom Panel"
+              >
+                <AlignHorizontalDistributeEnd className="w-4 h-4" />
+              </button>
+
+              <button
+                onClick={() => setCodePanelPosition?.('right')}
+                className="p-1.5 rounded transition-colors"
+                style={{ 
+                  color: 'var(--color-text-muted)',
+                  backgroundColor: 'transparent'
+                }}
+                title="Side Panel"
+              >
+                <PanelRight className="w-4 h-4" />
+              </button>
+
+              <button
+                onClick={() => setCodePanelPosition?.('modal')}
+                className="p-1.5 rounded transition-colors"
+                style={{ 
+                  color: 'white',
+                  backgroundColor: 'var(--color-primary)'
+                }}
+                title="Modal (Current)"
+              >
+                <SquareDashed className="w-4 h-4" />
+              </button>
+
+              <button
+                onClick={() => setCodePanelPosition?.('window')}
+                className="p-1.5 rounded transition-colors"
+                style={{ 
+                  color: 'var(--color-text-muted)',
+                  backgroundColor: 'transparent'
+                }}
+                title="Window"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </button>
+
               {/* Settings */}
               {!isMobile && (
                 <button

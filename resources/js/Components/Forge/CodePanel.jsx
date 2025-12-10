@@ -34,7 +34,8 @@ const CodePanel = ({
   generateCode,
   canvasComponents,
   handleCodeEdit,
-  isMobile = false
+  isMobile = false,
+  selectedComponent = null // 🔥 NEW: Pass selected component for highlighting
 }) => {
   const [editorTheme, setEditorTheme] = useState('vs-dark');
   const [fontSize, setFontSize] = useState(isMobile ? 12 : 14);
@@ -46,6 +47,66 @@ const CodePanel = ({
   const [editorMounted, setEditorMounted] = useState(false);
   const editorRef = useRef(null);
   const editorContainerRef = useRef(null);
+  const monacoRef = useRef(null); // 🔥 NEW: Monaco instance
+  const decorationsRef = useRef([]); // 🔥 NEW: Decoration IDs
+
+  // 🔥 NEW: Highlight lines for selected component
+  useEffect(() => {
+    if (!editorRef.current || !monacoRef.current || !selectedComponent || !generatedCode.componentLineMap) {
+      return;
+    }
+
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    const lineMap = generatedCode.componentLineMap;
+    
+    // Clear previous decorations
+    if (decorationsRef.current.length > 0) {
+      decorationsRef.current = editor.deltaDecorations(decorationsRef.current, []);
+    }
+
+    // Get line range for selected component
+    const lineInfo = lineMap[selectedComponent];
+    if (!lineInfo || !lineInfo[activeCodeTab]) {
+      console.log('📍 No line mapping for component:', selectedComponent, 'in tab:', activeCodeTab);
+      return;
+    }
+
+    const { startLine, endLine } = lineInfo[activeCodeTab];
+    
+    console.log('🎯 Highlighting lines', startLine, '-', endLine, 'for component:', selectedComponent);
+
+    // Create highlight decorations
+    const decorations = [];
+    
+    // Highlight background for all lines in range
+    for (let line = startLine; line <= endLine; line++) {
+      decorations.push({
+        range: new monaco.Range(line, 1, line, 1),
+        options: {
+          isWholeLine: true,
+          className: 'highlighted-code-line',
+          glyphMarginClassName: 'highlighted-code-glyph'
+        }
+      });
+    }
+
+    // Add border decoration for the range
+    decorations.push({
+      range: new monaco.Range(startLine, 1, endLine, 1),
+      options: {
+        isWholeLine: true,
+        linesDecorationsClassName: 'highlighted-code-border'
+      }
+    });
+
+    // Apply decorations
+    decorationsRef.current = editor.deltaDecorations([], decorations);
+    
+    // Scroll to the highlighted line
+    editor.revealLineInCenter(startLine, monaco.editor.ScrollType.Smooth);
+    
+  }, [selectedComponent, activeCodeTab, generatedCode.componentLineMap, editorMounted]);
 
   // Mobile-optimized Monaco Editor configuration
   const editorOptions = {
@@ -136,6 +197,7 @@ const CodePanel = ({
   // Handle editor mount with mobile optimizations - ENHANCED
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
+    monacoRef.current = monaco; // 🔥 Store monaco instance
     setEditorMounted(true);
     
     // Configure themes
@@ -786,6 +848,27 @@ const CodePanel = ({
             font-size: 12px !important;
             line-height: 18px !important;
           }
+        }
+        
+        /* 🔥 NEW: Code highlighting styles */
+        .highlighted-code-line {
+          background-color: rgba(59, 130, 246, 0.15) !important;
+          border-left: 3px solid #3b82f6 !important;
+        }
+        
+        .highlighted-code-glyph {
+          background-color: #3b82f6 !important;
+          width: 4px !important;
+          margin-left: 3px !important;
+        }
+        
+        .highlighted-code-border {
+          border-left: 2px solid #3b82f6 !important;
+        }
+        
+        .monaco-editor .margin .highlighted-code-glyph {
+          background-color: #3b82f6 !important;
+          width: 5px !important;
         }
       `}</style>
     </div>

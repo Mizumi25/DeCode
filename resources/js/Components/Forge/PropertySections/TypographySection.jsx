@@ -23,7 +23,8 @@ const TypographySection = ({
   expandedSections, 
   setExpandedSections, 
   searchTerm = '', 
-  selectedComponentData 
+  selectedComponentData,
+  styleFramework = 'css'
 }) => {
   // Load Google Fonts
   useEffect(() => {
@@ -88,8 +89,10 @@ const TypographySection = ({
             label="Font Size"
             value={currentStyles.fontSize || ''}
             onChange={(value) => onPropertyChange('fontSize', value, 'style')}
-            options={{ placeholder: '16px, 1rem, 1.5em' }}
+            options={{ placeholder: '16px, 1rem, var(--font-size-base)' }}
             searchTerm={searchTerm}
+            styleFramework={styleFramework}
+            variablePropertyType="typography"
           />
           <InputField
             label="Font Weight"
@@ -109,15 +112,19 @@ const TypographySection = ({
             label="Line Height"
             value={currentStyles.lineHeight || ''}
             onChange={(value) => onPropertyChange('lineHeight', value, 'style')}
-            options={{ placeholder: 'normal, 1.5, 2' }}
+            options={{ placeholder: 'normal, 1.5, var(--line-height-base)' }}
             searchTerm={searchTerm}
+            styleFramework={styleFramework}
+            variablePropertyType="typography"
           />
           <InputField
             label="Letter Spacing"
             value={currentStyles.letterSpacing || ''}
             onChange={(value) => onPropertyChange('letterSpacing', value, 'style')}
-            options={{ placeholder: 'normal, 0.5px, 1px' }}
+            options={{ placeholder: 'normal, 0.5px, var(--letter-spacing)' }}
             searchTerm={searchTerm}
+            styleFramework={styleFramework}
+            variablePropertyType="typography"
           />
         </div>
         

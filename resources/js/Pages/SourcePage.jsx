@@ -13,6 +13,8 @@ import { useCodeSyncStore } from '@/stores/useCodeSyncStore';
 import EnhancedToastContainer from '@/Components/Notifications/EnhancedToast';
 import useFrameLockStore from '@/stores/useFrameLockStore';
 import LockAccessRequestDialog from '@/Components/Forge/LockAccessRequestDialog';
+import PageLoadingProgress from '@/Components/PageLoadingProgress';
+import { usePageLoadingProgress } from '@/hooks/usePageLoadingProgress';
 
 export default function SourcePage({ projectId, frameId, frame }) {
   // Frame lock store for notifications and access requests
@@ -21,6 +23,20 @@ export default function SourcePage({ projectId, frameId, frame }) {
   const lockRequests = useFrameLockStore(state => state.lockRequests);
   const respondToLockRequest = useFrameLockStore(state => state.respondToLockRequest);
   const initializeEcho = useFrameLockStore(state => state.initialize);
+  
+  // Page loading progress
+  const {
+    isLoading: isPageLoading,
+    progress: loadingProgress,
+    message: loadingMessage,
+    startLoading,
+    incrementProgress,
+    finishLoading
+  } = usePageLoadingProgress({ 
+    totalResources: 2, // File system + code editor
+    minDuration: 600,
+    maxDuration: 2500
+  })
   
   // Use Source Store for panel management
   const {
@@ -45,6 +61,25 @@ export default function SourcePage({ projectId, frameId, frame }) {
   const { props } = usePage();
   const { auth } = props;
 
+  // Initialize loading
+  useEffect(() => {
+    startLoading('Loading file system...');
+    
+    // Simulate loading steps
+    const timer1 = setTimeout(() => {
+      incrementProgress('Initializing code editor...');
+    }, 300);
+    
+    const timer2 = setTimeout(() => {
+      finishLoading();
+    }, 800);
+    
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
+  }, []);
+  
   // Initialize Echo for lock requests
   useEffect(() => {
     if (auth?.user?.id) {
@@ -232,6 +267,13 @@ export default function SourcePage({ projectId, frameId, frame }) {
       }}
     >
       <Head title="Source - Code Editor" />
+      
+      {/* Page Loading Progress */}
+      <PageLoadingProgress 
+        isLoading={isPageLoading} 
+        progress={loadingProgress} 
+        message={loadingMessage} 
+      />
       
       {/* Main Layout Container */}
       <div 

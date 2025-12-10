@@ -79,6 +79,12 @@ class VoidController extends Controller
               'canvas_data' => $project->canvas_data,
               'created_at' => $project->created_at,
               'updated_at' => $project->updated_at,
+              // 🔥 NEW: Include framework settings for export modal
+              'output_format' => $project->output_format ?? 'html',
+              'css_framework' => $project->css_framework ?? 'vanilla',
+              'project_type' => $project->project_type ?? 'manual',
+              'github_repo_url' => $project->github_repo_url,
+              'settings' => $project->settings ?? [],
               'workspace' => $project->workspace ? [
                   'id' => $project->workspace->id,
                   'name' => $project->workspace->name,
@@ -372,6 +378,63 @@ class VoidController extends Controller
         ]);
     }
     
+    /**
+     * Update frame's generated code (from ForgePage)
+     */
+    public function updateGeneratedCode(Request $request, Frame $frame): JsonResponse
+    {
+        $user = Auth::user();
+        $project = $frame->project;
+        
+        $canEdit = false;
+        
+        if ($project->user_id === $user->id) {
+            $canEdit = true;
+        } elseif ($project->workspace && $project->workspace->hasUser($user->id)) {
+            $canEdit = $project->workspace->canUserEdit($user->id);
+        }
+        
+        if (!$canEdit) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to edit this frame'
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'generated_code' => 'required|array',
+        ]);
+
+        try {
+            // Store generated code in canvas_data
+            $canvasData = $frame->canvas_data ?? [];
+            $canvasData['generated_code'] = $validated['generated_code'];
+            
+            $frame->update(['canvas_data' => $canvasData]);
+
+            Log::info('Frame generated code updated', [
+                'frame_id' => $frame->uuid,
+                'code_tabs' => array_keys($validated['generated_code'])
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Generated code saved successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to update generated code', [
+                'frame_id' => $frame->uuid,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to save generated code: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     /**
      * Update the specified frame.
      */
@@ -1764,4 +1827,55 @@ private function darkenColor(string $hex, float $percent): string
     // Convert back to hex
     return sprintf('#%02x%02x%02x', $r, $g, $b);
 }
+
+/**
+ * Save generated code to frame (called from ForgePage)
+ */
+public function saveGeneratedCode(Request $request, Frame $frame): JsonResponse
+{
+    $validated = $request->validate([
+        'generated_code' => 'required|array',
+        'code_style' => 'nullable|string',
+    ]);
+
+    try {
+        $canvasData = $frame->canvas_data ?? [];
+        $canvasData['generated_code'] = $validated['generated_code'];
+        
+        $frame->canvas_data = $canvasData;
+        
+        // Update metadata with code style preference
+        $metadata = $frame->metadata ?? [];
+        $metadata['code_style'] = $validated['code_style'] ?? 'react-tailwind';
+        $metadata['last_code_generated_at'] = now()->toISOString();
+        $frame->metadata = $metadata;
+        
+        $frame->save();
+
+        \Log::info('Generated code saved to frame', [
+            'frame_id' => $frame->uuid,
+            'frame_name' => $frame->name,
+            'code_tabs' => array_keys($validated['generated_code']),
+            'code_style' => $validated['code_style']
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Generated code saved successfully',
+            'code_tabs' => array_keys($validated['generated_code'])
+        ]);
+    } catch (\Exception $e) {
+        \Log::error('Failed to save generated code', [
+            'frame_id' => $frame->uuid,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to save generated code: ' . $e->getMessage()
+        ], 500);
+    }
+}
+
 }

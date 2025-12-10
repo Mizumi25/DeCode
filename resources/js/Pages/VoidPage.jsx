@@ -26,6 +26,8 @@ import { useWorkspaceStore } from '@/stores/useWorkspaceStore'
 import useFrameLockStore from '@/stores/useFrameLockStore'
 import { useCanvasSnapshot } from '@/hooks/useCanvasSnapshot'
 import { useVoidSnapshot } from '@/hooks/useVoidSnapshot'
+import PageLoadingProgress from '@/Components/PageLoadingProgress'
+import { usePageLoadingProgress } from '@/hooks/usePageLoadingProgress'
 
 // Import panel components
 import FramesPanel from '@/Components/Void/FramesPanel'
@@ -81,6 +83,20 @@ export default function VoidPage() {
     getPendingRequestsCount,
     echoConnected 
   } = useFrameLockStore()
+  
+  // Page loading progress
+  const {
+    isLoading: isPageLoading,
+    progress: loadingProgress,
+    message: loadingMessage,
+    startLoading,
+    incrementProgress,
+    finishLoading
+  } = usePageLoadingProgress({ 
+    totalResources: 2, // Frames + workspace data
+    minDuration: 700,
+    maxDuration: 2500
+  })
   
   // Discipline-based access control
   const [myDiscipline, setMyDiscipline] = useState(null)
@@ -452,6 +468,8 @@ const zoomLevelRef = useRef(zoomLevel)
   // Load frames from database
   useEffect(() => {
     const loadFrames = async () => {
+      startLoading('Loading frames...');
+      
       try {
         console.log('🔍 [VoidPage] Loading frames for project:', project.uuid)
         
@@ -519,6 +537,8 @@ const zoomLevelRef = useRef(zoomLevel)
         console.log('🎯 [VoidPage] Setting frames state...')
         setFrames(framesToState)
         console.log('✅ [VoidPage] Frames state updated!')
+        
+        incrementProgress('Loading workspace data...');
 
         // Load lock status for each frame
         framesToState.forEach(frame => {
@@ -572,9 +592,11 @@ const zoomLevelRef = useRef(zoomLevel)
         
         console.log('✅✅✅ [VoidPage] Frame loading complete! Total frames:', framesToState.length)
         
+        finishLoading();
       } catch (error) {
         console.error('❌❌❌ [VoidPage] Error loading frames:', error)
         console.error('Stack:', error.stack)
+        finishLoading();
       }
     }
 
@@ -1810,6 +1832,14 @@ useEffect(() => {
       }}
     >
       <Head title={`Void - ${project?.name || 'Project'}`} />
+      
+      {/* Page Loading Progress */}
+      <PageLoadingProgress 
+        isLoading={isPageLoading} 
+        progress={loadingProgress} 
+        message={loadingMessage} 
+      />
+      
      <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}

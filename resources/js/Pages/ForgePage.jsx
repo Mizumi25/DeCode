@@ -48,6 +48,8 @@ import ErrorBoundary from '@/Components/ErrorBoundary';
 import { componentLibraryService } from '@/Services/ComponentLibraryService';
 import { tooltipDatabase } from '@/Components/Forge/TooltipDatabase';
 import { formatCode, highlightCode, parseCodeAndUpdateComponents } from '@/Components/Forge/CodeUtils';
+import PageLoadingProgress from '@/Components/PageLoadingProgress';
+import { usePageLoadingProgress } from '@/hooks/usePageLoadingProgress';
 
 
 
@@ -152,7 +154,8 @@ export default function ForgePage({
     syncedCode,         
     codeStyle,            
     setCodeStyle: setSyncedCodeStyle,
-    updateSyncedCode 
+    updateSyncedCode,
+    setCurrentFrame: setCodeSyncFrame
   } = useCodeSyncStore();
   
   const { 
@@ -166,6 +169,14 @@ export default function ForgePage({
       console.log('ForgePage: Initial frame ID:', frameIdToUse);
       return frameIdToUse;
   });
+  
+  // 🔥 Set frame UUID in CodeSyncStore on mount
+  useEffect(() => {
+    if (currentFrame) {
+      console.log('🔧 Setting frame UUID in CodeSyncStore:', currentFrame);
+      setCodeSyncFrame(currentFrame);
+    }
+  }, [currentFrame, setCodeSyncFrame]);
   
   const { auth } = usePage().props
   const currentUser = auth?.user
@@ -268,8 +279,22 @@ export default function ForgePage({
   // Mobile-optimized code panel settings
   const [codePanelHeight, setCodePanelHeight] = useState(400)
   const [codePanelMinimized, setCodePanelMinimized] = useState(false)
-  const [componentsLoaded, setComponentsLoaded] = useState(false)
-  const [loadingMessage, setLoadingMessage] = useState('Initializing components...')
+  
+  // Page loading progress
+  const {
+    isLoading: isPageLoading,
+    progress: loadingProgress,
+    message: loadingMessage,
+    startLoading,
+    incrementProgress,
+    finishLoading
+  } = usePageLoadingProgress({ 
+    totalResources: 3, // Component library + frame data + code generation
+    minDuration: 800,
+    maxDuration: 3000
+  })
+  
+  const componentsLoaded = !isPageLoading
 
   // Component panel tab state
   const [activeComponentTab, setActiveComponentTab] = useState('elements')
@@ -468,13 +493,13 @@ const isLayoutElement = (type) => LAYOUT_TYPES.includes(type);
           tailwind: `<!-- Generated Tailwind for Frame: ${frameName} -->\n<div class="container">\n  <!-- ${components.length} components -->\n</div>`
         };
         setGeneratedCode(mockCode);
-        updateSyncedCode(mockCode);
+        await updateSyncedCode(mockCode); // 🔥 AWAIT database save
         return;
       }
   
       const code = await componentLibraryService.clientSideCodeGeneration(components, codeStyle, frameName);
       setGeneratedCode(code);
-      updateSyncedCode(code);
+      await updateSyncedCode(code); // 🔥 AWAIT database save
       
       console.log('Code generated and synced successfully for frame:', frameName, Object.keys(code));
     } catch (error) {
@@ -486,7 +511,7 @@ const isLayoutElement = (type) => LAYOUT_TYPES.includes(type);
         tailwind: `<!-- Error generating code -->`
       };
       setGeneratedCode(mockCode);
-      updateSyncedCode(mockCode);
+      await updateSyncedCode(mockCode); // 🔥 AWAIT database save
     }
   }, [codeStyle, frame, currentFrame, updateSyncedCode]);
 
@@ -871,6 +896,7 @@ useEffect(() => {
     if (currentFrameId !== currentFrame) {
       console.log('ForgePage: Updating current frame from', currentFrame, 'to', currentFrameId);
       setCurrentFrame(currentFrameId);
+      setCodeSyncFrame(currentFrameId); // 🔥 Set frame UUID in code sync store
       setSelectedComponent(null);
       
       // CRITICAL: Always initialize frame data to prevent blank state
@@ -1003,17 +1029,16 @@ useEffect(() => {
   useEffect(() => {
     const initializeComponents = async () => {
       try {
-        setLoadingMessage('Loading components from database...');
+        startLoading('Loading component library...');
         
         if (typeof componentLibraryService === 'undefined' || !componentLibraryService) {
           console.warn('componentLibraryService not available, using mock data');
-          setComponentsLoaded(true);
-          setLoadingMessage('');
+          finishLoading();
           return;
         }
         
         await componentLibraryService.loadComponents();
-        setComponentsLoaded(true);
+        incrementProgress('Loading frame data...');
         
         // ✅ CRITICAL: Load components with proper recursive structure
         if (frame?.canvas_data?.components) {
@@ -1036,12 +1061,14 @@ useEffect(() => {
             [currentFrame]: processedComponents
           }));
           
+          incrementProgress('Generating code...');
+          
           if (processedComponents.length > 0) {
             generateCode(processedComponents);
           }
         } else if (projectId && currentFrame && componentLibraryService.loadProjectComponents) {
           // Fallback to service-based loading
-          setLoadingMessage('Loading frame components from service...');
+          incrementProgress('Loading frame components...');
           const serviceComponents = await componentLibraryService.loadProjectComponents(projectId, currentFrame);
           if (serviceComponents && serviceComponents.length > 0) {
             setFrameCanvasComponents(prev => ({
@@ -1052,11 +1079,10 @@ useEffect(() => {
           }
         }
         
-        setLoadingMessage('');
+        finishLoading();
       } catch (error) {
         console.error('Failed to initialize components:', error);
-        setComponentsLoaded(true);
-        setLoadingMessage('');
+        finishLoading();
       }
     };
 
@@ -3231,80 +3257,6 @@ const handleCanvasClick = useCallback((e) => {
     ]
   }), [])
 
-  // Show loading state while components are loading
-if (!componentsLoaded && loadingMessage) {
-  return (
-    <ErrorBoundary>
-    <AuthenticatedLayout
-      headerProps={{
-        onPanelToggle: handlePanelToggle,
-        panelStates: {},
-        onModeSwitch: () => {},
-        onLinkedComponentsClick: handleLinkedComponentsClick,
-        project: project,
-        frame: frame,
-        canvasComponents: canvasComponents,
-        onUndo: handleUndo,
-        onRedo: handleRedo,
-        projectId: projectId,
-        currentFrame: currentFrame
-      }}
-    >
-      <Head title="Forge - Visual Builder" />
-      
-      <div className="h-[calc(100vh-60px)] flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
-        <div className="text-center space-y-6">
-          {/* Black Hole Logo with sequential fill */}
-          <div className="relative mx-auto" style={{ width: 80, height: 80 }}>
-            <svg width="80" height="80" viewBox="0 0 675 675" className="overflow-visible">
-              {/* Path 1 - fills first */}
-              <motion.path
-                d="m308 136-7 1c-5 0-7 0-8 2l-5 1-7 2-6 3c-3 0-7 1-9 3l-8 3a276 276 0 0 0-45 22c-3 4-4 9-1 11 2 2 5 2 6 0l3-1 4-3 5-3 3-2 3-1 3-2 3-1 4-3 5-3 3-2 4-1c3 0 4-1 5-2l4-1c3 0 4-1 5-2l4-1c3 0 4-1 5-2l4-1c3 0 4-1 5-2l9-1c6 0 8 0 9-2l29-1 28 1c1 2 3 2 9 2l9 1c1 1 2 2 5 2l4 1c1 1 2 2 5 2l4 1c1 1 2 2 5 2l4 1c1 1 2 2 5 2l4 1 3 2 3 1 3 2 5 3c1 2 3 3 5 3l2 1 3 2 3 1c1 1 2 2 5 2 2 0 3 0 3-2l2-3c1-1 1-2-4-6-2-3-5-5-7-5l-2-2-3-1c-2 0-3-1-3-2l-3-1c-2 0-3-1-3-2l-3-1c-2 0-3-1-3-2l-3-1c-2 0-3-1-3-2l-3-1c-2 0-3-1-3-2l-6-1c-4 0-6 0-6-2l-5-1-4-2-5-1-4-2-11-1c-8 0-10 0-10-2l-27-1-27 1z"
-                fill="var(--color-primary)"
-                initial={{ opacity: 0.3 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-              />
-              
-              {/* Path 2 - fills second */}
-              <motion.path
-                d="m320 157-10 1c-8 0-10 0-11 2l-6 1c-3 0-5 0-6 2l-6 1c-3 0-5 0-6 2l-3 1-3 2-4 1c-3 0-4 1-5 2l-3 1-3 2-3 1-3 2-3 1-3 2-2 1c-2 0-4 1-5 3l-5 3c-1 0-4 2-6 5l-5 4a254 254 0 0 0-42 45l-1 2-2 3-3 5-3 4-1 3-2 3-1 3c-1 1-2 2-2 5l-1 4-2 3-1 3c-1 1-2 2-2 5l-1 4c-2 1-2 2-2 6l-1 6c-2 1-2 2-2 6l-1 6c-2 1-2 4-2 18l-1 18c-2 1-2 3-2 14l-1 13c-2 1-2 2-2 6l-1 6-2 3-1 3c-1 1-2 2-2 5l-1 4-2 3-3 5c-3 2-4 4-2 6 1 1 2 1 7-2l6-3a134 134 0 0 0 14-9 199 199 0 0 0 17-9l10-6a384 384 0 0 1 30-18l8-4a609 609 0 0 0 83-59 990 990 0 0 0-57 28l-5 2-4 1-3 1-2 2c-2 0-4 1-5 3l-4 3c-3-1-3-16 0-16l1-8c0-5 0-7 2-7l1-5 2-4 1-5 2-4 1-3c0-2 1-3 2-3l1-3c0-1 2-4 5-6l4-6a136 136 0 0 1 34-31l3-2 3-1 3-2 3-1 3-2 4-1c3 0 4-1 5-2l6-1c4 0 5 0 6-2l23-1 22 1c1 2 3 2 6 2l6 1c1 1 2 2 5 2l4 1 3 2 3 1 4 2 2 1c0 1 7 0 9-2l2-1 11-7-6-4c-6-3-13-9-13-12 0-4 7-8 9-5l2 1 5 3 4 3 3 1 3 2 3 1c2 2 4 2 6 1 4-4 30-17 33-17 6 0 8-3 4-5l-3-2-3-1-5-3-4-3-5-3-4-3-5-3c-1-2-3-3-5-3l-2-2-3-1c-2 0-3-1-3-2l-3-1c-2 0-3-1-3-2l-3-1c-2 0-3-1-3-2l-5-1-4-2-5-1-4-2-5-1-4-2-6-1c-4 0-6 0-6-2l-11-1c-8 0-10 0-10-2l-17-1-16 1zm32 41 9 1c6 0 8 0 9 2l6 1 6 2 3 1 4 3c4 3 4 7 0 9l-3 2h-3l-5-2-6-1c-1-1-3-2-7-2l-8-1c-1-2-5-2-20-2-16 0-20 0-21 2l-7 1c-5 0-7 1-8 2l-6 1-6 2-3 1-3 2-3 1-3 2-3 1-3 2-3 1-3 2-3 1c-1 0-4 2-6 5l-6 4c-2 0-17 15-17 17l-4 6-5 6-3 4-7 12c-5 12-9 14-14 10-2-2-3-5-1-6l1-4c0-3 1-4 3-6l3-5 2-3 1-3 3-4 3-5a310 310 0 0 1 46-43l3-1 3-2 3-1 3-2 3-1 5-2 4-1 3-2 3-1 6-2 6-1c1-2 3-2 9-2l9-1c3-3 29-3 31 0z"
-                fill="var(--color-primary)"
-                initial={{ opacity: 0.3 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-              />
-              
-              {/* Path 3 - fills third */}
-              <motion.path
-                d="m662 172-3 1-3 2-4 1c-3 0-4 1-5 2l-4 1c-3 0-4 1-5 2l-4 1c-3 0-4 1-5 2l-4 1c-3 0-4 1-5 2l-3 1-3 2-4 1c-3 0-4 1-5 2l-4 1c-3 0-4 1-5 2l-4 1c-3 0-4 1-5 2l-4 1c-3 0-4 1-5 2l-3 1-3 2-4 1c-3 0-4 1-5 2l-4 1c-3 0-4 1-5 2l-6 1c-4 0-5 0-6 2l-24 1h-24l-8 4a519 519 0 0 1-56 31c-21 10-24 12-44 25a904 904 0 0 1-142 78l-50 21c-32 12-57 23-57 25l-2 4-3 3-3 5-3 4-4 6c-3 2-5 5-5 6 0 2-11 13-13 13l-6 4c-2 3-5 5-6 5l-6 4c-2 3-5 5-6 5l-4 3-5 3-4 3-5 3-4 3-5 3-4 3-5 3-4 3-5 3-4 3-5 3-6 4c-2 3-5 5-6 5l-4 3-5 3c-3 0-5 4-5 8v5h5c4 0 5 0 6-2l3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 2-1c2 0 4-1 5-3l3-2 4-2 4-2 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 2-1 3-2 4-2 10-5 12-7 10-5 3-2 3-1 3-2 3-1 3-2 3-1 7-4 7-4 5-2 12-4 25-12c14-5 16-7 18-10 1-2 3-3 5-3l3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 4-3 5-3 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 4-3 5-3 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 4-1c2 0 3 1 3 3 1 8 8 5 37-15 16-11 16-11 16-14s0-4 2-4l4-2 3-1 4-3 6-3 6-3 5-3 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 4-3 5-3 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 2-1c2 0 2-1 2-4 0-2 0-3-2-3l-2-2-4-1-5 1zm-174 72c2 1 3 4 3 5 0 2-5 7-7 7l-3 2-3 1-2 1c-2 3-9-1-9-5 0-3 8-11 10-11l3-1c2-3 5-2 8 1zm-30 15c2 1 3 4 3 5 0 2-5 7-7 7l-2 1c-2 3-9-1-9-5 0-3 8-11 11-11l4 3zm-21 11 2 3c0 3-7 9-12 11l-7 5-4 3-5 2-7 3-2 2-3 1-3 1-3 2-3 1-3 2a376 376 0 0 1-38 19l-3 1-3 2-3 1-3 2-3 1-3 2-3 1-3 2-3 1-3 2-4 3-5 3-3 1c-1 2-11 3-13 1v-9l9-5 10-5 2-1 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 5-3 4-3 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1c2-3 5-2 8 0zm-150 76c4 2 4 6-1 11l-6 4-3 2-3 1-3 2-3 1-3 2-3 1-3 2-3 1-3 2-3 1-3 2-3 1-3 2-3 1-3 2-2 1-7 3c-7 4-10 4-13 1-5-4-4-7 6-11l7-4 2-1 5-3 4-3 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 3-1 3-2 2-1c1-2 2-2 3-1l3 2zm-84 45c5 5 4 6-4 10l-7 4-6 5c-6 2-7 2-11-2-2-3-2-3-1-6 1-2 5-4 11-7l10-6c2-2 5-1 8 2zm432-183-3 1-3 2-2 1c-4 0-9 6-9 10s6 8 8 4l3-1 3-1c0-1 1-2 3-2l3-1c0-1 1-2 3-2 4 0 7-8 3-11-2-2-8-3-9-1zm-45 24-3 1c-2 0-5 3-5 7 0 5 8 7 12 3l5-3c2 0 2-1 2-5v-5h-5c-4 0-5 0-6 2zm-24 12-2 1-4 2-3 2c-2 0-4 3-2 4 0 1 11 0 17-2 3 0 4-4 3-7-1-2-8-3-9 0z"
-                fill="var(--color-primary)"
-                initial={{ opacity: 0.3 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.6 }}
-              />
-              
-              {/* Path 4 - fills last */}
-              <motion.path
-                d="m629 409-5 1c-5 0-6 0-8 3l-5 3c-2 0-11 9-11 12l-1 2c-2 1-2 2-2 6l-1 6-2 4c0 3 1 4 2 5l1 4c0 3 1 4 2 5l1 3 2 3 1 2c0 3 6 9 9 9l2 2 3 1c2 0 3 1 3 2l14 1 13-1 2-2c3 0 18-15 18-18l2-2 1-13-1-14-2-2c0-2-1-4-3-5l-3-5c0-2-3-5-6-5l-2-1-3-2-3-1c-1-2-2-2-6-2l-6-1-3-2-3 2z"
-                fill="var(--color-primary)"
-                initial={{ opacity: 0.3 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.8 }}
-              />
-            </svg>
-          </div>
-          
-          <div className="text-lg font-medium" style={{ color: 'var(--color-text)' }}>
-            {loadingMessage}
-          </div>
-        </div>
-      </div>
-    </AuthenticatedLayout>
-    </ErrorBoundary>
-  );
-}
-
   return (
     <ErrorBoundary>
     <AuthenticatedLayout
@@ -3316,6 +3268,13 @@ if (!componentsLoaded && loadingMessage) {
       }}
     >
       <Head title={`Forge - ${frame?.name || 'Visual Builder'}`} />
+      
+      {/* Page Loading Progress */}
+      <PageLoadingProgress 
+        isLoading={isPageLoading} 
+        progress={loadingProgress} 
+        message={loadingMessage} 
+      />
       
       {/* Enhanced Tooltip with mobile detection */}
       {CodeTooltip && <CodeTooltip hoveredToken={hoveredToken} showTooltips={showTooltips && !isMobile} />}

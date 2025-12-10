@@ -2,7 +2,7 @@ import React from 'react';
 import { Palette, Box, Circle, Sparkles, Filter, Paintbrush } from 'lucide-react';
 import { PropertySection, InputField, SubsectionHeader, ButtonGrid, presetValues } from '../PropertyUtils';
 
-const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, setExpandedSections, searchTerm }) => {
+const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, setExpandedSections, searchTerm, styleFramework = 'css' }) => {
   
   
   
@@ -93,6 +93,8 @@ const parseCurrentGradient = (backgroundImage) => {
           onChange={(value) => onPropertyChange('color', value, 'style')}
           type="color"
           searchTerm={searchTerm}
+          styleFramework={styleFramework}
+          variablePropertyType="color"
         />
         
         <InputField
@@ -101,6 +103,8 @@ const parseCurrentGradient = (backgroundImage) => {
           onChange={(value) => onPropertyChange('backgroundColor', value, 'style')}
           type="color"
           searchTerm={searchTerm}
+          styleFramework={styleFramework}
+          variablePropertyType="color"
         />
         
         <InputField
@@ -109,6 +113,8 @@ const parseCurrentGradient = (backgroundImage) => {
           onChange={(value) => onPropertyChange('borderColor', value, 'style')}
           type="color"
           searchTerm={searchTerm}
+          styleFramework={styleFramework}
+          variablePropertyType="color"
         />
         
         <InputField

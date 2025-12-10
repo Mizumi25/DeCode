@@ -1,8 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Modal from '@/Components/Modal'
 import { useHeaderStore } from '@/stores/useHeaderStore'
-import { Download, Github, FileCode, X, Eye, Code, Palette } from 'lucide-react'
+import { Download, Github, FileCode, X, Eye, Code, Palette, Key, Copy, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react'
 import { usePage } from '@inertiajs/react'
+import componentLibraryService from '@/Services/ComponentLibraryService'
 
 const ExportModal = () => {
   const { isExportModalOpen, closeExportModal } = useHeaderStore()
@@ -18,20 +19,50 @@ const ExportModal = () => {
   const [showPreview, setShowPreview] = useState(false)
   const [previewData, setPreviewData] = useState(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
+  const [sshSetupNeeded, setSshSetupNeeded] = useState(false)
+  const [sshPublicKey, setSshPublicKey] = useState(null)
+  const [keyCopied, setKeyCopied] = useState(false)
+  
+  const copySSHKey = () => {
+    navigator.clipboard.writeText(sshPublicKey)
+    setKeyCopied(true)
+    setTimeout(() => setKeyCopied(false), 2000)
+  }
 
   // Check if project was imported from GitHub
   const hasGithubRepo = project?.github_repo_url || false
   const existingRepoUrl = project?.github_repo_url || ''
   const isImported = project?.project_type === 'github_import' || hasGithubRepo
   
-  // For imported projects, lock to original settings
+  // 🔥 NEW: Auto-detect framework from project settings (for both manual and imported projects)
   React.useEffect(() => {
-    if (isImported && project) {
-      setExportFramework(project.output_format || 'html')
-      setExportStyle(project.style_framework || 'css')
-      setIncludeNavigation(project.settings?.include_navigation ?? true)
+    if (project) {
+      // Map output_format (react/html) to exportFramework
+      const projectFramework = project.output_format || 'html';
+      setExportFramework(projectFramework);
+      
+      // Map css_framework (tailwind/vanilla/etc) to exportStyle (css/tailwind)
+      const projectCssFramework = project.css_framework || 'vanilla';
+      const styleMapping = {
+        'tailwind': 'tailwind',
+        'bootstrap': 'css',
+        'vanilla': 'css',
+        'styled_components': 'css',
+        'emotion': 'css'
+      };
+      setExportStyle(styleMapping[projectCssFramework] || 'css');
+      
+      // Set navigation preference
+      setIncludeNavigation(project.settings?.include_navigation ?? true);
+      
+      console.log('🎯 Auto-selected export framework:', {
+        framework: projectFramework,
+        style: styleMapping[projectCssFramework],
+        projectType: project.project_type,
+        isImported: isImported
+      });
     }
-  }, [isImported, project])
+  }, [project, isImported])
 
   // SVG Icon Components (from NewProjectModal)
   const HtmlIcon = () => (
@@ -130,30 +161,74 @@ const ExportModal = () => {
 
     setLoadingPreview(true)
     try {
-      const response = await fetch(`/api/projects/${project.uuid}/export/preview`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-        },
-        body: JSON.stringify({
-          framework: exportFramework,
-          style_framework: exportStyle,
-          include_navigation: includeNavigation,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        setPreviewData(data.preview)
-        setShowPreview(true)
-      } else {
-        setExportStatus('Failed to generate preview')
+      // 🔥 Use frontend code generation (same as BottomCodePanel in ForgePage)
+      console.log('✅ Generating preview using frontend ComponentLibraryService');
+      
+      // Get frames
+      const framesResponse = await fetch(`/api/projects/${project.uuid}/frames`)
+      const framesData = await framesResponse.json()
+      
+      const previewFrames = []
+      
+      for (const frame of framesData.frames || framesData) {
+        console.log('Processing frame:', frame.name, 'UUID:', frame.uuid);
+        
+        // 🔥 Fetch components from ProjectComponent table (where they're actually saved!)
+        const componentsResponse = await fetch(`/api/project-components?project_id=${project.uuid}&frame_id=${frame.uuid}`)
+        const componentsData = await componentsResponse.json()
+        const components = componentsData.data || [] // API returns 'data', not 'components'
+        
+        console.log(`Frame ${frame.name} has ${components.length} components from ProjectComponent table`);
+        
+        if (!components || components.length === 0) {
+          console.warn(`Frame ${frame.name} has no components, skipping`)
+          // Still add empty frame to show in preview
+          previewFrames.push({
+            name: frame.name,
+            html: `<!DOCTYPE html>\n<html>\n<body>\n  <div>Empty frame - no components</div>\n</body>\n</html>`,
+            jsx: `function ${frame.name.replace(/\s+/g, '')}() {\n  return <div>Empty frame</div>\n}`,
+            css: '/* No styles */',
+          })
+          continue
+        }
+        
+        // Generate code using ComponentLibraryService (same as ForgePage!)
+        const codeStyle = exportFramework === 'html' 
+          ? (exportStyle === 'css' ? 'html-css' : 'html-tailwind')
+          : (exportStyle === 'css' ? 'react-css' : 'react-tailwind')
+        
+        console.log(`Generating code for ${frame.name} with style: ${codeStyle}`);
+        
+        const generatedCode = await componentLibraryService.clientSideCodeGeneration(
+          components,
+          codeStyle,
+          frame.name
+        )
+        
+        console.log(`Generated code for ${frame.name}:`, {
+          hasHtml: !!generatedCode.html,
+          hasReact: !!generatedCode.react,
+          hasCss: !!generatedCode.css
+        });
+        
+        previewFrames.push({
+          name: frame.name,
+          html: generatedCode.html || '',
+          jsx: generatedCode.react || '',
+          css: generatedCode.css || '',
+        })
       }
+      
+      setPreviewData({
+        frames: previewFrames,
+        framework: exportFramework,
+        style_framework: exportStyle,
+      })
+      setShowPreview(true)
+      
     } catch (error) {
       console.error('Preview error:', error)
-      setExportStatus('Failed to generate preview')
+      setExportStatus('Failed to generate preview: ' + error.message)
     } finally {
       setLoadingPreview(false)
     }
@@ -209,19 +284,58 @@ const ExportModal = () => {
   const handleExportToGithub = async () => {
     if (!project?.uuid) return
 
+    const repoUrl = hasGithubRepo ? existingRepoUrl : githubRepoUrl
+
+    if (!repoUrl) {
+      setExportStatus('Please enter a GitHub repository URL')
+      return
+    }
+
     setIsExporting(true)
-    setExportStatus('Pushing to GitHub...')
+    
+    // For imported projects, use the standard GitHub push method
+    if (isImported) {
+      setExportStatus('Pushing to GitHub...')
+      try {
+        const response = await fetch(`/api/projects/${project.uuid}/export/github`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+          },
+          body: JSON.stringify({
+            framework: exportFramework,
+            style_framework: exportStyle,
+            include_navigation: includeNavigation,
+            repo_url: repoUrl,
+          }),
+        })
+
+        const data = await response.json()
+
+        if (data.success) {
+          setExportStatus('Successfully pushed to GitHub!')
+          setTimeout(() => {
+            closeExportModal()
+            setExportStatus('')
+          }, 2000)
+        } else {
+          setExportStatus(data.message || 'GitHub export failed')
+        }
+      } catch (error) {
+        console.error('GitHub export error:', error)
+        setExportStatus('GitHub export failed. Please try again.')
+      } finally {
+        setIsExporting(false)
+      }
+      return
+    }
+
+    // For manually created projects, use SSH deployment
+    setExportStatus('Deploying to GitHub...')
 
     try {
-      const repoUrl = hasGithubRepo ? existingRepoUrl : githubRepoUrl
-
-      if (!repoUrl) {
-        setExportStatus('Please enter a GitHub repository URL')
-        setIsExporting(false)
-        return
-      }
-
-      const response = await fetch(`/api/projects/${project.uuid}/export/github`, {
+      const response = await fetch(`/api/projects/${project.uuid}/export/github-ssh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -238,17 +352,27 @@ const ExportModal = () => {
       const data = await response.json()
 
       if (data.success) {
-        setExportStatus('Successfully pushed to GitHub!')
-        setTimeout(() => {
-          closeExportModal()
-          setExportStatus('')
-        }, 2000)
+        if (data.needs_setup) {
+          // First time - need to setup SSH key
+          setSshSetupNeeded(true)
+          setSshPublicKey(data.ssh_public_key)
+          setExportStatus('SSH key generated! Please add it to your GitHub repository.')
+        } else {
+          // Key already setup - deployment successful!
+          setExportStatus('Successfully deployed to GitHub!')
+          setTimeout(() => {
+            closeExportModal()
+            setExportStatus('')
+            setSshSetupNeeded(false)
+            setSshPublicKey(null)
+          }, 3000)
+        }
       } else {
-        setExportStatus(data.message || 'GitHub export failed')
+        setExportStatus(data.message || 'Failed to deploy to GitHub')
       }
     } catch (error) {
-      console.error('GitHub export error:', error)
-      setExportStatus('GitHub export failed. Please try again.')
+      console.error('GitHub SSH export error:', error)
+      setExportStatus('Failed to generate SSH commands')
     } finally {
       setIsExporting(false)
     }
@@ -257,17 +381,9 @@ const ExportModal = () => {
   return (
     <Modal show={isExportModalOpen} onClose={closeExportModal} maxWidth="3xl">
       {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b border-[var(--color-border)]">
-        <div className="flex items-center gap-3">
-          <FileCode className="w-6 h-6 text-[var(--color-primary)]" />
-          <h2 className="text-xl font-semibold text-[var(--color-text)]">Export Project</h2>
-        </div>
-        <button
-          onClick={closeExportModal}
-          className="p-2 rounded-lg hover:bg-[var(--color-bg-muted)] text-[var(--color-text-muted)]"
-        >
-          <X className="w-5 h-5" />
-        </button>
+      <div className="flex items-center gap-3 p-6 border-b border-[var(--color-border)]">
+        <FileCode className="w-6 h-6 text-[var(--color-primary)]" />
+        <h2 className="text-xl font-semibold text-[var(--color-text)]">Export Project</h2>
       </div>
 
       {/* Tabs */}
@@ -421,13 +537,109 @@ const ExportModal = () => {
         {/* Status Message */}
         {exportStatus && (
           <div className={`p-4 rounded-lg ${
-            exportStatus.includes('success') || exportStatus.includes('Successfully')
+            exportStatus.includes('success') || exportStatus.includes('Successfully') || exportStatus.includes('generated')
               ? 'bg-green-500/10 border border-green-500/20 text-green-600'
               : exportStatus.includes('failed') || exportStatus.includes('error')
               ? 'bg-red-500/10 border border-red-500/20 text-red-600'
               : 'bg-blue-500/10 border border-blue-500/20 text-blue-600'
           }`}>
             {exportStatus}
+          </div>
+        )}
+
+        {/* SSH Setup Instructions */}
+        {sshSetupNeeded && sshPublicKey && (
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="p-4 rounded-lg border" style={{ 
+              backgroundColor: 'var(--color-bg-muted)', 
+              borderColor: 'var(--color-border)' 
+            }}>
+              <div className="flex items-start gap-3">
+                <Key className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-primary)' }} />
+                <div className="flex-1">
+                  <h4 className="font-semibold text-[var(--color-text)] mb-2">One-Time Setup: Add SSH Key to GitHub</h4>
+                  <ol className="text-sm text-[var(--color-text-muted)] space-y-1.5 list-decimal list-inside">
+                    <li>Copy the SSH public key below</li>
+                    <li>Go to your GitHub repository Settings Deploy keys</li>
+                    <li>Click "Add deploy key"</li>
+                    <li>Paste the key and check "Allow write access"</li>
+                    <li>Click "Add key"</li>
+                    <li>Come back here and click "Push to GitHub" again</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            {/* SSH Key Display */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-[var(--color-text)]">SSH Public Key</span>
+                <button
+                  onClick={copySSHKey}
+                  disabled={keyCopied}
+                  className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg transition-all"
+                  style={{ 
+                    backgroundColor: keyCopied ? 'var(--color-primary)' : 'var(--color-primary)',
+                    color: 'white',
+                    opacity: keyCopied ? 0.8 : 1
+                  }}
+                >
+                  {keyCopied ? (
+                    <>
+                      <CheckCircle className="w-3 h-3" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      Copy Key
+                    </>
+                  )}
+                </button>
+              </div>
+              <pre className="text-xs font-mono p-4 rounded-lg overflow-x-auto border" style={{
+                backgroundColor: '#1e1e1e',
+                color: '#d4d4d4',
+                borderColor: 'var(--color-border)'
+              }}>
+                <code>{sshPublicKey}</code>
+              </pre>
+            </div>
+
+            {/* Success Message */}
+            <div className="p-4 rounded-lg border" style={{
+              backgroundColor: 'var(--color-surface)',
+              borderColor: 'var(--color-border)'
+            }}>
+              <div className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-primary)' }} />
+                <div className="flex-1">
+                  <div className="font-semibold text-[var(--color-text)] mb-1">After adding the key</div>
+                  <div className="text-sm text-[var(--color-text-muted)]">
+                    Simply click "Push to GitHub" again and your code will be automatically deployed! 
+                    You only need to do this setup once per project.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Help Link */}
+            <div className="p-3 rounded-lg border" style={{
+              backgroundColor: 'var(--color-bg-muted)',
+              borderColor: 'var(--color-border)'
+            }}>
+              <a 
+                href="https://docs.github.com/en/developers/overview/managing-deploy-keys#deploy-keys" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex items-center gap-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors"
+              >
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>Need help? Read GitHub's deploy keys guide</span>
+                <ExternalLink className="w-3 h-3 ml-auto" />
+              </a>
+            </div>
           </div>
         )}
       </div>

@@ -14,7 +14,11 @@ import {
   Sparkles,
   Settings,
   Eye,
-  EyeOff
+  EyeOff,
+  AlignHorizontalDistributeEnd,
+  SquareDashed,
+  ExternalLink,
+  PanelRight
 } from 'lucide-react';
 import Editor from '@monaco-editor/react';
 
@@ -47,7 +51,9 @@ const BottomCodePanel = ({
   setCodePanelPosition,
   isMobile,
   windowDimensions,
-  currentFrame // 🔥 NEW: Add frame to get name
+  currentFrame, // 🔥 NEW: Add frame to get name
+  isFrameSwitching,
+  selectedComponent = null // 🔥 NEW: For code highlighting
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartY, setDragStartY] = useState(0);
@@ -479,21 +485,58 @@ const BottomCodePanel = ({
             </button>
           )}
 
-          {/* Move to Sidebar (desktop only) */}
-          {moveCodePanelToRightSidebar && (
-            <button
-              onClick={moveCodePanelToRightSidebar}
-              className="hidden sm:flex px-3 py-2 text-xs rounded-xl transition-all items-center gap-2"
-              style={{ 
-                backgroundColor: 'var(--color-primary)',
-                color: 'white',
-                boxShadow: 'var(--shadow-md)'
-              }}
-            >
-              <Move className="w-4 h-4" />
-              <span className="hidden md:inline">Move to Sidebar</span>
-            </button>
-          )}
+          {/* Mode Switching Buttons */}
+          <button
+            onClick={() => setCodePanelPosition('bottom')}
+            className="p-2 rounded-xl transition-all"
+            style={{ 
+              backgroundColor: 'var(--color-primary)',
+              color: 'white',
+              boxShadow: 'var(--shadow-sm)'
+            }}
+            title="Bottom Panel (Current)"
+          >
+            <AlignHorizontalDistributeEnd className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => setCodePanelPosition('right')}
+            className="p-2 rounded-xl transition-all"
+            style={{ 
+              backgroundColor: 'var(--color-bg-muted)',
+              color: 'var(--color-text-muted)',
+              boxShadow: 'var(--shadow-sm)'
+            }}
+            title="Side Panel"
+          >
+            <PanelRight className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => setCodePanelPosition('modal')}
+            className="p-2 rounded-xl transition-all"
+            style={{ 
+              backgroundColor: 'var(--color-bg-muted)',
+              color: 'var(--color-text-muted)',
+              boxShadow: 'var(--shadow-sm)'
+            }}
+            title="Modal"
+          >
+            <SquareDashed className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => setCodePanelPosition('window')}
+            className="p-2 rounded-xl transition-all"
+            style={{ 
+              backgroundColor: 'var(--color-bg-muted)',
+              color: 'var(--color-text-muted)',
+              boxShadow: 'var(--shadow-sm)'
+            }}
+            title="Window"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </button>
 
           {/* Minimize/Expand */}
           <button

@@ -57,10 +57,8 @@ const StyleModal = () => {
       const savedVariables = { ...defaultStyleVariables, ...project.settings.style_variables }
       setStyleValues(savedVariables)
       
-      // Apply to DOM
-      Object.entries(savedVariables).forEach(([variable, value]) => {
-        document.documentElement.style.setProperty(variable, value)
-      })
+      // DO NOT apply to DeCode system DOM - these are for export only!
+      // The variables will be applied to the exported project's CSS file
     }
   }, [project])
 
@@ -105,7 +103,8 @@ const StyleModal = () => {
 
   const handleStyleChange = (variable, value) => {
     setStyleValues(prev => ({ ...prev, [variable]: value }))
-    document.documentElement.style.setProperty(variable, value)
+    // DO NOT apply to DeCode system DOM - these are for export only!
+    // The variables will be applied to the exported project's CSS file
     setHasChanges(true)
   }
 
@@ -189,6 +188,22 @@ const StyleModal = () => {
       title="Style Variables"
       maxWidth="4xl"
     >
+      {/* Info Banner */}
+      <div className="p-4 mb-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="flex items-start gap-3">
+          <Palette className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <div className="font-medium text-blue-900 text-sm">
+              Export Project Styling
+            </div>
+            <div className="text-xs text-blue-700 mt-1">
+              These CSS variables will be applied to your <strong>exported project</strong> (HTML/React + CSS/Tailwind). 
+              They do not affect the DeCode editor interface.
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <div className="flex h-[70vh]">
         {/* Sidebar */}
         <div className="w-48 border-r border-[var(--color-border)] pr-6">
@@ -256,9 +271,7 @@ const StyleModal = () => {
             onClick={() => {
               // Reset all styles to default
               setStyleValues(defaultStyleVariables)
-              Object.entries(defaultStyleVariables).forEach(([variable, value]) => {
-                document.documentElement.style.setProperty(variable, value)
-              })
+              // DO NOT apply to DeCode system DOM - these are for export only!
               setHasChanges(true)
             }}
             className="px-4 py-2 text-sm border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-muted)] text-[var(--color-text)]"

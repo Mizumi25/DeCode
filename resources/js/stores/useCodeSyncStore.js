@@ -1,6 +1,7 @@
 // stores/useCodeSyncStore.js - NEW FILE for code synchronization
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import axios from 'axios';
 
 export const useCodeSyncStore = create(
   persist(
@@ -22,12 +23,37 @@ export const useCodeSyncStore = create(
       // Last update timestamp
       lastUpdated: null,
       
-      // Update synced code
-      updateSyncedCode: (code) => {
+      // Current frame UUID for saving
+      currentFrameUuid: null,
+      
+      // Set current frame
+      setCurrentFrame: (frameUuid) => {
+        set({ currentFrameUuid: frameUuid });
+      },
+      
+      // Update synced code (and save to database)
+      updateSyncedCode: async (code) => {
+        const { currentFrameUuid } = get();
+        
+        // Update local state immediately
         set({
           syncedCode: code,
           lastUpdated: Date.now()
         });
+        
+        // Save to database in background
+        if (currentFrameUuid) {
+          try {
+            await axios.put(`/api/frames/${currentFrameUuid}/generated-code`, {
+              generated_code: code
+            });
+            console.log('✅ Generated code saved to database');
+          } catch (error) {
+            console.error('❌ Failed to save generated code to database:', error);
+          }
+        } else {
+          console.warn('⚠️ No frame UUID set, code not saved to database');
+        }
       },
       
       // Update code style

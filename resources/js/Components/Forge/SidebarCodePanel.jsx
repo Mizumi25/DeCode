@@ -10,7 +10,11 @@ import {
   Eye,
   EyeOff,
   X,
-  Move
+  Move,
+  AlignHorizontalDistributeEnd,
+  PanelRight,
+  SquareDashed,
+  ExternalLink
 } from 'lucide-react';
 
 const SidebarCodePanel = ({
@@ -220,6 +224,55 @@ const SidebarCodePanel = ({
           <h3 className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>Code</h3>
         </div>
         <div className="flex items-center gap-1">
+          {/* Mode Switching Buttons */}
+          <button
+            onClick={() => setCodePanelPosition('bottom')}
+            className="p-1.5 rounded transition-colors"
+            style={{ 
+              color: 'var(--color-text-muted)',
+              backgroundColor: 'transparent'
+            }}
+            title="Bottom Panel"
+          >
+            <AlignHorizontalDistributeEnd className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={() => setCodePanelPosition('right')}
+            className="p-1.5 rounded transition-colors"
+            style={{ 
+              color: 'white',
+              backgroundColor: 'var(--color-primary)'
+            }}
+            title="Side Panel (Current)"
+          >
+            <PanelRight className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={() => setCodePanelPosition('modal')}
+            className="p-1.5 rounded transition-colors"
+            style={{ 
+              color: 'var(--color-text-muted)',
+              backgroundColor: 'transparent'
+            }}
+            title="Modal"
+          >
+            <SquareDashed className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={() => setCodePanelPosition('window')}
+            className="p-1.5 rounded transition-colors"
+            style={{ 
+              color: 'var(--color-text-muted)',
+              backgroundColor: 'transparent'
+            }}
+            title="Window"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+
           <button
             onClick={() => setShowSettings(!showSettings)}
             className="p-1.5 rounded transition-colors"
@@ -230,17 +283,6 @@ const SidebarCodePanel = ({
             title="Settings"
           >
             <Settings className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => setCodePanelPosition('bottom')}
-            className="p-1.5 rounded transition-colors"
-            style={{ 
-              color: 'var(--color-text-muted)',
-              backgroundColor: 'transparent'
-            }}
-            title="Move to Bottom"
-          >
-            <Move className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

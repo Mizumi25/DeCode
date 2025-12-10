@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect,useRef } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import CSSVariableSelector from './CSSVariableSelector';
 
 export const PropertySection = ({ 
   title, 
@@ -96,7 +97,10 @@ export const InputField = ({
   onBlur,
   type = 'text', 
   options = {},
-  searchTerm = ''
+  searchTerm = '',
+  enableVariableSelector = true, // Enable CSS variable selector
+  variablePropertyType = 'all', // 'color', 'size', 'spacing', 'all'
+  styleFramework = 'css' // 'css' or 'tailwind'
 }) => {
   // ✅ CRITICAL FIX: Separate controlled state from parent value
   const [localValue, setLocalValue] = useState(value ?? '');
@@ -212,7 +216,7 @@ useEffect(() => {
           ))}
         </select>
       ) : type === 'color' ? (
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-start">
           <input
             type="color"
             value={(() => {
@@ -226,7 +230,7 @@ useEffect(() => {
             onChange={(e) => handleChange(e.target.value)}
             onBlur={handleBlur}
             onFocus={handleFocus}
-            className="w-12 h-10 border rounded cursor-pointer"
+            className="w-12 h-10 border rounded cursor-pointer flex-shrink-0"
             style={{ 
               borderColor: 'var(--color-border)',
               backgroundColor: 'var(--color-surface)',
@@ -240,7 +244,7 @@ useEffect(() => {
             onBlur={handleBlur}
             onFocus={handleFocus}
             className={`${baseInputClasses} flex-1`}
-            placeholder="#000000 or rgb() or transparent"
+            placeholder="#000000 or var(--color-primary)"
             style={{
               backgroundColor: 'var(--color-surface)',
               borderColor: 'var(--color-border)',
@@ -248,6 +252,14 @@ useEffect(() => {
               ...highlightStyle
             }}
           />
+          {enableVariableSelector && (
+            <CSSVariableSelector
+              value={localValue}
+              onChange={handleChange}
+              propertyType="color"
+              styleFramework={styleFramework}
+            />
+          )}
         </div>
       ) : type === 'range' ? (
         <div className="space-y-2">
@@ -366,24 +378,34 @@ useEffect(() => {
           />
         </div>
       ) : (
-        <input
-          type={type}
-          value={localValue}
-          onChange={(e) => handleChange(type === 'number' ? parseFloat(e.target.value) || '' : e.target.value)}
-          onBlur={handleBlur}
-          onFocus={handleFocus}
-          className={baseInputClasses}
-          step={type === 'number' ? (options.step || 1) : undefined}
-          min={type === 'number' ? options.min : undefined}
-          max={type === 'number' ? options.max : undefined}
-          placeholder={options.placeholder}
-          style={{
-            backgroundColor: 'var(--color-surface)',
-            borderColor: 'var(--color-border)',
-            color: 'var(--color-text)',
-            ...highlightStyle
-          }}
-        />
+        <div className="flex gap-2 items-start">
+          <input
+            type={type}
+            value={localValue}
+            onChange={(e) => handleChange(type === 'number' ? parseFloat(e.target.value) || '' : e.target.value)}
+            onBlur={handleBlur}
+            onFocus={handleFocus}
+            className={`${baseInputClasses} flex-1`}
+            step={type === 'number' ? (options.step || 1) : undefined}
+            min={type === 'number' ? options.min : undefined}
+            max={type === 'number' ? options.max : undefined}
+            placeholder={options.placeholder || "Enter value or use var(--name)"}
+            style={{
+              backgroundColor: 'var(--color-surface)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-text)',
+              ...highlightStyle
+            }}
+          />
+          {enableVariableSelector && (type === 'text' || type === 'number') && (
+            <CSSVariableSelector
+              value={localValue}
+              onChange={handleChange}
+              propertyType={variablePropertyType}
+              styleFramework={styleFramework}
+            />
+          )}
+        </div>
       )}
     </div>
   );

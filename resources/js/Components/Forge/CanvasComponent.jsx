@@ -2,6 +2,7 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Square, Sparkles, Monitor, Edit3, Tablet, Smartphone, Move, RotateCcw, Layers, GripVertical } from 'lucide-react';
+import { usePage } from '@inertiajs/react';
 
 import SectionDropZone from './SectionDropZone';
 import EmptyCanvasState from './EmptyCanvasState';
@@ -157,6 +158,46 @@ const {
   canvasZoom: forgeCanvasZoom,
   interactionMode 
 } = useForgeStore();
+
+  // 🔥 Get project CSS variables
+  const { project } = usePage().props;
+  const projectStyleVariables = project?.settings?.style_variables || {};
+  
+  // 🔥 Create ref for content wrapper (not canvas - we don't want UI controls affected)
+  const contentWrapperRef = useRef(null);
+  
+  // 🔥 Build project CSS variables inline style object
+  const getProjectCSSVariables = useCallback(() => {
+    // Default variables (same as StyleModal)
+    const defaultVariables = {
+      '--color-primary': '#3b82f6',
+      '--color-surface': '#ffffff',
+      '--color-text': '#1f2937',
+      '--color-border': '#e5e7eb',
+      '--color-bg-muted': '#f9fafb',
+      '--color-text-muted': '#6b7280',
+      '--font-size-base': '14px',
+      '--font-weight-normal': '400',
+      '--line-height-base': '1.5',
+      '--letter-spacing': '0',
+      '--radius-md': '6px',
+      '--radius-lg': '8px',
+      '--container-width': '1200px',
+      '--shadow-sm': '0 1px 2px rgba(0,0,0,0.05)',
+      '--shadow-md': '0 4px 6px rgba(0,0,0,0.07)',
+      '--shadow-lg': '0 10px 15px rgba(0,0,0,0.1)',
+      '--spacing-xs': '4px',
+      '--spacing-sm': '8px',
+      '--spacing-md': '16px',
+      '--spacing-lg': '24px',
+      '--transition-duration': '200ms',
+      '--transition-easing': 'cubic-bezier(0.4, 0, 0.2, 1)',
+      '--z-modal': '1000',
+    };
+    
+    // Merge project variables with defaults
+    return { ...defaultVariables, ...projectStyleVariables };
+  }, [projectStyleVariables]);
 
 const isRemoteUpdateRef = useRef(false);
   
@@ -2345,7 +2386,11 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
             ) : (
               <>
               {/* 🔥 NEW: Custom drag system - no DndContext wrapper needed */}
-              <div>
+              {/* 🔥 Project CSS Variables Wrapper - isolates project theme from UI controls */}
+              <div 
+                ref={contentWrapperRef}
+                style={getProjectCSSVariables()}
+              >
                 {canvasComponents.map((component, index) => 
                   renderComponent(component, index, {}, 0)
                 )}

@@ -773,11 +773,32 @@ public function store(Request $request): RedirectResponse
     // Set viewport defaults if not provided
     $validated['viewport_width'] = $validated['viewport_width'] ?? 1440;
     $validated['viewport_height'] = $validated['viewport_height'] ?? 900;
-    $validated['css_framework'] = $validated['css_framework'] ?? 'tailwind';
-    $validated['framework'] = $validated['framework'] ?? 'html';
-    $validated['style_framework'] = $validated['style_framework'] ?? 'css';
-    $validated['project_type'] = 'manual'; // Mark as manually created
+    
+    // 🔥 FIX: Map framework selection to database columns
+    // Frontend sends 'framework' (react/html) → map to 'output_format'
+    if (isset($validated['framework'])) {
+        $validated['output_format'] = $validated['framework'];
+    }
     $validated['output_format'] = $validated['output_format'] ?? 'html';
+    
+    // Frontend sends 'style_framework' (css/tailwind) → map to 'css_framework'
+    if (isset($validated['style_framework'])) {
+        $cssFrameworkMapping = [
+            'css' => 'vanilla',
+            'tailwind' => 'tailwind'
+        ];
+        $validated['css_framework'] = $cssFrameworkMapping[$validated['style_framework']] ?? 'vanilla';
+    }
+    $validated['css_framework'] = $validated['css_framework'] ?? 'tailwind';
+    
+    $validated['project_type'] = 'manual'; // Mark as manually created
+    
+    \Log::info('🎯 Framework mapping applied:', [
+        'input_framework' => $validated['framework'] ?? 'not set',
+        'input_style_framework' => $validated['style_framework'] ?? 'not set',
+        'output_format' => $validated['output_format'],
+        'css_framework' => $validated['css_framework']
+    ]);
 
     // Initialize canvas data with default frame structure
     $validated['canvas_data'] = [
