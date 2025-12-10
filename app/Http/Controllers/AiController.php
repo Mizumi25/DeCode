@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use GuzzleHttp\Client;
 use App\Models\Component;
 
@@ -82,7 +83,7 @@ Do not include any explanation or markdown - just the JSON.";
 
             $body = json_decode($response->getBody()->getContents(), true);
             
-            \Log::info('AI API Response:', [
+            Log::info('AI API Response:', [
                 'status' => $response->getStatusCode(),
                 'body' => $body
             ]);
@@ -90,7 +91,7 @@ Do not include any explanation or markdown - just the JSON.";
             $generated = $body['choices'][0]['message']['content'] ?? '';
             
             if (empty($generated)) {
-                \Log::warning('AI generated empty output', [
+                Log::warning('AI generated empty output', [
                     'response_body' => $body,
                     'prompt' => $userPrompt
                 ]);
@@ -109,7 +110,7 @@ Do not include any explanation or markdown - just the JSON.";
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('AI generation error:', [
+            Log::error('AI generation error:', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);

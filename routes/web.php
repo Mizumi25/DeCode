@@ -88,6 +88,7 @@ Route::middleware('auth')->group(function () {
 
     // Publish route (Inertia post)
     Route::post('/project/publish', [ProjectController::class, 'publish'])->name('project.publish')->middleware('auth');
+    Route::post('/project/unpublish', [ProjectController::class, 'unpublish'])->name('project.unpublish')->middleware('auth');
     
     Broadcast::routes();
 });

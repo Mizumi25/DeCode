@@ -485,6 +485,24 @@ const isLayoutElement = (type) => LAYOUT_TYPES.includes(type);
     try {
       const frameName = frame?.name || currentFrame?.name || 'Generated Component';
       
+      // 🔥 NEW: Check if frame has GitHub imported code
+      if (frame?.has_github_code && frame?.generated_code) {
+        console.log('📦 Using GitHub imported code for frame:', frameName);
+        const githubCode = frame.generated_code;
+        
+        // Map GitHub code structure to expected format
+        const mappedCode = {
+          react: githubCode.react || '',
+          html: githubCode.html || '',
+          css: githubCode.css || '',
+          tailwind: '' // GitHub imports don't have separate Tailwind
+        };
+        
+        setGeneratedCode(mappedCode);
+        await updateSyncedCode(mappedCode);
+        return;
+      }
+      
       if (!componentLibraryService || !componentLibraryService.clientSideCodeGeneration) {
         const mockCode = {
           react: `// Generated React Code for Frame: ${frameName}\nfunction App() {\n  return (\n    <div>\n      {/* ${components.length} components */}\n    </div>\n  );\n}`,

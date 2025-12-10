@@ -294,7 +294,11 @@ class GitHubRepoController extends Controller
                         'y' => 200 + ($row * 300)     // 300px vertical spacing
                     ];
                     
-                    // Create frame with GitHub file metadata
+                    // 🔥 NEW: Fetch actual file content from GitHub
+                    $fileContent = $this->fetchFileContent($validated['repository_id'], $fileData['path'], $user);
+                    $generatedCode = $this->generateCodeFromGitHubFile($fileContent, $fileData);
+                    
+                    // Create frame with GitHub file metadata and actual code
                     $frame = Frame::create([
                         'uuid' => Str::uuid(),
                         'project_id' => $project->id,
@@ -313,7 +317,8 @@ class GitHubRepoController extends Controller
                                 'height' => $validated['viewport_height']
                             ]),
                             'github_file' => $fileData, // Store original file metadata
-                            'github_imported' => true
+                            'github_imported' => true,
+                            'generated_code' => $generatedCode // Store actual code from GitHub
                         ],
                         'settings' => array_merge(
                             $this->getDefaultFrameSettings(),
@@ -1061,5 +1066,126 @@ class GitHubRepoController extends Controller
           'original_file' => $file['path'],
           'file_size' => $file['size'] ?? 0
       ];
+  }
+  
+  /**
+   * Fetch file content from GitHub
+   */
+  private function fetchFileContent($repoId, $filePath, $user): ?string
+  {
+      try {
+          $headers = $user->getGitHubApiHeaders();
+          $response = Http::withHeaders($headers)
+              ->timeout(30)
+              ->get("https://api.github.com/repositories/{$repoId}/contents/{$filePath}");
+          
+          if (!$response->successful()) {
+              Log::warning('Failed to fetch file content from GitHub', [
+                  'repo_id' => $repoId,
+                  'file_path' => $filePath,
+                  'status' => $response->status()
+              ]);
+              return null;
+          }
+          
+          $fileData = $response->json();
+          
+          // GitHub returns base64 encoded content
+          if (isset($fileData['content'])) {
+              return base64_decode($fileData['content']);
+          }
+          
+          return null;
+          
+      } catch (\Exception $e) {
+          Log::error('Error fetching file content from GitHub', [
+              'repo_id' => $repoId,
+              'file_path' => $filePath,
+              'error' => $e->getMessage()
+          ]);
+          return null;
+      }
+  }
+  
+  /**
+   * Generate code structure from GitHub file content
+   */
+  private function generateCodeFromGitHubFile(?string $content, array $fileData): array
+  {
+      if (!$content) {
+          return [];
+      }
+      
+      $extension = strtolower($fileData['extension'] ?? '');
+      $generatedCode = [];
+      
+      // Determine the framework and structure based on file type
+      if (in_array($extension, ['jsx', 'tsx'])) {
+          // React/JSX file
+          $generatedCode['react'] = $content;
+          $generatedCode['html'] = null;
+          
+          // Try to extract CSS if there's a CSS-in-JS or style object
+          $cssContent = $this->extractCSSFromJSX($content);
+          $generatedCode['css'] = $cssContent;
+          
+      } elseif (in_array($extension, ['html', 'htm'])) {
+          // HTML file - extract HTML and any embedded CSS
+          $generatedCode['html'] = $content;
+          $generatedCode['react'] = null;
+          
+          // Extract embedded CSS from <style> tags
+          $cssContent = $this->extractCSSFromHTML($content);
+          $generatedCode['css'] = $cssContent;
+          
+      } elseif (in_array($extension, ['js', 'ts'])) {
+          // JavaScript/TypeScript - treat as potential React component
+          $generatedCode['react'] = $content;
+          $generatedCode['html'] = null;
+          $generatedCode['css'] = $this->extractCSSFromJSX($content);
+          
+      } elseif ($extension === 'css') {
+          // Pure CSS file
+          $generatedCode['css'] = $content;
+          $generatedCode['html'] = null;
+          $generatedCode['react'] = null;
+      }
+      
+      return $generatedCode;
+  }
+  
+  /**
+   * Extract CSS from HTML content (from <style> tags)
+   */
+  private function extractCSSFromHTML(string $html): ?string
+  {
+      preg_match_all('/<style[^>]*>(.*?)<\/style>/is', $html, $matches);
+      
+      if (!empty($matches[1])) {
+          return implode("\n\n", $matches[1]);
+      }
+      
+      return null;
+  }
+  
+  /**
+   * Extract CSS from JSX/JS content (basic implementation)
+   */
+  private function extractCSSFromJSX(string $jsx): ?string
+  {
+      // Look for CSS imports
+      preg_match_all('/import\s+[\'"]([^\'"]+\.css)[\'"]/i', $jsx, $matches);
+      
+      if (!empty($matches[1])) {
+          // Return a comment indicating CSS files are imported
+          return "/* CSS imported from: " . implode(', ', $matches[1]) . " */";
+      }
+      
+      // Look for styled-components or emotion
+      if (preg_match('/styled\.|css`|styled`/i', $jsx)) {
+          return "/* CSS-in-JS detected (styled-components or similar) */";
+      }
+      
+      return null;
   }
 }

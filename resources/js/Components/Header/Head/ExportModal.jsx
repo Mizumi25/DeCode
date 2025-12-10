@@ -173,6 +173,21 @@ const ExportModal = () => {
       for (const frame of framesData.frames || framesData) {
         console.log('Processing frame:', frame.name, 'UUID:', frame.uuid);
         
+        // 🔥 NEW: Check if frame has GitHub imported code
+        if (frame.has_github_code && frame.generated_code) {
+          console.log('📦 Using GitHub imported code for frame:', frame.name);
+          const githubCode = frame.generated_code;
+          
+          previewFrames.push({
+            name: frame.name,
+            html: githubCode.html || '',
+            jsx: githubCode.react || '',
+            css: githubCode.css || '',
+            source: 'github'
+          });
+          continue;
+        }
+        
         // 🔥 Fetch components from ProjectComponent table (where they're actually saved!)
         const componentsResponse = await fetch(`/api/project-components?project_id=${project.uuid}&frame_id=${frame.uuid}`)
         const componentsData = await componentsResponse.json()

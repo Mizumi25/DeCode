@@ -60,7 +60,30 @@ export default function CodeHandlerPanel() {
       const frame = frames.find(f => f.uuid === frameId || f.id === frameId)
       if (!frame) return
 
-      // Fetch components
+      // 🔥 NEW: Check if frame has GitHub imported code
+      if (frame.has_github_code && frame.generated_code) {
+        console.log('📦 Using GitHub imported code for frame:', frame.name)
+        
+        const githubCode = frame.generated_code
+        const mainCode = framework === 'html' 
+          ? (githubCode.html || githubCode.react || 'No HTML code available')
+          : (githubCode.react || githubCode.html || 'No React code available')
+        const cssCode = githubCode.css || ''
+        
+        setFrameCode(prev => ({ 
+          ...prev, 
+          [frameId]: {
+            main: mainCode,
+            css: cssCode,
+            source: 'github'
+          }
+        }))
+        
+        setLoadingFrames(prev => ({ ...prev, [frameId]: false }))
+        return
+      }
+
+      // Fetch components for manually created frames
       const componentsResponse = await fetch(`/api/project-components?project_id=${project.uuid}&frame_id=${frame.uuid}`)
       const componentsData = await componentsResponse.json()
       const components = componentsData.data || []
@@ -71,6 +94,7 @@ export default function CodeHandlerPanel() {
           : `// Empty frame: ${frame.name}\nfunction ${frame.name.replace(/\s+/g, '')}() {\n  return <div>No components</div>\n}`
         
         setFrameCode(prev => ({ ...prev, [frameId]: emptyCode }))
+        setLoadingFrames(prev => ({ ...prev, [frameId]: false }))
         return
       }
 
@@ -89,7 +113,8 @@ export default function CodeHandlerPanel() {
         ...prev, 
         [frameId]: {
           main: mainCode || 'No code generated',
-          css: cssCode
+          css: cssCode,
+          source: 'generated'
         }
       }))
 
@@ -99,7 +124,8 @@ export default function CodeHandlerPanel() {
         ...prev, 
         [frameId]: {
           main: `// Error: ${error.message}`,
-          css: ''
+          css: '',
+          source: 'error'
         }
       }))
     } finally {

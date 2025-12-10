@@ -1,0 +1,51 @@
+/* DeCode Global Styles - Generated from Settings */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #3b82f6;
+  --color-surface: #ffffff;
+  --color-bg: #ffffff;
+  --color-text: #1f2937;
+  --color-border: #e5e7eb;
+  --color-bg-muted: #f9fafb;
+  --color-text-muted: #6b7280;
+  --font-size-base: 14px;
+  --font-weight-normal: 400;
+  --line-height-base: 1.5;
+  --letter-spacing: 0;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --container-width: 1200px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --transition-duration: 200ms;
+  --transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --z-modal: 1000;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+.frame-container {
+  width: 100%;
+  min-height: 100vh;
+  padding: var(--spacing-md);
+}
+

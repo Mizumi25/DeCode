@@ -1575,6 +1575,10 @@ public function updateCanvasStyles(Request $request, Frame $frame): JsonResponse
         $thumbnailPath = $settings['thumbnail_path'] ?? ($frame->thumbnail_path ?? null);
         $thumbnailUrl = $thumbnailPath ? asset('storage/' . ltrim($thumbnailPath, '/')) : null;
 
+        // 🔥 NEW: Extract generated_code from canvas_data if it exists
+        $canvasData = $frame->canvas_data ?? [];
+        $generatedCode = $canvasData['generated_code'] ?? null;
+
         return [
             // frontend expects an `id` key (used as React key) — use uuid to avoid numeric/id confusion
             'id' => $frame->uuid,
@@ -1585,11 +1589,15 @@ public function updateCanvasStyles(Request $request, Frame $frame): JsonResponse
             'fileName' => $frame->file_name ?? $frame->fileName ?? ($frame->name ?? ''),
             'thumbnail' => $thumbnailUrl,
             'type' => $frame->type ?? 'page',
-            'canvas_data' => $frame->canvas_data ?? [],
+            'canvas_data' => $canvasData,
             'canvas_style' => $frame->canvas_style ?? [],
             'canvas_props' => $frame->canvas_props ?? [],
             'settings' => $settings,
             'is_locked' => (bool) ($frame->is_locked ?? false),
+            // 🔥 NEW: Include generated_code at top level for easy access
+            'generated_code' => $generatedCode,
+            'has_github_code' => !empty($generatedCode),
+            'github_imported' => $canvasData['github_imported'] ?? false,
             // keep raw model for internal usage if needed (not heavy because it's not serialized here)
             //'raw' => $frame,
         ];

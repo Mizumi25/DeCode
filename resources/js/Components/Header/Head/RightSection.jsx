@@ -42,6 +42,7 @@ const RightSection = ({
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteWorkspaceId, setInviteWorkspaceId] = useState(null)
   const [forceInviteMode, setForceInviteMode] = useState(false)
+  const [isPublishing, setIsPublishing] = useState(false)
   const [myRole, setMyRole] = useState(null)
   
   // Permission: Only owner and editors can invite
@@ -142,6 +143,52 @@ const RightSection = ({
     setShowInviteModal(false)
     setInviteWorkspaceId(null)
     setForceInviteMode(false)
+  }
+
+  // Handle Publish
+  const handlePublish = async () => {
+    const currentProject = props.project
+    
+    if (!currentProject?.uuid) {
+      alert('No project selected')
+      return
+    }
+
+    setIsPublishing(true)
+
+    try {
+      const response = await fetch('/project/publish', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+        },
+        body: JSON.stringify({
+          project_uuid: currentProject.uuid,
+          framework: currentProject.output_format || 'html',
+          style_framework: currentProject.style_framework || 'css',
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        alert(`✅ Project published successfully!\n\nURL: ${data.published_url}\n\nYou can share this link with anyone!`)
+        
+        // Open published URL in new tab
+        window.open(data.published_url, '_blank')
+        
+        // Refresh the page to update publish status
+        window.location.reload()
+      } else {
+        alert(`❌ Publish failed: ${data.message}`)
+      }
+    } catch (error) {
+      console.error('Publish error:', error)
+      alert('❌ Failed to publish project. Please try again.')
+    } finally {
+      setIsPublishing(false)
+    }
   }
 
   // Comment mode from global editor store (use separate selectors to avoid new object each render)
@@ -388,14 +435,14 @@ const RightSection = ({
         {/* Publish Button - Only visible in Void page */}
         {onVoidPage && myRole !== 'viewer' && (
           <button 
-            onClick={() => {
-              // Publish functionality - to be implemented
-              console.log('Publish clicked');
-            }}
-            className="bg-[var(--color-primary)] text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-md hover:bg-[var(--color-primary-hover)] transition-colors"
+            onClick={() => handlePublish()}
+            disabled={isPublishing}
+            className={`bg-[var(--color-primary)] text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-md hover:bg-[var(--color-primary-hover)] transition-colors ${isPublishing ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <Upload className="w-3 h-3" />
-            <span className="text-xs font-medium">Publish</span>
+            <span className="text-xs font-medium">
+              {isPublishing ? 'Publishing...' : props.project?.published_url ? 'Update' : 'Publish'}
+            </span>
           </button>
         )}
 

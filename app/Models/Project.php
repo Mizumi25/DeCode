@@ -30,6 +30,10 @@ class Project extends Model
         'css_framework',
         'output_format',
         'workspace_id',
+        // 🔥 Publish fields
+        'published_url',
+        'published_at',
+        'published_subdomain',
         // 🔥 Import/Export metadata
         'project_type',
         'source_repo_url',

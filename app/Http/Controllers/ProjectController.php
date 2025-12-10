@@ -9,6 +9,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -352,7 +355,7 @@ class ProjectController extends Controller
             $newProject->is_public = false; // Pasted projects are private by default
             $newProject->save();
 
-            \Log::info('Project pasted successfully', [
+            Log::info('Project pasted successfully', [
                 'original_project_id' => $originalProject->id,
                 'new_project_id' => $newProject->id,
                 'target_workspace_id' => $workspace->id,
@@ -376,7 +379,7 @@ class ProjectController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Failed to paste project', [
+            Log::error('Failed to paste project', [
                 'original_project_id' => $clipboard['project_id'],
                 'target_workspace_id' => $workspace->id,
                 'user_id' => $user->id,
@@ -440,7 +443,7 @@ class ProjectController extends Controller
             
             $project->update(['workspace_id' => $targetWorkspace->id]);
 
-            \Log::info('Project moved between workspaces', [
+            Log::info('Project moved between workspaces', [
                 'project_id' => $project->id,
                 'old_workspace_id' => $oldWorkspaceId,
                 'old_workspace_name' => $oldWorkspace?->name,
@@ -453,18 +456,18 @@ class ProjectController extends Controller
             if ($oldWorkspaceId) {
                 try {
                     broadcast(new \App\Events\ProjectDeleted($project->id, $project->uuid, $project->name, $oldWorkspaceId, $user->name))->toOthers();
-                    \Log::info('Project removal from old workspace broadcasted');
+                    Log::info('Project removal from old workspace broadcasted');
                 } catch (\Exception $e) {
-                    \Log::warning('Failed to broadcast to old workspace: ' . $e->getMessage());
+                    Log::warning('Failed to broadcast to old workspace: ' . $e->getMessage());
                 }
             }
 
             // BROADCAST TO NEW WORKSPACE (project added)
             try {
                 broadcast(new \App\Events\ProjectCreated($project->fresh(), $targetWorkspace, $user))->toOthers();
-                \Log::info('Project addition to new workspace broadcasted');
+                Log::info('Project addition to new workspace broadcasted');
             } catch (\Exception $e) {
-                \Log::warning('Failed to broadcast to new workspace: ' . $e->getMessage());
+                Log::warning('Failed to broadcast to new workspace: ' . $e->getMessage());
             }
 
             return response()->json([
@@ -485,7 +488,7 @@ class ProjectController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Failed to move project between workspaces', [
+            Log::error('Failed to move project between workspaces', [
                 'project_id' => $project->id,
                 'target_workspace_id' => $targetWorkspace->id,
                 'user_id' => $user->id,
@@ -657,17 +660,17 @@ class ProjectController extends Controller
 public function store(Request $request): RedirectResponse 
 {
     // Add extensive logging for debugging
-    \Log::info('=== PROJECT CREATION DEBUG START ===');
-    \Log::info('Request method: ' . $request->method());
-    \Log::info('Request URL: ' . $request->fullUrl());
-    \Log::info('Request headers: ', $request->headers->all());
-    \Log::info('Raw request data: ', $request->all());
-    \Log::info('User ID: ' . auth()->id());
+    Log::info('=== PROJECT CREATION DEBUG START ===');
+    Log::info('Request method: ' . $request->method());
+    Log::info('Request URL: ' . $request->fullUrl());
+    Log::info('Request headers: ', $request->headers->all());
+    Log::info('Raw request data: ', $request->all());
+    Log::info('User ID: ' . auth()->id());
     
     $user = Auth::user();
     
     try {
-        \Log::info('Starting validation...');
+        Log::info('Starting validation...');
         
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -704,40 +707,40 @@ public function store(Request $request): RedirectResponse
             'workspace_id' => 'required|integer|exists:workspaces,id'
         ]);
         
-        \Log::info('Validation passed. Validated data: ', $validated);
+        Log::info('Validation passed. Validated data: ', $validated);
         
     } catch (\Illuminate\Validation\ValidationException $e) {
-        \Log::error('Validation failed: ', $e->errors());
-        \Log::info('=== PROJECT CREATION DEBUG END (VALIDATION ERROR) ===');
+        Log::error('Validation failed: ', $e->errors());
+        Log::info('=== PROJECT CREATION DEBUG END (VALIDATION ERROR) ===');
         throw $e;
     }
     
     // Enhanced workspace validation
     $workspaceId = $validated['workspace_id'];
-    \Log::info('Looking for workspace with ID: ' . $workspaceId);
+    Log::info('Looking for workspace with ID: ' . $workspaceId);
     
     $workspace = Workspace::find($workspaceId);
     
     if (!$workspace) {
-        \Log::error('Workspace not found with ID: ' . $workspaceId);
-        \Log::info('Available workspaces: ', Workspace::all(['id', 'name'])->toArray());
-        \Log::info('=== PROJECT CREATION DEBUG END (WORKSPACE NOT FOUND) ===');
+        Log::error('Workspace not found with ID: ' . $workspaceId);
+        Log::info('Available workspaces: ', Workspace::all(['id', 'name'])->toArray());
+        Log::info('=== PROJECT CREATION DEBUG END (WORKSPACE NOT FOUND) ===');
         return redirect()->back()->withErrors([
             'workspace_id' => 'The specified workspace does not exist.'
         ]);
     }
     
-    \Log::info('Found workspace: ', $workspace->toArray());
+    Log::info('Found workspace: ', $workspace->toArray());
 
     // Check if user has access to the workspace
     $hasAccess = $workspace->hasUser($user->id);
-    \Log::info('User has workspace access: ' . ($hasAccess ? 'Yes' : 'No'));
+    Log::info('User has workspace access: ' . ($hasAccess ? 'Yes' : 'No'));
     
     if (!$hasAccess) {
-        \Log::error('User does not have access to workspace: ' . $workspaceId);
-        \Log::info('Workspace users: ', $workspace->users->pluck('id')->toArray());
-        \Log::info('Workspace owner: ' . $workspace->owner_id);
-        \Log::info('=== PROJECT CREATION DEBUG END (NO ACCESS) ===');
+        Log::error('User does not have access to workspace: ' . $workspaceId);
+        Log::info('Workspace users: ', $workspace->users->pluck('id')->toArray());
+        Log::info('Workspace owner: ' . $workspace->owner_id);
+        Log::info('=== PROJECT CREATION DEBUG END (NO ACCESS) ===');
         return redirect()->back()->withErrors([
             'workspace_id' => 'You do not have access to this workspace.'
         ]);
@@ -745,11 +748,11 @@ public function store(Request $request): RedirectResponse
 
     // Check if user can create projects in this workspace
     $userRole = $workspace->getUserRole($user->id);
-    \Log::info('User role in workspace: ' . $userRole);
+    Log::info('User role in workspace: ' . $userRole);
     
     if (!in_array($userRole, ['owner', 'editor'])) {
-        \Log::error('User role insufficient for project creation: ' . $userRole);
-        \Log::info('=== PROJECT CREATION DEBUG END (INSUFFICIENT ROLE) ===');
+        Log::error('User role insufficient for project creation: ' . $userRole);
+        Log::info('=== PROJECT CREATION DEBUG END (INSUFFICIENT ROLE) ===');
         return redirect()->back()->withErrors([
             'workspace_id' => 'You do not have permission to create projects in this workspace.'
         ]);
@@ -793,7 +796,7 @@ public function store(Request $request): RedirectResponse
     
     $validated['project_type'] = 'manual'; // Mark as manually created
     
-    \Log::info('🎯 Framework mapping applied:', [
+    Log::info('🎯 Framework mapping applied:', [
         'input_framework' => $validated['framework'] ?? 'not set',
         'input_style_framework' => $validated['style_framework'] ?? 'not set',
         'output_format' => $validated['output_format'],
@@ -826,39 +829,39 @@ public function store(Request $request): RedirectResponse
         ]
     ];
 
-    \Log::info('Final validated data for project creation: ', $validated);
+    Log::info('Final validated data for project creation: ', $validated);
 
     try {
-        \Log::info('Attempting to create project...');
+        Log::info('Attempting to create project...');
         $project = Project::create($validated);
-        \Log::info('Project created successfully with ID: ' . $project->id);
+        Log::info('Project created successfully with ID: ' . $project->id);
 
         // If created from template, copy canvas data and settings
         if (isset($validated['template_id'])) {
-            \Log::info('Processing template copy...');
+            Log::info('Processing template copy...');
             $template = Project::find($validated['template_id']);
             if ($template && ($template->is_public || $template->user_id === $user->id)) {
                 $project->update([
                     'canvas_data' => $template->canvas_data,
                     'settings' => array_merge($project->settings, $template->settings ?? [])
                 ]);
-                \Log::info('Template data copied successfully');
+                Log::info('Template data copied successfully');
             }
         }
 
         // BROADCAST PROJECT CREATION
         try {
-            \Log::info('Broadcasting project creation...');
+            Log::info('Broadcasting project creation...');
             broadcast(new ProjectCreated($project, $workspace, $user))->toOthers();
-            \Log::info('Project creation broadcasted successfully');
+            Log::info('Project creation broadcasted successfully');
         } catch (\Exception $e) {
             // Log broadcast failure but don't fail the project creation
-            \Log::warning('Failed to broadcast project creation: ' . $e->getMessage());
+            Log::warning('Failed to broadcast project creation: ' . $e->getMessage());
         }
         
-        \Log::info('Project creation completed successfully');
-        \Log::info('Redirecting to: /void/' . $project->uuid . '?workspace=' . $workspace->id);
-        \Log::info('=== PROJECT CREATION DEBUG END (SUCCESS) ===');
+        Log::info('Project creation completed successfully');
+        Log::info('Redirecting to: /void/' . $project->uuid . '?workspace=' . $workspace->id);
+        Log::info('=== PROJECT CREATION DEBUG END (SUCCESS) ===');
 
         // Redirect to void editor using UUID, include workspace context
         return redirect()->route('void.index', [
@@ -867,9 +870,9 @@ public function store(Request $request): RedirectResponse
         ]);
 
     } catch (\Exception $e) {
-        \Log::error('Failed to create project: ' . $e->getMessage());
-        \Log::error('Stack trace: ' . $e->getTraceAsString());
-        \Log::info('=== PROJECT CREATION DEBUG END (CREATION ERROR) ===');
+        Log::error('Failed to create project: ' . $e->getMessage());
+        Log::error('Stack trace: ' . $e->getTraceAsString());
+        Log::info('=== PROJECT CREATION DEBUG END (CREATION ERROR) ===');
 
         return redirect()->back()->withErrors([
             'general' => 'Failed to create project. Please try again. Error: ' . $e->getMessage()
@@ -1024,7 +1027,7 @@ public function store(Request $request): RedirectResponse
             $newProject->is_public = false; // Duplicates are private by default
             $newProject->save();
 
-            \Log::info('Project duplicated successfully', [
+            Log::info('Project duplicated successfully', [
                 'original_project_id' => $project->id,
                 'new_project_id' => $newProject->id,
                 'workspace_id' => $workspaceId,
@@ -1034,9 +1037,9 @@ public function store(Request $request): RedirectResponse
             // BROADCAST PROJECT CREATION (duplicate creates a new project)
             try {
                 broadcast(new \App\Events\ProjectCreated($newProject, $workspace, $user))->toOthers();
-                \Log::info('Project duplication broadcasted');
+                Log::info('Project duplication broadcasted');
             } catch (\Exception $e) {
-                \Log::warning('Failed to broadcast project duplication: ' . $e->getMessage());
+                Log::warning('Failed to broadcast project duplication: ' . $e->getMessage());
             }
 
             return redirect()->route('void.index', [
@@ -1045,7 +1048,7 @@ public function store(Request $request): RedirectResponse
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Failed to duplicate project', [
+            Log::error('Failed to duplicate project', [
                 'original_project_id' => $project->id,
                 'workspace_id' => $workspaceId,
                 'user_id' => $user->id,
@@ -1099,7 +1102,7 @@ public function store(Request $request): RedirectResponse
         try {
             $project->update(['workspace_id' => $workspace->id]);
 
-            \Log::info('Project moved to workspace', [
+            Log::info('Project moved to workspace', [
                 'project_id' => $project->id,
                 'old_workspace_id' => $project->getOriginal('workspace_id'),
                 'new_workspace_id' => $workspace->id,
@@ -1120,7 +1123,7 @@ public function store(Request $request): RedirectResponse
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Failed to move project to workspace', [
+            Log::error('Failed to move project to workspace', [
                 'project_id' => $project->id,
                 'workspace_id' => $workspace->id,
                 'user_id' => $user->id,
@@ -1159,7 +1162,7 @@ public function store(Request $request): RedirectResponse
             
             $project->update(['settings' => $settings]);
 
-            \Log::info('Project style settings updated', [
+            Log::info('Project style settings updated', [
                 'project_id' => $project->id,
                 'user_id' => $user->id,
                 'style_variables' => $validated['style_variables']
@@ -1174,7 +1177,7 @@ public function store(Request $request): RedirectResponse
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Failed to update project style settings', [
+            Log::error('Failed to update project style settings', [
                 'project_id' => $project->id,
                 'user_id' => $user->id,
                 'error' => $e->getMessage()
@@ -1210,7 +1213,7 @@ public function store(Request $request): RedirectResponse
             // Get all frames for this project
             $frames = \App\Models\Frame::where('project_id', $project->id)->get();
             
-            \Log::info('Deleting project with frames', [
+            Log::info('Deleting project with frames', [
                 'project_id' => $project->id,
                 'frame_count' => $frames->count()
             ]);
@@ -1235,13 +1238,13 @@ public function store(Request $request): RedirectResponse
             
             // Delete project thumbnail if exists
             if ($project->thumbnail) {
-                \Storage::disk('public')->delete($project->thumbnail);
+                Storage::disk('public')->delete($project->thumbnail);
             }
 
             // Delete the project
             $project->delete();
 
-            \Log::info('Project and all frames deleted successfully', [
+            Log::info('Project and all frames deleted successfully', [
                 'project_id' => $projectId,
                 'frames_deleted' => $frames->count()
             ]);
@@ -1249,9 +1252,9 @@ public function store(Request $request): RedirectResponse
             // BROADCAST PROJECT DELETION
             try {
                 broadcast(new \App\Events\ProjectDeleted($projectId, $projectUuid, $projectName, $workspaceId, $deletedBy))->toOthers();
-                \Log::info('Project deletion broadcasted', ['project_id' => $projectId, 'workspace_id' => $workspaceId]);
+                Log::info('Project deletion broadcasted', ['project_id' => $projectId, 'workspace_id' => $workspaceId]);
             } catch (\Exception $e) {
-                \Log::warning('Failed to broadcast project deletion: ' . $e->getMessage());
+                Log::warning('Failed to broadcast project deletion: ' . $e->getMessage());
             }
 
             return response()->json([
@@ -1260,7 +1263,7 @@ public function store(Request $request): RedirectResponse
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('Error deleting project', [
+            Log::error('Error deleting project', [
                 'project_id' => $project->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -1328,7 +1331,7 @@ public function store(Request $request): RedirectResponse
         if ($request->hasFile('thumbnail')) {
             // Delete old thumbnail if exists
             if ($project->thumbnail) {
-                \Storage::disk('public')->delete($project->thumbnail);
+                Storage::disk('public')->delete($project->thumbnail);
             }
 
             // Store new thumbnail
@@ -1357,7 +1360,7 @@ public function store(Request $request): RedirectResponse
     {
         $user = Auth::user();
         
-        \Log::info('🎬 PLAYWRIGHT THUMBNAIL GENERATION STARTED', [
+        Log::info('🎬 PLAYWRIGHT THUMBNAIL GENERATION STARTED', [
             'project_id' => $project->uuid,
             'project_name' => $project->name,
             'user_id' => $user->id
@@ -1365,7 +1368,7 @@ public function store(Request $request): RedirectResponse
         
         // Check ownership
         if ($project->user_id !== $user->id) {
-            \Log::warning('❌ Unauthorized thumbnail generation attempt', [
+            Log::warning('❌ Unauthorized thumbnail generation attempt', [
                 'project_id' => $project->uuid,
                 'user_id' => $user->id,
                 'owner_id' => $project->user_id
@@ -1381,7 +1384,7 @@ public function store(Request $request): RedirectResponse
             
             // Check if Playwright is available
             if (!$playwrightService->checkPlaywrightAvailability()) {
-                \Log::warning('⚠️ Playwright not available, client should use fallback', [
+                Log::warning('⚠️ Playwright not available, client should use fallback', [
                     'project_id' => $project->uuid
                 ]);
                 
@@ -1402,7 +1405,7 @@ public function store(Request $request): RedirectResponse
             ]);
             
             if (!$thumbnailPath) {
-                \Log::error('❌ Playwright thumbnail generation returned null', [
+                Log::error('❌ Playwright thumbnail generation returned null', [
                     'project_id' => $project->uuid
                 ]);
                 
@@ -1417,7 +1420,7 @@ public function store(Request $request): RedirectResponse
             // Get the URL for the thumbnail
             $thumbnailUrl = $playwrightService->getThumbnailUrl($project);
             
-            \Log::info('✅ PLAYWRIGHT THUMBNAIL GENERATED SUCCESSFULLY!', [
+            Log::info('✅ PLAYWRIGHT THUMBNAIL GENERATED SUCCESSFULLY!', [
                 'project_id' => $project->uuid,
                 'thumbnail_url' => $thumbnailUrl,
                 'method' => $project->thumbnail_method
@@ -1432,7 +1435,7 @@ public function store(Request $request): RedirectResponse
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('❌ PLAYWRIGHT THUMBNAIL GENERATION EXCEPTION', [
+            Log::error('❌ PLAYWRIGHT THUMBNAIL GENERATION EXCEPTION', [
                 'project_id' => $project->uuid,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -1455,7 +1458,7 @@ public function store(Request $request): RedirectResponse
     {
         $user = Auth::user();
         
-        \Log::info('📸 PROJECT THUMBNAIL UPLOAD STARTED (Frontend Fallback)', [
+        Log::info('📸 PROJECT THUMBNAIL UPLOAD STARTED (Frontend Fallback)', [
             'project_id' => $project->uuid,
             'project_name' => $project->name,
             'user_id' => $user->id
@@ -1463,7 +1466,7 @@ public function store(Request $request): RedirectResponse
         
         // Check ownership
         if ($project->user_id !== $user->id) {
-            \Log::warning('❌ Unauthorized thumbnail upload attempt', [
+            Log::warning('❌ Unauthorized thumbnail upload attempt', [
                 'project_id' => $project->uuid,
                 'user_id' => $user->id,
                 'owner_id' => $project->user_id
@@ -1482,7 +1485,7 @@ public function store(Request $request): RedirectResponse
         try {
             if ($request->hasFile('snapshot')) {
                 $file = $request->file('snapshot');
-                \Log::info('📦 Snapshot file received', [
+                Log::info('📦 Snapshot file received', [
                     'size' => $file->getSize(),
                     'mime_type' => $file->getMimeType(),
                     'original_name' => $file->getClientOriginalName()
@@ -1490,13 +1493,13 @@ public function store(Request $request): RedirectResponse
                 
                 // Delete old thumbnail if exists
                 if ($project->thumbnail) {
-                    \Storage::disk('public')->delete($project->thumbnail);
-                    \Log::info('🗑️ Old thumbnail deleted', ['path' => $project->thumbnail]);
+                    Storage::disk('public')->delete($project->thumbnail);
+                    Log::info('🗑️ Old thumbnail deleted', ['path' => $project->thumbnail]);
                 }
 
                 // Store new thumbnail from snapshot
                 $path = $request->file('snapshot')->store('thumbnails/projects', 'public');
-                \Log::info('💾 New thumbnail stored', ['path' => $path]);
+                Log::info('💾 New thumbnail stored', ['path' => $path]);
                 
                 // Update project with new thumbnail
                 $project->update([
@@ -1505,8 +1508,8 @@ public function store(Request $request): RedirectResponse
                     'thumbnail_updated_at' => now()
                 ]);
                 
-                $thumbnailUrl = \Storage::url($path);
-                \Log::info('✅ PROJECT THUMBNAIL UPDATED SUCCESSFULLY!', [
+                $thumbnailUrl = Storage::url($path);
+                Log::info('✅ PROJECT THUMBNAIL UPDATED SUCCESSFULLY!', [
                     'project_id' => $project->uuid,
                     'thumbnail_url' => $thumbnailUrl,
                     'full_url' => asset('storage/' . $path)
@@ -1527,7 +1530,7 @@ public function store(Request $request): RedirectResponse
             ], 400);
 
         } catch (\Exception $e) {
-            \Log::error('Canvas snapshot upload failed', [
+            Log::error('Canvas snapshot upload failed', [
                 'project_id' => $project->id,
                 'error' => $e->getMessage()
             ]);
@@ -1647,5 +1650,210 @@ public function store(Request $request): RedirectResponse
             'data' => $project->fresh(),
             'message' => 'Project updated successfully'
         ]);
+    }
+
+    /**
+     * Publish project internally (like Framer/Webflow)
+     */
+    public function publish(Request $request)
+    {
+        $validated = $request->validate([
+            'project_uuid' => 'required|string|exists:projects,uuid',
+            'framework' => 'nullable|string|in:html,react',
+            'style_framework' => 'nullable|string|in:css,tailwind',
+            'subdomain' => 'nullable|string|alpha_dash|max:50',
+        ]);
+
+        try {
+            $project = Project::where('uuid', $validated['project_uuid'])->firstOrFail();
+            $user = auth()->user();
+            
+            // Check permissions
+            if ($project->user_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 403);
+            }
+
+            // Generate subdomain if not provided
+            $subdomain = $validated['subdomain'] ?? Str::slug($project->name);
+            
+            // Check if subdomain is already taken (by other projects)
+            $existingProject = Project::where('published_subdomain', $subdomain)
+                ->where('uuid', '!=', $project->uuid)
+                ->first();
+            
+            if ($existingProject) {
+                // Append random string to make it unique
+                $subdomain = $subdomain . '-' . Str::random(5);
+            }
+
+            // Get export options
+            $framework = $validated['framework'] ?? $project->output_format ?? 'html';
+            $styleFramework = $validated['style_framework'] ?? $project->style_framework ?? 'css';
+
+            $exportOptions = [
+                'framework' => $framework,
+                'style_framework' => $styleFramework,
+                'include_navigation' => true, // Always include navigation for published sites
+            ];
+
+            // Use ExportController to generate the project structure
+            $exportController = new \App\Http\Controllers\ExportController();
+            $reflection = new \ReflectionClass($exportController);
+            $method = $reflection->getMethod('generateProjectStructure');
+            $method->setAccessible(true);
+            $projectPath = $method->invoke($exportController, $project, $exportOptions);
+            
+            // Create published directory
+            $publishedPath = public_path("published/{$subdomain}");
+            
+            // Remove old published version if exists
+            if (file_exists($publishedPath)) {
+                $this->deleteDirectory($publishedPath);
+            }
+            
+            // Copy generated files to public/published/{subdomain}
+            $this->copyDirectory($projectPath, $publishedPath);
+            
+            // Clean up temporary export files
+            Storage::deleteDirectory("temp/export_{$project->uuid}");
+            
+            // Update project with publish info
+            $publishedUrl = url("/published/{$subdomain}/index.html");
+            
+            $project->update([
+                'published_url' => $publishedUrl,
+                'published_at' => now(),
+                'published_subdomain' => $subdomain,
+                'status' => 'published',
+            ]);
+            
+            Log::info('Project published successfully', [
+                'project_uuid' => $project->uuid,
+                'subdomain' => $subdomain,
+                'url' => $publishedUrl
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Project published successfully!',
+                'published_url' => $publishedUrl,
+                'subdomain' => $subdomain,
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Publish failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to publish project: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Unpublish project
+     */
+    public function unpublish(Request $request)
+    {
+        $validated = $request->validate([
+            'project_uuid' => 'required|string|exists:projects,uuid',
+        ]);
+
+        try {
+            $project = Project::where('uuid', $validated['project_uuid'])->firstOrFail();
+            $user = auth()->user();
+            
+            // Check permissions
+            if ($project->user_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 403);
+            }
+
+            // Delete published files
+            if ($project->published_subdomain) {
+                $publishedPath = public_path("published/{$project->published_subdomain}");
+                if (file_exists($publishedPath)) {
+                    $this->deleteDirectory($publishedPath);
+                }
+            }
+            
+            // Update project
+            $project->update([
+                'published_url' => null,
+                'published_at' => null,
+                'published_subdomain' => null,
+                'status' => 'draft',
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Project unpublished successfully'
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Unpublish failed', [
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to unpublish project: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Copy directory recursively
+     */
+    private function copyDirectory(string $src, string $dest): void
+    {
+        if (!is_dir($src)) {
+            return;
+        }
+
+        if (!is_dir($dest)) {
+            mkdir($dest, 0755, true);
+        }
+
+        $files = scandir($src);
+        foreach ($files as $file) {
+            if ($file !== '.' && $file !== '..') {
+                $srcPath = "{$src}/{$file}";
+                $destPath = "{$dest}/{$file}";
+                
+                if (is_dir($srcPath)) {
+                    $this->copyDirectory($srcPath, $destPath);
+                } else {
+                    copy($srcPath, $destPath);
+                }
+            }
+        }
+    }
+
+    /**
+     * Delete directory recursively
+     */
+    private function deleteDirectory(string $dir): bool
+    {
+        if (!is_dir($dir)) {
+            return false;
+        }
+
+        $files = array_diff(scandir($dir), ['.', '..']);
+        
+        foreach ($files as $file) {
+            $path = "{$dir}/{$file}";
+            is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
+        }
+        
+        return rmdir($dir);
     }
 }

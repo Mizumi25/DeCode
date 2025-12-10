@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Component;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 
 class ComponentController extends Controller
 {
@@ -16,10 +17,10 @@ class ComponentController extends Controller
                 ->get();
 
             // Debug: Log the raw components
-            \Log::info('Raw components from database:', ['count' => $components->count()]);
+            Log::info('Raw components from database:', ['count' => $components->count()]);
             
             if ($components->isEmpty()) {
-                \Log::warning('No components found in database');
+                Log::warning('No components found in database');
                 return response()->json([
                     'success' => true,
                     'data' => [
@@ -93,7 +94,7 @@ class ComponentController extends Controller
             }
 
             // Debug: Log the restructured data
-            \Log::info('Restructured components:', [
+            Log::info('Restructured components:', [
                 'elements_count' => count($restructured['elements']),
                 'components_count' => count($restructured['components']),
                 'elements_letters' => array_keys($restructured['elements']),
@@ -111,7 +112,7 @@ class ComponentController extends Controller
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('Error in ComponentController@index:', [
+            Log::error('Error in ComponentController@index:', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine()

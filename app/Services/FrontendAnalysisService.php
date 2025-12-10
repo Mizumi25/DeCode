@@ -45,7 +45,9 @@ class FrontendAnalysisService
         'config', 'setup', 'webpack', 'babel', 'eslint',
         'package.json', 'tsconfig', 'jest.config',
         '.gitignore', 'readme', 'license', 'node_modules',
-        '.git', 'vendor', 'build', 'dist', 'coverage'
+        '.git', 'vendor', 'build', 'dist', 'coverage',
+        // Skip boilerplate/navigation files
+        'index.html', 'main.js', 'app.js'
     ];
 
     /**
@@ -91,11 +93,24 @@ class FrontendAnalysisService
         $lowercaseName = strtolower($name);
         $lowercasePath = strtolower($path);
         
-        // Skip files matching skip patterns
+        // Skip files matching skip patterns (exact match for certain files)
         foreach (self::$skipPatterns as $pattern) {
-            if (strpos($lowercaseName, $pattern) !== false || strpos($lowercasePath, $pattern) !== false) {
-                return null;
+            // Exact match for boilerplate files
+            if (in_array($pattern, ['index.html', 'main.js', 'app.js'])) {
+                if ($lowercaseName === $pattern) {
+                    return null;
+                }
+            } else {
+                // Partial match for other patterns
+                if (strpos($lowercaseName, $pattern) !== false || strpos($lowercasePath, $pattern) !== false) {
+                    return null;
+                }
             }
+        }
+        
+        // Skip files in root-level scripts/ or root index
+        if (strpos($lowercasePath, 'scripts/') === 0 || $lowercasePath === 'index.html') {
+            return null;
         }
         
         // Check if file is in frontend directory

@@ -1,0 +1,14 @@
+# Allow access to published projects
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /published/
+</IfModule>
+
+# Enable directory indexing for testing
+Options +Indexes
+
+# Security headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+</IfModule>

@@ -11,6 +11,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ForgeController extends Controller
 {
@@ -414,7 +415,7 @@ class ForgeController extends Controller
         ]);
 
         $frame = Frame::create([
-            'uuid' => \Str::uuid(),
+            'uuid' => Str::uuid(),
             'project_id' => $project->id,
             'name' => $validated['name'],
             'type' => $validated['type'],
@@ -557,7 +558,7 @@ class ForgeController extends Controller
 
         // Create duplicate
         $duplicateFrame = Frame::create([
-            'uuid' => \Str::uuid(),
+            'uuid' => Str::uuid(),
             'project_id' => $project->id,
             'name' => $frame->name . ' (Copy)',
             'type' => $frame->type,
