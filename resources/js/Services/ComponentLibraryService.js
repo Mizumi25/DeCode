@@ -1119,7 +1119,7 @@ getComponentTag(type) {
 
 
   // Around line 750 - REPLACE generateReactCSSCode
-generateReactCSSCode(allComponents, frameName = 'Generated Component') {
+generateReactCSSCode(allComponents, frameName = 'GeneratedComponent') {
   if (!allComponents || allComponents.length === 0) {
     const componentName = frameName.replace(/[^a-zA-Z0-9]/g, '');
     return {
@@ -1204,18 +1204,20 @@ export default ${componentName};`,
   const reactComponents = renderReactTree(allComponents);
   const componentName = frameName.replace(/[^a-zA-Z0-9]/g, '');
   const importsSection = componentImports.length > 0 ? componentImports.join('\n') + '\n' : '';
+  const componentCount = allComponents.length;
 
   return {
     react: `import React from 'react';
 ${importsSection}import './${componentName}.css';
 
-const ${componentName} = () => {
+// Generated React Component for Frame: ${frameName}
+function ${componentName}() {
   return (
     <div className="canvas-container">
-${reactComponents}
+${reactComponents || `      {/* ${componentCount} ${componentCount === 1 ? 'component' : 'components'} */}`}
     </div>
   );
-};
+}
 
 export default ${componentName};`,
     css: this.generateModernCSS(allComponents)
@@ -1223,7 +1225,7 @@ export default ${componentName};`,
 }
 
 // Around line 800 - REPLACE generateHTMLCSSCode
-generateHTMLCSSCode(allComponents, frameName = 'Generated Component') {
+generateHTMLCSSCode(allComponents, frameName = 'GeneratedComponent') {
   if (!allComponents || allComponents.length === 0) {
     return {
       html: `<!DOCTYPE html>
@@ -1334,6 +1336,7 @@ generateHTMLCSSCode(allComponents, frameName = 'Generated Component') {
   };
 
   const htmlComponents = renderHTMLTree(allComponents);
+  const componentCount = allComponents.length;
 
   return {
     html: `<!DOCTYPE html>
@@ -1345,8 +1348,9 @@ generateHTMLCSSCode(allComponents, frameName = 'Generated Component') {
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <!-- Generated HTML for Frame: ${frameName} -->
     <div class="canvas-container">
-${htmlComponents}
+${htmlComponents || `      <!-- ${componentCount} ${componentCount === 1 ? 'component' : 'components'} -->`}
     </div>
 </body>
 </html>`,
@@ -1473,7 +1477,7 @@ ${cssProperties}
 
   // REPLACE generateHTMLTailwindCode method
 // Around line 850 - REPLACE generateHTMLTailwindCode
-generateHTMLTailwindCode(allComponents, frameName = 'Generated Component') {
+generateHTMLTailwindCode(allComponents, frameName = 'GeneratedComponent') {
   if (!allComponents || allComponents.length === 0) {
     return {
       html: `<!DOCTYPE html>
@@ -1552,6 +1556,7 @@ const renderHTMLTree = (components, depth = 0) => {
 
 
   const htmlComponents = renderHTMLTree(allComponents);
+  const componentCount = allComponents.length;
 
   return {
     html: `<!DOCTYPE html>
@@ -1563,8 +1568,9 @@ const renderHTMLTree = (components, depth = 0) => {
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
+    <!-- Generated HTML with Tailwind for Frame: ${frameName} -->
     <div class="w-full min-h-screen">
-${htmlComponents}
+${htmlComponents || `      <!-- ${componentCount} ${componentCount === 1 ? 'component' : 'components'} -->`}
     </div>
 </body>
 </html>`,
@@ -2266,6 +2272,106 @@ rebuildComponentTree(flatComponents) {
           console.error('Failed to load project components:', error);
           return [];
       }
+  }
+  // 🔥 ADD: Unified client-side code generation method
+  async clientSideCodeGeneration(components, style = 'react-css', frameName = 'GeneratedComponent') {
+    try {
+      if (!components || components.length === 0) {
+        return {
+          react: `// Generated React Code for Frame: ${frameName}\nfunction ${frameName}() {\n  return (\n    <div className="canvas-container">\n      {/* No components yet */}\n    </div>\n  );\n}\n\nexport default ${frameName};`,
+          html: `<!-- Generated HTML for Frame: ${frameName} -->\n<div>\n  <!-- No components yet -->\n</div>`,
+          css: `/* Generated CSS for Frame: ${frameName} */`,
+          tailwind: `<!-- Generated Tailwind for Frame: ${frameName} -->\n<div>\n  <!-- No components yet -->\n</div>`
+        };
+      }
+
+      switch (style) {
+        case 'react-css':
+          return this.generateReactCSSCode(components, frameName);
+        
+        case 'react-tailwind':
+          return this.generateReactTailwindCode(components, frameName);
+        
+        case 'html-css':
+          return this.generateHTMLCSSCode(components, frameName);
+        
+        case 'html-tailwind':
+          return this.generateHTMLTailwindCode(components, frameName);
+        
+        default:
+          return this.generateReactCSSCode(components, frameName);
+      }
+    } catch (error) {
+      console.error('Code generation error:', error);
+      return {
+        react: `// Error generating code for Frame: ${frameName}\nfunction ${frameName}() {\n  return <div>Error generating code</div>;\n}`,
+        html: `<!-- Error generating HTML -->`,
+        css: `/* Error generating CSS */`,
+        tailwind: `<!-- Error generating Tailwind -->`
+      };
+    }
+  }
+
+  // 🔥 ADD: Generate React with Tailwind
+  generateReactTailwindCode(allComponents, frameName = 'GeneratedComponent') {
+    if (!allComponents || allComponents.length === 0) {
+      return {
+        react: `import React from 'react';\n\nfunction ${frameName}() {\n  return (\n    <div className="w-full min-h-screen">\n      {/* No components yet */}\n    </div>\n  );\n}\n\nexport default ${frameName};`,
+        tailwind: ''
+      };
+    }
+
+    const renderReactTree = (components, depth = 0) => {
+      return components.map(comp => {
+        const indent = '  '.repeat(depth + 3);
+        
+        if (comp.type === 'frame-component-instance' || comp.component_type === 'frame-component-instance') {
+          const name = comp.props?.sourceFrameName || comp.name || 'Component';
+          return `${indent}<div className="component-instance">{/* ${name} component */}</div>`;
+        }
+        
+        if (comp.type === 'text-node') {
+          const textContent = comp.props?.content || comp.props?.text || comp.text_content || '';
+          return `${indent}{${JSON.stringify(textContent)}}`;
+        }
+        
+        const classes = this.buildDynamicTailwindClasses(comp);
+        const content = this.extractComponentContent(comp);
+        const hasChildren = comp.children && comp.children.length > 0;
+        const tag = this.getReactTag(comp.type);
+        
+        let jsx = `${indent}<${tag}`;
+        if (classes) jsx += ` className="${classes}"`;
+        
+        const props = this.buildReactProps(comp);
+        if (props) jsx += ` ${props}`;
+        
+        jsx += '>';
+        
+        if (hasChildren) {
+          jsx += '\n' + renderReactTree(comp.children, depth + 1);
+          jsx += `\n${indent}</${tag}>`;
+        } else if (content) {
+          jsx += content + `</${tag}>`;
+        } else {
+          if (['input', 'img', 'br', 'hr'].includes(comp.type)) {
+            return `${indent}<${tag}${classes ? ` className="${classes}"` : ''}${props ? ` ${props}` : ''} />`;
+          }
+          jsx += `</${tag}>`;
+        }
+        
+        return jsx;
+      }).join('\n');
+    };
+
+    const reactComponents = renderReactTree(allComponents);
+    
+    return {
+      react: `import React from 'react';\n\nfunction ${frameName}() {\n  return (\n    <div className="w-full min-h-screen">\n${reactComponents}\n    </div>\n  );\n}\n\nexport default ${frameName};`,
+      tailwind: allComponents.map(comp => 
+        `/* ${comp.name} (${comp.type}) */\n${this.buildDynamicTailwindClasses(comp)}`
+      ).join('\n\n')
+    };
   }
 }
 
