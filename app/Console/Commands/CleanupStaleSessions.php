@@ -36,12 +36,13 @@ class CleanupStaleSessions extends Command
         $active = 0;
 
         foreach ($usersWithSessions as $user) {
-            // Check if the session exists in the sessions table
-            $sessionExists = DB::table('sessions')
+            // 🔥 FIX: Check if the session exists AND is not expired
+            $sessionActive = DB::table('sessions')
                 ->where('id', $user->current_session_id)
+                ->where('last_activity', '>', now()->subMinutes(config('session.lifetime', 120))->timestamp)
                 ->exists();
 
-            if (!$sessionExists) {
+            if (!$sessionActive) {
                 // Session is dead/expired, clear tracking
                 $user->update([
                     'current_session_id' => null,
@@ -50,7 +51,7 @@ class CleanupStaleSessions extends Command
                     'session_ip' => null,
                 ]);
                 
-                $this->line("  ✓ Cleared stale session for: {$user->email}");
+                $this->line("  ✓ Cleared stale/expired session for: {$user->email}");
                 $cleaned++;
             } else {
                 $active++;

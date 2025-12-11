@@ -39,8 +39,7 @@ import EmptyCanvasState from '@/Components/Forge/EmptyCanvasState';
 import SectionDropZone from '@/Components/Forge/SectionDropZone';
 import IconWindowPanel from '@/Components/Forge/IconWindowPanel';
 import LinkedComponentsModal from '@/Components/Forge/LinkedComponentsModal';
-
-
+import PreviewPanelModal from '@/Components/Forge/PreviewPanelModal';
 
 import ErrorBoundary from '@/Components/ErrorBoundary';
 

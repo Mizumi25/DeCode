@@ -963,10 +963,14 @@ const {
     delete finalComponentStyles.bottom;
   }
   
-  // If wrapper is handling width, remove from component
-  if (wrapperStyle.width !== 'auto') {
+  // 🔥 CRITICAL FIX: DON'T remove width from flex/grid containers!
+  // Wrapper handles width for positioning, but component ALSO needs width for flex/grid to work
+  // Only remove width for regular inline/block components
+  if (wrapperStyle.width !== 'auto' && !isBlockLike) {
     delete finalComponentStyles.width;
   }
+  // For flex/grid containers, KEEP width on component so flexbox/grid layout works correctly
+  
   
 
 // Auto-save components when they change

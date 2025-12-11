@@ -18,6 +18,7 @@ import { useThemeStore } from '@/stores/useThemeStore'
 import { useEditorStore } from '@/stores/useEditorStore'
 import { useHeaderStore } from '@/stores/useHeaderStore'
 import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore'
+import { useForgeStore } from '@/stores/useForgeStore'
 
 export default function Header({ 
   isAuthenticated = true, 
@@ -60,6 +61,8 @@ export default function Header({
     initializeTheme,
     refreshTheme
   } = useThemeStore()
+  
+  const { toggleForgePanel } = useForgeStore()
   
   const {
     responsiveMode,
@@ -228,6 +231,7 @@ export default function Header({
             setWorkspaceDropdownOpen={handleWorkspaceDropdownToggle}
             profileDropdownOpen={profileDropdownOpen}
             setProfileDropdownOpen={handleProfileDropdownToggle}
+            toggleForgePanel={toggleForgePanel}
           />
         </div>
 

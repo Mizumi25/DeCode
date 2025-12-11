@@ -350,6 +350,8 @@ const ComponentsPanel = ({
   const [selectedLetter, setSelectedLetter] = useState(null);
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [showVariants, setShowVariants] = useState(false);
+  const [expandedVariantComponent, setExpandedVariantComponent] = useState(null); // For desktop inline variants
+  const [isMobile, setIsMobile] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState({
     layout: false, // Layout expanded by default
     interactive: false,
@@ -378,12 +380,21 @@ const ComponentsPanel = ({
   // CLEANER FIX: Use a ref to track tab changes and avoid the useEffect loop
   const previousTabRef = useRef(currentActiveTab);
   
+  // 🔥 Detect mobile vs desktop for variant display
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   useEffect(() => {
     // Only reset if the tab actually changed
     if (previousTabRef.current !== currentActiveTab) {
       console.log('ComponentsPanel: Tab changed from', previousTabRef.current, 'to:', currentActiveTab);
       setShowVariants(false);
       setSelectedComponent(null);
+      setExpandedVariantComponent(null); // Also close expanded variants
       previousTabRef.current = currentActiveTab;
     }
   }, [currentActiveTab]); // Remove showVariants from dependencies
@@ -526,8 +537,21 @@ const ComponentsPanel = ({
   const handleComponentClick = (component) => {
     if (component.variants && Array.isArray(component.variants) && component.variants.length > 0) {
       console.log('ComponentsPanel: Showing variants for component:', component.name);
-      setSelectedComponent(component);
-      setShowVariants(true);
+      
+      if (isMobile) {
+        // 📱 Mobile: Use VariantSlidePanel as modal
+        setSelectedComponent(component);
+        setShowVariants(true);
+      } else {
+        // 🖥️ Desktop: Toggle inline variants
+        if (expandedVariantComponent?.type === component.type) {
+          // Clicking same component again - collapse
+          setExpandedVariantComponent(null);
+        } else {
+          // Expand this component's variants
+          setExpandedVariantComponent(component);
+        }
+      }
     } else {
       console.log('ComponentsPanel: No variants, starting drag for component:', component.name);
       handleMainComponentDragStart(component);
@@ -793,6 +817,52 @@ const handleVariantDragEnd = (e) => {
                                       </div>
                                       <div className="w-2 h-2 rounded-full group-hover:scale-150 transition-transform" style={{ backgroundColor: categoryInfo.color }}></div>
                                     </div>
+                                    
+                                    {/* 🖥️ Desktop: Inline Variants */}
+                                    {!isMobile && expandedVariantComponent?.type === component.type && (
+                                      <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: 'var(--color-border)' }}>
+                                        <div className="text-xs font-semibold mb-2" style={{ color: 'var(--color-text-muted)' }}>
+                                          Drag a variant to canvas:
+                                        </div>
+                                        {component.variants.map((variant, idx) => (
+                                          <div
+                                            key={idx}
+                                            draggable
+                                            onDragStart={(e) => handleVariantDragStart(e, component.type, variant, {
+                                              component: {
+                                                name: component.name,
+                                                type: component.type,
+                                                description: component.description,
+                                                default_props: component.default_props,
+                                                prop_definitions: component.prop_definitions
+                                              }
+                                            })}
+                                            className="p-3 rounded-lg cursor-grab active:cursor-grabbing border transition-all hover:scale-[1.02]"
+                                            style={{ 
+                                              borderColor: categoryInfo.color + '40',
+                                              backgroundColor: 'var(--color-bg)',
+                                            }}
+                                            onMouseEnter={(e) => {
+                                              e.currentTarget.style.borderColor = categoryInfo.color;
+                                              e.currentTarget.style.backgroundColor = categoryInfo.color + '10';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                              e.currentTarget.style.borderColor = categoryInfo.color + '40';
+                                              e.currentTarget.style.backgroundColor = 'var(--color-bg)';
+                                            }}
+                                          >
+                                            <div className="font-medium text-sm" style={{ color: 'var(--color-text)' }}>
+                                              {variant.name}
+                                            </div>
+                                            {variant.description && (
+                                              <div className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                                                {variant.description}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
                                   </motion.div>
                                 );
                               })}

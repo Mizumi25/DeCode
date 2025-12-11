@@ -35,7 +35,8 @@ const RightSection = ({
   workspaceDropdownOpen,
   setWorkspaceDropdownOpen,
   profileDropdownOpen,
-  setProfileDropdownOpen
+  setProfileDropdownOpen,
+  toggleForgePanel
 }) => {
   const { props, url } = usePage()
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -358,6 +359,20 @@ const RightSection = ({
                   }`} />
                 </button>
                 <span className={`text-[7px] ${commentMode ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)]'}`}>Comments</span>
+              </div>
+            )}
+
+            {/* Preview - Only on Forge Page */}
+            {onForgePage && toggleForgePanel && (
+              <div className="flex flex-col items-center gap-0.5">
+                <button 
+                  onClick={() => toggleForgePanel('preview-panel')}
+                  className="p-0.5 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+                  title="Open interactive preview"
+                >
+                  <Eye className="w-2.5 h-2.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)]" />
+                </button>
+                <span className="text-[7px] text-[var(--color-text-muted)]">Preview</span>
               </div>
             )}
 

@@ -31,14 +31,15 @@ class AuthenticatedSessionController extends Controller
     {
         $user = \App\Models\User::where('email', $request->email)->first();
         
-        // Check if user is already logged in elsewhere
+        // 🔥 FIX: Check if user is already logged in elsewhere
         if ($user && $user->current_session_id && $user->current_session_id !== session()->getId()) {
             // Verify if the stored session is actually still active
             $sessionExists = \DB::table('sessions')
                 ->where('id', $user->current_session_id)
+                ->where('last_activity', '>', now()->subMinutes(config('session.lifetime', 120))->timestamp)
                 ->exists();
             
-            // If session doesn't exist in database, clear the stale session tracking
+            // 🔥 FIX: If session doesn't exist or expired, clear the stale session tracking
             if (!$sessionExists) {
                 $user->update([
                     'current_session_id' => null,
@@ -46,9 +47,9 @@ class AuthenticatedSessionController extends Controller
                     'session_device' => null,
                     'session_ip' => null,
                 ]);
-                // Allow login to proceed since old session is dead
+                // Allow login to proceed since old session is dead/expired
             } else {
-                // Session is active, show conflict dialog
+                // Session is still active, show conflict dialog
                 return redirect()->back()->withErrors([
                     'email' => 'This account is already logged in on another device.',
                 ])->with('show_session_conflict', true)
