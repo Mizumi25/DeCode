@@ -927,13 +927,20 @@ const {
   ) || component.style;
   
   // Wrapper should match component's display mode to avoid layout issues
+  const componentDisplay = componentStyles?.display;
+  const isBlockLike = componentDisplay === 'block' || componentDisplay === 'flex' || componentDisplay === 'grid';
+  
   const wrapperStyle = {
-    // Match component's positioning
+    // Match component's positioning (or relative for layout containers)
     position: componentStyles?.position || (isLayout ? 'relative' : 'static'),
     // Match component's display
-    display: componentStyles?.display || (isLayout ? 'block' : 'inline-block'),
-    // Match component's width if block
-    width: (componentStyles?.display === 'block' || isLayout) ? (componentStyles?.width || '100%') : 'auto',
+    display: componentDisplay || (isLayout ? 'block' : 'inline-block'),
+    // 🔥 FIX: Preserve width for block, flex, grid, or layout containers
+    width: (isBlockLike || isLayout) ? (componentStyles?.width || '100%') : 'auto',
+    // Match component's height if specified
+    height: componentStyles?.height || 'auto',
+    // Ensure wrapper has minimum dimensions for hover detection on empty containers
+    minHeight: (isLayout && !component.children?.length) ? '80px' : 'auto',
     // Drag states
     opacity: isDragging ? 0.3 : 1,
     zIndex: isDragging ? 9999 : (component.zIndex || depth),
@@ -1073,46 +1080,48 @@ useEffect(() => {
         </>
       )}
       
-      {/* 🔥 UNIFIED: Render the actual component with responsive styles */}
+      {/* 🔥 UNIFIED: Render the actual component with children INSIDE */}
       {componentLibraryService?.renderUnified 
-        ? componentLibraryService.renderUnified({
-            ...component,
-            style: finalComponentStyles  // Apply responsive styles (without duplicated wrapper props)
-          }, component.id)
+        ? componentLibraryService.renderUnified(
+            {
+              ...component,
+              style: finalComponentStyles  // Apply responsive styles (without duplicated wrapper props)
+            }, 
+            component.id,
+            // 🔥 CRITICAL: Pass rendered children to be placed INSIDE the component element
+            component.children && component.children.length > 0 ? (
+              component.children.map((child, childIndex) => (
+                <DraggableComponent
+                  key={child.id}
+                  component={child}
+                  depth={depth + 1}
+                  parentId={component.id}
+                  index={childIndex}
+                  parentStyle={componentStyles}
+                  responsiveMode={responsiveMode}
+                  onDragEnd={handleComponentDragEnd}
+                  setSelectedComponent={setSelectedComponent}
+                  setIsCanvasSelected={setIsCanvasSelected}
+                  currentFrame={currentFrame}
+                  canvasComponents={canvasComponents}
+                  flattenForReorder={flattenForReorder}
+                  onDragStateChange={({ activeId, position }) => {
+                    setActiveDragId(activeId);
+                    setDragPosition(position);
+                  }}
+                />
+              ))
+            ) : isLayout && !activeDragId ? (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-60">
+                <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
+                  Drop here • {component.type} • {responsiveMode}
+                  {componentStyles._responsiveScale && ` • Scale: ${componentStyles._responsiveScale.toFixed(2)}`}
+                </div>
+              </div>
+            ) : null
+          )
         : null
       }
-      
-      {/* 🔥 UNIFIED: Always render children the same way */}
-      {component.children && component.children.length > 0 ? (
-        component.children.map((child, childIndex) => (
-          <DraggableComponent
-            key={child.id}
-            component={child}
-            depth={depth + 1}
-            parentId={component.id}
-            index={childIndex}
-            parentStyle={componentStyles}
-            responsiveMode={responsiveMode}
-            onDragEnd={handleComponentDragEnd}
-            setSelectedComponent={setSelectedComponent}
-            setIsCanvasSelected={setIsCanvasSelected}
-            currentFrame={currentFrame}
-            canvasComponents={canvasComponents}
-            flattenForReorder={flattenForReorder}
-            onDragStateChange={({ activeId, position }) => {
-              setActiveDragId(activeId);
-              setDragPosition(position);
-            }}
-          />
-        ))
-      ) : isLayout && !activeDragId ? (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-60">
-          <div className="text-xs text-gray-400 border-2 border-dashed border-gray-300 rounded p-2">
-            Drop here • {component.type} • {responsiveMode}
-            {componentStyles._responsiveScale && ` • Scale: ${componentStyles._responsiveScale.toFixed(2)}`}
-          </div>
-        </div>
-      ) : null}
       
       {/* Selection label */}
       {isSelected && !activeDragId && (
@@ -1228,10 +1237,44 @@ const handleComponentDragEnd = useCallback(({ componentId, targetId, intent }) =
     sameParent: draggedParentId === targetParentId
   });
   
-  // CASE 1: Nesting into a container
+  // CASE 1: Nesting into a container (or moving to canvas root)
   if (intent === 'inside') {
     console.log('📦 Nesting into container:', targetId);
     
+    // 🔥 SPECIAL CASE: Dropping on canvas root - move to root level
+    if (targetId === '__canvas_root__') {
+      console.log('🎯 Moving to canvas root');
+      
+      let updatedTree = removeComponentFromTree(currentComponents, componentId);
+      // Add to root level (no parent)
+      updatedTree.push({
+        ...draggedComp,
+        parentId: null,
+      });
+      
+      setFrameCanvasComponents(prev => ({
+        ...prev,
+        [currentFrame]: updatedTree
+      }));
+      
+      if (pushHistory && actionTypes) {
+        pushHistory(currentFrame, updatedTree, actionTypes.MOVE, {
+          componentId,
+          action: 'moved_to_canvas_root'
+        });
+      }
+      
+      setTimeout(() => {
+        if (componentLibraryService?.saveProjectComponents) {
+          componentLibraryService.saveProjectComponents(projectId, currentFrame, updatedTree);
+        }
+      }, 500);
+      
+      if ('vibrate' in navigator) { try { navigator.vibrate(30); } catch(e) {} }
+      return;
+    }
+    
+    // Regular container nesting
     let updatedTree = removeComponentFromTree(currentComponents, componentId);
     updatedTree = addComponentToContainer(updatedTree, targetId, {
       ...draggedComp,

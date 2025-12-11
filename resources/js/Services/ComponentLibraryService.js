@@ -155,11 +155,11 @@ class ComponentLibraryService {
    * - Single HTML elements (button, input, div, etc.)
    * - Complex components (card, navbar, hero, etc.)
    * - ALL HTML5 elements
-   * - Nested children (handled by CanvasComponent)
+   * - Nested children (rendered React elements passed in)
    * 
    * This ONE method replaces 30+ specialized render methods
    */
-  renderUnified(component, id) {
+  renderUnified(component, id, renderedChildren = null) {
     // 1. Get component definition from database
     const componentDef = this.componentDefinitions.get(component.type);
     
@@ -176,9 +176,15 @@ class ComponentLibraryService {
     const htmlAttrs = this.getHTMLAttributes(mergedProps, id, component.type, componentDef);
     
     // 6. Get children content
-    // For simple elements: text content
-    // For complex components: null (children rendered by CanvasComponent from component.children array)
-    const children = this.getElementChildren(mergedProps, component.children);
+    // Priority: renderedChildren (passed from CanvasComponent) > text content > null
+    let children;
+    if (renderedChildren) {
+      // Use rendered React children passed from CanvasComponent
+      children = renderedChildren;
+    } else {
+      // Fall back to text content from props
+      children = this.getElementChildren(mergedProps, component.children);
+    }
     
     // 7. Create React element - ONE universal pattern for ALL
     return React.createElement(htmlTag, htmlAttrs, children);
@@ -251,8 +257,8 @@ class ComponentLibraryService {
       'data-element-type': type,
       style: {
         ...(props.style || {}),
-        // 🔥 CRITICAL: Component should NOT capture events - wrapper handles drag/select
-        pointerEvents: 'none',
+        // 🔥 REMOVED: Don't set pointer-events: none - it blocks children interaction!
+        // Wrapper has pointer-events: auto and will capture events
       }
     };
     

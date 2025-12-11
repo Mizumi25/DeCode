@@ -11,7 +11,12 @@
 export const canAcceptChildren = (component) => {
   if (!component) return false;
   
-  // 🔥 NEW: Only exclude self-closing elements that CAN'T have children
+  // 🔥 Canvas root always accepts children
+  if (component.id === '__canvas_root__' || component.type === '__canvas_root__') {
+    return true;
+  }
+  
+  // 🔥 Only exclude self-closing elements that CAN'T have children
   const selfClosingTypes = ['input', 'img', 'br', 'hr', 'meta', 'link'];
   if (selfClosingTypes.includes(component.type)) {
     return false; // These physically can't have children
