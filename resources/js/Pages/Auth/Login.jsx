@@ -314,6 +314,12 @@ export default function Login({ status, canResetPassword, show_session_conflict,
                     autoComplete="username"
                     onChange={(e) => setData('email', e.target.value)}
                     className="w-full px-4 py-3 pl-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none shadow-[var(--shadow-sm)] transition-all"
+                    style={{
+                      colorScheme: 'dark',
+                      WebkitTextFillColor: 'var(--color-text)',
+                      backgroundColor: 'var(--color-surface)',
+                      color: 'var(--color-text)'
+                    }}
                     placeholder="Enter your email"
                     required
                   />
@@ -339,6 +345,12 @@ export default function Login({ status, canResetPassword, show_session_conflict,
                     onChange={(e) => setData('password', e.target.value)}
                     autoComplete="current-password"
                     className="w-full px-4 py-3 pl-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none shadow-[var(--shadow-sm)] transition-all"
+                    style={{
+                      colorScheme: 'dark',
+                      WebkitTextFillColor: 'var(--color-text)',
+                      backgroundColor: 'var(--color-surface)',
+                      color: 'var(--color-text)'
+                    }}
                     placeholder="Enter your password"
                     required
                   />

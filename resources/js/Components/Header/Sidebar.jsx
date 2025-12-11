@@ -74,7 +74,21 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   const { currentWorkspace } = useWorkspaceStore()
 
-  const logout = () => router.post('/logout')
+  const logout = () => {
+    // Use form submission for full page reload to get fresh CSRF token
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/logout';
+    
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = '_token';
+    csrfInput.value = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    form.appendChild(csrfInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+  }
 
   // Get current user's role in workspace
   const getCurrentUserRole = () => {

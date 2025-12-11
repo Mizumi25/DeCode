@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Http\Controllers\Auth\VerificationController;
+use App\Models\TrustedDevice;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -41,7 +44,7 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        if (! Auth::attempt($this->only('email', 'password'), false)) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
@@ -50,6 +53,38 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
+        
+        // Get the authenticated user
+        $user = Auth::user();
+        
+        // Check if device needs verification
+        $needsVerification = !TrustedDevice::isTrusted($user->id);
+        
+        if ($needsVerification) {
+            // Logout user temporarily
+            Auth::logout();
+            
+            // Send verification code
+            $verificationController = new VerificationController();
+            $verificationController->sendCode($user->email, 'login', $user->name);
+            
+            // Store user info in session for verification
+            Session::put('pending_login_user_id', $user->id);
+            Session::put('pending_login_remember', $this->boolean('remember'));
+            VerificationController::setVerificationSession($user->email, 'login');
+            
+            // Throw exception to redirect to verification
+            throw ValidationException::withMessages([
+                'verification_required' => 'Please verify your login with the code sent to your email.',
+            ]);
+        }
+        
+        // Device is trusted, complete login
+        if ($this->boolean('remember')) {
+            TrustedDevice::trustDevice($user->id, true);
+        } else {
+            TrustedDevice::trustDevice($user->id, false);
+        }
     }
 
     /**

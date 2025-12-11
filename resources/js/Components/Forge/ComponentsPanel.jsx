@@ -219,7 +219,7 @@ const VariantSlidePanel = ({
               
             </div>
             
-            <div className="overflow-y-auto h-[calc(100%-73px)] p-4">
+            <div className="overflow-y-auto h-[calc(100vh-120px)] p-4">
               <div className="grid grid-cols-1 gap-3">
                 {component.variants.map((variant, index) => (
                   <motion.div
@@ -796,12 +796,27 @@ const handleVariantDragEnd = (e) => {
                                     }}
                                   >
                                     <div className="flex items-center gap-3">
-                                      <div 
-                                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold"
-                                        style={{ backgroundColor: categoryInfo.color }}
-                                      >
-                                        <IconComponent className="w-5 h-5" />
-                                      </div>
+                                      {/* Preview Thumbnail */}
+                                      {component.preview_code ? (
+                                        <div 
+                                          className="w-16 h-16 rounded-lg flex items-center justify-center overflow-hidden border"
+                                          style={{ 
+                                            backgroundColor: 'var(--color-bg)',
+                                            borderColor: categoryInfo.color + '40'
+                                          }}
+                                          dangerouslySetInnerHTML={{ 
+                                            __html: component.preview_code.replace(/className=/g, 'class=') 
+                                          }}
+                                        />
+                                      ) : (
+                                        <div 
+                                          className="w-16 h-16 rounded-lg flex items-center justify-center text-white font-bold"
+                                          style={{ backgroundColor: categoryInfo.color }}
+                                        >
+                                          <IconComponent className="w-8 h-8" />
+                                        </div>
+                                      )}
+                                      
                                       <div className="flex-1 min-w-0">
                                         <div className="font-semibold text-sm group-hover:opacity-80 transition-opacity" style={{ color: 'var(--color-text)' }}>
                                           {component.name}
@@ -827,17 +842,7 @@ const handleVariantDragEnd = (e) => {
                                         {component.variants.map((variant, idx) => (
                                           <div
                                             key={idx}
-                                            draggable
-                                            onDragStart={(e) => handleVariantDragStart(e, component.type, variant, {
-                                              component: {
-                                                name: component.name,
-                                                type: component.type,
-                                                description: component.description,
-                                                default_props: component.default_props,
-                                                prop_definitions: component.prop_definitions
-                                              }
-                                            })}
-                                            className="p-3 rounded-lg cursor-grab active:cursor-grabbing border transition-all hover:scale-[1.02]"
+                                            className="p-2 rounded-lg border transition-all"
                                             style={{ 
                                               borderColor: categoryInfo.color + '40',
                                               backgroundColor: 'var(--color-bg)',
@@ -851,14 +856,53 @@ const handleVariantDragEnd = (e) => {
                                               e.currentTarget.style.backgroundColor = 'var(--color-bg)';
                                             }}
                                           >
-                                            <div className="font-medium text-sm" style={{ color: 'var(--color-text)' }}>
-                                              {variant.name}
+                                            {/* Variant Preview Thumbnail - Draggable Only */}
+                                            <div
+                                              draggable
+                                              onDragStart={(e) => {
+                                                // Set drag image to be smaller
+                                                const dragImage = e.currentTarget.cloneNode(true);
+                                                dragImage.style.width = '80px';
+                                                dragImage.style.height = '80px';
+                                                dragImage.style.transform = 'scale(0.5)';
+                                                dragImage.style.opacity = '0.8';
+                                                document.body.appendChild(dragImage);
+                                                e.dataTransfer.setDragImage(dragImage, 40, 40);
+                                                setTimeout(() => document.body.removeChild(dragImage), 0);
+                                                
+                                                handleVariantDragStart(e, component.type, variant, {
+                                                  component: {
+                                                    name: component.name,
+                                                    type: component.type,
+                                                    description: component.description,
+                                                    default_props: component.default_props,
+                                                    prop_definitions: component.prop_definitions
+                                                  }
+                                                });
+                                              }}
+                                              className="cursor-grab active:cursor-grabbing"
+                                            >
+                                              {variant.preview_code ? (
+                                                <div 
+                                                  className="w-full aspect-square rounded-lg flex items-center justify-center overflow-hidden"
+                                                  style={{ 
+                                                    backgroundColor: 'var(--color-surface)',
+                                                  }}
+                                                  dangerouslySetInnerHTML={{ 
+                                                    __html: variant.preview_code.replace(/className=/g, 'class=') 
+                                                  }}
+                                                />
+                                              ) : (
+                                                <div 
+                                                  className="w-full aspect-square rounded-lg flex items-center justify-center"
+                                                  style={{ 
+                                                    backgroundColor: categoryInfo.color + '20',
+                                                  }}
+                                                >
+                                                  <Sparkles className="w-8 h-8" style={{ color: categoryInfo.color }} />
+                                                </div>
+                                              )}
                                             </div>
-                                            {variant.description && (
-                                              <div className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                                                {variant.description}
-                                              </div>
-                                            )}
                                           </div>
                                         ))}
                                       </div>

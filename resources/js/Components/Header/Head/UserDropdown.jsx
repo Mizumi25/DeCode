@@ -76,7 +76,19 @@ const UserDropdown = ({
     if (onLogout) {
       onLogout()
     } else {
-      router.post('/logout')
+      // Use form submission for full page reload to get fresh CSRF token
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/logout';
+      
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = '_token';
+      csrfInput.value = document.querySelector('meta[name="csrf-token"]')?.content || '';
+      form.appendChild(csrfInput);
+      
+      document.body.appendChild(form);
+      form.submit();
     }
   }
 

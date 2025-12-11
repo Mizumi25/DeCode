@@ -93,4 +93,8 @@ Route::middleware('auth')->group(function () {
     Broadcast::routes();
 });
 
+// Email verification page (must be before auth.php)
+Route::get('/verify-code', [App\Http\Controllers\Auth\VerificationController::class, 'show'])
+    ->name('verification.show');
+
 require __DIR__.'/auth.php';

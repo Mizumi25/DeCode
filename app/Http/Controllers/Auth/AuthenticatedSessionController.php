@@ -57,7 +57,20 @@ class AuthenticatedSessionController extends Controller
             }
         }
 
-        $request->authenticate();
+        try {
+            $request->authenticate();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Check if verification is required
+            if (isset($e->errors()['verification_required'])) {
+                // Redirect to verification page
+                return redirect()->route('verification.show')
+                    ->with('status', $e->errors()['verification_required'][0]);
+            }
+            
+            // Re-throw for other validation errors
+            throw $e;
+        }
+        
         $request->session()->regenerate();
 
         // Ensure the user has a personal workspace
@@ -94,6 +107,7 @@ class AuthenticatedSessionController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        // Force a full page reload to get fresh CSRF token
+        return redirect('/')->with('_fresh', true);
     }
 }

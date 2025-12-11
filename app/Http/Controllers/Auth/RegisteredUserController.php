@@ -47,8 +47,14 @@ class RegisteredUserController extends Controller
         // Create personal workspace
         $user->ensurePersonalWorkspace();
     
-        Auth::login($user);
+        // Send verification code instead of logging in immediately
+        $verificationController = new VerificationController();
+        $verificationController->sendCode($user->email, 'register', $user->name);
+        
+        // Store email in session for verification page
+        VerificationController::setVerificationSession($user->email, 'register');
     
-        return redirect(route('projects.index', absolute: false));
+        // Redirect to verification page
+        return redirect()->route('verification.show');
     }
 }

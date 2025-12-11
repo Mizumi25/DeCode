@@ -2,7 +2,6 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Settings, EyeOff, Eye, Sparkles } from 'lucide-react';
 import SearchBar from './SearchBar';
-import VoidUndoRedo from './VoidUndoRedo';
 import VoidZoomControls from './VoidZoomControls';
 import ForgeZoomControls from '@/Components/Header/Head/ForgeZoomControls';
 import BinaryToggle from './BinaryToggle';
@@ -125,15 +124,7 @@ const CenterSection = ({
         custom={2}
         className="flex items-center gap-2 flex-shrink-0" // Reduced gap
       >
-        {/* Undo/Redo - Hide for Viewer */}
-        {myRole !== 'viewer' && (
-          <>
-            <VoidUndoRedo size="small" /> {/* Made smaller */}
-            
-            {/* Vertical Divider */}
-            <div className="w-px h-3 bg-[var(--color-border)]"></div>
-          </>
-        )}
+        {/* Undo/Redo removed from Void page */}
 
         {/* FIXED: Pass zoomLevel and setZoomLevel props */}
         <VoidZoomControls 

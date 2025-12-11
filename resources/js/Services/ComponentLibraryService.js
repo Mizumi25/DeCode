@@ -160,6 +160,93 @@ class ComponentLibraryService {
    * This ONE method replaces 30+ specialized render methods
    */
   renderUnified(component, id, renderedChildren = null) {
+    // 🔥 SPECIAL: Handle frame-component-instance (linked components)
+    if (component.type === 'frame-component-instance' || component.component_type === 'frame-component-instance') {
+      const projectComponents = component.props?.projectComponents || [];
+      
+      if (projectComponents.length === 0) {
+        // Empty linked component - show placeholder
+        return React.createElement('div', {
+          key: id,
+          'data-component-id': id,
+          className: 'linked-component-empty',
+          style: {
+            padding: '20px',
+            border: '2px dashed var(--color-border)',
+            borderRadius: '8px',
+            textAlign: 'center',
+            color: 'var(--color-text-muted)',
+            ...component.style
+          }
+        }, `📦 ${component.props?.sourceFrameName || 'Linked Component'} (Empty)`);
+      }
+      
+      // Render the actual project components from the linked frame
+      // Build tree structure from flat array
+      const buildTree = (comps) => {
+        const map = new Map();
+        const roots = [];
+        
+        comps.forEach(c => map.set(c.id, { ...c, children: [] }));
+        comps.forEach(c => {
+          const node = map.get(c.id);
+          if (c.parent_id && map.has(c.parent_id)) {
+            map.get(c.parent_id).children.push(node);
+          } else {
+            roots.push(node);
+          }
+        });
+        
+        return roots;
+      };
+      
+      const tree = buildTree(projectComponents);
+      
+      // Recursively render each component in the tree
+      const renderTree = (comps, isRoot = true) => {
+        return comps.map(comp => {
+          let compStyle = typeof comp.style === 'string' ? JSON.parse(comp.style) : (comp.style || {});
+          
+          // 🔥 FIX: Reset absolute positioning for root-level components
+          // Make them flow naturally in the parent container like normal DOM
+          if (isRoot) {
+            const { position, left, top, ...restStyle } = compStyle;
+            compStyle = {
+              ...restStyle,
+              position: 'relative', // Change from absolute to relative
+              // Remove left/top so it flows naturally
+            };
+          }
+          
+          const childComp = {
+            id: comp.id,
+            type: comp.component_type || comp.type,
+            props: comp.props || {},
+            style: compStyle,
+            children: comp.children || []
+          };
+          
+          const renderedChildren = comp.children?.length > 0 ? renderTree(comp.children, false) : null;
+          return this.renderUnified(childComp, comp.id, renderedChildren);
+        });
+      };
+      
+      const children = renderTree(tree, true); // Pass isRoot=true for top-level
+      
+      // Wrap in container with linked component styles
+      return React.createElement('div', {
+        key: id,
+        'data-component-id': id,
+        'data-linked-component': true,
+        className: 'linked-component-wrapper',
+        style: {
+          ...component.style,
+          display: 'block', // Ensure block layout for children to flow
+          position: 'relative' // Relative positioning so children flow inside
+        }
+      }, children);
+    }
+    
     // 1. Get component definition from database
     const componentDef = this.componentDefinitions.get(component.type);
     

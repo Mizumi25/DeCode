@@ -2190,14 +2190,25 @@ const handleCanvasDrop = useCallback((e) => {
     const baseProps = componentDef?.default_props || {};
     const variantProps = variant?.props || {};
     const variantStyle = variant?.style || {};
+    
+    // 🔥 FIX: Ensure text/content is included
+    const mergedProps = {
+      ...baseProps,
+      ...variantProps
+    };
+    
+    // 🔥 CRITICAL: Make sure content/text is preserved
+    if (!mergedProps.content && !mergedProps.text && baseProps.text) {
+      mergedProps.text = baseProps.text;
+    }
+    if (!mergedProps.content && !mergedProps.text && baseProps.content) {
+      mergedProps.content = baseProps.content;
+    }
 
     const newComponent = {
       id: `${componentType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       type: componentType,
-      props: {
-        ...baseProps,
-        ...variantProps
-      },
+      props: mergedProps,
       name: variant ? `${componentType} (${variant.name})` : (componentDef?.name || componentType),
       variant: variant || null,
       style: {
@@ -2213,7 +2224,38 @@ const handleCanvasDrop = useCallback((e) => {
 
     console.log('✅ NEW COMPONENT:', newComponent);
 
-    const updatedComponents = [...canvasComponents, newComponent];
+    // 🔥 FIX: Use drop target detection to nest components properly
+    console.log('🔍 Finding drop target at:', { dropX, dropY, canvasRect });
+    console.log('🔍 Current canvas components:', canvasComponents.length);
+    const dropTarget = findDropTarget(canvasComponents, dropX, dropY, canvasRect);
+    console.log('🔍 Drop target result:', dropTarget);
+    let updatedComponents;
+    
+    if (dropTarget) {
+      const { component: targetComponent, intent } = dropTarget;
+      console.log('🎯 Drop target found:', targetComponent.name, 'intent:', intent, 'isLayoutContainer:', targetComponent.isLayoutContainer);
+      
+      if (intent === 'nest' && targetComponent.isLayoutContainer) {
+        // Add as child to target container
+        console.log('📦 Nesting inside:', targetComponent.name);
+        updatedComponents = addChildToContainer(canvasComponents, targetComponent.id, newComponent);
+      } else if (intent === 'before') {
+        // Add before target (same parent)
+        console.log('⬆️ Adding before:', targetComponent.name);
+        updatedComponents = addSiblingBefore(canvasComponents, targetComponent.id, newComponent);
+      } else if (intent === 'after') {
+        // Add after target (same parent)
+        console.log('⬇️ Adding after:', targetComponent.name);
+        updatedComponents = addSiblingAfter(canvasComponents, targetComponent.id, newComponent);
+      } else {
+        // Fallback to root
+        updatedComponents = [...canvasComponents, newComponent];
+      }
+    } else {
+      // No target found, add to root
+      console.log('📦 No target, adding to root');
+      updatedComponents = [...canvasComponents, newComponent];
+    }
     
     console.log('📦 UPDATING STATE:', updatedComponents.length, 'components');
     console.log('📦 Components before update:', canvasComponents.length);
@@ -2362,6 +2404,88 @@ const addChildToContainer = (components, containerId, newChild, depth = 0) => {
   }
   
   return result;
+};
+
+/**
+ * Add sibling component BEFORE target
+ */
+const addSiblingBefore = (components, targetId, newSibling) => {
+  console.log('addSiblingBefore:', { targetId, newSiblingId: newSibling.id });
+  
+  const recursiveAdd = (comps, parentId = null) => {
+    const targetIndex = comps.findIndex(c => c.id === targetId);
+    
+    if (targetIndex !== -1) {
+      // Found target at this level - insert before it
+      console.log('✅ Found target, inserting before index:', targetIndex);
+      const updated = [...comps];
+      updated.splice(targetIndex, 0, {
+        ...newSibling,
+        parentId: parentId,
+        sortOrder: targetIndex
+      });
+      
+      // Update sortOrder for elements after insertion
+      return updated.map((comp, idx) => ({
+        ...comp,
+        sortOrder: idx
+      }));
+    }
+    
+    // Search in children
+    return comps.map(comp => {
+      if (comp.children && comp.children.length > 0) {
+        const updatedChildren = recursiveAdd(comp.children, comp.id);
+        if (updatedChildren !== comp.children) {
+          return { ...comp, children: updatedChildren };
+        }
+      }
+      return comp;
+    });
+  };
+  
+  return recursiveAdd(components);
+};
+
+/**
+ * Add sibling component AFTER target
+ */
+const addSiblingAfter = (components, targetId, newSibling) => {
+  console.log('addSiblingAfter:', { targetId, newSiblingId: newSibling.id });
+  
+  const recursiveAdd = (comps, parentId = null) => {
+    const targetIndex = comps.findIndex(c => c.id === targetId);
+    
+    if (targetIndex !== -1) {
+      // Found target at this level - insert after it
+      console.log('✅ Found target, inserting after index:', targetIndex);
+      const updated = [...comps];
+      updated.splice(targetIndex + 1, 0, {
+        ...newSibling,
+        parentId: parentId,
+        sortOrder: targetIndex + 1
+      });
+      
+      // Update sortOrder for elements after insertion
+      return updated.map((comp, idx) => ({
+        ...comp,
+        sortOrder: idx
+      }));
+    }
+    
+    // Search in children
+    return comps.map(comp => {
+      if (comp.children && comp.children.length > 0) {
+        const updatedChildren = recursiveAdd(comp.children, comp.id);
+        if (updatedChildren !== comp.children) {
+          return { ...comp, children: updatedChildren };
+        }
+      }
+      return comp;
+    });
+  };
+  
+  return recursiveAdd(components);
 };
 
 

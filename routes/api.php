@@ -248,6 +248,10 @@ Route::prefix('workspaces/{workspaceId}/messages')->group(function () {
 // Public routes for session conflict
 Route::post('/auth/force-logout', [App\Http\Controllers\Auth\SessionConflictController::class, 'forceLogout']);
 
+// Email Verification Routes
+Route::post('/auth/verify-code', [App\Http\Controllers\Auth\VerificationController::class, 'verifyCode']);
+Route::post('/auth/resend-code', [App\Http\Controllers\Auth\VerificationController::class, 'resendCode']);
+
 Route::middleware(['auth:sanctum'])->group(function () {
     
     // Workspace invites

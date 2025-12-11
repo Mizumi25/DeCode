@@ -213,6 +213,12 @@ export default function Register() {
                 onChange={(e) => setData('name', e.target.value)}
                 disabled={socialLoading}
                 className="w-full px-4 py-3 pl-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none shadow-[var(--shadow-sm)] transition-all disabled:opacity-60"
+                style={{
+                  colorScheme: 'dark',
+                  WebkitTextFillColor: 'var(--color-text)',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--color-text)'
+                }}
                 placeholder="Enter your full name"
                 required
                 autoComplete="name"
@@ -240,6 +246,12 @@ export default function Register() {
                 autoComplete="username"
                 onChange={(e) => setData('email', e.target.value)}
                 disabled={socialLoading}
+                style={{
+                  colorScheme: 'dark',
+                  WebkitTextFillColor: 'var(--color-text)',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--color-text)'
+                }}
                 className={`w-full px-4 py-3 pl-12 pr-12 rounded-xl border-2 bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] outline-none shadow-[var(--shadow-sm)] transition-all disabled:opacity-60 ${
                   data.email.length === 0 
                     ? 'border-[var(--color-border)]' 
@@ -317,6 +329,12 @@ export default function Register() {
                 onChange={(e) => setData('password', e.target.value)}
                 autoComplete="new-password"
                 disabled={socialLoading}
+                style={{
+                  colorScheme: 'dark',
+                  WebkitTextFillColor: 'var(--color-text)',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--color-text)'
+                }}
                 className={`w-full px-4 py-3 pl-12 pr-12 rounded-xl border-2 bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] outline-none shadow-[var(--shadow-sm)] transition-all disabled:opacity-60 ${
                   data.password.length === 0
                     ? 'border-[var(--color-border)]'
@@ -384,6 +402,12 @@ export default function Register() {
                 onChange={(e) => setData('password_confirmation', e.target.value)}
                 autoComplete="new-password"
                 disabled={socialLoading}
+                style={{
+                  colorScheme: 'dark',
+                  WebkitTextFillColor: 'var(--color-text)',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--color-text)'
+                }}
                 className={`w-full px-4 py-3 pl-12 pr-12 rounded-xl border-2 bg-[var(--color-surface)]/90 text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-primary)] outline-none shadow-[var(--shadow-sm)] transition-all disabled:opacity-60 ${
                   data.password_confirmation.length === 0
                     ? 'border-[var(--color-border)]'

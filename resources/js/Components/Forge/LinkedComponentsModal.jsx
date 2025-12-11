@@ -44,9 +44,8 @@ function ComponentThumbnailPreview({ projectComponents, frameName }) {
     // Parse style if it's a string
     const parsedStyle = typeof style === 'string' ? JSON.parse(style) : style
     
-    // Import componentLibraryService dynamically
-    const componentLibraryService = window.componentLibraryService || 
-      require('@/Services/ComponentLibraryService').default;
+    // Get componentLibraryService from window (should already be loaded)
+    const componentLibraryService = window.componentLibraryService;
     
     // Build component object for unified renderer
     const component = {
