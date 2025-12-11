@@ -253,9 +253,24 @@ export default function ForgePage({
     const initialFrameData = {};
     const currentFrameId = frameId || frame?.uuid;
     
+    // 🔥 FIX: Helper to normalize components on load
+    const normalizeComponent = (comp) => {
+      // Ensure isLayoutContainer is set based on component type
+      const isLayoutContainer = comp.isLayoutContainer !== undefined 
+        ? comp.isLayoutContainer 
+        : ['section', 'container', 'div', 'flex', 'grid'].includes(comp.type);
+      
+      return {
+        ...comp,
+        isLayoutContainer,
+        children: comp.children ? comp.children.map(normalizeComponent) : []
+      };
+    };
+    
     if (currentFrameId) {
         if (frame?.canvas_data?.components && Array.isArray(frame.canvas_data.components)) {
-            initialFrameData[currentFrameId] = frame.canvas_data.components;
+            // 🔥 FIX: Normalize all loaded components
+            initialFrameData[currentFrameId] = frame.canvas_data.components.map(normalizeComponent);
         } else {
             initialFrameData[currentFrameId] = [];
         }
@@ -1826,7 +1841,9 @@ const findDropTarget = useCallback((components, dropX, dropY, canvasRect) => {
     if (!isInBounds) continue;
     
     // ✅ SMART INTENT DETECTION
-    const intent = calculateDropIntent(rect, mouseX, mouseY, comp.isLayoutContainer);
+    // 🔥 FIX: Check both isLayoutContainer property AND component type
+    const isLayoutContainer = comp.isLayoutContainer || ['section', 'container', 'div', 'flex', 'grid'].includes(comp.type);
+    const intent = calculateDropIntent(rect, mouseX, mouseY, isLayoutContainer);
     
     console.log('✅ Found target:', {
       name: comp.name,
@@ -2232,10 +2249,17 @@ const handleCanvasDrop = useCallback((e) => {
     let updatedComponents;
     
     if (dropTarget) {
-      const { component: targetComponent, intent } = dropTarget;
+      const { component: targetComponent, intent: intentObj } = dropTarget;
+      
+      // 🔥 FIX: Handle intent as object or string
+      const intent = typeof intentObj === 'string' ? intentObj : intentObj?.intent;
+      
       console.log('🎯 Drop target found:', targetComponent.name, 'intent:', intent, 'isLayoutContainer:', targetComponent.isLayoutContainer);
       
-      if (intent === 'nest' && targetComponent.isLayoutContainer) {
+      // 🔥 FIX: If target is a layout container (section, container, etc.) but isLayoutContainer is false, still allow nesting
+      const canNest = targetComponent.isLayoutContainer || ['section', 'container', 'div', 'flex', 'grid'].includes(targetComponent.type);
+      
+      if (intent === 'nest' && canNest) {
         // Add as child to target container
         console.log('📦 Nesting inside:', targetComponent.name);
         updatedComponents = addChildToContainer(canvasComponents, targetComponent.id, newComponent);
@@ -2249,6 +2273,7 @@ const handleCanvasDrop = useCallback((e) => {
         updatedComponents = addSiblingAfter(canvasComponents, targetComponent.id, newComponent);
       } else {
         // Fallback to root
+        console.log('⚠️ No valid intent, adding to root');
         updatedComponents = [...canvasComponents, newComponent];
       }
     } else {

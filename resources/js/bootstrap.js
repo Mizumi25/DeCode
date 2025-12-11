@@ -39,10 +39,54 @@ window.axios.interceptors.request.use(
             console.log('🔍 API request detected, ensuring CSRF cookie:', config.url);
             await ensureCsrfCookie();
         }
+        
+        // 🔥 FIX: Always get fresh CSRF token from meta tag
+        const freshToken = document.head.querySelector('meta[name="csrf-token"]');
+        if (freshToken) {
+            config.headers['X-CSRF-TOKEN'] = freshToken.content;
+        }
+        
         return config;
     },
     (error) => {
         console.error('❌ Interceptor error:', error);
+        return Promise.reject(error);
+    }
+);
+
+// 🔥 FIX: Add response interceptor to handle 419 CSRF errors
+window.axios.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const originalRequest = error.config;
+        
+        // If 419 CSRF error and not already retried
+        if (error.response?.status === 419 && !originalRequest._retry) {
+            console.warn('🔄 CSRF token mismatch (419), refreshing token and retrying...');
+            originalRequest._retry = true;
+            
+            // Reset CSRF cookie initialization flag
+            csrfCookieInitialized = false;
+            
+            try {
+                // Reinitialize CSRF cookie
+                await ensureCsrfCookie();
+                
+                // Get fresh token
+                const freshToken = document.head.querySelector('meta[name="csrf-token"]');
+                if (freshToken) {
+                    originalRequest.headers['X-CSRF-TOKEN'] = freshToken.content;
+                }
+                
+                // Retry the original request
+                console.log('♻️ Retrying request with fresh CSRF token');
+                return window.axios(originalRequest);
+            } catch (retryError) {
+                console.error('❌ Failed to retry after CSRF refresh:', retryError);
+                return Promise.reject(retryError);
+            }
+        }
+        
         return Promise.reject(error);
     }
 );

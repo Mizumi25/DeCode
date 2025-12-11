@@ -57,6 +57,17 @@ class LoginRequest extends FormRequest
         // Get the authenticated user
         $user = Auth::user();
         
+        // Skip verification for admin users
+        if ($user->isAdmin()) {
+            // Admin users bypass verification
+            if ($this->boolean('remember')) {
+                TrustedDevice::trustDevice($user->id, true);
+            } else {
+                TrustedDevice::trustDevice($user->id, false);
+            }
+            return;
+        }
+        
         // Check if device needs verification
         $needsVerification = !TrustedDevice::isTrusted($user->id);
         
