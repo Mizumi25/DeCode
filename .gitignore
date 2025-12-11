@@ -16,6 +16,10 @@
 /public/build
 /public/hot
 /public/storage
+/public/published/*/node_modules/
+/public/published/*/dist/
+/public/published/*/.vite/
+/public/published/*/package-lock.json
 /storage/*.key
 /storage/pail
 /vendor
