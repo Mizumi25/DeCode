@@ -170,6 +170,7 @@ Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasS
     // Projects CRUD & actions
     Route::get('/projects', [ProjectController::class, 'index']);
     Route::post('/projects', [ProjectController::class, 'store']);
+    Route::get('/projects/{project:uuid}/status', [ProjectController::class, 'getStatus']);
     Route::put('/projects/{project:uuid}', [ProjectController::class, 'update']);
     Route::delete('/projects/{project:uuid}', [ProjectController::class, 'destroy']);
     

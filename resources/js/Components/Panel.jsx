@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, GripVertical, Group, Ungroup, Search, Plus, Layers, MoreHorizontal } from 'lucide-react'
+import { X, Group, Ungroup, Search, Plus, Layers, MoreHorizontal } from 'lucide-react'
 
 export default function Panel({ 
   isOpen = true, 
@@ -808,7 +808,6 @@ export default function Panel({
               onMouseDown={(e) => handleMouseDown(e, panel, position)}
               onTouchStart={(e) => handleTouchStart(e, panel, position)}
             >
-              <GripVertical className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
               <h3 className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>{panel.title}</h3>
               {willBeAffected && (
                 <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-600 font-medium">
@@ -1124,7 +1123,6 @@ export default function Panel({
               }}
             >
               <div className="flex items-center gap-2">
-                <GripVertical className="w-4 h-4" />
                 <h3 className="font-medium text-sm">{dragState.draggedPanel.title}</h3>
               </div>
             </div>

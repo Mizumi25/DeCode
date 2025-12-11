@@ -1653,6 +1653,33 @@ public function store(Request $request): RedirectResponse
     }
 
     /**
+     * Get project status (for checking publish state)
+     */
+    public function getStatus(Project $project): JsonResponse
+    {
+        $user = Auth::user();
+        
+        // Check if user has access to this project
+        if ($project->user_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to view this project'
+            ], 403);
+        }
+
+        return response()->json([
+            'success' => true,
+            'project' => [
+                'uuid' => $project->uuid,
+                'name' => $project->name,
+                'published_url' => $project->published_url,
+                'published_subdomain' => $project->published_subdomain,
+                'published_at' => $project->published_at,
+            ]
+        ]);
+    }
+
+    /**
      * Publish project internally (like Framer/Webflow)
      */
     public function publish(Request $request)
@@ -1676,6 +1703,13 @@ public function store(Request $request): RedirectResponse
                 ], 403);
             }
 
+            // Broadcast: Starting (10%)
+            broadcast(new \App\Events\ProjectPublishing(
+                $project->uuid, 
+                10, 
+                'Preparing project for publishing...'
+            ));
+
             // Generate subdomain if not provided
             $subdomain = $validated['subdomain'] ?? Str::slug($project->name);
             
@@ -1689,15 +1723,29 @@ public function store(Request $request): RedirectResponse
                 $subdomain = $subdomain . '-' . Str::random(5);
             }
 
+            // Broadcast: Generating subdomain (20%)
+            broadcast(new \App\Events\ProjectPublishing(
+                $project->uuid, 
+                20, 
+                'Setting up project URL: ' . $subdomain
+            ));
+
             // Get export options
             $framework = $validated['framework'] ?? $project->output_format ?? 'html';
-            $styleFramework = $validated['style_framework'] ?? $project->style_framework ?? 'css';
+            $styleFramework = $validated['style_framework'] ?? $project->css_framework ?? 'css';
 
             $exportOptions = [
                 'framework' => $framework,
                 'style_framework' => $styleFramework,
-                'include_navigation' => true, // Always include navigation for published sites
+                'include_navigation' => true,
             ];
+
+            // Broadcast: Building (40%)
+            broadcast(new \App\Events\ProjectPublishing(
+                $project->uuid, 
+                40, 
+                'Generating project files...'
+            ));
 
             // Use ExportController to generate the project structure
             $exportController = new \App\Http\Controllers\ExportController();
@@ -1706,6 +1754,13 @@ public function store(Request $request): RedirectResponse
             $method->setAccessible(true);
             $projectPath = $method->invoke($exportController, $project, $exportOptions);
             
+            // Broadcast: Optimizing (60%)
+            broadcast(new \App\Events\ProjectPublishing(
+                $project->uuid, 
+                60, 
+                'Optimizing assets...'
+            ));
+
             // Create published directory
             $publishedPath = public_path("published/{$subdomain}");
             
@@ -1714,14 +1769,44 @@ public function store(Request $request): RedirectResponse
                 $this->deleteDirectory($publishedPath);
             }
             
+            // Broadcast: Deploying (80%)
+            broadcast(new \App\Events\ProjectPublishing(
+                $project->uuid, 
+                80, 
+                'Deploying to server...'
+            ));
+
             // Copy generated files to public/published/{subdomain}
             $this->copyDirectory($projectPath, $publishedPath);
             
+            // Broadcast: Building for production (85%)
+            broadcast(new \App\Events\ProjectPublishing(
+                $project->uuid, 
+                85, 
+                'Building for production...'
+            ));
+            
+            // Build the project for production
+            if ($framework === 'react') {
+                // Run npm install and build
+                $buildSuccess = $this->buildReactProject($publishedPath);
+                
+                if ($buildSuccess) {
+                    // Update URL to point to built version
+                    $publishedUrl = url("/published/{$subdomain}/dist/index.html");
+                } else {
+                    \Log::warning('React build failed, using dev version', [
+                        'project' => $project->uuid,
+                        'path' => $publishedPath
+                    ]);
+                    $publishedUrl = url("/published/{$subdomain}/index.html");
+                }
+            } else {
+                $publishedUrl = url("/published/{$subdomain}/index.html");
+            }
+            
             // Clean up temporary export files
             Storage::deleteDirectory("temp/export_{$project->uuid}");
-            
-            // Update project with publish info
-            $publishedUrl = url("/published/{$subdomain}/index.html");
             
             $project->update([
                 'published_url' => $publishedUrl,
@@ -1730,6 +1815,15 @@ public function store(Request $request): RedirectResponse
                 'status' => 'published',
             ]);
             
+            // Broadcast: Complete (100%)
+            broadcast(new \App\Events\ProjectPublishing(
+                $project->uuid, 
+                100, 
+                'Published successfully!',
+                'complete',
+                $publishedUrl
+            ));
+
             Log::info('Project published successfully', [
                 'project_uuid' => $project->uuid,
                 'subdomain' => $subdomain,
@@ -1744,6 +1838,14 @@ public function store(Request $request): RedirectResponse
             ]);
             
         } catch (\Exception $e) {
+            // Broadcast: Failed
+            broadcast(new \App\Events\ProjectPublishing(
+                $validated['project_uuid'], 
+                0, 
+                $e->getMessage(),
+                'failed'
+            ));
+
             Log::error('Publish failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -1855,5 +1957,54 @@ public function store(Request $request): RedirectResponse
         }
         
         return rmdir($dir);
+    }
+    
+    /**
+     * Build React project for production
+     */
+    private function buildReactProject(string $projectPath): bool
+    {
+        try {
+            \Log::info('Building React project', ['path' => $projectPath]);
+            
+            // Check if package.json exists
+            if (!file_exists("{$projectPath}/package.json")) {
+                \Log::error('No package.json found');
+                return false;
+            }
+            
+            // Run npm install (with --legacy-peer-deps to avoid conflicts)
+            $installCmd = "cd {$projectPath} && npm install --legacy-peer-deps 2>&1";
+            \Log::info('Running npm install', ['cmd' => $installCmd]);
+            exec($installCmd, $installOutput, $installReturn);
+            
+            if ($installReturn !== 0) {
+                \Log::error('npm install failed', ['output' => implode("\n", $installOutput)]);
+                return false;
+            }
+            
+            // Run vite build using node explicitly (shebang doesn't work in exec())
+            $buildCmd = "cd {$projectPath} && node node_modules/vite/bin/vite.js build 2>&1";
+            \Log::info('Running npm build', ['cmd' => $buildCmd]);
+            exec($buildCmd, $buildOutput, $buildReturn);
+            
+            if ($buildReturn !== 0) {
+                \Log::error('npm build failed', ['output' => implode("\n", $buildOutput)]);
+                return false;
+            }
+            
+            // Check if dist folder was created
+            if (!file_exists("{$projectPath}/dist")) {
+                \Log::error('No dist folder created after build');
+                return false;
+            }
+            
+            \Log::info('React project built successfully');
+            return true;
+            
+        } catch (\Exception $e) {
+            \Log::error('Build React project failed', ['error' => $e->getMessage()]);
+            return false;
+        }
     }
 }

@@ -1159,14 +1159,22 @@ export default function Welcome({ auth }) {
             
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
               {[
-                { name: "James Rafty Libago", role: "Technical Lead", desc: "Full-stack architect and sole developer of DeCode's core systems" },
-                { name: "Krislyn Ramoso", role: "Research Lead", desc: "Research coordinator and technical documentation specialist" },
+                { name: "James Rafty Libago", role: "Technical Lead", desc: "Full-stack architect and sole developer of DeCode's core systems", image: "/images/welcome/devs/mizumi.jpg" },
+                { name: "Krislyn Ramoso", role: "Research Lead", desc: "Research coordinator and technical documentation specialist", image: "/images/welcome/devs/kris.jpg" },
                 { name: "Christian Cesar", role: "Documentation Lead", desc: "Documentation architect and content strategist" },
                 { name: "Jay Obdencio", role: "Project Manager", desc: "Project coordination and strategic planning" }
               ].map((member, i) => (
                 <div key={i} className="magnetic-card grid-item feature-card-minimal p-8 lg:p-10 space-y-6 text-center">
-                  <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-purple-600/20 to-blue-600/20 border border-white/10 flex items-center justify-center bounce-reveal transition-all duration-500 hover:scale-110 hover:border-purple-500/50">
-                    <div className="text-3xl font-light">{member.name.charAt(0)}</div>
+                  <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-purple-600/20 to-blue-600/20 border border-white/10 flex items-center justify-center bounce-reveal transition-all duration-500 hover:scale-110 hover:border-purple-500/50 overflow-hidden">
+                    {member.image ? (
+                      <img 
+                        src={member.image} 
+                        alt={member.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-3xl font-light">{member.name.charAt(0)}</div>
+                    )}
                   </div>
                   <div>
                     <div className="font-light text-xl mb-2">{member.name}</div>

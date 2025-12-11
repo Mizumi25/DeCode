@@ -57,8 +57,8 @@ const CircularProgress = ({
               initial={{ strokeDashoffset: circumference }}
               animate={{ strokeDashoffset: offset }}
               transition={{
-                duration: 0.5,
-                ease: "easeInOut"
+                duration: 0.8,
+                ease: "easeOut"
               }}
             />
           </svg>

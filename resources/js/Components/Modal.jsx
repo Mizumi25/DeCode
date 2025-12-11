@@ -7,7 +7,7 @@ import {
 import { useEffect, useRef, useState, useCallback } from 'react'
 import gsap from 'gsap'
 import { Draggable } from 'gsap/Draggable'
-import { Maximize2, Minimize2, X, Move } from 'lucide-react'
+import { Maximize2, Minimize2, X } from 'lucide-react'
 
 // Register GSAP plugins
 if (typeof window !== 'undefined') {
@@ -469,9 +469,6 @@ export default function Modal({
               style={{ borderColor: 'var(--color-border)', touchAction: 'none' }}
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                {!isMaximized && (
-                  <Move className="w-4 h-4 text-[var(--color-text-muted)] flex-shrink-0" />
-                )}
                 <h2
                   className="text-base font-semibold truncate"
                   style={{ color: 'var(--color-text)' }}

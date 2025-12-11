@@ -1,43 +1,43 @@
-// Pages/VoidPage.jsx - Modified sections only
-import ExportLoadingOverlay from '@/Components/Void/ExportLoadingOverlay'
-import { useRef, useState, useCallback, useMemo, useEffect } from 'react'
+// Pages/VoidPage.jsx
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { Head, usePage, router } from '@inertiajs/react'
 import { Plus, Layers, FolderOpen, Code, Users, Upload, Briefcase, UserPlus, Camera } from 'lucide-react'
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import Panel from '@/Components/Panel'
 import BackgroundLayers from '@/Components/Void/BackgroundLayers'
-import FloatingToolbox from '@/Components/Void/FloatingToolbox'
-import FramesContainer from '@/Components/Void/FramesContainer'
-import FrameContainer from '@/Components/Void/FrameContainer'
-import useContainerStore from '@/stores/useContainerStore'
-import DeleteButton from '@/Components/Void/DeleteButton'
+import InfiniteGrid from '@/Components/Void/InfiniteGrid'
 import FrameCreator from '@/Components/Void/FrameCreator'
+import FrameContainer from '@/Components/Void/FrameContainer'
+import FramesContainer from '@/Components/Void/FramesContainer'
+import FloatingToolbox from '@/Components/Void/FloatingToolbox'
+import ProjectFilesPanel from '@/Components/Void/ProjectFilesPanel'
+import FramesPanel from '@/Components/Void/FramesPanel'
+import TeamCollaborationPanel from '@/Components/Void/TeamCollaborationPanel'
+import CodeHandlerPanel from '@/Components/Void/CodeHandlerPanel'
+import ProjectSwitcherModal from '@/Components/Void/ProjectSwitcherModal'
+import LockRequestNotificationManager from '@/Components/Void/LockRequestNotificationManager'
+import ExportLoadingOverlay from '@/Components/Void/ExportLoadingOverlay'
+import DeleteButton from '@/Components/Void/DeleteButton'
+import { useScrollHandler } from '@/Components/Void/ScrollHandler'
+import PublishOverlay from '@/Components/PublishOverlay'
+import PublishModal from '@/Components/PublishModal'
+import { usePublishStore } from '@/stores/usePublishStore'
 import ConfirmDialog from '@/Components/ConfirmDialog'
 import ConfirmationDialog from '@/Components/ConfirmationDialog'
 import Modal from '@/Components/Modal'
-import InfiniteGrid from '@/Components/Void/InfiniteGrid'
-import LockRequestNotificationManager from '@/Components/Void/LockRequestNotificationManager'
 import NotificationToastContainer from '@/Components/Notifications/NotificationToast'
 import WorkspaceChat from '@/Components/Workspaces/WorkspaceChat'
-import { useScrollHandler } from '@/Components/Void/ScrollHandler'
+import CreateWorkspaceModal from '@/Components/Workspaces/CreateWorkspaceModal'
+import InviteModal from '@/Components/Workspaces/InviteModal'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useEditorStore } from '@/stores/useEditorStore'
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore'
 import useFrameLockStore from '@/stores/useFrameLockStore'
+import useContainerStore from '@/stores/useContainerStore'
 import { useCanvasSnapshot } from '@/hooks/useCanvasSnapshot'
 import { useVoidSnapshot } from '@/hooks/useVoidSnapshot'
 import PageLoadingProgress from '@/Components/PageLoadingProgress'
 import { usePageLoadingProgress } from '@/hooks/usePageLoadingProgress'
-
-// Import panel components
-import FramesPanel from '@/Components/Void/FramesPanel'
-import ProjectFilesPanel from '@/Components/Void/ProjectFilesPanel'
-import CodeHandlerPanel from '@/Components/Void/CodeHandlerPanel'
-import TeamCollaborationPanel from '@/Components/Void/TeamCollaborationPanel'
-
-import CreateWorkspaceModal from '@/Components/Workspaces/CreateWorkspaceModal'
-import InviteModal from '@/Components/Workspaces/InviteModal'
-import ProjectSwitcherModal from '@/Components/Void/ProjectSwitcherModal'
 
 // ADD these imports at the top:
 import {
@@ -441,6 +441,58 @@ const zoomLevelRef = useRef(zoomLevel)
       window.Echo.leave(`workspace.${currentWorkspace.id}`);
     };
   }, [currentWorkspace?.id, project?.uuid]);
+
+  // Real-time publish progress listener
+  useEffect(() => {
+    if (!project?.uuid || !window.Echo) return;
+
+    console.log('🔌 VoidPage: Subscribing to project publish channel:', `project.${project.uuid}`);
+
+    console.log('🔌 Setting up Echo listener for project:', project.uuid);
+    console.log('🔌 Echo available:', !!window.Echo);
+    console.log('🔌 Channel name:', `project.${project.uuid}`);
+    
+    const channel = window.Echo.private(`project.${project.uuid}`);
+    
+    console.log('📻 Channel created:', channel);
+    console.log('📻 Listening for events...');
+
+    channel.listen('.project.publishing', (event) => {
+      console.log('📡 Publishing event received:', event);
+      
+      const { updateProgress, finishPublish, failPublish } = usePublishStore.getState();
+
+      if (event.status === 'complete') {
+        finishPublish(event.publishedUrl);
+      } else if (event.status === 'failed') {
+        failPublish(event.message);
+      } else {
+        updateProgress(event.progress, event.message);
+      }
+    });
+    
+    // Also listen without the dot prefix in case that's the issue
+    channel.listen('project.publishing', (event) => {
+      console.log('📡 Publishing event received (no dot):', event);
+      
+      const { updateProgress, finishPublish, failPublish } = usePublishStore.getState();
+
+      if (event.status === 'complete') {
+        finishPublish(event.publishedUrl);
+      } else if (event.status === 'failed') {
+        failPublish(event.message);
+      } else {
+        updateProgress(event.progress, event.message);
+      }
+    });
+
+    return () => {
+      console.log('🔌 VoidPage: Unsubscribing from project publish channel');
+      channel.stopListening('.project.publishing');
+      channel.stopListening('project.publishing');
+      window.Echo.leave(`project.${project.uuid}`);
+    };
+  }, [project?.uuid]);
 
   // Load containers from database
   useEffect(() => {
@@ -2128,8 +2180,173 @@ useEffect(() => {
           cancelText={confirmDialog.cancelText || 'Cancel'}
           variant={confirmDialog.variant || 'danger'}
         />
+
+        {/* Publish Overlay - Real-time collaborative publishing UI */}
+        <PublishOverlay />
+
+        {/* Publish Modal - For initial publish/unpublish confirmation */}
+        <PublishModalWrapper project={project} />
       </div>
       </DndContext>
     </AuthenticatedLayout>
+  )
+}
+
+// Wrapper component for PublishModal to handle publish logic
+function PublishModalWrapper({ project }) {
+  const { 
+    showModal, 
+    modalMode, 
+    closeModal, 
+    startPublish 
+  } = usePublishStore()
+  
+  const [currentProject, setCurrentProject] = React.useState(project)
+  
+  // Fetch latest project data when modal opens
+  React.useEffect(() => {
+    const fetchProjectStatus = async () => {
+      if (!showModal || !project?.uuid) return
+      
+      try {
+        const response = await fetch(`/api/projects/${project.uuid}/status`, {
+          headers: { 'Accept': 'application/json' }
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.project) {
+            setCurrentProject({ ...project, ...data.project })
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch project status:', error)
+      }
+    }
+    
+    if (showModal) {
+      fetchProjectStatus()
+    }
+  }, [showModal, project?.uuid])
+
+  const handleConfirmPublish = async ({ subdomain, isPublic }) => {
+    startPublish()
+
+    try {
+      // Map css_framework to style_framework for the API
+      const cssToStyleMapping = {
+        'tailwind': 'tailwind',
+        'vanilla': 'css',
+        'bootstrap': 'css',
+        'styled_components': 'css',
+        'emotion': 'css',
+      }
+      
+      const styleFramework = cssToStyleMapping[project.css_framework] || 'css'
+      
+      const response = await fetch('/project/publish', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+        },
+        body: JSON.stringify({
+          project_uuid: project.uuid,
+          framework: project.output_format || 'react',
+          style_framework: styleFramework,
+          subdomain: subdomain || null,
+          is_public: isPublic,
+        }),
+      })
+
+      if (!response.ok) {
+        let errorMessage = `Failed to publish (${response.status})`
+        try {
+          const errorData = await response.json()
+          console.error('Publish API error:', response.status, errorData)
+          if (errorData.errors) {
+            // Laravel validation errors
+            const validationErrors = Object.values(errorData.errors).flat().join(', ')
+            errorMessage = validationErrors
+          } else if (errorData.message) {
+            errorMessage = errorData.message
+          }
+        } catch (e) {
+          const errorText = await response.text()
+          console.error('Publish API error (text):', response.status, errorText)
+        }
+        usePublishStore.getState().failPublish(errorMessage)
+        return
+      }
+
+      const data = await response.json()
+
+      if (!data.success) {
+        usePublishStore.getState().failPublish(data.message || 'Failed to publish')
+        return
+      }
+      
+      // Success! The API returned success
+      console.log('✅ Publish API returned success:', data)
+      
+      // For now, complete immediately since Echo might not be receiving events
+      // TODO: Debug why Echo events aren't being received
+      setTimeout(() => {
+        const { finishPublish } = usePublishStore.getState()
+        finishPublish(data.published_url)
+        
+        console.log('✅ Publish complete, reloading project data...')
+        // Reload using Inertia to get fresh props with published_url
+        // Give user 5 seconds to see success message and click "View Site"
+        setTimeout(() => {
+          router.reload({ only: ['project'] })
+        }, 5000) // Give user time to click "View Site"
+      }, 2000) // Give Echo 2 seconds to receive events first
+    } catch (error) {
+      console.error('Publish error:', error)
+      usePublishStore.getState().failPublish('Failed to publish project. Please try again.')
+    }
+  }
+
+  const handleConfirmUnpublish = async () => {
+    startPublish()
+
+    try {
+      const response = await fetch('/project/unpublish', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+        },
+        body: JSON.stringify({
+          project_uuid: project.uuid,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        usePublishStore.getState().finishPublish(null)
+        setTimeout(() => {
+          window.location.reload()
+        }, 2000)
+      } else {
+        usePublishStore.getState().failPublish(data.message || 'Failed to unpublish')
+      }
+    } catch (error) {
+      console.error('Unpublish error:', error)
+      usePublishStore.getState().failPublish('Failed to unpublish project.')
+    }
+  }
+
+  return (
+    <PublishModal
+      show={showModal}
+      onClose={closeModal}
+      onConfirm={modalMode === 'publish' ? handleConfirmPublish : handleConfirmUnpublish}
+      project={currentProject}
+      mode={modalMode}
+    />
   )
 }

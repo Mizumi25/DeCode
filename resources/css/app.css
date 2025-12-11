@@ -290,3 +290,17 @@ main, .main-content {
 @tailwind components;
 @tailwind utilities;
 
+/* Publish Lottie Animation Color Override */
+.publish-lottie svg path,
+.publish-lottie svg g,
+.publish-lottie svg ellipse,
+.publish-lottie svg circle,
+.publish-lottie svg rect {
+  fill: var(--color-primary) !important;
+  stroke: var(--color-primary) !important;
+}
+
+.publish-lottie * {
+  color: var(--color-primary);
+}
+

@@ -42,6 +42,7 @@ import LinkedComponentsModal from '@/Components/Forge/LinkedComponentsModal';
 import PreviewPanelModal from '@/Components/Forge/PreviewPanelModal';
 
 import ErrorBoundary from '@/Components/ErrorBoundary';
+import PublishOverlay from '@/Components/PublishOverlay';
 
 // Import dynamic component service
 import { componentLibraryService } from '@/Services/ComponentLibraryService';
@@ -3859,6 +3860,9 @@ const handleCanvasClick = useCallback((e) => {
           console.log('🎯 Linked component drag ended')
         }}
       />
+
+      {/* Publish Overlay - Real-time collaborative publishing UI */}
+      <PublishOverlay />
       
     </AuthenticatedLayout>
     </ErrorBoundary>

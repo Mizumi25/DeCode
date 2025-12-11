@@ -6,7 +6,6 @@ import {
   Minimize, 
   Square, 
   Maximize2,
-  GripVertical,
   Monitor,
   PictureInPicture
 } from 'lucide-react'
@@ -26,7 +25,7 @@ export default function WindowPanel({
   isResizable = true,
   className = "",
   zIndexBase = 1000,
-  panelCollisionOffset = 320, // Offset for panel collision detection
+  panelSnapDistance = 20, // Distance to trigger corner snapping
   isMobile = false
 }) {
   // Window state
@@ -62,26 +61,63 @@ export default function WindowPanel({
     }
   }
 
-  // Check for panel collision (simple detection)
-  const checkPanelCollision = useCallback((newPosition) => {
+  // Corner snapping for window panels near side panels
+  const applyCornerSnapping = useCallback((newPosition) => {
     const windowWidth = window.innerWidth
-    const leftPanelExists = document.querySelector('.dock-left')
-    const rightPanelExists = document.querySelector('.dock-right')
+    const windowHeight = window.innerHeight
+    const adjustedPosition = { ...newPosition }
     
-    let adjustedPosition = { ...newPosition }
+    const leftPanel = document.querySelector('[data-panel-position="left"]')
+    const rightPanel = document.querySelector('[data-panel-position="right"]')
     
-    // Left panel collision
-    if (leftPanelExists && newPosition.x < panelCollisionOffset) {
-      adjustedPosition.x = panelCollisionOffset + 10
+    // Get panel widths
+    const leftPanelWidth = leftPanel ? leftPanel.offsetWidth : 0
+    const rightPanelWidth = rightPanel ? rightPanel.offsetWidth : 0
+    
+    // Top corners snapping
+    const isNearTop = newPosition.y < panelSnapDistance
+    
+    // Left side snapping
+    if (leftPanel && newPosition.x < (leftPanelWidth + panelSnapDistance)) {
+      // Snap to inner edge of left panel (right side of left panel)
+      adjustedPosition.x = leftPanelWidth
+      if (isNearTop) {
+        adjustedPosition.y = 0 // Snap to top corner
+      }
+    } else if (newPosition.x < panelSnapDistance) {
+      // Snap to viewport left edge
+      adjustedPosition.x = 0
+      if (isNearTop) {
+        adjustedPosition.y = 0
+      }
     }
     
-    // Right panel collision
-    if (rightPanelExists && (newPosition.x + size.width) > (windowWidth - panelCollisionOffset)) {
-      adjustedPosition.x = windowWidth - panelCollisionOffset - size.width - 10
+    // Right side snapping
+    const panelRight = newPosition.x + size.width
+    const viewportRightEdge = windowWidth - rightPanelWidth
+    
+    if (rightPanel && panelRight > (viewportRightEdge - panelSnapDistance)) {
+      // Snap to inner edge of right panel (left side of right panel)
+      adjustedPosition.x = viewportRightEdge - size.width
+      if (isNearTop) {
+        adjustedPosition.y = 0 // Snap to top corner
+      }
+    } else if (panelRight > (windowWidth - panelSnapDistance)) {
+      // Snap to viewport right edge
+      adjustedPosition.x = windowWidth - size.width
+      if (isNearTop) {
+        adjustedPosition.y = 0
+      }
+    }
+    
+    // Bottom corners snapping
+    const isNearBottom = (newPosition.y + size.height) > (windowHeight - panelSnapDistance)
+    if (isNearBottom) {
+      adjustedPosition.y = windowHeight - size.height
     }
     
     return adjustedPosition
-  }, [size.width, panelCollisionOffset])
+  }, [size.width, size.height, panelSnapDistance])
 
   // Mode change handler
   const handleModeChange = useCallback((newMode) => {
@@ -118,7 +154,7 @@ export default function WindowPanel({
         break
       case 'modal':
         if (previousState && previousState.mode !== 'fullscreen') {
-          setPosition(checkPanelCollision(previousState.position))
+          setPosition(applyCornerSnapping(previousState.position))
           setSize(previousState.size)
         } else {
           // Default modal positioning - avoid panels
@@ -130,7 +166,7 @@ export default function WindowPanel({
             y: (windowHeight - newSize.height) / 2
           }
           setSize(newSize)
-          setPosition(checkPanelCollision(centeredPos))
+          setPosition(applyCornerSnapping(centeredPos))
         }
         break
     }
@@ -138,7 +174,7 @@ export default function WindowPanel({
     setMode(newMode)
     setIsMinimized(false)
     onModeChange?.(newMode)
-  }, [mode, position, size, previousState, onModeChange, checkPanelCollision])
+  }, [mode, position, size, previousState, onModeChange, applyCornerSnapping])
 
   // Drag handlers
   const handleDragStart = useCallback((e) => {
@@ -176,10 +212,10 @@ export default function WindowPanel({
     newPosition.x = Math.max(-size.width + 100, Math.min(windowWidth - 100, newPosition.x))
     newPosition.y = Math.max(0, Math.min(windowHeight - 50, newPosition.y))
 
-    // Apply collision detection for modal mode
-    const finalPosition = mode === 'modal' ? checkPanelCollision(newPosition) : newPosition
+    // Apply corner snapping
+    const finalPosition = applyCornerSnapping(newPosition)
     setPosition(finalPosition)
-  }, [isDragging, dragOffset, size, mode, checkPanelCollision])
+  }, [isDragging, dragOffset, size, mode, applyCornerSnapping])
 
   const handleDragEnd = useCallback(() => {
     if (!isDragging) return
@@ -258,9 +294,9 @@ export default function WindowPanel({
 
     setSize(newSize)
     if (newPosition.x !== position.x || newPosition.y !== position.y) {
-      setPosition(mode === 'modal' ? checkPanelCollision(newPosition) : newPosition)
+      setPosition(mode === 'modal' ? applyCornerSnapping(newPosition) : newPosition)
     }
-  }, [isResizing, resizeHandle, position, minSize, maxSize, mode, checkPanelCollision])
+  }, [isResizing, resizeHandle, position, minSize, maxSize, mode, applyCornerSnapping])
 
   const handleResizeEnd = useCallback(() => {
     if (!isResizing) return
@@ -422,12 +458,6 @@ export default function WindowPanel({
             >
               {/* Title and Drag Handle */}
               <div className="flex items-center gap-2 flex-1">
-                {isDraggable && mode !== 'fullscreen' && (
-                  <GripVertical 
-                    className="w-4 h-4" 
-                    style={{ color: 'var(--color-text-muted)' }} 
-                  />
-                )}
                 <h3 
                   className="font-semibold text-sm truncate"
                   style={{ color: 'var(--color-text)' }}
@@ -472,11 +502,14 @@ export default function WindowPanel({
               </div>
 
               {/* Window Controls */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1" onMouseDown={(e) => e.stopPropagation()}>
                 {/* Mode Switcher */}
                 <div className="flex items-center gap-1 mr-2">
                   <button
-                    onClick={() => handleModeChange('modal')}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleModeChange('modal')
+                    }}
                     className="p-1 rounded transition-colors"
                     style={{ 
                       color: mode === 'modal' ? 'var(--color-primary)' : 'var(--color-text-muted)',
@@ -487,7 +520,10 @@ export default function WindowPanel({
                     <PictureInPicture className="w-3 h-3" />
                   </button>
                   <button
-                    onClick={() => handleModeChange('window')}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleModeChange('window')
+                    }}
                     className="p-1 rounded transition-colors"
                     style={{ 
                       color: mode === 'window' ? 'var(--color-accent)' : 'var(--color-text-muted)',
@@ -498,7 +534,10 @@ export default function WindowPanel({
                     <Monitor className="w-3 h-3" />
                   </button>
                   <button
-                    onClick={() => handleModeChange('fullscreen')}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleModeChange('fullscreen')
+                    }}
                     className="p-1 rounded transition-colors"
                     style={{ 
                       color: mode === 'fullscreen' ? 'var(--color-success)' : 'var(--color-text-muted)',
@@ -512,7 +551,10 @@ export default function WindowPanel({
 
                 {/* Standard Window Controls */}
                 <button
-                  onClick={handleMinimize}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleMinimize()
+                  }}
                   className="p-1 rounded transition-colors"
                   style={{ color: 'var(--color-text-muted)' }}
                   onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-bg-hover)'}
@@ -523,7 +565,10 @@ export default function WindowPanel({
                 </button>
                 
                 <button
-                  onClick={handleMaximize}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleMaximize()
+                  }}
                   className="p-1 rounded transition-colors"
                   style={{ color: 'var(--color-text-muted)' }}
                   onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-bg-hover)'}
@@ -534,7 +579,10 @@ export default function WindowPanel({
                 </button>
                 
                 <button
-                  onClick={onClose}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onClose?.()
+                  }}
                   className="p-1 rounded transition-colors"
                   style={{ color: 'var(--color-text-muted)' }}
                   onMouseEnter={(e) => {
@@ -566,7 +614,7 @@ export default function WindowPanel({
                           This is a demo window panel that can operate in different modes:
                         </p>
                         <ul className="list-disc list-inside space-y-1" style={{ color: 'var(--color-text-muted)' }}>
-                          <li><strong>Modal Mode:</strong> Floats above content and avoids panel collisions</li>
+                          <li><strong>Modal Mode:</strong> Floats above content with corner snapping</li>
                           <li><strong>Window Mode:</strong> Operates as a background window</li>
                           <li><strong>Fullscreen Mode:</strong> Takes up the entire viewport</li>
                         </ul>
@@ -590,7 +638,7 @@ export default function WindowPanel({
                           Try dragging the window by the header, resizing by the edges, or switching modes with the controls.
                         </p>
                         <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                          In modal mode, the window will avoid colliding with docked panels.
+                          Window panels snap to corners when dragged near side panels or viewport edges.
                         </p>
                       </div>
                     </div>

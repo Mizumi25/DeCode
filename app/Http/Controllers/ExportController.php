@@ -753,14 +753,12 @@ class ExportController extends Controller
             $attributes[] = 'style={' . json_encode($component->style ?? []) . '}';
         }
 
-        // Add other props
-        if (isset($props['text'])) {
-            $text = $props['text'];
-        }
+        // Get text content from props - check both 'text' and 'content' keys
+        $text = $props['text'] ?? $props['content'] ?? null;
 
         $attrString = implode(' ', $attributes);
         
-        if (isset($text)) {
+        if ($text) {
             return "{$spaces}<{$type} {$attrString}>{$text}</{$type}>\n";
         } else {
             return "{$spaces}<{$type} {$attrString} />\n";
@@ -806,7 +804,8 @@ class ExportController extends Controller
         }
 
         $attrString = implode(' ', $attributes);
-        $text = $props['text'] ?? '';
+        // Get text content from props - check both 'text' and 'content' keys
+        $text = $props['text'] ?? $props['content'] ?? '';
 
         if ($text) {
             return "{$spaces}<{$type} {$attrString}>{$text}</{$type}>\n";

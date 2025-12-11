@@ -12,6 +12,7 @@ import BinaryToggle from './BinaryToggle'
 
 import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore'
 import { useEditorStore } from '@/stores/useEditorStore'
+import { usePublishStore } from '@/stores/usePublishStore'
 
 const fadeIn = {
   hidden: { opacity: 0, y: -10 },
@@ -43,8 +44,8 @@ const RightSection = ({
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteWorkspaceId, setInviteWorkspaceId] = useState(null)
   const [forceInviteMode, setForceInviteMode] = useState(false)
-  const [isPublishing, setIsPublishing] = useState(false)
   const [myRole, setMyRole] = useState(null)
+  const [isPublished, setIsPublished] = useState(!!props.project?.published_url)
   
   // Permission: Only owner and editors can invite
   const currentWorkspace = props.currentWorkspace
@@ -146,50 +147,12 @@ const RightSection = ({
     setForceInviteMode(false)
   }
 
-  // Handle Publish
-  const handlePublish = async () => {
-    const currentProject = props.project
-    
-    if (!currentProject?.uuid) {
-      alert('No project selected')
-      return
-    }
-
-    setIsPublishing(true)
-
-    try {
-      const response = await fetch('/project/publish', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
-        },
-        body: JSON.stringify({
-          project_uuid: currentProject.uuid,
-          framework: currentProject.output_format || 'html',
-          style_framework: currentProject.style_framework || 'css',
-        }),
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        alert(`✅ Project published successfully!\n\nURL: ${data.published_url}\n\nYou can share this link with anyone!`)
-        
-        // Open published URL in new tab
-        window.open(data.published_url, '_blank')
-        
-        // Refresh the page to update publish status
-        window.location.reload()
-      } else {
-        alert(`❌ Publish failed: ${data.message}`)
-      }
-    } catch (error) {
-      console.error('Publish error:', error)
-      alert('❌ Failed to publish project. Please try again.')
-    } finally {
-      setIsPublishing(false)
-    }
+  // Handle Publish - Open Modal
+  const { openPublishModal, openUnpublishModal } = usePublishStore()
+  
+  const handlePublishClick = () => {
+    // Always open publish modal - the modal itself will show correct content based on published state
+    openPublishModal()
   }
 
   // Comment mode from global editor store (use separate selectors to avoid new object each render)
@@ -222,6 +185,38 @@ const RightSection = ({
       fetchMyRole()
     }
   }, [currentWorkspace?.uuid])
+  
+  // Check published status periodically
+  React.useEffect(() => {
+    const checkPublishStatus = async () => {
+      if (!props.project?.uuid) return
+      
+      try {
+        const response = await fetch(`/api/projects/${props.project.uuid}/status`, {
+          headers: { 'Accept': 'application/json' }
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.project) {
+            setIsPublished(!!data.project.published_url)
+            console.log('Publish status checked:', !!data.project.published_url)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check publish status:', error)
+      }
+    }
+    
+    if (props.project?.uuid) {
+      // Check immediately
+      checkPublishStatus()
+      
+      // Check every 3 seconds
+      const interval = setInterval(checkPublishStatus, 3000)
+      return () => clearInterval(interval)
+    }
+  }, [props.project?.uuid])
 
   // Enhanced Save Button Component
   const SaveButton = () => {
@@ -329,11 +324,19 @@ const RightSection = ({
               </div>
             )}
 
-            {/* Connection Status Indicator */}
+            {/* Connection Status Indicator - Forge/Source pages only */}
             {(onForgePage || onSourcePage) && currentFrame && (
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Connected"></div>
                 <span className="text-[8px] text-green-500 font-medium">Live</span>
+              </div>
+            )}
+            
+            {/* Published Status Indicator - Void page only */}
+            {onVoidPage && isPublished && (
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full" title="Site is live"></div>
+                <span className="text-[8px] text-green-500 font-medium">Published</span>
               </div>
             )}
 
@@ -450,13 +453,12 @@ const RightSection = ({
         {/* Publish Button - Only visible in Void page */}
         {onVoidPage && myRole !== 'viewer' && (
           <button 
-            onClick={() => handlePublish()}
-            disabled={isPublishing}
-            className={`bg-[var(--color-primary)] text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-md hover:bg-[var(--color-primary-hover)] transition-colors ${isPublishing ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onClick={handlePublishClick}
+            className="bg-[var(--color-primary)] text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-md hover:bg-[var(--color-primary-hover)] transition-colors"
           >
             <Upload className="w-3 h-3" />
             <span className="text-xs font-medium">
-              {isPublishing ? 'Publishing...' : props.project?.published_url ? 'Update' : 'Publish'}
+              {isPublished ? 'Update' : 'Publish'}
             </span>
           </button>
         )}

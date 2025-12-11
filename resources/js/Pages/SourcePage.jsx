@@ -15,6 +15,7 @@ import useFrameLockStore from '@/stores/useFrameLockStore';
 import LockAccessRequestDialog from '@/Components/Forge/LockAccessRequestDialog';
 import PageLoadingProgress from '@/Components/PageLoadingProgress';
 import { usePageLoadingProgress } from '@/hooks/usePageLoadingProgress';
+import PublishOverlay from '@/Components/PublishOverlay';
 
 export default function SourcePage({ projectId, frameId, frame }) {
   // Frame lock store for notifications and access requests
@@ -385,6 +386,9 @@ export default function SourcePage({ projectId, frameId, frame }) {
         notifications={lockNotifications}
         onRemoveNotification={removeNotification}
       />
+
+      {/* Publish Overlay - Real-time collaborative publishing UI */}
+      <PublishOverlay />
       
     </AuthenticatedLayout>
   );
