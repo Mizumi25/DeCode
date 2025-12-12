@@ -25,6 +25,7 @@ import {
   Download
 } from 'lucide-react';
 import AnimatedBlackHoleLogo from '@/Components/AnimatedBlackHoleLogo';
+import CustomCursor from '@/Components/CustomCursor';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
@@ -439,6 +440,7 @@ export default function Welcome({ auth }) {
   return (
     <>
       <Head title="DeCode - Website Builder with Code Generation" />
+      <CustomCursor />
       
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&display=swap');

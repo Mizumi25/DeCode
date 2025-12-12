@@ -7,7 +7,6 @@ import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Link } from '@inertiajs/react';
-import CustomCursor from '@/Components/CustomCursor';
 
 export default function GuestLayout({ children }) {
     const logoRef = useRef(null);
@@ -106,7 +105,6 @@ export default function GuestLayout({ children }) {
 
             {/* Content - above the animated background */}
             <div className="relative z-[2] flex min-h-screen flex-col items-center pt-6 sm:justify-center sm:pt-0">
-                <CustomCursor />
                 <div ref={logoRef}>
                     
                 </div>
