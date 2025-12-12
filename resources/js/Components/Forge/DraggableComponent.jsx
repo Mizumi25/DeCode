@@ -15,9 +15,13 @@ const DraggableComponent = ({ component, index, isSelected, onSelect, children, 
         
         longPressTimer.current = setTimeout(() => {
             setIsLongPressing(true);
-            // Haptic feedback if available
-            if (navigator.vibrate) {
-                navigator.vibrate(50);
+            // Haptic feedback if available (silent fail if blocked)
+            if ('vibrate' in navigator) {
+                try {
+                    navigator.vibrate(50);
+                } catch (err) {
+                    // Browser blocked vibration - ignore
+                }
             }
         }, 500); // 500ms long press
     };

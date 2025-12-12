@@ -16,6 +16,7 @@ import CanvasSettingsDropdown from './CanvasSettingsDropdown';
 
 // ✅ ADD THIS IMPORT
 import { useCanvasOverlayStore } from '@/stores/useCanvasOverlayStore';
+import { useEditorStore } from '@/stores/useEditorStore';
 
 // IN PropertiesPanel.jsx - at the TOP of the component:
 const PropertiesPanel = (allProps) => {
@@ -27,7 +28,10 @@ const PropertiesPanel = (allProps) => {
   const { project } = usePage().props;
   const styleFramework = project?.style_framework || 'css';
   
-  // Now destructure
+  // 🔥 NEW: Get current responsive mode
+  const { responsiveMode } = useEditorStore();
+  
+  // First destructure props
   const { 
     canvasRef,
     frame,
@@ -41,6 +45,35 @@ const PropertiesPanel = (allProps) => {
     searchTerm: externalSearchTerm = '',
     onSearchChange
   } = allProps;
+  
+  // 🔥 NEW: Get frame base device AFTER destructuring
+  const frameBaseDevice = frame?.canvas_data?.device || 'desktop';
+  
+  // 🔥 NEW: Get effective styles by merging base + responsive overrides
+  const getEffectiveStyles = useCallback((component) => {
+    if (!component) return {};
+    
+    const baseStyles = component.style || {};
+    const isBaseMode = responsiveMode === frameBaseDevice;
+    
+    // If we're in base mode, just return base styles
+    if (isBaseMode) {
+      return baseStyles;
+    }
+    
+    // Otherwise, merge base styles with responsive overrides
+    const responsiveStyles = component[`style_${responsiveMode}`] || {};
+    const mergedStyles = { ...baseStyles, ...responsiveStyles };
+    
+    console.log(`🎨 getEffectiveStyles for ${responsiveMode}:`, {
+      baseStyles,
+      responsiveStyles,
+      mergedStyles,
+      isBaseMode
+    });
+    
+    return mergedStyles;
+  }, [responsiveMode, frameBaseDevice]);
   // 🔥 CRITICAL: Remove useMemo - it's causing stale closures
 const selectedComponentData = (() => {
   console.log('🔍 PropertiesPanel computing selectedComponentData:', {
@@ -122,9 +155,11 @@ useEffect(() => {
       propsKeys: Object.keys(selectedComponentData?.props || {}),
     });
     
-    setLocalStyles(selectedComponentData?.style || {});
+    // 🔥 UPDATED: Use effective styles (base + responsive overrides)
+    const effectiveStyles = getEffectiveStyles(selectedComponentData);
+    setLocalStyles(effectiveStyles);
   }
-}, [selectedComponentData?.id]); // ✅ Only re-sync when component ID changes
+}, [selectedComponentData?.id, selectedComponentData, responsiveMode, getEffectiveStyles]); // ✅ Re-sync when responsive mode changes
 
   
   
@@ -239,10 +274,17 @@ const handleCanvasPropertyChange = useCallback(async (propName, value, category 
       return updated;
     });
     
-    const currentStyles = selectedComponentData?.style || {};
+    // 🔥 NEW: Determine which style field to update based on responsive mode
+    const isBaseMode = responsiveMode === frameBaseDevice;
+    const styleField = isBaseMode ? 'style' : `style_${responsiveMode}`;
+    
+    console.log(`🎯 Updating ${styleField} (responsiveMode: ${responsiveMode}, baseDevice: ${frameBaseDevice})`);
+    
+    // Get current styles from the appropriate field
+    const currentStyles = selectedComponentData?.[styleField] || {};
     const newStyles = { ...currentStyles, [propName]: value };
     
-    onPropertyUpdate(selectedComponent, 'style', newStyles);
+    onPropertyUpdate(selectedComponent, styleField, newStyles);
     
   } else if (category === 'props') {
     const currentProps = selectedComponentData?.props || {};

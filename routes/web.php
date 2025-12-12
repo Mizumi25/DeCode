@@ -8,6 +8,7 @@ use App\Http\Controllers\WorkspaceController;
 use App\Http\Controllers\InviteController; 
 use App\Http\Controllers\FrameLockController;
 use App\Http\Controllers\AssetController;
+use App\Http\Controllers\SurveyController; // 🔥 NEW
 use App\Http\Middleware\AllowPlaywrightAccess;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +30,10 @@ Route::get('/invite/{token}', [InviteController::class, 'showInvite'])->name('in
 Route::post('/invite/{token}/accept', [InviteController::class, 'acceptInviteWeb'])->name('invite.accept');
 
 Route::middleware('auth')->group(function () {
+    // 🔥 NEW: Survey routes for first-time users
+    Route::get('/survey', [SurveyController::class, 'index'])->name('survey.index');
+    Route::post('/survey/submit', [SurveyController::class, 'submit'])->name('survey.submit');
+    
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

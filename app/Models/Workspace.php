@@ -41,12 +41,11 @@ class Workspace extends Model
 
         // When a workspace is created, automatically add the owner as a user
         static::created(function ($workspace) {
-            if ($workspace->type !== 'personal') {
-                $workspace->users()->attach($workspace->owner_id, [
-                    'role' => 'owner',
-                    'joined_at' => now()
-                ]);
-            }
+            // Attach owner to all workspace types (including personal)
+            $workspace->users()->attach($workspace->owner_id, [
+                'role' => 'owner',
+                'joined_at' => now()
+            ]);
         });
     }
 

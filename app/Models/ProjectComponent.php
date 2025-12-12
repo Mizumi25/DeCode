@@ -24,6 +24,9 @@ class ProjectComponent extends Model
         'sort_order',
         'is_locked',
         'style',
+        'style_mobile',      // 🔥 RESPONSIVE
+        'style_tablet',      // 🔥 RESPONSIVE
+        'style_desktop',     // 🔥 RESPONSIVE
         'animation',
         'display_type',
         'layout_props',
@@ -36,6 +39,9 @@ class ProjectComponent extends Model
         'props' => 'array',
         'is_locked' => 'boolean',
         'style' => 'array',
+        'style_mobile' => 'array',      // 🔥 RESPONSIVE
+        'style_tablet' => 'array',      // 🔥 RESPONSIVE
+        'style_desktop' => 'array',     // 🔥 RESPONSIVE
         'animation' => 'array',
         'layout_props' => 'array',
         'is_layout_container' => 'boolean',

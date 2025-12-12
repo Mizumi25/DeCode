@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class WorkspaceUser extends Model {
     use HasFactory;
-    protected $fillable = ['workspace_id','user_id','role','discipline','discipline_order'];
+    protected $fillable = ['workspace_id','user_id','role','discipline','discipline_order','joined_at'];
 
     public function workspace() {
         return $this->belongsTo(Workspace::class);

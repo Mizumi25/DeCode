@@ -21,19 +21,34 @@ class GoogleController extends Controller
     {
         $googleUser = Socialite::driver('google')->stateless()->user();
         
-        $user = User::updateOrCreate([
-            'email' => $googleUser->getEmail(),
-        ], [
-            'name' => $googleUser->getName(),
-            'google_id' => $googleUser->getId(),
-            'avatar' => $googleUser->getAvatar(),
-            'password' => Hash::make(uniqid()),
-        ]);
-    
-        // Ensure personal workspace exists
-        $user->ensurePersonalWorkspace();
+        // Check if user already exists
+        $user = User::where('google_id', $googleUser->getId())->first();
+        
+        $isNewUser = false;
+        
+        if (!$user) {
+            // Create new user (don't check by email - Google and email are separate)
+            $user = User::create([
+                'name' => $googleUser->getName(),
+                'email' => $googleUser->getEmail(),
+                'google_id' => $googleUser->getId(),
+                'avatar' => $googleUser->getAvatar(),
+                'password' => Hash::make(uniqid()),
+                'email_verified_at' => now(), // Google accounts are pre-verified
+            ]);
+            
+            $isNewUser = true;
+            
+            // Ensure personal workspace exists
+            $user->ensurePersonalWorkspace();
+        }
     
         Auth::login($user);
+        
+        // Redirect to survey for first-time users
+        if ($isNewUser || !$user->survey_completed) {
+            return redirect()->route('survey.index');
+        }
         
         return redirect('/projects');
     }

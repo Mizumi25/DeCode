@@ -49,9 +49,10 @@ export default function VerifyCode({ email, type = 'register' }) {
       if (data.success) {
         setSuccess(true);
         
-        // Redirect after success
+        // 🔥 Use redirect URL from response (handles survey logic)
         setTimeout(() => {
-          window.location.href = '/projects';
+          const redirectUrl = data.redirect || '/projects';
+          window.location.href = redirectUrl;
         }, 1500);
       } else {
         setError(data.message || 'Invalid verification code. Please try again.');

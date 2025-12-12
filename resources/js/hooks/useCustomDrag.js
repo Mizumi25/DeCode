@@ -295,6 +295,30 @@ const detectDropTarget = useCallback((pointerX, pointerY) => {
     }
   }
 
+  // 🔥 FIX: If no target found, fallback to canvas root for empty area drops
+  if (!bestTarget) {
+    // Find the canvas root element
+    const canvasRoot = document.querySelector('[data-canvas-root="true"]');
+    if (canvasRoot) {
+      const canvasRootId = canvasRoot.getAttribute('data-component-id') || '__canvas_root__';
+      bestTarget = {
+        id: canvasRootId,
+        element: canvasRoot,
+        bounds: {
+          left: 0,
+          top: 0,
+          right: canvasRect.width,
+          bottom: canvasRect.height,
+          width: canvasRect.width,
+          height: canvasRect.height,
+        },
+        isLayout: true,
+        depth: 0,
+      };
+      bestIntent = 'inside'; // Default to inside for canvas root
+    }
+  }
+
   return bestTarget ? { target: bestTarget, intent: bestIntent } : null;
 }, [componentId, canvasRef]);
 

@@ -124,6 +124,7 @@ export default function ForgePage({
   
   const {
     responsiveMode,
+    setResponsiveMode,
     getCurrentCanvasDimensions,
     getResponsiveDeviceInfo,
     getResponsiveScaleFactor,
@@ -164,11 +165,7 @@ export default function ForgePage({
     setCurrentWorkspace
   } = useWorkspaceStore();
   
-  const [currentFrame, setCurrentFrame] = useState(() => {
-      const frameIdToUse = frameId || frame?.uuid;
-      console.log('ForgePage: Initial frame ID:', frameIdToUse);
-      return frameIdToUse;
-  });
+  const [currentFrame, setCurrentFrame] = useState(frameId);
   
   // 🔥 Set frame UUID in CodeSyncStore on mount
   useEffect(() => {
@@ -177,6 +174,33 @@ export default function ForgePage({
       setCodeSyncFrame(currentFrame);
     }
   }, [currentFrame, setCodeSyncFrame]);
+  
+  // 🔥 Initialize frame canvas components on mount
+  useEffect(() => {
+    if (frameId && frame) {
+      // Helper to normalize components on load
+      const normalizeComponent = (comp) => {
+        const isLayoutContainer = comp.isLayoutContainer !== undefined 
+          ? comp.isLayoutContainer 
+          : ['section', 'container', 'div', 'flex', 'grid'].includes(comp.type);
+        
+        return {
+          ...comp,
+          isLayoutContainer,
+          children: comp.children ? comp.children.map(normalizeComponent) : []
+        };
+      };
+      
+      const components = frame?.canvas_data?.components && Array.isArray(frame.canvas_data.components)
+        ? frame.canvas_data.components.map(normalizeComponent)
+        : [];
+      
+      setFrameCanvasComponents(prev => ({
+        ...prev,
+        [frameId]: components
+      }));
+    }
+  }, [frameId, frame]);
   
   const { auth } = usePage().props
   const currentUser = auth?.user
@@ -192,6 +216,17 @@ export default function ForgePage({
       console.log('✅ Frame Lock Echo initialized');
     }
   }, [currentUser?.id, initializeEcho]);
+
+  // 🔥 NEW: Initialize responsive toggle from frame's base device
+  useEffect(() => {
+    if (frame?.canvas_data?.device) {
+      const baseDevice = frame.canvas_data.device;
+      console.log('🎯 Setting frame base device and responsive mode from canvas_data:', baseDevice);
+      setResponsiveMode(baseDevice);
+    } else {
+      console.log('⚠️ No base device found in frame canvas_data, using default');
+    }
+  }, [frame?.uuid, frame?.canvas_data?.device, setResponsiveMode]);
 
   const {
     activeCursors,
@@ -249,35 +284,7 @@ export default function ForgePage({
   )
 
   // Canvas state for dropped components - Now frame-specific
- const [frameCanvasComponents, setFrameCanvasComponents] = useState(() => {
-    const initialFrameData = {};
-    const currentFrameId = frameId || frame?.uuid;
-    
-    // 🔥 FIX: Helper to normalize components on load
-    const normalizeComponent = (comp) => {
-      // Ensure isLayoutContainer is set based on component type
-      const isLayoutContainer = comp.isLayoutContainer !== undefined 
-        ? comp.isLayoutContainer 
-        : ['section', 'container', 'div', 'flex', 'grid'].includes(comp.type);
-      
-      return {
-        ...comp,
-        isLayoutContainer,
-        children: comp.children ? comp.children.map(normalizeComponent) : []
-      };
-    };
-    
-    if (currentFrameId) {
-        if (frame?.canvas_data?.components && Array.isArray(frame.canvas_data.components)) {
-            // 🔥 FIX: Normalize all loaded components
-            initialFrameData[currentFrameId] = frame.canvas_data.components.map(normalizeComponent);
-        } else {
-            initialFrameData[currentFrameId] = [];
-        }
-    }
-    
-    return initialFrameData;
-});
+ const [frameCanvasComponents, setFrameCanvasComponents] = useState({});
   
   const [panelDockPosition, setPanelDockPosition] = useState('left');
   

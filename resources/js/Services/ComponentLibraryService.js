@@ -721,12 +721,23 @@ class ComponentLibraryService {
   
 
 calculateResponsiveStyles(component, responsiveMode, canvasDimensions, parentStyles = {}) {
+  // 🔥 NEW: Merge base styles with responsive overrides
   const baseStyles = { ...component.style };
+  const responsiveOverrides = component[`style_${responsiveMode}`] || {};
+  const mergedStyles = { ...baseStyles, ...responsiveOverrides };
+  
+  console.log(`🎨 calculateResponsiveStyles for ${component.type} in ${responsiveMode}:`, {
+    baseStyles,
+    responsiveOverrides,
+    mergedStyles,
+    hasOverrides: Object.keys(responsiveOverrides).length > 0
+  });
   
   const isLayoutContainer = component.isLayoutContainer || 
                             ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
   
-  const responsiveStyles = { ...baseStyles };
+  // 🔥 UPDATED: Start with merged styles (base + responsive overrides)
+  const responsiveStyles = { ...mergedStyles };
   
   // 🔥 ACTUAL RESPONSIVE TRANSFORMATIONS based on device mode
   if (responsiveMode === 'mobile') {
@@ -1533,10 +1544,15 @@ generateModernCSS(allComponents) {
   // Generate CSS for each component recursively
   const generateComponentCSS = (component) => {
     const className = this.generateCSSClassName(component);
-    const styles = component.style || {};
+    const baseStyles = component.style || {};
+    
+    // 🔥 NEW: Get responsive style overrides
+    const mobileStyles = component.style_mobile || {};
+    const tabletStyles = component.style_tablet || {};
+    const desktopStyles = component.style_desktop || {};
     
     // Convert style object to CSS
-    const cssProperties = Object.entries(styles)
+    const cssProperties = Object.entries(baseStyles)
       .filter(([key]) => !key.startsWith('_')) // Skip internal properties
       .map(([key, value]) => {
         // Convert camelCase to kebab-case
@@ -1545,9 +1561,61 @@ generateModernCSS(allComponents) {
       })
       .join('\n');
     
+    // Add base styles
     if (cssProperties) {
       cssRules.push(`.${className} {
 ${cssProperties}
+}`);
+    }
+    
+    // 🔥 NEW: Add mobile media query if exists
+    if (Object.keys(mobileStyles).length > 0) {
+      const mobileCssProperties = Object.entries(mobileStyles)
+        .filter(([key]) => !key.startsWith('_'))
+        .map(([key, value]) => {
+          const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
+          return `    ${cssKey}: ${value};`;
+        })
+        .join('\n');
+      
+      cssRules.push(`@media (max-width: 768px) {
+  .${className} {
+${mobileCssProperties}
+  }
+}`);
+    }
+    
+    // 🔥 NEW: Add tablet media query if exists
+    if (Object.keys(tabletStyles).length > 0) {
+      const tabletCssProperties = Object.entries(tabletStyles)
+        .filter(([key]) => !key.startsWith('_'))
+        .map(([key, value]) => {
+          const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
+          return `    ${cssKey}: ${value};`;
+        })
+        .join('\n');
+      
+      cssRules.push(`@media (min-width: 769px) and (max-width: 1024px) {
+  .${className} {
+${tabletCssProperties}
+  }
+}`);
+    }
+    
+    // 🔥 NEW: Add desktop media query if exists
+    if (Object.keys(desktopStyles).length > 0) {
+      const desktopCssProperties = Object.entries(desktopStyles)
+        .filter(([key]) => !key.startsWith('_'))
+        .map(([key, value]) => {
+          const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
+          return `    ${cssKey}: ${value};`;
+        })
+        .join('\n');
+      
+      cssRules.push(`@media (min-width: 1025px) {
+  .${className} {
+${desktopCssProperties}
+  }
 }`);
     }
     
@@ -2226,7 +2294,7 @@ async saveProjectComponents(projectId, frameId, components, options = {}) {
                 animation: comp.animation || {},
                 isLayoutContainer: comp.isLayoutContainer || false,
                 children: comp.children || [],            
-                parentId: comp.parentId || null,
+                parent_id: comp.parentId || null, // 🔥 CRITICAL FIX: Use parent_id (snake_case) for database
             };
             
             // 🔥 Log frame-component-instances

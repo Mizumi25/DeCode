@@ -840,7 +840,7 @@ const {
       try {
         navigator.vibrate(50);
       } catch (err) {
-        // Vibration blocked - ignore
+        // Vibration blocked - ignore silently
       }
     }
   },
@@ -862,12 +862,23 @@ const {
   onDragEnd: ({ componentId, dropTarget: target, dropIntent: intent }) => {
   console.log('🎯 Custom drag end:', componentId, 'to', target?.id, intent);
   
-  if (target && handleComponentDragEnd) {
-    handleComponentDragEnd({
-      componentId,
-      targetId: target.id,
-      intent,
-    });
+  // 🔥 FIX: Always call handleComponentDragEnd, even if no specific target (use canvas root)
+  if (handleComponentDragEnd) {
+    if (target) {
+      handleComponentDragEnd({
+        componentId,
+        targetId: target.id,
+        intent,
+      });
+    } else {
+      // No specific target detected, save to canvas root
+      console.warn('⚠️ No specific drop target, saving position to canvas root');
+      handleComponentDragEnd({
+        componentId,
+        targetId: '__canvas_root__',
+        intent: 'inside',
+      });
+    }
     
     // 🔥 NEW: Trigger drop animation
     setDropAnimationKey(prev => prev + 1);

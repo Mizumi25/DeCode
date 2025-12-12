@@ -920,15 +920,56 @@ class ExportController extends Controller
                 }
                 
                 $generatedClasses[] = $className;
-                $css .= ".{$className} {\n";
                 
+                // 🔥 NEW: Generate base styles
                 $style = $component->style ?? [];
-                foreach ($style as $property => $value) {
-                    $cssProperty = $this->convertCamelToKebab($property);
-                    $css .= "  {$cssProperty}: {$value};\n";
+                if (!empty($style)) {
+                    $css .= ".{$className} {\n";
+                    foreach ($style as $property => $value) {
+                        $cssProperty = $this->convertCamelToKebab($property);
+                        $css .= "  {$cssProperty}: {$value};\n";
+                    }
+                    $css .= "}\n\n";
                 }
                 
-                $css .= "}\n\n";
+                // 🔥 NEW: Generate mobile media query if exists
+                $styleMobile = $component->style_mobile ?? [];
+                if (!empty($styleMobile)) {
+                    $css .= "@media (max-width: 768px) {\n";
+                    $css .= "  .{$className} {\n";
+                    foreach ($styleMobile as $property => $value) {
+                        $cssProperty = $this->convertCamelToKebab($property);
+                        $css .= "    {$cssProperty}: {$value};\n";
+                    }
+                    $css .= "  }\n";
+                    $css .= "}\n\n";
+                }
+                
+                // 🔥 NEW: Generate tablet media query if exists
+                $styleTablet = $component->style_tablet ?? [];
+                if (!empty($styleTablet)) {
+                    $css .= "@media (min-width: 769px) and (max-width: 1024px) {\n";
+                    $css .= "  .{$className} {\n";
+                    foreach ($styleTablet as $property => $value) {
+                        $cssProperty = $this->convertCamelToKebab($property);
+                        $css .= "    {$cssProperty}: {$value};\n";
+                    }
+                    $css .= "  }\n";
+                    $css .= "}\n\n";
+                }
+                
+                // 🔥 NEW: Generate desktop media query if exists
+                $styleDesktop = $component->style_desktop ?? [];
+                if (!empty($styleDesktop)) {
+                    $css .= "@media (min-width: 1025px) {\n";
+                    $css .= "  .{$className} {\n";
+                    foreach ($styleDesktop as $property => $value) {
+                        $cssProperty = $this->convertCamelToKebab($property);
+                        $css .= "    {$cssProperty}: {$value};\n";
+                    }
+                    $css .= "  }\n";
+                    $css .= "}\n\n";
+                }
             }
         }
         

@@ -103,9 +103,13 @@ class VerificationController extends Controller
                 
                 Session::forget(['verification_email', 'verification_type']);
                 
+                // Check if user needs to complete survey
+                $redirectUrl = $user->survey_completed ? '/projects' : '/survey';
+                
                 return response()->json([
                     'success' => true,
                     'message' => 'Email verified successfully!',
+                    'redirect' => $redirectUrl,
                 ]);
             }
         } else {

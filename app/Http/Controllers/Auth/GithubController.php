@@ -43,12 +43,22 @@ class GithubController extends Controller
                 $this->connectGitHubToUser($user, $githubUser);
                 $message = 'GitHub account connected successfully!';
                 $redirectUrl = '/projects';
+                $isNewUser = false;
             } else {
                 // User is not logged in - find or create user
+                $existingUser = User::where('github_id', $githubUser->getId())->first();
+                $isNewUser = !$existingUser;
+                
                 $user = $this->findOrCreateUser($githubUser);
                 Auth::login($user);
                 $message = 'Logged in with GitHub successfully!';
-                $redirectUrl = '/projects';
+                
+                // Redirect to survey for first-time users
+                if ($isNewUser || !$user->survey_completed) {
+                    $redirectUrl = '/survey';
+                } else {
+                    $redirectUrl = '/projects';
+                }
             }
 
             // Check if this was a modal connection request
@@ -98,14 +108,7 @@ class GithubController extends Controller
             return $user;
         }
 
-        // Then try to find user by email
-        $user = User::where('email', $githubUser->getEmail())->first();
-        
-        if ($user) {
-            $this->connectGitHubToUser($user, $githubUser);
-            return $user;
-        }
-
+        // Don't check by email - GitHub and email login are separate accounts
         // Create new user
         $user = User::create([
             'name' => $githubUser->getName() ?: $githubUser->getNickname(),
@@ -117,7 +120,7 @@ class GithubController extends Controller
             'github_token_expires_at' => $githubUser->expiresIn ? now()->addSeconds($githubUser->expiresIn) : null,
             'avatar' => $githubUser->getAvatar(),
             'password' => Hash::make(uniqid()),
-            'email_verified_at' => now(),
+            'email_verified_at' => now(), // GitHub accounts are pre-verified
         ]);
         
         if ($user->wasRecentlyCreated) {

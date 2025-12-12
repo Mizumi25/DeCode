@@ -27,6 +27,8 @@ class User extends Authenticatable
         'session_started_at',
         'session_device',
         'session_ip',
+        'survey_data',           // 🔥 NEW
+        'survey_completed',      // 🔥 NEW
     ];
 
     protected $hidden = [
@@ -45,6 +47,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'github_token_expires_at' => 'datetime',
             'password' => 'hashed',
+            'survey_data' => 'array',           // 🔥 NEW
+            'survey_completed' => 'boolean',    // 🔥 NEW
         ];
     }
 
