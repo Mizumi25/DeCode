@@ -40,11 +40,13 @@ class ForgeController extends Controller
                 ];
             })->toArray();
         
-        $canvasData = [
+        // 🔥 FIX: Merge with existing canvas_data to preserve device, viewport, etc.
+        $existingCanvasData = $frame->canvas_data ?? [];
+        $canvasData = array_merge($existingCanvasData, [
             'components' => $projectComponents,
             'settings' => $frame->settings ?? [],
             'version' => '1.0'
-        ];
+        ]);
         
         if (!isset($canvasData['components']) || !is_array($canvasData['components'])) {
             $canvasData['components'] = [];

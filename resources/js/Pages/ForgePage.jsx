@@ -139,6 +139,11 @@ export default function ForgePage({
     addComment
   } = useEditorStore();
   
+  // 🔥 DEBUG: Log responsive mode changes
+  useEffect(() => {
+    console.log('🎯 [ForgePage] Responsive mode changed to:', responsiveMode);
+  }, [responsiveMode]);
+  
   const {
     initializeFrame: initUndoRedoFrame,
     pushHistory,
@@ -217,16 +222,28 @@ export default function ForgePage({
     }
   }, [currentUser?.id, initializeEcho]);
 
-  // 🔥 NEW: Initialize responsive toggle from frame's base device
+  // 🔥 FIXED: Initialize responsive toggle from frame's base device (override persisted state)
   useEffect(() => {
-    if (frame?.canvas_data?.device) {
-      const baseDevice = frame.canvas_data.device;
-      console.log('🎯 Setting frame base device and responsive mode from canvas_data:', baseDevice);
-      setResponsiveMode(baseDevice);
-    } else {
-      console.log('⚠️ No base device found in frame canvas_data, using default');
+    console.log('🔍 [ForgePage] Frame device sync effect triggered');
+    console.log('  - Frame exists:', !!frame);
+    console.log('  - Frame UUID:', frame?.uuid);
+    console.log('  - Frame canvas_data:', frame?.canvas_data);
+    console.log('  - Frame device:', frame?.canvas_data?.device);
+    console.log('  - Current responsiveMode:', responsiveMode);
+    
+    if (!frame) {
+      console.log('⚠️ No frame available yet');
+      return;
     }
-  }, [frame?.uuid, frame?.canvas_data?.device, setResponsiveMode]);
+    
+    const baseDevice = frame.canvas_data?.device || 'desktop';
+    console.log('🎯 ForgePage: Frame has device setting:', baseDevice);
+    console.log('🔄 ForgePage: Current responsive mode before update:', responsiveMode);
+    
+    // CRITICAL: Always set responsive mode to match frame's device, overriding localStorage
+    setResponsiveMode(baseDevice);
+    console.log('✅ ForgePage: Called setResponsiveMode with:', baseDevice);
+  }, [frame?.uuid, frame?.canvas_data?.device, setResponsiveMode]); // 🔥 Depend on frame UUID and device
 
   const {
     activeCursors,

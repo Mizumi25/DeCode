@@ -17,6 +17,7 @@ class FrameCreated implements ShouldBroadcast
 
     public $frame;
     public $workspace;
+    public $createdBy;
 
     public function __construct(Frame $frame, Workspace $workspace)
     {
@@ -27,6 +28,8 @@ class FrameCreated implements ShouldBroadcast
         
         $this->frame = $frame;
         $this->workspace = $workspace;
+        // Capture the authenticated user's name before queuing (auth context is lost in queue)
+        $this->createdBy = auth()->check() ? auth()->user()->name : 'Unknown';
     }
 
     public function broadcastOn()
@@ -40,7 +43,7 @@ class FrameCreated implements ShouldBroadcast
             'frame' => $this->frame,
             'project_uuid' => $this->frame->project?->uuid, // Safe navigation operator
             'workspace_id' => $this->workspace->id,
-            'created_by' => auth()->user()?->name ?? 'Unknown', // Handle case where auth might be null in queue
+            'created_by' => $this->createdBy,
         ];
     }
 

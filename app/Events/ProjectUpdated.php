@@ -18,12 +18,15 @@ class ProjectUpdated implements ShouldBroadcast
     public $project;
     public $workspace;
     public $changes;
+    public $updatedBy;
 
     public function __construct(Project $project, Workspace $workspace, array $changes = [])
     {
         $this->project = $project->load('workspace');
         $this->workspace = $workspace;
         $this->changes = $changes;
+        // Capture the authenticated user's name before queuing (auth context is lost in queue)
+        $this->updatedBy = auth()->check() ? auth()->user()->name : 'Unknown';
     }
 
     public function broadcastOn()
@@ -58,7 +61,7 @@ class ProjectUpdated implements ShouldBroadcast
             ],
             'changes' => $this->changes,
             'workspace_id' => $this->workspace->id,
-            'updated_by' => auth()->user()->name,
+            'updated_by' => $this->updatedBy,
         ];
     }
 

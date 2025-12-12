@@ -18,6 +18,7 @@ class FrameDeleted implements ShouldBroadcast
     public $frameName;
     public $projectUuid;
     public $workspace;
+    public $deletedBy;
 
     public function __construct(string $frameUuid, string $frameName, string $projectUuid, Workspace $workspace)
     {
@@ -25,6 +26,8 @@ class FrameDeleted implements ShouldBroadcast
         $this->frameName = $frameName;
         $this->projectUuid = $projectUuid;
         $this->workspace = $workspace;
+        // Capture the authenticated user's name before queuing (auth context is lost in queue)
+        $this->deletedBy = auth()->check() ? auth()->user()->name : 'Unknown';
     }
 
     public function broadcastOn()
@@ -39,7 +42,7 @@ class FrameDeleted implements ShouldBroadcast
             'frame_name' => $this->frameName,
             'project_uuid' => $this->projectUuid,
             'workspace_id' => $this->workspace->id,
-            'deleted_by' => auth()->user()->name,
+            'deleted_by' => $this->deletedBy,
             'deleted_at' => now()->toISOString(),
         ];
     }

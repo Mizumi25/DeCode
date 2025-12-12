@@ -487,6 +487,53 @@ const parseCurrentGradient = (backgroundImage) => {
           </div>
         </div>
         
+        {/* Border Image */}
+        <div>
+          <SubsectionHeader title="Border Image" />
+          <InputField
+            label="Border Image Source"
+            value={currentStyles.borderImageSource}
+            onChange={(value) => onPropertyChange('borderImageSource', value, 'style')}
+            placeholder="url(...) or gradient"
+            searchTerm={searchTerm}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <InputField
+              label="Image Slice"
+              value={currentStyles.borderImageSlice}
+              onChange={(value) => onPropertyChange('borderImageSlice', value, 'style')}
+              placeholder="e.g., 30"
+              searchTerm={searchTerm}
+            />
+            <InputField
+              label="Image Width"
+              value={currentStyles.borderImageWidth}
+              onChange={(value) => onPropertyChange('borderImageWidth', value, 'style')}
+              placeholder="e.g., 10px"
+              searchTerm={searchTerm}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <InputField
+              label="Image Outset"
+              value={currentStyles.borderImageOutset}
+              onChange={(value) => onPropertyChange('borderImageOutset', value, 'style')}
+              placeholder="e.g., 0"
+              searchTerm={searchTerm}
+            />
+            <InputField
+              label="Image Repeat"
+              value={currentStyles.borderImageRepeat}
+              onChange={(value) => onPropertyChange('borderImageRepeat', value, 'style')}
+              type="select"
+              options={{
+                values: ['stretch', 'repeat', 'round', 'space']
+              }}
+              searchTerm={searchTerm}
+            />
+          </div>
+        </div>
+        
         {/* Outline */}
         <div>
           <SubsectionHeader title="Outline" />
