@@ -2290,7 +2290,10 @@ async saveProjectComponents(projectId, frameId, components, options = {}) {
                 zIndex: comp.zIndex || 0,
                 sortOrder: index,                         
                 variant: comp.variant || null,
-                style: comp.style || {}, // 🔥 This should now contain ALL styles
+                style: comp.style || {}, // Base styles
+                style_mobile: comp.style_mobile || {}, // 🔥 RESPONSIVE: Mobile styles
+                style_tablet: comp.style_tablet || {}, // 🔥 RESPONSIVE: Tablet styles
+                style_desktop: comp.style_desktop || {}, // 🔥 RESPONSIVE: Desktop styles
                 animation: comp.animation || {},
                 isLayoutContainer: comp.isLayoutContainer || false,
                 children: comp.children || [],            
@@ -2309,6 +2312,15 @@ async saveProjectComponents(projectId, frameId, components, options = {}) {
             return mapped;
         });
 
+        // 🔥 DEBUG: Log what we're sending
+        console.log('📤 Sending to backend:', {
+            totalComponents: mappedComponents.length,
+            firstComponent: mappedComponents[0],
+            componentsWithResponsive: mappedComponents.filter(c => 
+                c.style_mobile || c.style_tablet || c.style_desktop
+            ).length
+        });
+        
         const response = await axios.post('/api/project-components/bulk-update', {
             project_id: projectId,
             frame_id: frameId,

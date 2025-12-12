@@ -101,6 +101,9 @@ export default function VoidPage() {
   // Discipline-based access control
   const [myDiscipline, setMyDiscipline] = useState(null)
   
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(false)
+  
   // Modal states
   const [showFrameCreator, setShowFrameCreator] = useState(false)
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
@@ -161,6 +164,17 @@ const zoomLevelRef = useRef(zoomLevel)
       setSelectedFrameForLink(null);
     }
   }, [linkMode])
+  
+  // Mobile detection
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 1024); // lg breakpoint
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   // ✅ NEW: Load frame assignments
   useEffect(() => {
@@ -1880,7 +1894,8 @@ useEffect(() => {
         frame: null,
         // ✅ NEW: Link mode props
         linkMode,
-        setLinkMode
+        setLinkMode,
+        isMobile
       }}
     >
       <Head title={`Void - ${project?.name || 'Project'}`} />

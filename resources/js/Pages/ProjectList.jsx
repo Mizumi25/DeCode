@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Plus, ChevronDown, X, Share2, Download, Edit3, Trash2, Copy, GripVertical, MoreHorizontal, Move, RefreshCw, Check } from 'lucide-react';
+import { Plus, ChevronDown, X, Share2, Download, Edit3, Trash2, Copy, GripVertical, MoreHorizontal, Move, RefreshCw, Check, ExternalLink } from 'lucide-react';
 import { Responsive, WidthProvider } from 'react-grid-layout';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
@@ -8,6 +8,7 @@ import NewProjectModal from '@/Components/Projects/NewProjectModal';
 import ConfirmDialog from '@/Components/ConfirmDialog';
 import { useSearchStore } from '@/stores/useSearchStore';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
+import AnimatedBlackHoleLogo from '@/Components/AnimatedBlackHoleLogo';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import TypewriterWebGLHeader from '@/Components/Projects/TypeWriterWebGLHeader'
@@ -41,6 +42,11 @@ export default function ProjectList({
   const [selectedProjectForAction, setSelectedProjectForAction] = useState(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareProject, setShareProject] = useState(null);
+  const [hoveredProjectId, setHoveredProjectId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [editedTitle, setEditedTitle] = useState('');
+  const [editedDescription, setEditedDescription] = useState('');
   
   // Confirmation dialog state
   const [confirmDialog, setConfirmDialog] = useState({
@@ -816,6 +822,36 @@ export default function ProjectList({
     });
   };
 
+  const handleUpdateProject = async (field, value) => {
+    if (!selectedProject) return;
+    
+    try {
+      const response = await fetch(`/api/projects/${selectedProject.project.uuid}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+        },
+        body: JSON.stringify({ [field]: value }),
+      });
+
+      if (response.ok) {
+        // Update local state
+        setSelectedProject(prev => ({
+          ...prev,
+          [field]: value
+        }));
+        setRealtimeProjects(prev => prev.map(p => 
+          p.project.uuid === selectedProject.project.uuid 
+            ? { ...p, [field]: value }
+            : p
+        ));
+      }
+    } catch (error) {
+      console.error('Error updating project:', error);
+    }
+  };
+
   const handleExportProject = async (project) => {
     try {
       setConfirmDialog({
@@ -1465,6 +1501,27 @@ export default function ProjectList({
                     }`} title={project.project.status}></div>
                   </div>
                   
+                  {/* Hover Quick Open Button */}
+                  <AnimatePresence>
+                    {hoveredProjectId === project.id && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none"
+                      >
+                        <Link
+                          href={`/void/${project.project.uuid}`}
+                          className="pointer-events-auto p-4 bg-[var(--color-primary)] rounded-xl shadow-2xl hover:scale-110 transition-transform"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ExternalLink size={28} className="text-white" />
+                        </Link>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   {/* Clickable content area */}
                   <motion.div
                     variants={projectVariants}
@@ -1478,6 +1535,8 @@ export default function ProjectList({
                       transition: { duration: 0.1 }
                     }}
                     className="absolute inset-0 cursor-pointer"
+                    onMouseEnter={() => setHoveredProjectId(project.id)}
+                    onMouseLeave={() => setHoveredProjectId(null)}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -1557,180 +1616,191 @@ export default function ProjectList({
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="fixed inset-0 bg-[var(--color-bg)] z-50 flex"
+            className="fixed inset-0 z-50"
           >
-            {/* Main Content Area */}
-            <div className="flex-1 flex flex-col">
-              {/* Top Bar */}
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ 
-                  opacity: 1, 
-                  y: 0,
-                  transition: { delay: 0.2, duration: 0.5 }
-                }}
-                className="flex justify-between items-center p-4 border-b border-[var(--color-border)]"
-              >
-                <div className="flex items-center gap-4">
-                  <h2 className="text-lg font-semibold text-[var(--color-text)]">
-                    {selectedProject.title}
-                  </h2>
-                  <span className={`px-2 py-1 rounded-md text-xs font-medium ${getProjectTypeBadge(selectedProject.type)}`}>
-                    {selectedProject.type.replace('_', ' ')}
-                  </span>
-                  <span className={`w-2 h-2 rounded-full ${
-                    selectedProject.project.status === 'published' ? 'bg-green-500' :
-                    selectedProject.project.status === 'active' ? 'bg-blue-500' :
-                    selectedProject.project.status === 'archived' ? 'bg-gray-400' :
-                    'bg-yellow-500'
-                  }`} title={selectedProject.project.status}></span>
+            {/* Full Screen Thumbnail */}
+            <div className="absolute inset-0 w-screen h-screen">
+              {selectedProject.project.thumbnail ? (
+                <img
+                  src={selectedProject.project.thumbnail.startsWith('http') 
+                    ? selectedProject.project.thumbnail 
+                    : `/storage/${selectedProject.project.thumbnail}`}
+                  alt={selectedProject.title}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-[var(--color-bg)]">
+                  <AnimatedBlackHoleLogo />
                 </div>
-                <button
-                  onClick={handleClose}
-                  className="p-2 hover:bg-[var(--color-bg-muted)] rounded-lg transition-colors"
-                >
-                  <X size={20} className="text-[var(--color-text-muted)]" />
-                </button>
-              </motion.div>
-
-              {/* Project Content */}
-              <div className="flex-1 flex items-center justify-center p-8">
-                <motion.div
-                  variants={zoomedProjectVariants}
-                  className="w-full max-w-4xl h-full max-h-[600px] bg-[var(--color-bg-muted)] rounded-2xl shadow-2xl overflow-hidden"
-                  style={{ perspective: 1000 }}
-                >
-                  <div className="w-full h-full flex flex-col">
-                    {/* Project Thumbnail Preview */}
-                    {selectedProject.project.thumbnail ? (
-                      <div className="flex-1 relative overflow-hidden bg-[var(--color-surface)]">
-                        <img
-                          src={selectedProject.project.thumbnail.startsWith('http') 
-                            ? selectedProject.project.thumbnail 
-                            : `/storage/${selectedProject.project.thumbnail}`}
-                          alt={selectedProject.title}
-                          className="w-full h-full object-contain"
-                          onError={(e) => {
-                            // Fallback if image fails to load
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'flex';
-                          }}
-                        />
-                        {/* Fallback placeholder if image doesn't load */}
-                        <div className="hidden w-full h-full items-center justify-center bg-[var(--color-bg-muted)]">
-                          <div className="text-center">
-                            <div className="w-24 h-24 mx-auto mb-4 bg-gradient-to-r from-blue-400 to-purple-500 rounded-xl opacity-80"></div>
-                            <p className="text-[var(--color-text-muted)]">No preview available</p>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex-1 flex items-center justify-center bg-[var(--color-bg-muted)]">
-                        <div className="text-center">
-                          <div className="w-24 h-24 mx-auto mb-4 bg-gradient-to-r from-blue-400 to-purple-500 rounded-xl opacity-80"></div>
-                          <p className="text-[var(--color-text-muted)]">No thumbnail yet</p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Project Info Footer */}
-                    <div className="p-6 bg-[var(--color-bg)] border-t border-[var(--color-border)]">
-                      <h3 className="text-2xl font-bold text-[var(--color-text)] mb-2">
-                        {selectedProject.title}
-                      </h3>
-                      <p className="text-[var(--color-text-muted)] text-sm mb-3">
-                        Created on {selectedProject.date}
-                      </p>
-                      {selectedProject.description && (
-                        <p className="text-[var(--color-text-muted)] text-sm mb-3">
-                          {selectedProject.description}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-4 text-sm text-[var(--color-text-muted)]">
-                        <span>{selectedProject.componentCount} components</span>
-                        <span>•</span>
-                        <span>{selectedProject.project.status}</span>
-                        <span>•</span>
-                        <span>{selectedProject.project.viewport_width}×{selectedProject.project.viewport_height}px</span>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
+              )}
             </div>
 
-            {/* Desktop Toolbar - Right Side */}
-            <motion.div
-              variants={toolbarVariants}
-              className="hidden lg:flex w-16 bg-[var(--color-bg-muted)] border-l border-[var(--color-border)] flex-col items-center py-4 gap-4"
+            {/* Close Button - Top Right */}
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.3 }}
+              onClick={handleClose}
+              className="fixed top-6 right-6 z-50 p-3 bg-[var(--color-bg)] rounded-xl shadow-lg hover:scale-110 transition-transform"
             >
-              <Link href={`/void/${selectedProject.project.uuid}`} className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
-                <Edit3 size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
+              <X size={24} className="text-[var(--color-text)]" />
+            </motion.button>
+
+            {/* Project Info - Bottom with Overlay */}
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="fixed bottom-0 left-0 right-0 lg:right-auto lg:max-w-2xl p-6 z-40"
+              style={{
+                background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.6) 70%, transparent 100%)',
+                backdropFilter: 'blur(10px)'
+              }}
+            >
+              {editingTitle ? (
+                <input
+                  type="text"
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  onBlur={() => {
+                    handleUpdateProject('title', editedTitle);
+                    setEditingTitle(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleUpdateProject('title', editedTitle);
+                      setEditingTitle(false);
+                    }
+                  }}
+                  autoFocus
+                  className="text-3xl font-bold text-white mb-3 bg-transparent border-b-2 border-white/50 focus:border-white outline-none w-full"
+                />
+              ) : (
+                <h3 
+                  className="text-3xl font-bold text-white mb-3 cursor-pointer hover:text-white/80 transition-colors"
+                  onClick={() => {
+                    setEditedTitle(selectedProject.title);
+                    setEditingTitle(true);
+                  }}
+                >
+                  {selectedProject.title}
+                </h3>
+              )}
+
+              {editingDescription ? (
+                <textarea
+                  value={editedDescription}
+                  onChange={(e) => setEditedDescription(e.target.value)}
+                  onBlur={() => {
+                    handleUpdateProject('description', editedDescription);
+                    setEditingDescription(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.ctrlKey) {
+                      handleUpdateProject('description', editedDescription);
+                      setEditingDescription(false);
+                    }
+                  }}
+                  autoFocus
+                  rows="2"
+                  className="text-white/90 text-base mb-4 bg-transparent border border-white/30 rounded-lg p-2 focus:border-white outline-none w-full resize-none"
+                />
+              ) : (
+                <p 
+                  className="text-white/90 text-base mb-4 cursor-pointer hover:text-white transition-colors"
+                  onClick={() => {
+                    setEditedDescription(selectedProject.description || '');
+                    setEditingDescription(true);
+                  }}
+                >
+                  {selectedProject.description || 'Click to add description...'}
+                </p>
+              )}
+
+              <div className="flex items-center gap-4 text-sm text-white/70 mb-4">
+                <span>{selectedProject.componentCount} components</span>
+                <span>•</span>
+                <span>{selectedProject.project.status}</span>
+                <span>•</span>
+                <span>{selectedProject.project.viewport_width}×{selectedProject.project.viewport_height}px</span>
+              </div>
+
+              {/* Open Project Button */}
+              <Link
+                href={`/void/${selectedProject.project.uuid}`}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--color-primary)] text-white font-semibold rounded-lg hover:scale-105 transition-transform shadow-xl"
+              >
+                <ExternalLink size={20} />
+                Open Project
               </Link>
+            </motion.div>
+
+            {/* Desktop Toolbar - Right Side Floating */}
+            <motion.div
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+              className="hidden lg:flex fixed right-6 top-1/2 -translate-y-1/2 flex-col items-center gap-3 z-40"
+            >
               <button 
                 onClick={() => handleCopyProject(selectedProject)}
-                className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group"
+                className="p-3 bg-[var(--color-bg)] rounded-xl shadow-lg hover:scale-110 transition-transform group"
               >
-                <Copy size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
+                <Copy size={20} className="text-[var(--color-text)] group-hover:text-[var(--color-primary)]" />
               </button>
               <button 
                 onClick={() => copyShareLink(selectedProject)}
-                className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group"
+                className="p-3 bg-[var(--color-bg)] rounded-xl shadow-lg hover:scale-110 transition-transform group"
               >
-                <Share2 size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
+                <Share2 size={20} className="text-[var(--color-text)] group-hover:text-[var(--color-primary)]" />
               </button>
               <button 
                 onClick={() => handleExportProject(selectedProject)}
-                className="p-3 hover:bg-[var(--color-bg)] rounded-lg transition-colors group"
+                className="p-3 bg-[var(--color-bg)] rounded-xl shadow-lg hover:scale-110 transition-transform group"
               >
-                <Download size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
+                <Download size={20} className="text-[var(--color-text)] group-hover:text-[var(--color-primary)]" />
               </button>
-              <div className="flex-1"></div>
+              <div className="h-4"></div>
               <button 
                 onClick={() => handleDeleteProject(selectedProject)}
-                className="p-3 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors group"
+                className="p-3 bg-[var(--color-bg)] rounded-xl shadow-lg hover:scale-110 transition-transform group"
               >
-                <Trash2 size={20} className="text-[var(--color-text-muted)] group-hover:text-red-500" />
+                <Trash2 size={20} className="text-[var(--color-text)] group-hover:text-red-500" />
               </button>
             </motion.div>
 
-            {/* Mobile/Tablet Toolbar - Bottom */}
+            {/* Mobile/Tablet Toolbar - Bottom Floating */}
             <motion.div
-              variants={toolbarVariants}
-              className="lg:hidden fixed bottom-0 left-0 right-0 bg-[var(--color-bg-muted)] border-t border-[var(--color-border)] p-4"
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-40"
             >
-              <div className="flex justify-center items-center gap-6">
-                <Link href={`/void/${selectedProject.project.uuid}`} className="flex flex-col items-center gap-1 p-2 hover:bg-[var(--color-bg)] rounded-lg transition-colors group">
-                  <Edit3 size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
-                  <span className="text-xs text-[var(--color-text-muted)]">Edit</span>
-                </Link>
+              <div className="flex items-center gap-3 bg-[var(--color-bg)]/90 backdrop-blur-lg rounded-2xl p-3 shadow-2xl">
                 <button 
                   onClick={() => handleCopyProject(selectedProject)}
-                  className="flex flex-col items-center gap-1 p-2 hover:bg-[var(--color-bg)] rounded-lg transition-colors group"
+                  className="p-3 bg-[var(--color-surface)] rounded-xl hover:scale-110 transition-transform group"
                 >
-                  <Copy size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
-                  <span className="text-xs text-[var(--color-text-muted)]">Copy</span>
+                  <Copy size={18} className="text-[var(--color-text)] group-hover:text-[var(--color-primary)]" />
                 </button>
                 <button 
                   onClick={() => copyShareLink(selectedProject)}
-                  className="flex flex-col items-center gap-1 p-2 hover:bg-[var(--color-bg)] rounded-lg transition-colors group"
+                  className="p-3 bg-[var(--color-surface)] rounded-xl hover:scale-110 transition-transform group"
                 >
-                  <Share2 size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
-                  <span className="text-xs text-[var(--color-text-muted)]">Share</span>
+                  <Share2 size={18} className="text-[var(--color-text)] group-hover:text-[var(--color-primary)]" />
                 </button>
                 <button 
                   onClick={() => handleExportProject(selectedProject)}
-                  className="flex flex-col items-center gap-1 p-2 hover:bg-[var(--color-bg)] rounded-lg transition-colors group"
+                  className="p-3 bg-[var(--color-surface)] rounded-xl hover:scale-110 transition-transform group"
                 >
-                  <Download size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]" />
-                  <span className="text-xs text-[var(--color-text-muted)]">Export</span>
+                  <Download size={18} className="text-[var(--color-text)] group-hover:text-[var(--color-primary)]" />
                 </button>
+                <div className="w-px h-8 bg-[var(--color-border)]"></div>
                 <button 
                   onClick={() => handleDeleteProject(selectedProject)}
-                  className="flex flex-col items-center gap-1 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors group"
+                  className="p-3 bg-[var(--color-surface)] rounded-xl hover:scale-110 transition-transform group"
                 >
-                  <Trash2 size={20} className="text-[var(--color-text-muted)] group-hover:text-red-500" />
-                  <span className="text-xs text-[var(--color-text-muted)]">Delete</span>
+                  <Trash2 size={18} className="text-[var(--color-text)] group-hover:text-red-500" />
                 </button>
               </div>
             </motion.div>

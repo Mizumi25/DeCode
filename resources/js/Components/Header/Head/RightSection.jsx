@@ -37,7 +37,8 @@ const RightSection = ({
   setWorkspaceDropdownOpen,
   profileDropdownOpen,
   setProfileDropdownOpen,
-  toggleForgePanel
+  toggleForgePanel,
+  isMobile
 }) => {
   const { props, url } = usePage()
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -304,13 +305,15 @@ const RightSection = ({
 
   return (
     <>
-      <motion.div
-        variants={fadeIn}
-        initial="hidden"
-        animate="visible"
-        custom={3}
-        className={`flex items-center relative flex-shrink-0 ${(onVoidPage || onForgePage || onSourcePage) ? 'gap-2' : 'gap-2.5'}`}
-      >
+      {/* Desktop & Tablet Header Right Section */}
+      {(!isMobile || !onVoidPage) && (
+        <motion.div
+          variants={fadeIn}
+          initial="hidden"
+          animate="visible"
+          custom={3}
+          className={`flex items-center relative flex-shrink-0 ${(onVoidPage || onForgePage || onSourcePage) ? 'gap-2' : 'gap-2.5'}`}
+        >
         {/* === Void, Forge, and Source Page Right Elements === */}
         {(onVoidPage || onForgePage || onSourcePage) && (
           <>
@@ -462,8 +465,133 @@ const RightSection = ({
             </span>
           </button>
         )}
+        </motion.div>
+      )}
 
-      </motion.div>
+
+      {/* Mobile Floating Toolbar - Bottom Left (VOID PAGE ONLY) */}
+      {onVoidPage && isMobile && (
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="fixed bottom-6 left-6 z-50"
+        >
+          {/* Single Horizontal Hotdog Container */}
+          <div className="flex items-center gap-3 px-4 py-3 bg-[var(--color-bg)]/90 backdrop-blur-lg rounded-full shadow-2xl">
+            
+            {/* Void Page Controls */}
+            {onVoidPage && (
+            <>
+              {/* Published Status Indicator */}
+              {isPublished && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full" title="Site is live"></div>
+                    <span className="text-xs text-green-500 font-medium">Live</span>
+                  </div>
+                  <div className="w-px h-6 bg-[var(--color-border)]" />
+                </>
+              )}
+
+              {/* Comments Button */}
+              {myRole !== 'viewer' && (
+                <button
+                  onClick={toggleCommentMode}
+                  className={`p-2 rounded-full transition-all hover:scale-110 ${
+                    commentMode
+                      ? 'bg-[var(--color-primary)] text-white'
+                      : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                  }`}
+                  title={commentMode ? 'Exit comment mode' : 'Enter comment mode'}
+                >
+                  <MessageCircle className="w-5 h-5" />
+                </button>
+              )}
+
+              {/* Share Button */}
+              {myRole !== 'viewer' && (
+                <button className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-full hover:scale-110 transition-all">
+                  <Share2 className="w-5 h-5" />
+                </button>
+              )}
+
+              {/* Export Button */}
+              {myRole !== 'viewer' && currentProject && (
+                <button className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-full hover:scale-110 transition-all">
+                  <Download className="w-5 h-5" />
+                </button>
+              )}
+
+              {/* Divider */}
+              {myRole !== 'viewer' && (
+                <div className="w-px h-6 bg-[var(--color-border)]" />
+              )}
+
+              {/* Edit/View Toggle */}
+              {myRole !== 'viewer' && (
+                <>
+                  <button
+                    onClick={() => setEditMode('edit')}
+                    className={`p-2 rounded-full transition-all hover:scale-110 ${
+                      editMode === 'edit'
+                        ? 'bg-[var(--color-primary)] text-white'
+                        : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                    }`}
+                    title="Edit mode"
+                  >
+                    <Edit3 className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => setEditMode('view')}
+                    className={`p-2 rounded-full transition-all hover:scale-110 ${
+                      editMode === 'view'
+                        ? 'bg-[var(--color-primary)] text-white'
+                        : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                    }`}
+                    title="View mode"
+                  >
+                    <Eye className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+
+              {/* Divider */}
+              {myRole !== 'viewer' && (
+                <div className="w-px h-6 bg-[var(--color-border)]" />
+              )}
+
+              {/* Publish Button */}
+              {myRole !== 'viewer' && (
+                <button 
+                  onClick={handlePublishClick}
+                  className="bg-[var(--color-primary)] text-white px-3 py-2 rounded-full flex items-center gap-2 hover:scale-110 transition-transform"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span className="text-xs font-medium">
+                    {isPublished ? 'Update' : 'Publish'}
+                  </span>
+                </button>
+              )}
+
+              {myRole !== 'viewer' && (
+                <div className="w-px h-6 bg-[var(--color-border)]" />
+              )}
+            </>
+          )}
+
+            {/* Avatar - Always present */}
+            <div className="flex items-center">
+              <UserDropdown 
+                user={user} 
+                type="profile" 
+                dropdownOpen={profileDropdownOpen}
+                setDropdownOpen={setProfileDropdownOpen}
+              />
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Invite Modal */}
       <InviteModal

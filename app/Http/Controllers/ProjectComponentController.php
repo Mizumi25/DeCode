@@ -46,6 +46,17 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
         'final_style_keys' => array_keys($finalStyle),
     ]);
 
+    // 🔥 DEBUG: Log responsive styles
+    if (!empty($componentData['style_mobile']) || !empty($componentData['style_tablet']) || !empty($componentData['style_desktop'])) {
+        \Log::info('📱 Saving component with responsive styles', [
+            'id' => $componentData['id'],
+            'name' => $componentData['name'],
+            'style_mobile' => $componentData['style_mobile'] ?? null,
+            'style_tablet' => $componentData['style_tablet'] ?? null,
+            'style_desktop' => $componentData['style_desktop'] ?? null,
+        ]);
+    }
+    
     $component = ProjectComponent::create([
         'project_id' => $projectId,
         'frame_id' => $frameId,
@@ -58,6 +69,9 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
         'z_index' => $componentData['zIndex'] ?? 0,
         'sort_order' => $componentData['sortOrder'] ?? 0,
         'style' => $finalStyle,
+        'style_mobile' => $componentData['style_mobile'] ?? null,     // 🔥 RESPONSIVE
+        'style_tablet' => $componentData['style_tablet'] ?? null,     // 🔥 RESPONSIVE
+        'style_desktop' => $componentData['style_desktop'] ?? null,   // 🔥 RESPONSIVE
         'animation' => $componentData['animation'] ?? [],
         'is_layout_container' => $componentData['isLayoutContainer'] ?? false,
         'visible' => $componentData['visible'] ?? true,
@@ -157,7 +171,10 @@ private function normalizeStyleData($componentData)
                   'name' => $component->name,
                   'zIndex' => $component->z_index,
                   'sortOrder' => $component->sort_order,
-                  'style' => $component->style ?? [], // ✅ Ensure style is loaded
+                  'style' => $component->style ?? [], // ✅ Base styles
+                  'style_mobile' => $component->style_mobile ?? null, // 🔥 RESPONSIVE
+                  'style_tablet' => $component->style_tablet ?? null, // 🔥 RESPONSIVE
+                  'style_desktop' => $component->style_desktop ?? null, // 🔥 RESPONSIVE
                   'animation' => $component->animation ?? [],
                   'display_type' => $component->display_type,
                   'layout_props' => $component->layout_props,
@@ -391,6 +408,9 @@ private function normalizeStyleData($componentData)
                     $componentData['id'],
                     [
                         'style' => $componentData['style'] ?? [],
+                        'style_mobile' => $componentData['style_mobile'] ?? null,  // 🔥 RESPONSIVE
+                        'style_tablet' => $componentData['style_tablet'] ?? null,  // 🔥 RESPONSIVE
+                        'style_desktop' => $componentData['style_desktop'] ?? null, // 🔥 RESPONSIVE
                         'props' => $componentData['props'] ?? [],
                         'text_content' => $componentData['text_content'] ?? null,
                         'position' => [
@@ -454,6 +474,9 @@ private function normalizeStyleData($componentData)
             'sort_order' => $componentData['sortOrder'] ?? 0,
             'variant' => $componentData['variant'] ?? null,
             'style' => $componentData['style'] ?? [],
+            'style_mobile' => $componentData['style_mobile'] ?? null,     // 🔥 RESPONSIVE
+            'style_tablet' => $componentData['style_tablet'] ?? null,     // 🔥 RESPONSIVE
+            'style_desktop' => $componentData['style_desktop'] ?? null,   // 🔥 RESPONSIVE
             'animation' => $componentData['animation'] ?? [],
             'is_layout_container' => $componentData['isLayoutContainer'] ?? false,
             'visible' => $componentData['visible'] ?? true,

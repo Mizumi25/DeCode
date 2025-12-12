@@ -36,7 +36,8 @@ export default function Header({
   linkMode,
   setLinkMode,
   // 🔥 NEW: Linked components modal callback
-  onLinkedComponentsClick
+  onLinkedComponentsClick,
+  isMobile
 }) {
   const { props, url } = usePage()
   const user = props.auth?.user
@@ -232,6 +233,7 @@ export default function Header({
             profileDropdownOpen={profileDropdownOpen}
             setProfileDropdownOpen={handleProfileDropdownToggle}
             toggleForgePanel={toggleForgePanel}
+            isMobile={isMobile}
           />
         </div>
 

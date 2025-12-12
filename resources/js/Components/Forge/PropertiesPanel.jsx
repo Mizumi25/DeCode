@@ -1,6 +1,6 @@
 // @/Components/Forge/PropertiesPanel.jsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Settings, Code, Trash2, RotateCw, Move, RotateCcw, Search, X, Eye, EyeOff, Maximize2, Grid, Layers, Layout, Square, ChevronDown, ChevronUp } from 'lucide-react';
+import { Settings, Code, Trash2, RotateCw, Move, RotateCcw, Search, X, Eye, EyeOff, Maximize2, Grid, Layers, Layout, Square, ChevronRight, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'; // Add this import
 import { usePage } from '@inertiajs/react'; // Import usePage for project info
@@ -484,7 +484,7 @@ if (!selectedComponent || selectedComponent === '__canvas_root__') {
                     <Code className="w-4 h-4" />
                     Debug Info
                   </span>
-                  {expandedSections.debugInfo ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  {expandedSections.debugInfo ? <ChevronUp className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                 </button>
 
                 {expandedSections.debugInfo && (
@@ -710,7 +710,7 @@ return (
                     <Code className="w-4 h-4" />
                     Debug Info
                   </span>
-                  {expandedSections.debugInfo ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  {expandedSections.debugInfo ? <ChevronUp className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                 </button>
 
                 {expandedSections.debugInfo && (

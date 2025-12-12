@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect,useRef } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import CSSVariableSelector from './CSSVariableSelector';
 
@@ -38,18 +38,18 @@ export const PropertySection = ({
   
   return (
     <div 
-      className="border rounded-lg mb-3" 
+      className="mb-3" 
       style={{ 
-        borderColor: 'var(--color-border)', 
-        backgroundColor: 'var(--color-surface)' 
+        borderTop: '1px solid var(--color-border)',
+        borderBottom: isExpanded ? '1px solid var(--color-border)' : 'none'
       }}
     >
       <button
         onClick={() => setExpandedSections(prev => ({ ...prev, [sectionKey]: !prev[sectionKey] }))}
         className="w-full flex items-center justify-between p-3 transition-colors"
-        style={{ backgroundColor: 'var(--color-surface)' }}
+        style={{ backgroundColor: 'transparent' }}
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-muted)'}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-surface)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
       >
         <div className="flex items-center gap-2">
           <Icon className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
@@ -58,10 +58,10 @@ export const PropertySection = ({
           </span>
         </div>
         <motion.div
-          animate={{ rotate: isExpanded ? 180 : 0 }}
+          animate={{ rotate: isExpanded ? 90 : 0 }}
           transition={{ duration: 0.2 }}
         >
-          <ChevronDown className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+          <ChevronRight className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
         </motion.div>
       </button>
       
@@ -75,9 +75,8 @@ export const PropertySection = ({
             style={{ overflow: 'hidden' }}
           >
             <div 
-              className="p-3 border-t space-y-4" 
+              className="p-3 space-y-4" 
               style={{ 
-                borderColor: 'var(--color-border)', 
                 backgroundColor: 'var(--color-bg)' 
               }}
             >

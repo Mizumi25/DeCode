@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Head, router } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { gsap } from 'gsap';
 import GuestLayout from '@/Layouts/GuestLayout';
 import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
@@ -41,6 +42,109 @@ export default function Survey({ auth }) {
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const getStartedButtonRef = useRef(null);
+  const buttonTextRef = useRef(null);
+  const buttonBgRef = useRef(null);
+
+  // GSAP hover animation for Get Started button
+  useEffect(() => {
+    if (currentStep === 3 && getStartedButtonRef.current && !isSubmitting) {
+      const button = getStartedButtonRef.current;
+      const buttonText = buttonTextRef.current;
+      const buttonBg = buttonBgRef.current;
+
+      const handleMouseEnter = (e) => {
+        const rect = button.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        // Animate background gradient position
+        gsap.to(buttonBg, {
+          duration: 0.6,
+          background: `radial-gradient(circle at ${x}px ${y}px, rgba(var(--color-primary-rgb, 99, 102, 241), 0.3), transparent 70%)`,
+          ease: 'power2.out'
+        });
+
+        // Animate text with slight scale and color shift
+        gsap.to(buttonText, {
+          duration: 0.4,
+          scale: 1.05,
+          y: -2,
+          ease: 'power2.out'
+        });
+
+        // Add a subtle rotation and scale to the button
+        gsap.to(button, {
+          duration: 0.5,
+          scale: 1.05,
+          rotateX: 5,
+          rotateY: 5,
+          ease: 'power2.out'
+        });
+      };
+
+      const handleMouseMove = (e) => {
+        const rect = button.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        // Create dynamic gradient that follows the cursor
+        gsap.to(buttonBg, {
+          duration: 0.3,
+          background: `radial-gradient(circle at ${x}px ${y}px, rgba(var(--color-primary-rgb, 99, 102, 241), 0.35), transparent 70%)`,
+          ease: 'none'
+        });
+
+        // Subtle parallax effect on text
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const deltaX = (x - centerX) / centerX;
+        const deltaY = (y - centerY) / centerY;
+
+        gsap.to(buttonText, {
+          duration: 0.3,
+          x: deltaX * 8,
+          y: deltaY * 4,
+          ease: 'power2.out'
+        });
+      };
+
+      const handleMouseLeave = () => {
+        // Reset all animations
+        gsap.to(buttonBg, {
+          duration: 0.5,
+          background: 'transparent',
+          ease: 'power2.out'
+        });
+
+        gsap.to(buttonText, {
+          duration: 0.4,
+          scale: 1,
+          x: 0,
+          y: 0,
+          ease: 'power2.out'
+        });
+
+        gsap.to(button, {
+          duration: 0.5,
+          scale: 1,
+          rotateX: 0,
+          rotateY: 0,
+          ease: 'power2.out'
+        });
+      };
+
+      button.addEventListener('mouseenter', handleMouseEnter);
+      button.addEventListener('mousemove', handleMouseMove);
+      button.addEventListener('mouseleave', handleMouseLeave);
+
+      return () => {
+        button.removeEventListener('mouseenter', handleMouseEnter);
+        button.removeEventListener('mousemove', handleMouseMove);
+        button.removeEventListener('mouseleave', handleMouseLeave);
+      };
+    }
+  }, [currentStep, isSubmitting]);
 
   // Options for the survey
   const useCaseOptions = [
@@ -243,23 +347,46 @@ export default function Survey({ auth }) {
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                 >
-                  <label className="block text-sm font-medium text-[var(--color-text)] mb-2">
+                  <label className="block text-sm font-medium text-[var(--color-text)] mb-3">
                     What's your role?
                   </label>
-                  <div className="relative">
-                    <select
-                      value={formData.role}
-                      onChange={(e) => handleInputChange('role', e.target.value)}
-                      className="w-full px-4 py-3 pr-10 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg text-[var(--color-text)] appearance-none cursor-pointer transition-all hover:border-[var(--color-primary)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20"
-                    >
-                      <option value="">Select your role...</option>
-                      {roleOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-text-muted)] pointer-events-none" />
+                  <div className="grid grid-cols-2 gap-3">
+                    {roleOptions.map((option) => {
+                      const IconComponent = option.icon;
+                      const isSelected = formData.role === option.value;
+                      return (
+                        <motion.button
+                          key={option.value}
+                          type="button"
+                          onClick={() => handleInputChange('role', option.value)}
+                          className={`
+                            relative p-4 rounded-lg border-2 transition-all text-left
+                            ${isSelected 
+                              ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10' 
+                              : 'border-[var(--color-border)] bg-[var(--color-bg)] hover:border-[var(--color-primary)]/50'
+                            }
+                          `}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <div className="flex flex-col items-start gap-2">
+                            <IconComponent 
+                              className={`w-6 h-6 ${isSelected ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-muted)]'}`} 
+                            />
+                            <span className={`text-sm font-medium ${isSelected ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'}`}>
+                              {option.label}
+                            </span>
+                          </div>
+                          {isSelected && (
+                            <motion.div
+                              layoutId="roleSelection"
+                              className="absolute inset-0 border-2 border-[var(--color-primary)] rounded-lg pointer-events-none"
+                              transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                            />
+                          )}
+                        </motion.button>
+                      );
+                    })}
                   </div>
                   <InputError message={errors.role} className="mt-2" />
                 </motion.div>
@@ -353,14 +480,6 @@ export default function Survey({ auth }) {
         <div className="w-full max-w-2xl">
           {/* Progress Bar */}
           <div className="mb-8">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-[var(--color-text-muted)]">
-                Progress
-              </span>
-              <span className="text-sm font-medium text-[var(--color-text)]">
-                {currentStep} of 3
-              </span>
-            </div>
             <div className="h-2 bg-[var(--color-bg-muted)] rounded-full overflow-hidden">
               <motion.div
                 className="h-full bg-[var(--color-primary)]"
@@ -389,37 +508,57 @@ export default function Survey({ auth }) {
                 </button>
               )}
               
-              <PrimaryButton
-                onClick={handleContinue}
-                disabled={isSubmitting}
-                className="ml-auto"
-              >
-                {isSubmitting ? (
-                  <span className="flex items-center gap-2">
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                        fill="none"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
-                    Setting up...
+              {currentStep === 3 && !isSubmitting ? (
+                <button
+                  ref={getStartedButtonRef}
+                  onClick={handleContinue}
+                  disabled={isSubmitting}
+                  className="ml-auto relative px-8 py-3 bg-[var(--color-primary)] text-white font-semibold rounded-lg overflow-hidden transition-all duration-300 shadow-lg hover:shadow-2xl"
+                  style={{ 
+                    perspective: '1000px',
+                    transformStyle: 'preserve-3d'
+                  }}
+                >
+                  <div 
+                    ref={buttonBgRef}
+                    className="absolute inset-0 pointer-events-none"
+                    style={{ background: 'transparent' }}
+                  />
+                  <span ref={buttonTextRef} className="relative z-10 inline-block">
+                    Get Started
                   </span>
-                ) : currentStep === 3 ? (
-                  'Get Started'
-                ) : (
-                  'Continue'
-                )}
-              </PrimaryButton>
+                </button>
+              ) : (
+                <PrimaryButton
+                  onClick={handleContinue}
+                  disabled={isSubmitting}
+                  className="ml-auto"
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                          fill="none"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        />
+                      </svg>
+                      Setting up...
+                    </span>
+                  ) : (
+                    'Continue'
+                  )}
+                </PrimaryButton>
+              )}
             </div>
           </div>
 

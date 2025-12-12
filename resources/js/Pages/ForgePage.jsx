@@ -804,10 +804,13 @@ function updateComponentInTree(components, componentId, updateType, updates) {
       
       switch (updateType) {
         case 'bulk_update':
-          // For bulk updates, merge all the updates
+          // For bulk updates, merge all the updates including responsive styles
           return { 
             ...comp, 
             style: updates.style || comp.style,
+            style_mobile: updates.style_mobile !== undefined ? updates.style_mobile : comp.style_mobile,   // 🔥 RESPONSIVE
+            style_tablet: updates.style_tablet !== undefined ? updates.style_tablet : comp.style_tablet,   // 🔥 RESPONSIVE
+            style_desktop: updates.style_desktop !== undefined ? updates.style_desktop : comp.style_desktop, // 🔥 RESPONSIVE
             props: updates.props || comp.props,
             parentId: updates.parentId !== undefined ? updates.parentId : comp.parentId
           };
@@ -815,6 +818,12 @@ function updateComponentInTree(components, componentId, updateType, updates) {
           return { ...comp, style: { ...comp.style, left: updates.position?.x, top: updates.position?.y } };
         case 'style':
           return { ...comp, style: { ...comp.style, ...updates } };
+        case 'style_mobile':
+          return { ...comp, style_mobile: { ...comp.style_mobile, ...updates } }; // 🔥 RESPONSIVE
+        case 'style_tablet':
+          return { ...comp, style_tablet: { ...comp.style_tablet, ...updates } }; // 🔥 RESPONSIVE
+        case 'style_desktop':
+          return { ...comp, style_desktop: { ...comp.style_desktop, ...updates } }; // 🔥 RESPONSIVE
         case 'prop':
         case 'props':
           return { ...comp, props: { ...comp.props, ...updates } };
@@ -1542,14 +1551,41 @@ const handlePropertyUpdate = useCallback((componentId, propName, value) => {
             ...c, 
             style: value // ✅ Direct replacement
           }
+        } else if (propName === 'style_mobile') {
+          // 🔥 RESPONSIVE: Update mobile-specific styles
+          console.log('📱 Updating style_mobile:', value);
+          return { 
+            ...c, 
+            style_mobile: value
+          }
+        } else if (propName === 'style_tablet') {
+          // 🔥 RESPONSIVE: Update tablet-specific styles
+          console.log('📱 Updating style_tablet:', value);
+          return { 
+            ...c, 
+            style_tablet: value
+          }
+        } else if (propName === 'style_desktop') {
+          // 🔥 RESPONSIVE: Update desktop-specific styles
+          console.log('🖥️ Updating style_desktop:', value);
+          return { 
+            ...c, 
+            style_desktop: value
+          }
         } else if (propName === 'animation') {
           return { ...c, animation: { ...c.animation, ...value } }
         } else if (propName === 'name') {
           return { ...c, name: value }
+        } else if (propName === 'props') {
+          // 🔥 Handle props updates
+          return { ...c, props: value }
         } else if (propName === 'reset') {
           return { 
             ...c, 
             style: {}, 
+            style_mobile: {},
+            style_tablet: {},
+            style_desktop: {},
             animation: {},
             props: {}
           }

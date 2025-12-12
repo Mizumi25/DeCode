@@ -35,6 +35,9 @@ class ForgeController extends Controller
                     'zIndex' => $comp->z_index ?? 0,
                     'variant' => $comp->variant,
                     'style' => $comp->style ?? [],
+                    'style_mobile' => $comp->style_mobile ?? null,   // 🔥 RESPONSIVE
+                    'style_tablet' => $comp->style_tablet ?? null,   // 🔥 RESPONSIVE
+                    'style_desktop' => $comp->style_desktop ?? null, // 🔥 RESPONSIVE
                     'animation' => $comp->animation ?? [],
                     'children' => []
                 ];
