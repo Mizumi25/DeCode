@@ -25,6 +25,7 @@ import {
   Download
 } from 'lucide-react';
 import AnimatedBlackHoleLogo from '@/Components/AnimatedBlackHoleLogo';
+import EpicBlackHole from '@/Components/EpicBlackHole';
 import CustomCursor from '@/Components/CustomCursor';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -37,6 +38,8 @@ export default function Welcome({ auth }) {
   const containerRef = useRef(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const blackholeRef = useRef(null);
 
   useEffect(() => {
     const handleMouseMove = (e) => {
@@ -546,6 +549,49 @@ export default function Welcome({ auth }) {
           line-height: 1.15;
           letter-spacing: -0.02em;
         }
+
+        /* Animated Gradient Border Button */
+        .animated-gradient-border-btn {
+          position: relative;
+          isolation: isolate;
+        }
+        
+        .animated-gradient-border-btn::before {
+          content: '';
+          position: absolute;
+          inset: -2px;
+          border-radius: 0.75rem;
+          padding: 2px;
+          background: linear-gradient(
+            90deg,
+            var(--color-primary),
+            var(--color-accent, #a855f7),
+            var(--color-primary)
+          );
+          background-size: 200% 100%;
+          animation: gradientShift 3s linear infinite;
+          -webkit-mask: 
+            linear-gradient(#fff 0 0) content-box, 
+            linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+          z-index: -1;
+        }
+        
+        @keyframes gradientShift {
+          0% {
+            background-position: 0% 50%;
+          }
+          100% {
+            background-position: 200% 50%;
+          }
+        }
+        
+        .view-work-btn {
+          position: relative;
+          background: transparent;
+          text-align: center;
+        }
         
         .text-minimal {
           font-size: 1.125rem;
@@ -641,8 +687,8 @@ export default function Welcome({ auth }) {
 
       <div ref={containerRef} className="min-h-screen bg-black text-white overflow-x-hidden">
         
-        {/* Enhanced Navigation with Animations */}
-        <nav className="nav-minimal fixed top-0 left-0 right-0">
+        {/* Enhanced Navigation with Animations - Transparent to see blackhole */}
+        <nav className="nav-minimal fixed top-0 left-0 right-0 bg-black/30 backdrop-blur-sm z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
             <div className="flex items-center justify-between h-20 lg:h-24">
               {/* Logo with hover animation */}
@@ -766,8 +812,13 @@ export default function Welcome({ auth }) {
           )}
         </AnimatePresence>
 
-        {/* Hero Section - Akari Minimalist Style */}
+        {/* Hero Section - Epic 3D Blackhole Style */}
         <section className="relative min-h-screen flex items-center justify-center section-padding pt-32">
+          
+          {/* Epic Black Hole with Gravitational Lensing */}
+          <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
+            <EpicBlackHole className="w-full h-full" />
+          </div>
           {/* Subtle background layers with parallax */}
           <div 
             className="parallax-slow absolute inset-0 opacity-20 pointer-events-none"
@@ -785,36 +836,55 @@ export default function Welcome({ auth }) {
             }}
           />
           
-          <div className="hero-content max-w-7xl mx-auto px-8 lg:px-16 relative z-10">
-            <div className="max-w-5xl">
-              <div className="minimal-spacing">
-                <div className="reveal-line inline-block mb-8">
-                  <div className="flex items-center space-x-3 text-sm tracking-widest text-gray-500">
-                    <div className="w-12 h-px bg-gray-700"></div>
-                    <span>WEBSITE BUILDER</span>
+          <div className="hero-content max-w-7xl mx-auto px-8 lg:px-16 relative z-10 w-full">
+            {/* Centered Column Layout */}
+            <div className="flex flex-col items-center justify-center text-center">
+              {/* Top Section - Text Content */}
+              <div className="max-w-5xl mb-16">
+                <div className="minimal-spacing">
+                  <div className="reveal-line inline-block mb-8">
+                    <div className="flex items-center justify-center space-x-3 text-sm tracking-widest text-gray-500">
+                      <div className="w-12 h-px bg-gray-700"></div>
+                      <span>WEBSITE BUILDER</span>
+                      <div className="w-12 h-px bg-gray-700"></div>
+                    </div>
                   </div>
                 </div>
+                
+                <h1 className="hero-title-large minimal-spacing">
+                  <div className="reveal-line char-reveal">Build</div>
+                  <div className="reveal-line char-reveal">Visually</div>
+                  <div className="reveal-line char-reveal opacity-50">Export Code</div>
+                </h1>
+                
+                <div className="reveal-line max-w-2xl minimal-spacing mx-auto">
+                  <p className="text-minimal">
+                    A free visual website builder that generates clean, production-ready code.
+                    Design with precision, export React, HTML, CSS, and Tailwind — no AI, just pure code generation.
+                  </p>
+                </div>
               </div>
-              
-              <h1 className="hero-title-large minimal-spacing">
-                <div className="reveal-line char-reveal">Build</div>
-                <div className="reveal-line char-reveal">Visually</div>
-                <div className="reveal-line char-reveal opacity-50">Export Code</div>
-              </h1>
-              
-              <div className="reveal-line max-w-2xl minimal-spacing">
-                <p className="text-minimal">
-                  A free visual website builder that generates clean, production-ready code.
-                  Design with precision, export React, HTML, CSS, and Tailwind — no AI, just pure code generation.
-                </p>
-              </div>
-              
-              <div className="reveal-line flex flex-col sm:flex-row gap-6 mt-12">
-                <Link href="/register" className="btn-primary-minimal inline-block">
-                  Start Building
+
+
+              {/* Buttons at the bottom */}
+              <div className="reveal-line flex flex-row gap-6 items-center justify-center">
+                <Link 
+                  href="/register" 
+                  className="animated-gradient-border-btn group relative inline-flex items-center justify-center px-8 py-4 rounded-xl font-semibold text-white overflow-hidden transition-all duration-300 hover:scale-105"
+                >
+                  <span className="relative z-10">Start Building</span>
+                  <div className="absolute inset-0 bg-[var(--color-bg)] rounded-xl"></div>
+                  <div className="animated-gradient-border"></div>
                 </Link>
-                <a href="#showcase" className="btn-minimal inline-block">
-                  View Work
+                
+                <a 
+                  href="#showcase" 
+                  className="view-work-btn group relative inline-flex items-center justify-center px-8 py-4 rounded-xl font-semibold border-2 border-[var(--color-border)] hover:border-[var(--color-primary)] transition-all duration-300 hover:scale-105"
+                  style={{
+                    color: 'var(--color-text)',
+                  }}
+                >
+                  <span className="relative z-10">View Work</span>
                 </a>
               </div>
             </div>

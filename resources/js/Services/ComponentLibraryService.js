@@ -964,88 +964,120 @@ escapeJSXText(text) {
 // 🔥 NEW: Build Tailwind classes from style object
 buildDynamicTailwindClasses(comp) {
   const style = comp.style || {};
+  const styleMobile = comp.style_mobile || {};
+  const styleTablet = comp.style_tablet || {};
+  const styleDesktop = comp.style_desktop || {};
   const classes = [];
   
-  // Layout & Display
-  if (style.display) {
-    const displayMap = {
-      'flex': 'flex',
-      'inline-flex': 'inline-flex',
-      'grid': 'grid',
-      'inline-grid': 'inline-grid',
-      'block': 'block',
-      'inline-block': 'inline-block',
-      'inline': 'inline',
-      'none': 'hidden'
-    };
-    classes.push(displayMap[style.display] || 'block');
-  }
-  // Flexbox properties
-  if (style.flexDirection === 'column') classes.push('flex-col');
-  if (style.flexDirection === 'row-reverse') classes.push('flex-row-reverse');
-  if (style.flexDirection === 'column-reverse') classes.push('flex-col-reverse');
-  
-  if (style.justifyContent) {
-    const justifyMap = {
-      'flex-start': 'justify-start',
-      'center': 'justify-center',
-      'flex-end': 'justify-end',
-      'space-between': 'justify-between',
-      'space-around': 'justify-around',
-      'space-evenly': 'justify-evenly'
-    };
-    classes.push(justifyMap[style.justifyContent]);
-  }
-  
-  if (style.alignItems) {
-    const alignMap = {
-      'flex-start': 'items-start',
-      'center': 'items-center',
-      'flex-end': 'items-end',
-      'stretch': 'items-stretch',
-      'baseline': 'items-baseline'
-    };
-    classes.push(alignMap[style.alignItems]);
-  }
-  // Spacing (convert px to Tailwind)
-  if (style.gap) classes.push(this.convertSpacingToTailwind('gap', style.gap));
-  if (style.padding) classes.push(this.convertSpacingToTailwind('p', style.padding));
-  if (style.margin) classes.push(this.convertSpacingToTailwind('m', style.margin));
-  
-  // Sizing
-  if (style.width === '100%') classes.push('w-full');
-  else if (style.width === 'auto') classes.push('w-auto');
-  else if (style.width) classes.push(`w-[${style.width}]`);
-  
-  if (style.height === '100%') classes.push('h-full');
-  else if (style.height === 'auto') classes.push('h-auto');
-  else if (style.height) classes.push(`h-[${style.height}]`);
-  
-  // Colors
-  if (style.backgroundColor) {
-    classes.push(this.convertColorToTailwind('bg', style.backgroundColor));
-  }
-  if (style.color) {
-    classes.push(this.convertColorToTailwind('text', style.color));
-  }
-  
-  // Border & Radius
-  if (style.borderRadius) {
-    classes.push(this.convertBorderRadiusToTailwind(style.borderRadius));
-  }
-  if (style.border || style.borderWidth) {
-    classes.push('border');
-    if (style.borderColor) {
-      classes.push(this.convertColorToTailwind('border', style.borderColor));
+  // Helper function to get style classes for a specific breakpoint
+  const getStyleClasses = (styleObj, prefix = '') => {
+    const breakpointClasses = [];
+    
+    // Layout & Display
+    if (styleObj.display) {
+      const displayMap = {
+        'flex': 'flex',
+        'inline-flex': 'inline-flex',
+        'grid': 'grid',
+        'inline-grid': 'inline-grid',
+        'block': 'block',
+        'inline-block': 'inline-block',
+        'inline': 'inline',
+        'none': 'hidden'
+      };
+      breakpointClasses.push(displayMap[styleObj.display] || 'block');
     }
-  }
-  // Typography
-  if (style.fontSize) classes.push(this.convertFontSizeToTailwind(style.fontSize));
-  if (style.fontWeight) classes.push(this.convertFontWeightToTailwind(style.fontWeight));
-  if (style.textAlign) classes.push(`text-${style.textAlign}`);
+    
+    // Flexbox properties
+    if (styleObj.flexDirection === 'column') breakpointClasses.push('flex-col');
+    if (styleObj.flexDirection === 'row-reverse') breakpointClasses.push('flex-row-reverse');
+    if (styleObj.flexDirection === 'column-reverse') breakpointClasses.push('flex-col-reverse');
+    
+    if (styleObj.justifyContent) {
+      const justifyMap = {
+        'flex-start': 'justify-start',
+        'center': 'justify-center',
+        'flex-end': 'justify-end',
+        'space-between': 'justify-between',
+        'space-around': 'justify-around',
+        'space-evenly': 'justify-evenly'
+      };
+      breakpointClasses.push(justifyMap[styleObj.justifyContent]);
+    }
+    
+    if (styleObj.alignItems) {
+      const alignMap = {
+        'flex-start': 'items-start',
+        'center': 'items-center',
+        'flex-end': 'items-end',
+        'stretch': 'items-stretch',
+        'baseline': 'items-baseline'
+      };
+      breakpointClasses.push(alignMap[styleObj.alignItems]);
+    }
+    
+    // Spacing (convert px to Tailwind)
+    if (styleObj.gap) breakpointClasses.push(this.convertSpacingToTailwind('gap', styleObj.gap));
+    if (styleObj.padding) breakpointClasses.push(this.convertSpacingToTailwind('p', styleObj.padding));
+    if (styleObj.margin) breakpointClasses.push(this.convertSpacingToTailwind('m', styleObj.margin));
+    
+    // Sizing
+    if (styleObj.width === '100%') breakpointClasses.push('w-full');
+    else if (styleObj.width === 'auto') breakpointClasses.push('w-auto');
+    else if (styleObj.width) breakpointClasses.push(`w-[${styleObj.width}]`);
+    
+    if (styleObj.height === '100%') breakpointClasses.push('h-full');
+    else if (styleObj.height === 'auto') breakpointClasses.push('h-auto');
+    else if (styleObj.height) breakpointClasses.push(`h-[${styleObj.height}]`);
+    
+    // Colors
+    if (styleObj.backgroundColor) {
+      breakpointClasses.push(this.convertColorToTailwind('bg', styleObj.backgroundColor));
+    }
+    if (styleObj.color) {
+      breakpointClasses.push(this.convertColorToTailwind('text', styleObj.color));
+    }
+    
+    // Border & Radius
+    if (styleObj.borderRadius) {
+      breakpointClasses.push(this.convertBorderRadiusToTailwind(styleObj.borderRadius));
+    }
+    if (styleObj.border || styleObj.borderWidth) {
+      breakpointClasses.push('border');
+      if (styleObj.borderColor) {
+        breakpointClasses.push(this.convertColorToTailwind('border', styleObj.borderColor));
+      }
+    }
+    
+    // Typography
+    if (styleObj.fontSize) breakpointClasses.push(this.convertFontSizeToTailwind(styleObj.fontSize));
+    if (styleObj.fontWeight) breakpointClasses.push(this.convertFontWeightToTailwind(styleObj.fontWeight));
+    if (styleObj.textAlign) breakpointClasses.push(`text-${styleObj.textAlign}`);
+    
+    // Shadow
+    if (styleObj.boxShadow) breakpointClasses.push(this.convertShadowToTailwind(styleObj.boxShadow));
+    
+    // Add prefix to all classes if provided (for responsive breakpoints)
+    return breakpointClasses.filter(Boolean).map(cls => prefix ? `${prefix}:${cls}` : cls);
+  };
   
-  // Shadow
-  if (style.boxShadow) classes.push(this.convertShadowToTailwind(style.boxShadow));
+  // Add base styles (default/desktop for mobile-first, or base styles)
+  classes.push(...getStyleClasses(style, ''));
+  
+  // Add mobile-specific styles (sm: breakpoint - 640px+)
+  if (Object.keys(styleMobile).length > 0) {
+    classes.push(...getStyleClasses(styleMobile, 'sm'));
+  }
+  
+  // Add tablet-specific styles (md: breakpoint - 768px+)
+  if (Object.keys(styleTablet).length > 0) {
+    classes.push(...getStyleClasses(styleTablet, 'md'));
+  }
+  
+  // Add desktop-specific styles (lg: breakpoint - 1024px+)
+  if (Object.keys(styleDesktop).length > 0) {
+    classes.push(...getStyleClasses(styleDesktop, 'lg'));
+  }
   
   return classes.filter(Boolean).join(' ');
 }
