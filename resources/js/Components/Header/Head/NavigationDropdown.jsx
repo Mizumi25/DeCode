@@ -62,6 +62,7 @@ const NavigationDropdown = ({ activeNav, setActiveNav, onModeSwitch }) => {
     <div className="relative">
       <div
         className="flex items-center gap-0.5 cursor-pointer px-2 py-1 rounded hover:bg-[var(--color-bg-muted)] transition-colors"
+        data-tutorial="mode-dropdown"
         onClick={() => setDropdownOpen(!dropdownOpen)}
       >
         <span className="text-[var(--color-text)] font-medium text-sm">{activeNav}</span>

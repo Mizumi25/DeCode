@@ -37,7 +37,7 @@ const PageLoadingProgress = ({ isLoading, progress = 0, message = 'Loading...' }
   const offset = circumference - (displayProgress / 100) * circumference;
 
   return (
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-[var(--color-bg)]/95 backdrop-blur-sm pointer-events-auto transition-opacity duration-300">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-[var(--color-bg)] pointer-events-auto transition-opacity duration-300">
       <div className="relative flex flex-col items-center gap-6 animate-fadeIn">
         {/* Logo with circular progress */}
         <div className="relative" style={{ width: size, height: size }}>

@@ -157,6 +157,7 @@ const LeftSection = ({
       {(onForgePage || onSourcePage) && (
         <button
           onClick={handleBackToVoid}
+          data-tutorial="back-button"
           className="p-1 rounded-lg hover:bg-[var(--color-bg-muted)] transition-colors relative z-50"
           title="Back to Void"
           style={{ pointerEvents: 'auto' }}
@@ -182,6 +183,7 @@ const LeftSection = ({
       {/* Logo and Name - Smaller */}
       <button 
         onClick={handleLogoClick}
+        data-tutorial="home-logo"
         className="flex items-center gap-1 hover:opacity-80 transition-opacity"
         title="Go to Projects"
       >

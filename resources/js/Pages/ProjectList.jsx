@@ -1,6 +1,8 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Plus, ChevronDown, X, Share2, Download, Edit3, Trash2, Copy, GripVertical, MoreHorizontal, Move, RefreshCw, Check, ExternalLink } from 'lucide-react';
+import PageNavigationTutorial from '@/Components/Tutorial/PageNavigationTutorial';
+import useTutorialStore from '@/stores/useTutorialStore';
 import { Responsive, WidthProvider } from 'react-grid-layout';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
@@ -91,6 +93,14 @@ export default function ProjectList({
     setWorkspaces,
     getUserWorkspaces
   } = useWorkspaceStore();
+
+  // Tutorial Integration
+  const { setCurrentPage } = useTutorialStore();
+
+  // Set current page for tutorial
+  useEffect(() => {
+    setCurrentPage('projects');
+  }, [setCurrentPage]);
   
   // Initialize workspaces and current workspace on mount
   useEffect(() => {
@@ -1378,6 +1388,7 @@ export default function ProjectList({
             
               <button 
                 onClick={handleNewProject}
+                data-tutorial="new-project"
                 className="bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg text-sm shadow-md flex items-center gap-2 hover:bg-[var(--color-primary-hover)] transition"
               >
                 <Plus size={16} />
@@ -2027,6 +2038,9 @@ export default function ProjectList({
         variant={confirmDialog.variant}
         isLoading={confirmDialog.isLoading}
       />
+
+      {/* Page Navigation Tutorial */}
+      <PageNavigationTutorial />
     </AuthenticatedLayout>
   );
 }

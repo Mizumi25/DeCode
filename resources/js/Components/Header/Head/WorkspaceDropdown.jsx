@@ -253,6 +253,7 @@ const WorkspaceDropdown = ({
     <>
       <div
         className="flex items-center gap-2 cursor-pointer relative bg-[var(--color-bg)] hover:bg-[var(--color-bg-hover)] rounded-lg px-3 py-2 transition-colors"
+        data-tutorial="workspace-dropdown"
         onClick={() => setDropdownOpen(!dropdownOpen)}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -437,6 +438,7 @@ const WorkspaceDropdown = ({
                 <div className="border-t border-[var(--color-border)] pt-3 mt-3">
                   <button
                     onClick={handleCreateWorkspace}
+                    data-tutorial="create-workspace"
                     className="w-full flex items-center gap-2 p-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-bg-muted)] rounded-lg transition-colors"
                   >
                     <Plus className="w-4 h-4 text-[var(--color-text-muted)]" />

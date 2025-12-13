@@ -151,6 +151,7 @@ export default function FloatingToolbox({ tools }) {
               {/* Floating Circle with enhanced active state support (unchanged) */}
               <button
                 onClick={(e) => handleToolClick(tool, e)}
+                data-tutorial={tool.isPrimary ? "add-frame" : undefined}
                 className={`
                   relative w-8 h-8 rounded-full flex items-center justify-center
                   transition-all duration-300 ease-out

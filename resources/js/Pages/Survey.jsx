@@ -236,6 +236,8 @@ export default function Survey({ auth }) {
         }
       }, {
         onSuccess: () => {
+          // Start page navigation tutorial on forge page
+          localStorage.setItem('startPageTutorial', 'true');
           // Will redirect to forge page after auto-creating project/frame
         },
         onError: (errors) => {

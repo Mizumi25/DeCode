@@ -38,6 +38,8 @@ import { useCanvasSnapshot } from '@/hooks/useCanvasSnapshot'
 import { useVoidSnapshot } from '@/hooks/useVoidSnapshot'
 import PageLoadingProgress from '@/Components/PageLoadingProgress'
 import { usePageLoadingProgress } from '@/hooks/usePageLoadingProgress'
+import PageNavigationTutorial from '@/Components/Tutorial/PageNavigationTutorial'
+import useTutorialStore from '@/stores/useTutorialStore'
 
 // ADD these imports at the top:
 import {
@@ -97,6 +99,14 @@ export default function VoidPage() {
     minDuration: 700,
     maxDuration: 2500
   })
+
+  // Tutorial Integration
+  const { setCurrentPage } = useTutorialStore()
+
+  // Set current page for tutorial
+  useEffect(() => {
+    setCurrentPage('void')
+  }, [setCurrentPage])
   
   // Discipline-based access control
   const [myDiscipline, setMyDiscipline] = useState(null)
@@ -1906,6 +1916,9 @@ useEffect(() => {
         progress={loadingProgress} 
         message={loadingMessage} 
       />
+
+      {/* Page Navigation Tutorial */}
+      <PageNavigationTutorial />
       
      <DndContext
         sensors={sensors}

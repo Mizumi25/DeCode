@@ -50,6 +50,8 @@ import { tooltipDatabase } from '@/Components/Forge/TooltipDatabase';
 import { formatCode, highlightCode, parseCodeAndUpdateComponents } from '@/Components/Forge/CodeUtils';
 import PageLoadingProgress from '@/Components/PageLoadingProgress';
 import { usePageLoadingProgress } from '@/hooks/usePageLoadingProgress';
+import PageNavigationTutorial from '@/Components/Tutorial/PageNavigationTutorial';
+import useTutorialStore from '@/stores/useTutorialStore';
 
 
 
@@ -332,6 +334,21 @@ export default function ForgePage({
     minDuration: 800,
     maxDuration: 3000
   })
+
+  // Tutorial Integration
+  const { startPageTutorial, setCurrentPage } = useTutorialStore();
+
+  // Check if we should start the page tutorial
+  useEffect(() => {
+    const shouldStartTutorial = localStorage.getItem('startPageTutorial');
+    if (shouldStartTutorial === 'true' && !isPageLoading) {
+      localStorage.removeItem('startPageTutorial');
+      setTimeout(() => {
+        setCurrentPage('forge');
+        startPageTutorial();
+      }, 500); // Wait a bit after loading completes
+    }
+  }, [isPageLoading, startPageTutorial, setCurrentPage]);
   
   const componentsLoaded = !isPageLoading
 
@@ -3502,6 +3519,9 @@ const handleCanvasClick = useCallback((e) => {
         progress={loadingProgress} 
         message={loadingMessage} 
       />
+
+      {/* Page Navigation Tutorial */}
+      <PageNavigationTutorial />
       
       {/* Enhanced Tooltip with mobile detection */}
       {CodeTooltip && <CodeTooltip hoveredToken={hoveredToken} showTooltips={showTooltips && !isMobile} />}

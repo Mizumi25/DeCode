@@ -15,6 +15,8 @@ import useFrameLockStore from '@/stores/useFrameLockStore';
 import LockAccessRequestDialog from '@/Components/Forge/LockAccessRequestDialog';
 import PageLoadingProgress from '@/Components/PageLoadingProgress';
 import { usePageLoadingProgress } from '@/hooks/usePageLoadingProgress';
+import PageNavigationTutorial from '@/Components/Tutorial/PageNavigationTutorial';
+import useTutorialStore from '@/stores/useTutorialStore';
 import PublishOverlay from '@/Components/PublishOverlay';
 
 export default function SourcePage({ projectId, frameId, frame }) {
@@ -38,6 +40,14 @@ export default function SourcePage({ projectId, frameId, frame }) {
     minDuration: 600,
     maxDuration: 2500
   })
+
+  // Tutorial Integration
+  const { setCurrentPage } = useTutorialStore()
+
+  // Set current page for tutorial
+  useEffect(() => {
+    setCurrentPage('source')
+  }, [setCurrentPage])
   
   // Use Source Store for panel management
   const {
@@ -275,6 +285,9 @@ export default function SourcePage({ projectId, frameId, frame }) {
         progress={loadingProgress} 
         message={loadingMessage} 
       />
+
+      {/* Page Navigation Tutorial */}
+      <PageNavigationTutorial />
       
       {/* Main Layout Container */}
       <div 

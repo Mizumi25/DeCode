@@ -1021,6 +1021,7 @@ useEffect(() => {
     {...listeners}
     {...attributes}
     data-frame-uuid={frame?.uuid}
+    data-tutorial={frame && frame.created_at && new Date(frame.created_at) > new Date(Date.now() - 60000) ? "new-frame" : undefined}
     className={`preview-frame absolute rounded-xl p-3 transition-all duration-300 ease-out flex flex-col group ${
       isDragging ? 'shadow-2xl scale-105 z-50' : 'shadow-lg hover:shadow-xl hover:-translate-y-1'
     } ${lockStatus?.is_locked && !lockStatus.locked_by_me ? 'cursor-not-allowed' : linkMode ? 'cursor-pointer' : 'cursor-grab'}
