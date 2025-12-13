@@ -2511,6 +2511,72 @@ rebuildComponentTree(flatComponents) {
     }
   }
 
+  // 🔥 GRADIENT FIX: Add the missing generateComponentCode method
+  generateComponentCode(componentDef, props, allComponents, style) {
+    // This method bridges individual component code generation
+    // It's used by the createComponentRenderer method
+    try {
+      const component = {
+        type: componentDef.type,
+        props: props || {},
+        style: props.style || {},
+        children: props.children || []
+      };
+
+      // For Tailwind styles, use dynamic class generation with gradient support
+      if (style === 'react-tailwind' || style === 'html-tailwind') {
+        const classes = this.buildDynamicTailwindClasses(component);
+        const tag = this.getHTMLTag(component.type);
+        const content = this.extractComponentContent(component);
+        
+        if (style === 'react-tailwind') {
+          return `<${tag}${classes ? ` className="${classes}"` : ''}>${content || ''}</${tag}>`;
+        } else {
+          return `<${tag}${classes ? ` class="${classes}"` : ''}>${content || ''}</${tag}>`;
+        }
+      } 
+      
+      // For CSS styles, generate inline styles with proper gradient handling
+      else if (style === 'react-css' || style === 'html-css') {
+        const inlineStyles = this.buildInlineStyles(component.style);
+        const tag = this.getHTMLTag(component.type);
+        const content = this.extractComponentContent(component);
+        
+        if (style === 'react-css') {
+          return `<${tag}${inlineStyles ? ` style={${JSON.stringify(inlineStyles)}}` : ''}>${content || ''}</${tag}>`;
+        } else {
+          const cssStyle = Object.entries(inlineStyles || {})
+            .map(([key, value]) => `${key.replace(/([A-Z])/g, '-$1').toLowerCase()}: ${value}`)
+            .join('; ');
+          return `<${tag}${cssStyle ? ` style="${cssStyle}"` : ''}>${content || ''}</${tag}>`;
+        }
+      }
+      
+      return `<!-- ${componentDef.name || componentDef.type} -->`;
+    } catch (error) {
+      console.error('Error generating component code:', error);
+      return `<!-- Error generating ${componentDef.type} -->`;
+    }
+  }
+
+  // 🔥 GRADIENT FIX: Helper method to build inline styles (for CSS modes)
+  buildInlineStyles(style) {
+    if (!style || typeof style !== 'object') return {};
+    
+    // Convert style object, handling gradients properly
+    const inlineStyles = { ...style };
+    
+    // Ensure gradients are properly formatted for inline styles
+    if (style.backgroundImage) {
+      inlineStyles.backgroundImage = style.backgroundImage;
+    } else if (style.background && style.background.includes('gradient')) {
+      inlineStyles.backgroundImage = style.background;
+      delete inlineStyles.background;
+    }
+    
+    return inlineStyles;
+  }
+
   // 🔥 ADD: Generate React with Tailwind
   generateReactTailwindCode(allComponents, frameName = 'GeneratedComponent') {
     if (!allComponents || allComponents.length === 0) {
