@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import gsap from 'gsap'
 import { Draggable } from 'gsap/Draggable'
 import { Maximize2, Minimize2, X } from 'lucide-react'
+import useTutorialStore from '@/stores/useTutorialStore'
 
 // Register GSAP plugins
 if (typeof window !== 'undefined') {
@@ -53,8 +54,19 @@ export default function Modal({
   // Draggable instance ref
   const draggableInstance = useRef(null)
   const resizeInstance = useRef(null)
+  
+  const { isPageTutorialActive } = useTutorialStore()
+
+  // CRITICAL: Get super high z-index during tutorial so workspace modal is above everything
+  const modalZIndex = isPageTutorialActive ? 999999 : 50
 
   const close = () => {
+    // CRITICAL: Don't close modal during tutorial - user needs to complete tutorial steps
+    if (isPageTutorialActive) {
+      console.log('🚫 MODAL: Preventing modal close during tutorial');
+      return; // Don't close!
+    }
+    
     if (closeable && !isAnimating) {
       setIsAnimating(true)
       
@@ -403,7 +415,8 @@ export default function Modal({
     <Transition show={show} leave="duration-300">
       <Dialog
         as="div"
-        className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden"
+        className="fixed inset-0 flex items-center justify-center overflow-hidden"
+        style={{ zIndex: modalZIndex }}
         onClose={close}
       >
         <TransitionChild

@@ -182,6 +182,7 @@ Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasS
     Route::post('/projects/{project:uuid}/move', [ProjectController::class, 'moveToWorkspace']);
     Route::post('/projects/{project:uuid}/thumbnail', [ProjectController::class, 'updateThumbnail']);
     Route::put('/projects/{project:uuid}/style-settings', [ProjectController::class, 'updateStyleSettings']);
+    Route::patch('/projects/{project:uuid}/visibility', [ProjectController::class, 'updateVisibility']);
     
     // Project thumbnail generation - Playwright PRIMARY, Canvas FALLBACK
     Route::post('/projects/{project:uuid}/thumbnail/playwright', [ProjectController::class, 'generateThumbnailPlaywright']);

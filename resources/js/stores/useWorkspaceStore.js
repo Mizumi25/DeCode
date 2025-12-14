@@ -115,6 +115,12 @@ const useWorkspaceStore = create(
             // Store as current workspace
             localStorage.setItem('currentWorkspaceId', newWorkspace.id.toString())
             
+            // Navigate to projects page with the new workspace to load its projects
+            // Use setTimeout to ensure state updates are processed first
+            setTimeout(() => {
+              window.location.href = `/projects?workspace=${newWorkspace.uuid}`
+            }, 100)
+            
             return newWorkspace
           } else {
             throw new Error(response.data.message || 'Failed to create workspace')

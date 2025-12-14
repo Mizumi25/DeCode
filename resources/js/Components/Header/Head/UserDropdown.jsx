@@ -46,6 +46,29 @@ const UserDropdown = ({
   }, [])
   const { currentWorkspace } = useWorkspaceStore()
   
+  // Generate gradient based on user ID/name for consistent colors
+  const getAvatarGradient = () => {
+    const gradients = [
+      'from-yellow-400 to-purple-600',      // Yellow to Purple
+      'from-pink-400 to-blue-600',          // Pink to Blue
+      'from-green-400 to-cyan-600',         // Green to Cyan
+      'from-orange-400 to-red-600',         // Orange to Red
+      'from-indigo-400 to-pink-600',        // Indigo to Pink
+      'from-teal-400 to-blue-600',          // Teal to Blue
+      'from-purple-400 to-blue-600',        // Purple to Blue
+      'from-rose-400 to-orange-600',        // Rose to Orange
+      'from-cyan-400 to-purple-600',        // Cyan to Purple
+      'from-amber-400 to-rose-600',         // Amber to Rose
+    ]
+    
+    // Generate a consistent index based on user ID or name
+    const seed = user?.id || user?.name || 'default'
+    const hash = String(seed).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    const index = hash % gradients.length
+    
+    return gradients[index]
+  }
+  
   // Fetch unread notifications count
   React.useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -165,7 +188,7 @@ const UserDropdown = ({
           onClick={() => setDropdownOpen(!dropdownOpen)}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 text-white flex items-center justify-center font-semibold text-sm cursor-pointer overflow-hidden shadow-md ring-2 ring-white/20 transition-all duration-200"
+          className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarGradient()} text-white flex items-center justify-center font-semibold text-sm cursor-pointer overflow-hidden shadow-md ring-2 ring-white/20 transition-all duration-200`}
         >
           {avatar ? (
             <img 
@@ -196,7 +219,7 @@ const UserDropdown = ({
               <div className="p-4 bg-gradient-to-br from-[var(--color-primary)]/10 to-[var(--color-accent)]/10 border-b border-[var(--color-border)]">
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 text-white flex items-center justify-center font-semibold text-lg overflow-hidden shadow-lg">
+                    <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${getAvatarGradient()} text-white flex items-center justify-center font-semibold text-lg overflow-hidden shadow-lg`}>
                       {avatar ? (
                         <img 
                           src={avatar} 

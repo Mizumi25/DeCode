@@ -11,6 +11,30 @@ use Illuminate\Support\Facades\Auth;
 
 class SourceController extends Controller
 {
+    /**
+     * Show public source page (for is_public = true projects)
+     */
+    public function showPublic(Request $request, $projectUuid, $frameUuid): Response
+    {
+        $project = $request->public_project; // Injected by middleware
+        $isPublicView = $request->is_public_view;
+        $canEdit = $request->can_edit;
+        
+        // Find frame by UUID
+        $frame = Frame::where('uuid', $frameUuid)
+            ->where('project_id', $project->id)
+            ->firstOrFail();
+        
+        return Inertia::render('SourcePage', [
+            'project' => $project->load('workspace'),
+            'frame' => $frame,
+            'mode' => 'source',
+            'isPublicView' => $isPublicView,
+            'canEdit' => $canEdit,
+            'userRole' => 'viewer',
+        ]);
+    }
+    
     public function show(Project $project, Frame $frame): Response|RedirectResponse
     {
         $user = Auth::user();

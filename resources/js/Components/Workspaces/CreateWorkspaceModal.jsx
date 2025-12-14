@@ -1,8 +1,9 @@
 // @/Components/Workspaces/CreateWorkspaceModal.jsx
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { X, Users, Globe, Lock, Briefcase, Home } from 'lucide-react'
 import Modal from '@/Components/Modal'
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore'
+import useTutorialStore from '@/stores/useTutorialStore'
 
 const WORKSPACE_TYPES = [
   {
@@ -51,6 +52,14 @@ const CreateWorkspaceModal = ({ show, onClose }) => {
   const [errors, setErrors] = useState({})
 
   const { createWorkspace, isLoading, error } = useWorkspaceStore()
+  const { isPageTutorialActive } = useTutorialStore()
+  
+  // During tutorial: force team workspace type
+  useEffect(() => {
+    if (isPageTutorialActive && formData.type !== 'team') {
+      setFormData(prev => ({ ...prev, type: 'team' }))
+    }
+  }, [isPageTutorialActive, show])
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -141,6 +150,7 @@ const CreateWorkspaceModal = ({ show, onClose }) => {
             value={formData.name}
             onChange={(e) => handleInputChange('name', e.target.value)}
             placeholder="Acme Design Team"
+            data-tutorial="workspace-name-input"
             className={`w-full px-3 py-2 border rounded-lg bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent ${
               errors.name ? 'border-red-300 dark:border-red-600' : 'border-[var(--color-border)]'
             }`}
@@ -184,11 +194,13 @@ const CreateWorkspaceModal = ({ show, onClose }) => {
                   key={type.value}
                   type="button"
                   onClick={() => handleInputChange('type', type.value)}
+                  disabled={isPageTutorialActive && type.value !== 'team'}
+                  data-tutorial={type.value === 'team' ? 'team-workspace-option' : undefined}
                   className={`relative p-4 border rounded-lg text-left transition-colors ${
                     isSelected
                       ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
                       : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/50'
-                  }`}
+                  } ${isPageTutorialActive && type.value !== 'team' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {type.recommended && (
                     <span className="absolute -top-2 -right-2 bg-[var(--color-primary)] text-white text-xs px-2 py-1 rounded-full">
@@ -260,6 +272,7 @@ const CreateWorkspaceModal = ({ show, onClose }) => {
           <button
             type="submit"
             disabled={isLoading}
+            data-tutorial="create-workspace-button"
             className="px-6 py-2 bg-[var(--color-primary)] text-white rounded-lg font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             {isLoading ? (

@@ -100,15 +100,7 @@ export default function VerifyCode({ email, type = 'register' }) {
     <GuestLayout>
       <Head title={type === 'register' ? 'Verify Email' : 'Verify Login'} />
 
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md"
-        >
-          <div className="bg-[var(--color-surface)] rounded-2xl shadow-2xl border border-[var(--color-border)] p-8">
-            
-            {/* Header */}
+      {/* Header */}
             <div className="text-center mb-8">
               <motion.div
                 initial={{ scale: 0 }}
@@ -278,16 +270,13 @@ export default function VerifyCode({ email, type = 'register' }) {
                 </div>
               </motion.div>
             )}
-          </div>
 
-          {/* Help Text */}
-          {!success && (
-            <p className="text-center text-sm text-[var(--color-text-muted)] mt-6">
-              Need help? <a href="mailto:support@decode.com" className="text-[var(--color-primary)] hover:underline">Contact Support</a>
-            </p>
-          )}
-        </motion.div>
-      </div>
+      {/* Help Text */}
+      {!success && (
+        <p className="text-center text-sm text-[var(--color-text-muted)] mt-6">
+          Need help? <a href="mailto:support@decode.com" className="text-[var(--color-primary)] hover:underline">Contact Support</a>
+        </p>
+      )}
     </GuestLayout>
   );
 }

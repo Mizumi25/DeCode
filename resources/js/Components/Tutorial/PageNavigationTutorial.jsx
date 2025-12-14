@@ -24,7 +24,6 @@ import TutorialCompleteToast from './TutorialCompleteToast';
  * Implements Genshin Impact-style tutorial with smooth animations and guided interactions
  */
 const PageNavigationTutorial = () => {
-  const [currentStep, setCurrentStep] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [clickToNext, setClickToNext] = useState(false);
@@ -35,8 +34,14 @@ const PageNavigationTutorial = () => {
     isPageTutorialActive,
     startPageTutorial,
     completePageTutorial,
-    currentPage
+    currentPage,
+    pageNavigationStep,
+    setPageNavigationStep,
+    getPageNavigationStep
   } = useTutorialStore();
+  
+  // Use persisted step from store instead of local state
+  const currentStep = pageNavigationStep;
 
   // Tutorial steps configuration
   const tutorialSteps = [
@@ -100,49 +105,52 @@ const PageNavigationTutorial = () => {
       target: '[data-tutorial="create-workspace"]',
       gradient: 'from-pink-600 to-purple-600'
     },
-    // Step 4: Select Team Workspace
+    // Step 4: Fill Workspace Name (Progressive Step 1)
     {
-      id: 'select-team',
+      id: 'fill-workspace-name',
       page: 'projects',
-      title: 'Choose Team Workspace',
-      subtitle: 'Collaboration made easy',
+      title: 'Enter Workspace Name',
+      subtitle: 'Give your workspace a meaningful name',
       content: [
-        'Select "Team Workspace" for collaborative projects.',
-        'Team workspaces include advanced collaboration features and member management.'
+        'Type a name for your workspace in the input field.',
+        'Once you type 5 or more characters, we\'ll move to the next step.'
       ],
       icon: Code2,
-      action: 'form-guidance',
+      action: 'progressive-form',
+      target: '[data-tutorial="workspace-name-input"]',
+      validation: 'input-length:5',
       gradient: 'from-indigo-600 to-blue-600'
     },
-    // Step 5: Create Workspace Button
+    // Step 5: Select Workspace Type (Progressive Step 2)
     {
-      id: 'confirm-workspace',
+      id: 'select-workspace-type',
       page: 'projects',
-      title: 'Create Your Workspace',
-      subtitle: 'Almost there!',
+      title: 'Choose Workspace Type',
+      subtitle: 'Select "Team Workspace"',
       content: [
-        'Click "Create Workspace" to finalize your new collaborative space.',
-        'Your team will be able to join and start building together.'
+        'Now select "Team Workspace" from the dropdown.',
+        'Once selected, we\'ll automatically move to the final step.'
       ],
-      icon: ArrowRight,
-      action: 'highlight-element',
-      target: '[data-tutorial="create-workspace-button"]',
+      icon: Settings,
+      action: 'progressive-form',
+      target: '[data-tutorial="team-workspace-option"]',
+      validation: 'selection-made',
       gradient: 'from-green-600 to-emerald-600'
     },
-    // Step 6: Select New Workspace
+    // Step 6: Click Create Button (Progressive Step 3)
     {
-      id: 'select-new-workspace',
+      id: 'click-create-workspace',
       page: 'projects',
-      title: 'Enter Your New Workspace',
-      subtitle: 'Switch to your team space',
+      title: 'Create Your Workspace',
+      subtitle: 'Finalize your team space',
       content: [
-        'Now click the workspace dropdown again and select your newly created workspace.',
-        'This will switch you to your new team workspace environment.'
+        'Perfect! Now click the "Create Workspace" button.',
+        'Your workspace will be created and you can start adding projects!'
       ],
-      icon: Monitor,
-      action: 'multi-step',
-      targets: ['[data-tutorial="workspace-dropdown"]', '[data-tutorial="new-workspace"]'],
-      gradient: 'from-cyan-600 to-blue-600'
+      icon: Sparkles,
+      action: 'highlight-element',
+      target: '[data-tutorial="create-workspace-button"]',
+      gradient: 'from-blue-600 to-cyan-600'
     },
     // Step 7: New Project
     {
@@ -151,6 +159,7 @@ const PageNavigationTutorial = () => {
       title: 'Create Your First Project',
       subtitle: 'Start building something amazing',
       content: [
+        'Perfect! Your workspace has been created and you\'re now inside it.',
         'Click "New Project" to start your first project in this workspace.',
         'Projects contain all your frames, components, and generated code.'
       ],
@@ -281,12 +290,126 @@ const PageNavigationTutorial = () => {
     }
   ];
 
+  const currentStepData = tutorialSteps[currentStep];
+
   useEffect(() => {
-    if (isPageTutorialActive && currentPage === 'forge' && currentStep === 0) {
-      setIsVisible(true);
-      document.body.style.overflow = 'hidden';
+    if (isPageTutorialActive) {
+      console.log('🎯 TUTORIAL: Page effect', { currentPage, currentStep, stepPage: currentStepData?.page });
+      
+      // Auto-advance when navigating to projects page from forge
+      if (currentPage === 'projects' && currentStep <= 1) {
+        console.log('🎯 TUTORIAL: Advancing to workspace step');
+        setPageNavigationStep(2); // Jump to workspace-dropdown step
+        setIsVisible(true);
+        document.body.style.overflow = 'hidden';
+        return;
+      }
+      
+      // Check if we're on "Click Create Workspace" step but dropdown is closed
+      if (currentPage === 'projects' && currentStep === 3) {
+        const createButton = document.querySelector('[data-tutorial="create-workspace"]');
+        
+        if (!createButton) {
+          console.log('🔄 TUTORIAL: Create Workspace button not visible. Auto-opening dropdown...');
+          
+          setTimeout(() => {
+            const dropdownButton = document.querySelector('[data-tutorial="workspace-dropdown"]');
+            if (dropdownButton) {
+              dropdownButton.click();
+              console.log('✅ TUTORIAL: Auto-opened workspace dropdown');
+            }
+          }, 500);
+          
+          return;
+        }
+      }
+      
+      // Check if we're on a workspace form step but modal is closed (after refresh)
+      if (currentPage === 'projects' && (currentStep === 4 || currentStep === 5 || currentStep === 6)) {
+        const isModalOpen = document.querySelector('[role="dialog"], .workspace-modal, [data-tutorial="workspace-name-input"]');
+        
+        if (!isModalOpen) {
+          console.log('🔄 TUTORIAL: Workspace form step detected but modal closed. Auto-opening modal...');
+          
+          // Try multiple times with increasing delays to handle race conditions
+          let attempts = 0;
+          const maxAttempts = 5;
+          
+          const tryOpenModal = () => {
+            attempts++;
+            console.log(`🔄 TUTORIAL: Attempt ${attempts}/${maxAttempts} to open modal`);
+            
+            // First check if modal is now open
+            const modalCheck = document.querySelector('[role="dialog"], .workspace-modal, [data-tutorial="workspace-name-input"]');
+            if (modalCheck) {
+              console.log('✅ TUTORIAL: Modal is now open, showing tutorial');
+              setIsVisible(true);
+              document.body.style.overflow = 'hidden';
+              return;
+            }
+            
+            // Try to open it
+            const dropdownButton = document.querySelector('[data-tutorial="workspace-dropdown"]');
+            if (dropdownButton) {
+              dropdownButton.click();
+              console.log('🔄 TUTORIAL: Clicked workspace dropdown');
+              
+              // Then click Create Workspace button
+              setTimeout(() => {
+                const createButton = document.querySelector('[data-tutorial="create-workspace"]');
+                if (createButton) {
+                  createButton.click();
+                  console.log('✅ TUTORIAL: Clicked Create Workspace button');
+                  
+                  // Verify modal opened
+                  setTimeout(() => {
+                    const finalCheck = document.querySelector('[role="dialog"], .workspace-modal, [data-tutorial="workspace-name-input"]');
+                    if (finalCheck) {
+                      console.log('✅ TUTORIAL: Modal successfully opened');
+                      setIsVisible(true);
+                      document.body.style.overflow = 'hidden';
+                    } else if (attempts < maxAttempts) {
+                      console.log('⚠️ TUTORIAL: Modal not opened, retrying...');
+                      setTimeout(tryOpenModal, 1000);
+                    } else {
+                      console.error('❌ TUTORIAL: Failed to open modal after max attempts');
+                      // Fallback: Skip to next step if modal won't open
+                      console.log('🔄 TUTORIAL: Skipping to next step (new-project)');
+                      setPageNavigationStep(7); // Skip to "new-project" step
+                    }
+                  }, 500);
+                }
+              }, 400);
+            } else if (attempts < maxAttempts) {
+              console.log('⚠️ TUTORIAL: Dropdown not found, retrying...');
+              setTimeout(tryOpenModal, 1000);
+            }
+          };
+          
+          // Start the process
+          setTimeout(tryOpenModal, 500);
+          return;
+        } else {
+          // Modal is already open, just show the tutorial
+          console.log('✅ TUTORIAL: Modal already open, showing tutorial');
+          setIsVisible(true);
+          document.body.style.overflow = 'hidden';
+        }
+      }
+      
+      // Show tutorial if current step matches current page or if we're on step 0
+      const shouldShow = currentStep === 0 || 
+                        (currentStepData && currentStepData.page === currentPage);
+      
+      if (shouldShow) {
+        setIsVisible(true);
+        document.body.style.overflow = 'hidden';
+      } else {
+        setIsVisible(false);
+        document.body.style.overflow = '';
+      }
     }
-  }, [isPageTutorialActive, currentPage]);
+  }, [isPageTutorialActive, currentPage, currentStep, currentStepData]);
 
   useEffect(() => {
     return () => {
@@ -294,17 +417,18 @@ const PageNavigationTutorial = () => {
     };
   }, []);
 
-  const currentStepData = tutorialSteps[currentStep];
-
   const handleNext = () => {
+    // Clean up current highlights before advancing
+    cleanupHighlights();
+    
     if (currentStep < tutorialSteps.length - 1) {
-      setCurrentStep(currentStep + 1);
+      setPageNavigationStep(currentStep + 1);
       setClickToNext(false);
       
       // Handle page transitions
       const nextStep = tutorialSteps[currentStep + 1];
       if (nextStep.action === 'highlight-element' && nextStep.target) {
-        setTimeout(() => setHighlightTarget(nextStep.target), 100);
+        setTimeout(() => setHighlightTarget(nextStep.target), 300); // Longer delay for cleanup
       }
     } else {
       // Tutorial complete
@@ -317,7 +441,7 @@ const PageNavigationTutorial = () => {
     document.body.style.overflow = '';
     completePageTutorial();
     setShowToast(true);
-    setCurrentStep(0);
+    setPageNavigationStep(0);
   };
 
   const handleOverlayClick = () => {
@@ -326,7 +450,7 @@ const PageNavigationTutorial = () => {
     }
   };
 
-  const handleElementHighlight = (target) => {
+  const handleElementHighlight = (target, validation = null) => {
     const element = document.querySelector(target);
     if (element) {
       // Scroll element into view
@@ -335,41 +459,164 @@ const PageNavigationTutorial = () => {
         block: 'center' 
       });
 
-      // Add highlighting
+      // Get element position and size
+      const rect = element.getBoundingClientRect();
+      const padding = 20; // Extra space around element
+      
+      // CRITICAL: Elevate the element AND its modal parent
       element.style.position = 'relative';
-      element.style.zIndex = '100001';
+      element.style.zIndex = '100003'; // Above everything
       element.style.pointerEvents = 'auto';
       
-      // Create spotlight effect
-      const spotlight = document.createElement('div');
-      spotlight.className = 'tutorial-spotlight';
-      spotlight.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: radial-gradient(circle at var(--x) var(--y), transparent 80px, rgba(0,0,0,0.7) 120px);
-        pointer-events: none;
-        z-index: 100000;
-        transition: all 0.3s ease;
-      `;
+      // Elevate modal/dropdown parent if exists
+      const modal = element.closest('.modal, [role="dialog"], .workspace-modal, [data-headlessui-state]');
+      if (modal) {
+        modal.style.zIndex = '100003';
+        modal.style.pointerEvents = 'auto';
+        console.log('🔥 TUTORIAL: Elevated modal to z-index 100003');
+      }
       
-      const rect = element.getBoundingClientRect();
-      const x = rect.left + rect.width / 2;
-      const y = rect.top + rect.height / 2;
+      // Handle progressive form validation
+      if (validation) {
+        if (validation.startsWith('input-length:')) {
+          const minLength = parseInt(validation.split(':')[1]);
+          console.log(`📝 TUTORIAL: Watching input for ${minLength} characters`);
+          
+          // Add input listener
+          const inputHandler = (e) => {
+            if (e.target.value.length >= minLength) {
+              console.log(`✅ TUTORIAL: Input reached ${minLength} characters, advancing!`);
+              element.removeEventListener('input', inputHandler);
+              element.removeAttribute('data-tutorial-input-handler');
+              setTimeout(() => handleNext(), 800); // Small delay so user sees completion
+            }
+          };
+          
+          element.addEventListener('input', inputHandler);
+          element.setAttribute('data-tutorial-input-handler', 'true');
+          
+        } else if (validation === 'selection-made') {
+          console.log('📝 TUTORIAL: Watching for selection');
+          
+          // Add click listener for selection
+          const clickHandler = () => {
+            console.log('✅ TUTORIAL: Selection made, advancing!');
+            element.removeEventListener('click', clickHandler);
+            element.removeAttribute('data-tutorial-click-handler');
+            setTimeout(() => handleNext(), 500);
+          };
+          
+          element.addEventListener('click', clickHandler);
+          element.setAttribute('data-tutorial-click-handler', 'true');
+        }
+      } else {
+        // Add click listener to auto-advance tutorial (only for CLICKABLE elements, not inputs)
+        const isInput = element.matches('input, textarea, select');
+        
+        if (!isInput) {
+          const clickHandler = () => {
+            console.log('🎯 TUTORIAL: Highlighted element clicked, advancing step');
+            setTimeout(() => handleNext(), 500);
+          };
+          element.addEventListener('click', clickHandler);
+          element.setAttribute('data-tutorial-click-handler', 'true');
+        }
+      }
       
-      spotlight.style.setProperty('--x', x + 'px');
-      spotlight.style.setProperty('--y', y + 'px');
+      // Create SVG overlay with cutout (allows clicks through the hole)
+      let cutoutOverlay = document.querySelector('.tutorial-cutout-overlay');
+      if (!cutoutOverlay) {
+        cutoutOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        cutoutOverlay.setAttribute('class', 'tutorial-cutout-overlay');
+        cutoutOverlay.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          z-index: 100001;
+          pointer-events: none;
+        `;
+        document.body.appendChild(cutoutOverlay);
+      }
       
-      document.body.appendChild(spotlight);
+      // Function to update overlay position
+      const updateOverlayPosition = () => {
+        const updatedRect = element.getBoundingClientRect();
+        cutoutOverlay.innerHTML = `
+          <defs>
+            <mask id="tutorial-mask">
+              <rect x="0" y="0" width="100%" height="100%" fill="white"/>
+              <rect 
+                x="${updatedRect.left - padding}" 
+                y="${updatedRect.top - padding}" 
+                width="${updatedRect.width + padding * 2}" 
+                height="${updatedRect.height + padding * 2}" 
+                rx="12" 
+                fill="black"
+              />
+            </mask>
+          </defs>
+          <rect 
+            x="0" 
+            y="0" 
+            width="100%" 
+            height="100%" 
+            fill="rgba(0, 0, 0, 0.8)" 
+            mask="url(#tutorial-mask)"
+          />
+          <rect 
+            x="${updatedRect.left - padding}" 
+            y="${updatedRect.top - padding}" 
+            width="${updatedRect.width + padding * 2}" 
+            height="${updatedRect.height + padding * 2}" 
+            rx="12" 
+            fill="none" 
+            stroke="#3b82f6" 
+            stroke-width="3"
+            class="tutorial-highlight-ring"
+          />
+        `;
+      };
       
-      // Animate element
+      // Initial position
+      updateOverlayPosition();
+      
+      // Debounced update function to prevent blinking
+      let resizeTimeout;
+      const debouncedUpdate = () => {
+        if (resizeTimeout) clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(updateOverlayPosition, 150);
+      };
+      
+      // Store update function for later cleanup
+      element.setAttribute('data-tutorial-update', 'true');
+      element._tutorialUpdateOverlay = debouncedUpdate;
+      
+      // Update position when window resizes (debounced)
+      window.addEventListener('resize', debouncedUpdate);
+      
+      // Animate the highlight ring
+      const ring = cutoutOverlay.querySelector('.tutorial-highlight-ring');
+      if (ring) {
+        gsap.fromTo(ring, 
+          { opacity: 0.5, strokeWidth: 3 },
+          { 
+            opacity: 1,
+            strokeWidth: 4,
+            duration: 0.8,
+            ease: 'power2.inOut',
+            yoyo: true,
+            repeat: -1
+          }
+        );
+      }
+      
+      // Animate element with subtle glow
       gsap.fromTo(element, 
-        { scale: 1, boxShadow: 'none' },
+        { scale: 1 },
         { 
-          scale: 1.05, 
-          boxShadow: '0 0 30px rgba(var(--color-primary-rgb), 0.6)',
+          scale: 1.02, 
           duration: 0.5,
           ease: 'power2.out',
           yoyo: true,
@@ -382,12 +629,34 @@ const PageNavigationTutorial = () => {
   const cleanupHighlights = () => {
     // Remove all tutorial elements
     document.querySelectorAll('.tutorial-spotlight').forEach(el => el.remove());
+    document.querySelectorAll('.tutorial-highlight-box').forEach(el => el.remove());
+    document.querySelectorAll('.tutorial-cutout-overlay').forEach(el => el.remove());
+    document.querySelectorAll('.tutorial-click-blocker').forEach(el => el.remove());
     
-    // Reset highlighted elements
-    document.querySelectorAll('[style*="z-index: 100001"]').forEach(el => {
+    // Reset highlighted elements (check for all z-index values used)
+    document.querySelectorAll('[style*="z-index: 100003"], [style*="z-index: 100002"], [style*="z-index: 100001"], [style*="z-index: 999999"], [style*="z-index: 99999"]').forEach(el => {
       el.style.position = '';
       el.style.zIndex = '';
       el.style.pointerEvents = '';
+      
+      // Remove click handlers
+      if (el.hasAttribute('data-tutorial-click-handler')) {
+        el.removeEventListener('click', handleNext);
+        el.removeAttribute('data-tutorial-click-handler');
+      }
+      
+      // Remove input handlers
+      if (el.hasAttribute('data-tutorial-input-handler')) {
+        el.removeEventListener('input', () => {});
+        el.removeAttribute('data-tutorial-input-handler');
+      }
+      
+      // Remove overlay update listeners
+      if (el.hasAttribute('data-tutorial-update') && el._tutorialUpdateOverlay) {
+        window.removeEventListener('resize', el._tutorialUpdateOverlay);
+        el.removeAttribute('data-tutorial-update');
+        delete el._tutorialUpdateOverlay;
+      }
     });
     
     // Stop GSAP animations
@@ -395,13 +664,112 @@ const PageNavigationTutorial = () => {
   };
 
   useEffect(() => {
-    if (highlightTarget && currentStepData?.action === 'highlight-element') {
+    if (highlightTarget && (currentStepData?.action === 'highlight-element' || currentStepData?.action === 'progressive-form')) {
       cleanupHighlights();
-      setTimeout(() => handleElementHighlight(highlightTarget), 100);
+      setTimeout(() => {
+        const validation = currentStepData?.validation || null;
+        handleElementHighlight(highlightTarget, validation);
+      }, 100);
     }
 
     return cleanupHighlights;
   }, [highlightTarget, currentStepData]);
+
+  // Auto-highlight when step changes for highlight-element and progressive-form actions
+  useEffect(() => {
+    if ((currentStepData?.action === 'highlight-element' || currentStepData?.action === 'progressive-form') && currentStepData?.target) {
+      // Special handling for create-workspace button (inside dropdown)
+      if (currentStepData.target === '[data-tutorial="create-workspace"]') {
+        console.log('🎯 TUTORIAL: Looking for Create Workspace button...');
+        
+        // Check if button exists, if not, wait for dropdown to open
+        const checkForButton = () => {
+          const button = document.querySelector('[data-tutorial="create-workspace"]');
+          if (button) {
+            console.log('✅ TUTORIAL: Found Create Workspace button');
+            setHighlightTarget(currentStepData.target);
+          } else {
+            console.log('⏳ TUTORIAL: Create Workspace button not found, checking again...');
+            setTimeout(checkForButton, 200);
+          }
+        };
+        
+        checkForButton();
+      } else if (currentStepData.action === 'progressive-form') {
+        // For progressive form steps, wait for modal to be open
+        console.log('🎯 TUTORIAL: Progressive form step, waiting for element:', currentStepData.target);
+        
+        const checkForElement = () => {
+          const element = document.querySelector(currentStepData.target);
+          if (element) {
+            console.log('✅ TUTORIAL: Found progressive form element');
+            setHighlightTarget(currentStepData.target);
+          } else {
+            console.log('⏳ TUTORIAL: Element not found, checking again...');
+            setTimeout(checkForElement, 200);
+          }
+        };
+        
+        checkForElement();
+      } else {
+        // Wait a bit for page to settle before highlighting (prevents positioning issues)
+        const checkForElement = () => {
+          const element = document.querySelector(currentStepData.target);
+          if (element) {
+            console.log('✅ TUTORIAL: Found element for highlighting');
+            setHighlightTarget(currentStepData.target);
+          } else {
+            console.log('⏳ TUTORIAL: Element not ready, checking again...');
+            setTimeout(checkForElement, 200);
+          }
+        };
+        
+        // Small delay to ensure DOM is ready
+        setTimeout(checkForElement, 100);
+      }
+    }
+    
+    // NEW: Handle multi-highlight for workspace form
+    if (currentStepData?.action === 'multi-highlight' && currentStepData?.targets) {
+      console.log('🎯 TUTORIAL: Creating multiple spotlight holes for workspace form');
+      
+      const createMultipleSpotlights = () => {
+        // First, wait for workspace modal to open
+        const waitForModal = () => {
+          const modal = document.querySelector('.modal, [role="dialog"], .workspace-modal');
+          if (modal) {
+            console.log('✅ TUTORIAL: Workspace modal found, creating spotlight holes to drill through');
+            
+            // Keep modal BELOW overlay - don't elevate it
+            // The spotlight holes will make inputs visible and clickable
+            
+            // Highlight each target element
+            currentStepData.targets.forEach((target, index) => {
+              setTimeout(() => {
+                const element = document.querySelector(target);
+                if (element) {
+                  console.log('✨ TUTORIAL: Creating spotlight hole for input:', target);
+                  handleElementHighlight(target);
+                } else {
+                  console.log('❌ TUTORIAL: Element not found:', target);
+                  // Debug: Log all available tutorial elements
+                  const allTutorialElements = document.querySelectorAll('[data-tutorial]');
+                  console.log('🔍 Available tutorial elements:', Array.from(allTutorialElements).map(el => el.getAttribute('data-tutorial')));
+                }
+              }, 300 * (index + 1)); // Stagger the highlights
+            });
+          } else {
+            console.log('⏳ TUTORIAL: Workspace modal not found, waiting...');
+            setTimeout(waitForModal, 200);
+          }
+        };
+        
+        waitForModal();
+      };
+      
+      createMultipleSpotlights();
+    }
+  }, [currentStepData]);
 
   if (!isVisible || !currentStepData) return null;
 
@@ -411,20 +779,26 @@ const PageNavigationTutorial = () => {
     <>
       <AnimatePresence>
         {isVisible && (
-          <motion.div
-            ref={overlayRef}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100002] flex items-center justify-center"
-            style={{
-              background: currentStepData.action === 'highlight-element' 
-                ? 'rgba(0, 0, 0, 0.3)' 
-                : 'rgba(0, 0, 0, 0.8)'
-            }}
-            onClick={handleOverlayClick}
-          >
-            {/* Tutorial Card */}
+          <>
+            {/* Overlay - Only for non-highlight steps (click-anywhere, form-guidance) */}
+            {currentStepData.action !== 'highlight-element' && currentStepData.action !== 'multi-highlight' && currentStepData.action !== 'progressive-form' && (
+              <motion.div
+                ref={overlayRef}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100000]"
+                style={{
+                  background: 'rgba(0, 0, 0, 0.8)',
+                  pointerEvents: 'auto'
+                }}
+                onClick={currentStepData.action === 'click-anywhere' ? handleNext : undefined}
+              />
+            )}
+            
+            {/* SVG Cutout Overlay is created dynamically in handleElementHighlight */}
+            {/* It allows clicks through the cutout hole to the highlighted element */}
+            {/* Tutorial Modal - ABOVE overlay */}
             <motion.div
               initial={{ scale: 0.8, y: 50, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
@@ -435,11 +809,19 @@ const PageNavigationTutorial = () => {
                 stiffness: 300,
                 delay: 0.1 
               }}
-              className="relative max-w-md mx-4 bg-white rounded-3xl shadow-2xl overflow-hidden"
+              className={`fixed z-[100005] max-w-md rounded-3xl shadow-2xl overflow-hidden ${
+                currentStepData?.id === 'select-team' ? 'bottom-4 left-4' : 'top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2'
+              }`}
+              onClick={currentStepData?.action === 'click-anywhere' ? handleNext : (e) => {
+                // CRITICAL: Don't let tutorial modal clicks close workspace modal
+                e.stopPropagation();
+                e.preventDefault();
+              }}
               style={{
                 background: `linear-gradient(135deg, ${currentStepData.gradient.split(' ')[1]} 0%, ${currentStepData.gradient.split(' ')[3]} 100%)`,
+                backgroundColor: 'var(--surface-color)',
+                pointerEvents: 'auto' // Make modal clickable
               }}
-              onClick={(e) => e.stopPropagation()}
             >
               {/* Header with Icon */}
               <div className="relative p-8 pb-6 text-white">
@@ -458,6 +840,7 @@ const PageNavigationTutorial = () => {
                       animate={{ x: 0, opacity: 1 }}
                       transition={{ delay: 0.4 }}
                       className="text-2xl font-bold"
+                      style={{ color: 'var(--color-primary)' }}
                     >
                       {currentStepData.title}
                     </motion.h2>
@@ -559,6 +942,10 @@ const PageNavigationTutorial = () => {
                         ? 'Click anywhere to continue'
                         : currentStepData.action === 'highlight-element'
                         ? 'Click the highlighted element to continue'
+                        : currentStepData.action === 'progressive-form'
+                        ? currentStepData.validation?.startsWith('input-length:')
+                          ? `Type ${currentStepData.validation.split(':')[1]}+ characters to continue`
+                          : 'Make a selection to continue'
                         : 'Follow the instructions above'
                       }
                     </p>
@@ -580,7 +967,7 @@ const PageNavigationTutorial = () => {
                 )}
               </div>
             </motion.div>
-          </motion.div>
+          </>
         )}
       </AnimatePresence>
 

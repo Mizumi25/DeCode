@@ -218,6 +218,38 @@ const TypographySection = ({
           searchTerm={searchTerm}
         />
         
+        {/* Text Wrap - NEW */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <label className="block text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+              Text Wrap
+            </label>
+            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white animate-pulse">
+              NEW
+            </span>
+          </div>
+          <InputField
+            label=""
+            value={currentStyles.textWrap || ''}
+            onChange={(value) => onPropertyChange('textWrap', value, 'style')}
+            type="preset"
+            options={{
+              presets: [
+                { label: 'Wrap (Default)', value: 'wrap' },
+                { label: 'No Wrap', value: 'nowrap' },
+                { label: 'Balance', value: 'balance' },
+                { label: 'Pretty', value: 'pretty' },
+                { label: 'Stable', value: 'stable' }
+              ]
+            }}
+            searchTerm={searchTerm}
+          />
+          <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+            <strong>Balance:</strong> Evenly distribute text across lines<br/>
+            <strong>Pretty:</strong> Avoid orphans & improve readability
+          </p>
+        </div>
+        
         {/* Word Break */}
         <InputField
           label="Word Break"

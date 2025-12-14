@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useEffect } from 'react';
+import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { Canvas, useFrame, extend, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
@@ -435,13 +435,39 @@ function Effects() {
 
 // Main Scene Component
 function BlackHoleScene() {
+  const groupRef = useRef();
+  const animationProgress = useRef(0);
+  const isAnimating = useRef(true);
+
+  useFrame((state, delta) => {
+    if (groupRef.current && isAnimating.current) {
+      // Smooth animation over ~2 seconds with easeOutCubic
+      animationProgress.current += delta * 0.8; // Speed multiplier
+      
+      if (animationProgress.current >= 1) {
+        animationProgress.current = 1;
+        isAnimating.current = false;
+      }
+      
+      // EaseOutCubic for smooth deceleration
+      const t = animationProgress.current;
+      const eased = 1 - Math.pow(1 - t, 3);
+      
+      // Scale from 0.05 to 1.0
+      const scale = 0.05 + eased * 0.95;
+      groupRef.current.scale.set(scale, scale, scale);
+    }
+  });
+
   return (
     <>
       <fog attach="fog" args={[0x020104, 0, 2000]} />
       <TwinklingStars />
-      <EventHorizon />
-      <BlackHoleCore />
-      <AccretionDisk />
+      <group ref={groupRef} scale={[0.05, 0.05, 0.05]}>
+        <EventHorizon />
+        <BlackHoleCore />
+        <AccretionDisk />
+      </group>
     </>
   );
 }

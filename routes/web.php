@@ -29,6 +29,13 @@ Route::get('/', function () {
 Route::get('/invite/{token}', [InviteController::class, 'showInvite'])->name('invite.show');
 Route::post('/invite/{token}/accept', [InviteController::class, 'acceptInviteWeb'])->name('invite.accept');
 
+// 🔥 NEW: Public project routes (NO AUTH REQUIRED - for is_public = true projects)
+Route::prefix('public/{project}')->middleware(\App\Http\Middleware\CheckPublicProject::class)->group(function () {
+    Route::get('/void', [VoidController::class, 'showPublic'])->name('public.void');
+    Route::get('/frame={frame}/forge', [ForgeController::class, 'showPublic'])->name('public.forge');
+    Route::get('/frame={frame}/source', [SourceController::class, 'showPublic'])->name('public.source');
+});
+
 Route::middleware('auth')->group(function () {
     // 🔥 NEW: Survey routes for first-time users
     Route::get('/survey', [SurveyController::class, 'index'])->name('survey.index');

@@ -116,39 +116,34 @@ export default function Login({ status, canResetPassword, show_session_conflict,
     <GuestLayout>
       <Head title="Log in" />
 
+      {/* Logo */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 max-w-md mx-auto bg-[var(--color-surface)]/80 backdrop-blur-md rounded-2xl shadow-[var(--shadow-lg)] p-8 mt-20 border border-[var(--color-border)]/20"
+        className="flex justify-center mb-8 md:mb-10"
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.2 }}
       >
-        {/* Logo */}
-        <motion.div
-          className="flex justify-center mb-8"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Link href="/">
-            <AnimatedBlackHoleLogo
-              size={80}
-              className={`filter drop-shadow-lg transition-all duration-500 ${
-                errors.email || errors.password ? 'hue-rotate-[330deg]' : ''
-              }`}
-            />
-          </Link>
-        </motion.div>
+        <Link href="/">
+          <AnimatedBlackHoleLogo
+            size={80}
+            className={`filter drop-shadow-lg transition-all duration-500 w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 ${
+              errors.email || errors.password ? 'hue-rotate-[330deg]' : ''
+            }`}
+          />
+        </Link>
+      </motion.div>
 
         {/* Title */}
         <motion.div
-          className="text-center mb-8"
+          className="text-center mb-8 md:mb-10"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <h1 className="text-2xl font-bold text-[var(--color-text)] mb-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[var(--color-text)] mb-2 md:mb-3">
             Welcome Back
           </h1>
-          <p className="text-[var(--color-text-muted)]">
+          <p className="text-sm sm:text-base md:text-lg text-[var(--color-text-muted)]">
             Sign in to continue to your account
           </p>
         </motion.div>
@@ -172,7 +167,7 @@ export default function Login({ status, canResetPassword, show_session_conflict,
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
-              className="space-y-4"
+              className="space-y-4 md:space-y-5"
             >
               {/* Email Login Button */}
              <div className="relative w-full">
@@ -197,12 +192,12 @@ export default function Login({ status, canResetPassword, show_session_conflict,
 
 
               {/* Divider */}
-              <div className="relative my-6">
+              <div className="relative my-6 md:my-8">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-[var(--color-border)]" />
                 </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-[var(--color-surface)] px-2 text-[var(--color-text-muted)]">
+                <div className="relative flex justify-center text-xs md:text-sm uppercase">
+                  <span className="bg-[var(--color-surface)] px-2 md:px-4 text-[var(--color-text-muted)]">
                     Or continue with
                   </span>
                 </div>
@@ -427,7 +422,6 @@ export default function Login({ status, canResetPassword, show_session_conflict,
             <ArrowRight className="w-4 h-4" />
           </Link>
         </motion.div>
-      </motion.div>
 
       {/* Session Conflict Dialog */}
       <SessionConflictDialog

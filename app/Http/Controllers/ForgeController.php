@@ -102,6 +102,60 @@ class ForgeController extends Controller
     }
     
     /**
+     * Show public forge page (for is_public = true projects)
+     */
+    public function showPublic(Request $request, $projectUuid, $frameUuid): Response
+    {
+        $project = $request->public_project; // Injected by middleware
+        $isPublicView = $request->is_public_view;
+        $canEdit = $request->can_edit;
+        
+        // Find frame by UUID
+        $frame = Frame::where('uuid', $frameUuid)
+            ->where('project_id', $project->id)
+            ->firstOrFail();
+        
+        // Get frame data with proper canvas style decoding
+        $frameData = $this->getFrameData($frame);
+        
+        // Get project frames
+        $projectFrames = $project->frames()
+            ->select(['uuid', 'name', 'type', 'updated_at', 'canvas_style', 'canvas_props', 'canvas_animation'])
+            ->orderBy('created_at', 'asc')
+            ->get()
+            ->map(function($f) {
+                return [
+                    'id' => $f->uuid,
+                    'uuid' => $f->uuid,
+                    'name' => $f->name,
+                    'type' => $f->type ?? 'desktop',
+                    'lastModified' => $f->updated_at->diffForHumans(),
+                    'isActive' => false,
+                    'canvas_style' => $this->decodeCanvasField($f->canvas_style),
+                    'canvas_props' => $this->decodeCanvasField($f->canvas_props),
+                    'canvas_animation' => $this->decodeCanvasField($f->canvas_animation),
+                ];
+            });
+        
+        return Inertia::render('ForgePage', [
+            'project' => [
+                'uuid' => $project->uuid,
+                'name' => $project->name,
+                'settings' => $project->settings ?? [],
+                'output_format' => $project->output_format,
+                'style_framework' => $project->style_framework,
+            ],
+            'frame' => $frameData,
+            'projectFrames' => $projectFrames,
+            'isPublicView' => $isPublicView,
+            'canEdit' => $canEdit,
+            'userRole' => 'viewer',
+            'projectId' => $project->uuid,
+            'frameId' => $frame->uuid,
+        ]);
+    }
+
+    /**
      * Enhanced show method with proper canvas style decoding
      */
     public function show(Project $project, Frame $frame): Response|RedirectResponse

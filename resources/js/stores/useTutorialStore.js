@@ -217,6 +217,15 @@ const useTutorialStore = create(
             setCurrentPage: (page) => {
                 set({ currentPage: page });
             },
+            
+            setPageNavigationStep: (step) => {
+                console.log('🎯 PAGE TUTORIAL: Setting step to:', step);
+                set({ pageNavigationStep: step });
+            },
+            
+            getPageNavigationStep: () => {
+                return get().pageNavigationStep;
+            },
 
             // API integration
             markUserTutorialCompleted: async () => {

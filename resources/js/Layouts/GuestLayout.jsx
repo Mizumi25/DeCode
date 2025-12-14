@@ -104,14 +104,14 @@ export default function GuestLayout({ children }) {
             <div className="absolute inset-0 bg-gradient-to-b from-[var(--color-bg)]/90 via-[var(--color-bg)]/70 to-[var(--color-bg)]/90 pointer-events-none z-[1]" />
 
             {/* Content - above the animated background */}
-            <div className="relative z-[2] flex min-h-screen flex-col items-center pt-6 sm:justify-center sm:pt-0">
+            <div className="relative z-[2] flex min-h-screen flex-col items-center justify-center px-4 sm:px-6 lg:px-8">
                 <div ref={logoRef}>
                     
                 </div>
 
                 <div
                     ref={cardRef}
-                    className="mt-6 w-full overflow-hidden bg-[var(--color-surface)]/95 backdrop-blur-md px-6 py-4 shadow-lg sm:max-w-md sm:rounded-lg transition-all border border-[var(--color-border)]/50"
+                    className="mt-6 w-full overflow-hidden bg-[var(--color-surface)]/95 backdrop-blur-md px-8 py-8 sm:px-10 sm:py-10 md:px-12 md:py-12 shadow-2xl max-w-[90%] sm:max-w-lg md:max-w-xl lg:max-w-2xl rounded-3xl sm:rounded-[2rem] md:rounded-[2.5rem] transition-all border border-[var(--color-border)]/50"
                 >
                     {children}
                 </div>

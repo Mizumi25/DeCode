@@ -19,6 +19,12 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
             \App\Http\Middleware\TrackUserSession::class, // 🔥 FIX: Track and clean stale sessions
+            \App\Http\Middleware\PreventBackButtonCache::class, // 🔥 FIX: Prevent back button cache after logout
+        ]);
+        
+        // 🔥 NEW: Register middleware aliases
+        $middleware->alias([
+            'check.public.project' => \App\Http\Middleware\CheckPublicProject::class,
         ]);
         
         // This is the important change

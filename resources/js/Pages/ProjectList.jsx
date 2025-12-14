@@ -95,12 +95,20 @@ export default function ProjectList({
   } = useWorkspaceStore();
 
   // Tutorial Integration
-  const { setCurrentPage } = useTutorialStore();
+  const { setCurrentPage, isPageTutorialActive, pageNavigationStep } = useTutorialStore();
 
   // Set current page for tutorial
   useEffect(() => {
     setCurrentPage('projects');
-  }, [setCurrentPage]);
+    
+    // Log tutorial state for debugging
+    if (isPageTutorialActive) {
+      console.log('🎯 TUTORIAL: ProjectList mounted with active tutorial', { 
+        step: pageNavigationStep,
+        isActive: isPageTutorialActive 
+      });
+    }
+  }, [setCurrentPage, isPageTutorialActive, pageNavigationStep]);
   
   // Initialize workspaces and current workspace on mount
   useEffect(() => {
@@ -112,6 +120,12 @@ export default function ProjectList({
       setCurrentWorkspace(initialCurrentWorkspace);
     }
   }, [initialWorkspaces, initialCurrentWorkspace, setWorkspaces, setCurrentWorkspace]);
+  
+  // Update realtime projects when initialProjects changes (e.g., workspace switch)
+  useEffect(() => {
+    console.log('📦 Updating realtime projects from initialProjects:', initialProjects.length);
+    setRealtimeProjects(initialProjects);
+  }, [initialProjects]);
   
   // Initialize search store from URL on mount
   useEffect(() => {

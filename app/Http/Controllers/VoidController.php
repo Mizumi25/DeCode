@@ -35,6 +35,54 @@ class VoidController extends Controller
 
      
 
+  /**
+   * Show public void page (for is_public = true projects)
+   */
+  public function showPublic(Request $request, $projectUuid): Response
+  {
+      $project = $request->public_project; // Injected by middleware
+      $isPublicView = $request->is_public_view;
+      $canEdit = $request->can_edit;
+      
+      // Load workspace with users including discipline
+      $project->load(['workspace.owner', 'workspace.users' => function($query) {
+          $query->orderBy('workspace_users.discipline_order', 'asc')
+                ->orderBy('users.name', 'asc');
+      }]);
+      
+      return Inertia::render('VoidPage', [
+          'project' => [
+              'id' => $project->id,
+              'uuid' => $project->uuid,
+              'name' => $project->name,
+              'description' => $project->description,
+              'user_id' => $project->user_id,
+              'workspace_id' => $project->workspace_id,
+              'is_public' => $project->is_public,
+              'canvas_data' => $project->canvas_data,
+              'created_at' => $project->created_at,
+              'updated_at' => $project->updated_at,
+              'output_format' => $project->output_format ?? 'html',
+              'css_framework' => $project->css_framework ?? 'vanilla',
+              'project_type' => $project->project_type ?? 'manual',
+              'github_repo_url' => $project->github_repo_url,
+              'settings' => $project->settings ?? [],
+              'workspace' => $project->workspace ? [
+                  'id' => $project->workspace->id,
+                  'name' => $project->workspace->name,
+                  'type' => $project->workspace->type,
+                  'owner' => $project->workspace->owner,
+                  'users' => $project->workspace->users,
+              ] : null,
+          ],
+          'canvas_data' => $project->canvas_data,
+          'frames' => $project->canvas_data['frames'] ?? [],
+          'isPublicView' => $isPublicView,
+          'canEdit' => $canEdit,
+          'userRole' => 'viewer', // Public viewers are like viewers
+      ]);
+  }
+
   public function show(Project $project): Response|RedirectResponse
   {
       $user = Auth::user();

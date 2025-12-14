@@ -7,6 +7,7 @@ import { usePage } from '@inertiajs/react'
 import UserDropdown from './UserDropdown'
 import WorkspaceDropdown from './WorkspaceDropdown'
 import InviteModal from '@/Components/Workspaces/InviteModal'
+import ShareModal from '@/Components/Projects/ShareModal'
 import RealTimeStackingAvatars from './RealTimeStackingAvatars'
 import BinaryToggle from './BinaryToggle'
 
@@ -43,6 +44,7 @@ const RightSection = ({
   const { props, url } = usePage()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
   const [inviteWorkspaceId, setInviteWorkspaceId] = useState(null)
   const [forceInviteMode, setForceInviteMode] = useState(false)
   const [myRole, setMyRole] = useState(null)
@@ -385,7 +387,11 @@ const RightSection = ({
             {/* Share - Only on Void Page - Hide for Viewer */}
             {onVoidPage && myRole !== 'viewer' && (
               <div className="flex flex-col items-center gap-0.5">
-                <button className="p-0.5 hover:bg-[var(--color-bg-muted)] rounded transition-colors">
+                <button 
+                  onClick={() => setShowShareModal(true)}
+                  className="p-0.5 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+                  title="Share project"
+                >
                   <Share2 className="w-2.5 h-2.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)]" />
                 </button>
                 <span className="text-[7px] text-[var(--color-text-muted)]">Share</span>
@@ -511,7 +517,11 @@ const RightSection = ({
 
               {/* Share Button */}
               {myRole !== 'viewer' && (
-                <button className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-full hover:scale-110 transition-all">
+                <button 
+                  onClick={() => setShowShareModal(true)}
+                  className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-full hover:scale-110 transition-all"
+                  title="Share project"
+                >
                   <Share2 className="w-5 h-5" />
                 </button>
               )}
@@ -599,6 +609,13 @@ const RightSection = ({
         onClose={handleCloseInviteModal}
         workspaceId={inviteWorkspaceId}
         forceInviteMode={forceInviteMode}
+      />
+
+      {/* Share Modal */}
+      <ShareModal
+        show={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        project={currentProject}
       />
     </>
   )

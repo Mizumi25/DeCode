@@ -1680,6 +1680,61 @@ public function store(Request $request): RedirectResponse
     }
 
     /**
+     * Update project visibility (public/private)
+     */
+    public function updateVisibility(Request $request, Project $project): JsonResponse
+    {
+        $user = Auth::user();
+        
+        // Check ownership
+        if ($project->user_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to update this project'
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'is_public' => 'required|boolean'
+        ]);
+
+        try {
+            $project->update(['is_public' => $validated['is_public']]);
+
+            Log::info('Project visibility updated', [
+                'project_id' => $project->id,
+                'project_uuid' => $project->uuid,
+                'is_public' => $validated['is_public'],
+                'user_id' => $user->id
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'project' => [
+                    'uuid' => $project->uuid,
+                    'name' => $project->name,
+                    'is_public' => $project->is_public,
+                ],
+                'message' => $validated['is_public'] 
+                    ? 'Project is now public. Anyone with the link can view it.' 
+                    : 'Project is now private. Only workspace members can access it.'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to update project visibility', [
+                'project_id' => $project->id,
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update visibility: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Publish project internally (like Framer/Webflow)
      */
     public function publish(Request $request)
