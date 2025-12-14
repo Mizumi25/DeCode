@@ -2,9 +2,10 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { 
   Move, Layout, Columns, Grid3X3, Maximize, Square, MousePointer, Layers, 
   AlignLeft, AlignCenter, AlignRight, AlignJustify, Box, Container,
-  Rows, Columns3, WrapText, Eye, EyeOff
+  Rows, Columns3, WrapText, Eye, EyeOff, RectangleHorizontal, Smartphone, 
+  Monitor, Tv, Film, Instagram, Youtube, Twitter, Facebook
 } from 'lucide-react';
-import { PropertySection, InputField, SubsectionHeader } from '../PropertyUtils';
+import { PropertySection, InputField, SubsectionHeader, ButtonGrid } from '../PropertyUtils';
 
 const LayoutSection = ({ 
   currentStyles, 
@@ -798,6 +799,497 @@ useEffect(() => {
         />
         <div className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
           • content-box: padding/border adds to size • border-box: includes padding/border in size
+        </div>
+
+        {/* Aspect Ratio Controls */}
+        <div className="space-y-3 mt-3">
+          <SubsectionHeader title="Aspect Ratio" />
+          
+          {/* Common Aspect Ratios */}
+          <div>
+            <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Common Ratios</label>
+            <ButtonGrid
+              columns={3}
+              buttons={[
+                {
+                  label: '1:1',
+                  onClick: () => onPropertyChange('aspectRatio', '1 / 1', 'style'),
+                  className: 'bg-blue-100 text-blue-800 hover:bg-blue-200 font-medium'
+                },
+                {
+                  label: '4:3',
+                  onClick: () => onPropertyChange('aspectRatio', '4 / 3', 'style'),
+                  className: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200 font-medium'
+                },
+                {
+                  label: '3:2',
+                  onClick: () => onPropertyChange('aspectRatio', '3 / 2', 'style'),
+                  className: 'bg-purple-100 text-purple-800 hover:bg-purple-200 font-medium'
+                },
+                {
+                  label: '16:9',
+                  onClick: () => onPropertyChange('aspectRatio', '16 / 9', 'style'),
+                  className: 'bg-pink-100 text-pink-800 hover:bg-pink-200 font-medium'
+                },
+                {
+                  label: '21:9',
+                  onClick: () => onPropertyChange('aspectRatio', '21 / 9', 'style'),
+                  className: 'bg-red-100 text-red-800 hover:bg-red-200 font-medium'
+                },
+                {
+                  label: '9:16',
+                  onClick: () => onPropertyChange('aspectRatio', '9 / 16', 'style'),
+                  className: 'bg-orange-100 text-orange-800 hover:bg-orange-200 font-medium'
+                }
+              ]}
+            />
+          </div>
+
+          {/* Device Ratios */}
+          <div>
+            <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Device Ratios</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => onPropertyChange('aspectRatio', '19.5 / 9', 'style')}
+                className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border transition-all hover:shadow-sm"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)'
+                }}
+              >
+                <Smartphone className="w-4 h-4" />
+                <span>iPhone (19.5:9)</span>
+              </button>
+              <button
+                onClick={() => onPropertyChange('aspectRatio', '16 / 10', 'style')}
+                className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border transition-all hover:shadow-sm"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)'
+                }}
+              >
+                <Monitor className="w-4 h-4" />
+                <span>Laptop (16:10)</span>
+              </button>
+              <button
+                onClick={() => onPropertyChange('aspectRatio', '16 / 9', 'style')}
+                className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border transition-all hover:shadow-sm"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)'
+                }}
+              >
+                <Tv className="w-4 h-4" />
+                <span>Monitor (16:9)</span>
+              </button>
+              <button
+                onClick={() => onPropertyChange('aspectRatio', '2.39 / 1', 'style')}
+                className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border transition-all hover:shadow-sm"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)'
+                }}
+              >
+                <Film className="w-4 h-4" />
+                <span>Cinema (2.39:1)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Social Media Ratios */}
+          <div>
+            <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Social Media</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => onPropertyChange('aspectRatio', '1 / 1', 'style')}
+                className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border transition-all hover:shadow-sm"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)'
+                }}
+              >
+                <Instagram className="w-4 h-4" />
+                <span>IG Post (1:1)</span>
+              </button>
+              <button
+                onClick={() => onPropertyChange('aspectRatio', '9 / 16', 'style')}
+                className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border transition-all hover:shadow-sm"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)'
+                }}
+              >
+                <Instagram className="w-4 h-4" />
+                <span>IG Story (9:16)</span>
+              </button>
+              <button
+                onClick={() => onPropertyChange('aspectRatio', '16 / 9', 'style')}
+                className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border transition-all hover:shadow-sm"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)'
+                }}
+              >
+                <Youtube className="w-4 h-4" />
+                <span>YouTube (16:9)</span>
+              </button>
+              <button
+                onClick={() => onPropertyChange('aspectRatio', '3 / 1', 'style')}
+                className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg border transition-all hover:shadow-sm"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)'
+                }}
+              >
+                <Twitter className="w-4 h-4" />
+                <span>Twitter (3:1)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Custom Ratio */}
+          <div>
+            <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Custom Ratio</label>
+            <input
+              type="text"
+              value={currentStyles.aspectRatio || ''}
+              onChange={(e) => onPropertyChange('aspectRatio', e.target.value, 'style')}
+              placeholder="e.g., 16 / 9 or auto"
+              className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+            />
+          </div>
+
+          {/* Quick Actions */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                const current = currentStyles.aspectRatio;
+                if (current && typeof current === 'string' && current.includes('/')) {
+                  const [width, height] = current.split('/').map(s => s.trim());
+                  onPropertyChange('aspectRatio', `${height} / ${width}`, 'style');
+                }
+              }}
+              className="flex-1 px-3 py-2 text-xs rounded-lg border transition-all hover:shadow-sm"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+            >
+              Flip Ratio
+            </button>
+            <button
+              onClick={() => onPropertyChange('aspectRatio', 'auto', 'style')}
+              className="flex-1 px-3 py-2 text-xs rounded-lg border transition-all hover:shadow-sm"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+            >
+              Reset
+            </button>
+          </div>
+
+          {/* Live Preview */}
+          <div>
+            <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Live Preview</label>
+            <div className="flex justify-center items-center p-6 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
+              <div
+                className="bg-gradient-to-br from-blue-500 to-purple-500 transition-all duration-300"
+                style={{
+                  aspectRatio: currentStyles.aspectRatio || 'auto',
+                  width: '100%',
+                  maxWidth: '200px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '12px',
+                  fontWeight: 'bold'
+                }}
+              >
+                {currentStyles.aspectRatio || 'auto'}
+              </div>
+            </div>
+            <p className="text-xs text-center mt-2" style={{ color: 'var(--color-text-muted)' }}>
+              Preview shows actual aspect ratio
+            </p>
+          </div>
+        </div>
+      </PropertySection>
+
+      {/* Container Queries Section */}
+      <PropertySection
+        title="Container Queries"
+        Icon={Container}
+        sectionKey="containerQueries"
+        expandedSections={expandedSections}
+        setExpandedSections={setExpandedSections}
+        searchTerm={searchTerm}
+      >
+        {/* Container Type */}
+        <div>
+          <SubsectionHeader title="Container Type" />
+          <VisualButtonGroup
+            label="Container Type"
+            value={currentStyles.containerType || 'normal'}
+            onChange={(value) => onPropertyChange('containerType', value, 'style')}
+            options={['normal', 'size', 'inline-size', 'block-size']}
+          />
+          <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+            Makes this element a container for child query breakpoints
+          </p>
+        </div>
+
+        {/* Container Name */}
+        <div>
+          <SubsectionHeader title="Container Name" />
+          <input
+            type="text"
+            value={currentStyles.containerName || ''}
+            onChange={(e) => onPropertyChange('containerName', e.target.value, 'style')}
+            placeholder="e.g., sidebar, card, hero"
+            className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
+            style={{
+              backgroundColor: 'var(--color-surface)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-text)'
+            }}
+          />
+          <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+            Give this container a name to reference in @container queries
+          </p>
+        </div>
+
+        {/* Quick Presets */}
+        <div>
+          <SubsectionHeader title="Quick Setup" />
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                onPropertyChange('containerType', 'inline-size', 'style');
+              }}
+              className="px-4 py-3 rounded-lg text-sm font-medium transition-all hover:shadow-md active:scale-95"
+              style={{
+                backgroundColor: 'var(--color-primary-soft)',
+                color: 'var(--color-primary)',
+                border: '1px solid var(--color-border)'
+              }}
+            >
+              <Box className="w-5 h-5 mx-auto mb-1" />
+              <div>Basic Container</div>
+              <div className="text-xs opacity-70 mt-1">inline-size</div>
+            </button>
+            
+            <button
+              onClick={() => {
+                onPropertyChange('containerType', 'size', 'style');
+              }}
+              className="px-4 py-3 rounded-lg text-sm font-medium transition-all hover:shadow-md active:scale-95"
+              style={{
+                backgroundColor: 'var(--color-primary-soft)',
+                color: 'var(--color-primary)',
+                border: '1px solid var(--color-border)'
+              }}
+            >
+              <Maximize className="w-5 h-5 mx-auto mb-1" />
+              <div>Size Container</div>
+              <div className="text-xs opacity-70 mt-1">width + height</div>
+            </button>
+            
+            <button
+              onClick={() => {
+                onPropertyChange('containerType', 'inline-size', 'style');
+              }}
+              className="px-4 py-3 rounded-lg text-sm font-medium transition-all hover:shadow-md active:scale-95"
+              style={{
+                backgroundColor: 'var(--color-primary-soft)',
+                color: 'var(--color-primary)',
+                border: '1px solid var(--color-border)'
+              }}
+            >
+              <RectangleHorizontal className="w-5 h-5 mx-auto mb-1" />
+              <div>Inline Container</div>
+              <div className="text-xs opacity-70 mt-1">width only</div>
+            </button>
+            
+            <button
+              onClick={() => {
+                onPropertyChange('containerType', 'normal', 'style');
+                onPropertyChange('containerName', '', 'style');
+              }}
+              className="px-4 py-3 rounded-lg text-sm font-medium transition-all hover:shadow-md active:scale-95"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                color: 'var(--color-text-muted)',
+                border: '1px solid var(--color-border)'
+              }}
+            >
+              <EyeOff className="w-5 h-5 mx-auto mb-1" />
+              <div>Disable</div>
+              <div className="text-xs opacity-70 mt-1">normal</div>
+            </button>
+          </div>
+        </div>
+
+        {/* Named Container Presets */}
+        <div>
+          <SubsectionHeader title="Common Container Names" />
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                onPropertyChange('containerType', 'inline-size', 'style');
+                onPropertyChange('containerName', 'card', 'style');
+              }}
+              className="px-3 py-2 rounded-lg text-sm transition-all hover:shadow-sm"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+            >
+              Card
+            </button>
+            <button
+              onClick={() => {
+                onPropertyChange('containerType', 'inline-size', 'style');
+                onPropertyChange('containerName', 'sidebar', 'style');
+              }}
+              className="px-3 py-2 rounded-lg text-sm transition-all hover:shadow-sm"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+            >
+              Sidebar
+            </button>
+            <button
+              onClick={() => {
+                onPropertyChange('containerType', 'size', 'style');
+                onPropertyChange('containerName', 'hero', 'style');
+              }}
+              className="px-3 py-2 rounded-lg text-sm transition-all hover:shadow-sm"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+            >
+              Hero
+            </button>
+            <button
+              onClick={() => {
+                onPropertyChange('containerType', 'inline-size', 'style');
+                onPropertyChange('containerName', 'article', 'style');
+              }}
+              className="px-3 py-2 rounded-lg text-sm transition-all hover:shadow-sm"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+            >
+              Article
+            </button>
+          </div>
+        </div>
+
+        {/* Info Box */}
+        <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)', border: '1px solid var(--color-border)' }}>
+          <div className="flex items-start gap-2">
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-primary-soft)' }}>
+              <Container className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+            </div>
+            <div>
+              <p className="text-sm font-medium mb-1" style={{ color: 'var(--color-text)' }}>
+                How Container Queries Work
+              </p>
+              <ul className="text-xs space-y-1" style={{ color: 'var(--color-text-muted)' }}>
+                <li>• Set a container type on parent elements</li>
+                <li>• Child elements can respond to container size</li>
+                <li>• Use @container in CSS instead of @media</li>
+                <li>• More powerful than traditional media queries</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Example Code */}
+        <div>
+          <SubsectionHeader title="Example Usage" />
+          <div className="p-3 rounded-lg font-mono text-xs" style={{ backgroundColor: 'var(--color-bg-muted)', border: '1px solid var(--color-border)' }}>
+            <div style={{ color: 'var(--color-text-muted)' }}>
+              <span style={{ color: '#22c55e' }}>/* Parent element */</span><br/>
+              <span style={{ color: '#3b82f6' }}>.container</span> {'{'}<br/>
+              &nbsp;&nbsp;container-type: inline-size;<br/>
+              &nbsp;&nbsp;container-name: {currentStyles.containerName || 'myContainer'};<br/>
+              {'}'}<br/><br/>
+              
+              <span style={{ color: '#22c55e' }}>/* Child responds to container */</span><br/>
+              <span style={{ color: '#f59e0b' }}>@container</span> <span style={{ color: '#3b82f6' }}>{currentStyles.containerName || 'myContainer'}</span> (min-width: 400px) {'{'}<br/>
+              &nbsp;&nbsp;<span style={{ color: '#3b82f6' }}>.child</span> {'{'}<br/>
+              &nbsp;&nbsp;&nbsp;&nbsp;font-size: 1.5rem;<br/>
+              &nbsp;&nbsp;{'}'}<br/>
+              {'}'}
+            </div>
+          </div>
+        </div>
+
+        {/* Visual Status */}
+        <div>
+          <SubsectionHeader title="Current Status" />
+          <div className="p-4 rounded-lg text-center" style={{ backgroundColor: 'var(--color-bg-muted)', border: '2px solid var(--color-border)' }}>
+            {currentStyles.containerType && currentStyles.containerType !== 'normal' ? (
+              <>
+                <div className="flex justify-center mb-2">
+                  <div className="p-2 rounded-full" style={{ backgroundColor: 'var(--color-success-soft)' }}>
+                    <Container className="w-6 h-6" style={{ color: 'var(--color-success)' }} />
+                  </div>
+                </div>
+                <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+                  Container Active
+                </p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                  Type: <span className="font-mono font-bold">{currentStyles.containerType}</span>
+                  {currentStyles.containerName && (
+                    <>
+                      <br/>Name: <span className="font-mono font-bold">{currentStyles.containerName}</span>
+                    </>
+                  )}
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-center mb-2">
+                  <div className="p-2 rounded-full" style={{ backgroundColor: 'var(--color-bg)' }}>
+                    <EyeOff className="w-6 h-6" style={{ color: 'var(--color-text-muted)' }} />
+                  </div>
+                </div>
+                <p className="text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>
+                  No Container Set
+                </p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                  Click a preset above to enable
+                </p>
+              </>
+            )}
+          </div>
         </div>
       </PropertySection>
 

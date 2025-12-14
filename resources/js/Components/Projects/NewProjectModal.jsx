@@ -452,6 +452,7 @@ export default function NewProjectModal({ show, onClose }) {
               value={data.name}
               onChange={(e) => setData('name', e.target.value)}
               placeholder="My Awesome Project"
+              data-tutorial="project-name-input"
               className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-colors"
               required
             />
@@ -533,6 +534,7 @@ export default function NewProjectModal({ show, onClose }) {
                 onClick={() => setData('framework', framework.id)}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
+                data-tutorial={framework.id === 'react' ? 'project-framework-react' : undefined}
                 className={`p-6 rounded-xl border-2 transition-all text-center ${
                   isSelected
                     ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
@@ -573,6 +575,7 @@ export default function NewProjectModal({ show, onClose }) {
                 onClick={() => setData('style_framework', framework.id)}
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
+                data-tutorial={framework.id === 'tailwind' ? 'project-style-tailwind' : undefined}
                 className={`p-5 rounded-xl border-2 transition-all text-left flex items-center gap-4 ${
                   isSelected
                     ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
@@ -669,6 +672,7 @@ export default function NewProjectModal({ show, onClose }) {
           disabled={!data.name || processing || !currentWorkspace}
           whileHover={{ scale: processing ? 1 : 1.02 }}
           whileTap={{ scale: processing ? 1 : 0.98 }}
+          data-tutorial="create-project-button"
           className="px-8 py-3 rounded-xl bg-[var(--color-primary)] text-white font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-3"
         >
           {processing ? (

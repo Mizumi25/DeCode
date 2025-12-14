@@ -237,7 +237,7 @@ export default function Survey({ auth }) {
       }, {
         onSuccess: () => {
           // Start page navigation tutorial on forge page
-          localStorage.setItem('startPageTutorial', 'true');
+          // localStorage.setItem('startPageTutorial', 'true'); // DISABLED
           // Will redirect to forge page after auto-creating project/frame
         },
         onError: (errors) => {
@@ -478,22 +478,20 @@ export default function Survey({ auth }) {
     <GuestLayout>
       <Head title="Welcome Survey" />
       
-      <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)] px-4">
-        <div className="w-full max-w-2xl">
-          {/* Progress Bar */}
-          <div className="mb-8">
-            <div className="h-2 bg-[var(--color-bg-muted)] rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-[var(--color-primary)]"
-                initial={{ width: '0%' }}
-                animate={{ width: `${(currentStep / 3) * 100}%` }}
-                transition={{ duration: 0.3 }}
-              />
-            </div>
-          </div>
+      {/* Progress Bar */}
+      <div className="mb-6 md:mb-8">
+        <div className="h-2 bg-[var(--color-bg-muted)] rounded-full overflow-hidden">
+          <motion.div
+            className="h-full bg-[var(--color-primary)]"
+            initial={{ width: '0%' }}
+            animate={{ width: `${(currentStep / 3) * 100}%` }}
+            transition={{ duration: 0.3 }}
+          />
+        </div>
+      </div>
 
-          {/* Survey Content */}
-          <div className="bg-[var(--color-surface)] rounded-xl shadow-lg p-8">
+      {/* Survey Content */}
+      <div>
             <AnimatePresence mode="wait">
               {renderStepContent()}
             </AnimatePresence>
@@ -561,20 +559,18 @@ export default function Survey({ auth }) {
                   )}
                 </PrimaryButton>
               )}
-            </div>
-          </div>
-
-          {/* Skip Option */}
-          <div className="text-center mt-4">
-            <button
-              onClick={() => router.visit('/projects')}
-              className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-            >
-              Skip for now
-            </button>
           </div>
         </div>
-      </div>
+
+        {/* Skip Option */}
+        <div className="text-center mt-6">
+          <button
+            onClick={() => router.visit('/projects')}
+            className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+          >
+            Skip for now
+          </button>
+        </div>
     </GuestLayout>
   );
 }

@@ -95,7 +95,7 @@ export default function ProjectList({
   } = useWorkspaceStore();
 
   // Tutorial Integration
-  const { setCurrentPage, isPageTutorialActive, pageNavigationStep } = useTutorialStore();
+  const { setCurrentPage, isPageTutorialActive, pageNavigationStep, getTutorialWorkspaceId } = useTutorialStore();
 
   // Set current page for tutorial
   useEffect(() => {
@@ -105,10 +105,25 @@ export default function ProjectList({
     if (isPageTutorialActive) {
       console.log('🎯 TUTORIAL: ProjectList mounted with active tutorial', { 
         step: pageNavigationStep,
-        isActive: isPageTutorialActive 
+        isActive: isPageTutorialActive,
+        tutorialWorkspaceId: getTutorialWorkspaceId(),
+        currentWorkspaceId: currentWorkspace?.id
       });
     }
-  }, [setCurrentPage, isPageTutorialActive, pageNavigationStep]);
+  }, [setCurrentPage, isPageTutorialActive, pageNavigationStep, getTutorialWorkspaceId, currentWorkspace]);
+  
+  // Debug: Log when tutorial workspace changes
+  useEffect(() => {
+    if (isPageTutorialActive) {
+      const shouldHighlight = getTutorialWorkspaceId() === currentWorkspace?.id;
+      console.log('🔍 DEBUG: New Project button highlight check', {
+        tutorialWorkspaceId: getTutorialWorkspaceId(),
+        currentWorkspaceId: currentWorkspace?.id,
+        shouldHighlight,
+        buttonElement: document.querySelector('[data-tutorial="new-project"]')
+      });
+    }
+  }, [isPageTutorialActive, getTutorialWorkspaceId, currentWorkspace]);
   
   // Initialize workspaces and current workspace on mount
   useEffect(() => {
@@ -1401,8 +1416,18 @@ export default function ProjectList({
               </div>
             
               <button 
-                onClick={handleNewProject}
-                data-tutorial="new-project"
+                onClick={() => {
+                  console.log('🔍 DEBUG: New Project button clicked');
+                  console.log('Tutorial active:', isPageTutorialActive);
+                  console.log('Tutorial workspace ID:', getTutorialWorkspaceId());
+                  console.log('Current workspace ID:', currentWorkspace?.id);
+                  handleNewProject();
+                }}
+                data-tutorial={
+                  isPageTutorialActive && getTutorialWorkspaceId() === currentWorkspace?.id
+                    ? "new-project" 
+                    : undefined
+                }
                 className="bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg text-sm shadow-md flex items-center gap-2 hover:bg-[var(--color-primary-hover)] transition"
               >
                 <Plus size={16} />
@@ -2054,7 +2079,7 @@ export default function ProjectList({
       />
 
       {/* Page Navigation Tutorial */}
-      <PageNavigationTutorial />
+      {/* <PageNavigationTutorial /> */}
     </AuthenticatedLayout>
   );
 }

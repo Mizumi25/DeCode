@@ -287,7 +287,7 @@ export default function SourcePage({ projectId, frameId, frame }) {
       />
 
       {/* Page Navigation Tutorial */}
-      <PageNavigationTutorial />
+      {/* <PageNavigationTutorial /> */}
       
       {/* Main Layout Container */}
       <div 

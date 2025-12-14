@@ -28,7 +28,23 @@ const PageNavigationTutorial = () => {
   const [showToast, setShowToast] = useState(false);
   const [clickToNext, setClickToNext] = useState(false);
   const [highlightTarget, setHighlightTarget] = useState(null);
+  const hasSetHighlightRef = useRef(false); // Prevent re-setting highlight for same step
+  const hasOpenedDropdownRef = useRef(false); // Prevent opening dropdown multiple times
   const overlayRef = useRef(null);
+  
+  // Use sessionStorage to persist modal check flags across component remounts
+  const hasCheckedWorkspaceModal = () => {
+    return sessionStorage.getItem('tutorial-workspace-modal-checked') === 'true';
+  };
+  const setCheckedWorkspaceModal = () => {
+    sessionStorage.setItem('tutorial-workspace-modal-checked', 'true');
+  };
+  const hasCheckedProjectModal = () => {
+    return sessionStorage.getItem('tutorial-project-modal-checked') === 'true';
+  };
+  const setCheckedProjectModal = () => {
+    sessionStorage.setItem('tutorial-project-modal-checked', 'true');
+  };
   
   const {
     isPageTutorialActive,
@@ -90,30 +106,32 @@ const PageNavigationTutorial = () => {
       target: '[data-tutorial="workspace-dropdown"]',
       gradient: 'from-orange-600 to-red-600'
     },
-    // Step 3: Create Workspace
+    // Step 3: Click Create Workspace in Dropdown
     {
-      id: 'create-workspace',
+      id: 'create-workspace-click',
       page: 'projects',
       title: 'Create New Workspace',
-      subtitle: 'Set up your team space',
+      subtitle: 'Click the button in dropdown',
       content: [
-        'Click "Create Workspace" to set up a new collaborative space.',
-        'This will be where your team can work together on projects.'
+        'Click "Create Workspace" in the dropdown menu.',
+        'This will open a form where you can set up your workspace.',
+        'Click the highlighted button to continue!'
       ],
       icon: Sparkles,
       action: 'highlight-element',
       target: '[data-tutorial="create-workspace"]',
       gradient: 'from-pink-600 to-purple-600'
     },
-    // Step 4: Fill Workspace Name (Progressive Step 1)
+    // Step 4: Type Workspace Name
     {
-      id: 'fill-workspace-name',
+      id: 'workspace-name-input',
       page: 'projects',
       title: 'Enter Workspace Name',
-      subtitle: 'Give your workspace a meaningful name',
+      subtitle: 'Type at least 5 characters',
       content: [
-        'Type a name for your workspace in the input field.',
-        'Once you type 5 or more characters, we\'ll move to the next step.'
+        'Type a name for your workspace.',
+        'Make it descriptive - like your company or team name.',
+        'Once you type 5 characters, we\'ll move to the next step!'
       ],
       icon: Code2,
       action: 'progressive-form',
@@ -121,15 +139,16 @@ const PageNavigationTutorial = () => {
       validation: 'input-length:5',
       gradient: 'from-indigo-600 to-blue-600'
     },
-    // Step 5: Select Workspace Type (Progressive Step 2)
+    // Step 5: Select Team Workspace
     {
-      id: 'select-workspace-type',
+      id: 'workspace-type-select',
       page: 'projects',
-      title: 'Choose Workspace Type',
-      subtitle: 'Select "Team Workspace"',
+      title: 'Select Team Workspace',
+      subtitle: 'Click the team option',
       content: [
-        'Now select "Team Workspace" from the dropdown.',
-        'Once selected, we\'ll automatically move to the final step.'
+        'Click "Team Workspace" to enable collaboration.',
+        'Team workspaces let you invite members and work together.',
+        'It will auto-advance when you click!'
       ],
       icon: Settings,
       action: 'progressive-form',
@@ -137,20 +156,20 @@ const PageNavigationTutorial = () => {
       validation: 'selection-made',
       gradient: 'from-green-600 to-emerald-600'
     },
-    // Step 6: Click Create Button (Progressive Step 3)
+    // Step 6: Click Create Workspace Button
     {
-      id: 'click-create-workspace',
+      id: 'workspace-create-button',
       page: 'projects',
       title: 'Create Your Workspace',
-      subtitle: 'Finalize your team space',
+      subtitle: 'Click the button',
       content: [
-        'Perfect! Now click the "Create Workspace" button.',
-        'Your workspace will be created and you can start adding projects!'
+        'Perfect! Now click "Create Workspace" to finish.',
+        'Your workspace will be created and we\'ll continue the tutorial!'
       ],
       icon: Sparkles,
       action: 'highlight-element',
       target: '[data-tutorial="create-workspace-button"]',
-      gradient: 'from-blue-600 to-cyan-600'
+      gradient: 'from-cyan-600 to-teal-600'
     },
     // Step 7: New Project
     {
@@ -168,22 +187,74 @@ const PageNavigationTutorial = () => {
       target: '[data-tutorial="new-project"]',
       gradient: 'from-yellow-600 to-orange-600'
     },
-    // Step 8: Project Configuration
+    // Step 8: Project Name Input
     {
-      id: 'project-config',
+      id: 'project-name',
       page: 'projects',
-      title: 'Configure Your Project',
-      subtitle: 'Set up your tech stack',
+      title: 'Name Your Project',
+      subtitle: 'Choose a descriptive name',
       content: [
-        'Select React and Tailwind CSS for your project.',
-        'These are the most popular tools for modern web development.',
-        'Don\'t fill out optional fields for now - we\'ll keep it simple!'
+        'Type a name for your project.',
+        'Make it descriptive and memorable!',
+        'You can always change it later.'
       ],
       icon: Palette,
-      action: 'form-guidance',
+      action: 'progressive-form',
+      target: '[data-tutorial="project-name-input"]',
+      validation: 'input-length:5',
       gradient: 'from-violet-600 to-purple-600'
     },
-    // Step 9: Void Page Introduction
+    // Step 9: Select React Framework
+    {
+      id: 'project-framework',
+      page: 'projects',
+      title: 'Choose React Framework',
+      subtitle: 'Modern web development',
+      content: [
+        'Click on "React" to select it as your framework.',
+        'React is perfect for building modern, interactive UIs.',
+        'It\'s the most popular choice for web apps!'
+      ],
+      icon: Code2,
+      action: 'progressive-form',
+      target: '[data-tutorial="project-framework-react"]',
+      validation: 'selection-made',
+      gradient: 'from-blue-600 to-cyan-600'
+    },
+    // Step 10: Select Tailwind CSS
+    {
+      id: 'project-style',
+      page: 'projects',
+      title: 'Choose Tailwind CSS',
+      subtitle: 'Utility-first styling',
+      content: [
+        'Click on "Tailwind CSS" for styling.',
+        'Tailwind makes it easy to create beautiful designs.',
+        'It works perfectly with React!'
+      ],
+      icon: Palette,
+      action: 'progressive-form',
+      target: '[data-tutorial="project-style-tailwind"]',
+      validation: 'selection-made',
+      gradient: 'from-cyan-600 to-teal-600'
+    },
+    // Step 11: Create Project Button
+    {
+      id: 'project-create-button',
+      page: 'projects',
+      title: 'Create Your Project',
+      subtitle: 'Click the button',
+      content: [
+        'Perfect! Now click "Create Project" to finish.',
+        'Your project will be created and we\'ll move to the Void page!',
+        'This is where you\'ll design your frames.'
+      ],
+      icon: Sparkles,
+      action: 'highlight-element',
+      target: '[data-tutorial="create-project-button"]',
+      gradient: 'from-teal-600 to-cyan-600'
+    },
+    // Step 12: Void Page Introduction
     {
       id: 'void-intro',
       page: 'void',
@@ -198,22 +269,23 @@ const PageNavigationTutorial = () => {
       action: 'click-anywhere',
       gradient: 'from-slate-600 to-gray-700'
     },
-    // Step 10: Add Frame
+    // Step 13: Add Frame
     {
       id: 'add-frame',
       page: 'void',
       title: 'Create Your First Frame',
-      subtitle: 'Add a new page to your project',
+      subtitle: 'Click the + button',
       content: [
-        'Click the "+" icon in the floating toolbox to create a new frame.',
-        'Frames are like pages in your application - each one represents a different view.'
+        'Look for the floating toolbox on the LEFT side of the screen.',
+        'Click the "+" icon (top button) to create a new frame.',
+        'Frames are like pages in your application - each one represents a different view.',
+        'After creating, click "Next" in this tutorial box!'
       ],
       icon: Sparkles,
-      action: 'highlight-element',
-      target: '[data-tutorial="add-frame"]',
+      action: 'info',
       gradient: 'from-emerald-600 to-green-600'
     },
-    // Step 11: Frame Configuration
+    // Step 13: Frame Configuration
     {
       id: 'frame-config',
       page: 'void',
@@ -228,7 +300,7 @@ const PageNavigationTutorial = () => {
       action: 'form-guidance',
       gradient: 'from-blue-600 to-indigo-600'
     },
-    // Step 12: Open Frame
+    // Step 14: Open Frame
     {
       id: 'open-frame',
       page: 'void',
@@ -243,7 +315,7 @@ const PageNavigationTutorial = () => {
       target: '[data-tutorial="new-frame"]',
       gradient: 'from-purple-600 to-pink-600'
     },
-    // Step 13: Mode Switch to Source
+    // Step 15: Mode Switch to Source
     {
       id: 'mode-switch',
       page: 'forge',
@@ -258,7 +330,7 @@ const PageNavigationTutorial = () => {
       target: '[data-tutorial="mode-dropdown"]',
       gradient: 'from-teal-600 to-cyan-600'
     },
-    // Step 14: Source Page Explanation
+    // Step 16: Source Page Explanation
     {
       id: 'source-explanation',
       page: 'source',
@@ -273,7 +345,7 @@ const PageNavigationTutorial = () => {
       action: 'click-anywhere',
       gradient: 'from-gray-600 to-slate-600'
     },
-    // Step 15: Return to Void
+    // Step 17: Return to Void
     {
       id: 'return-void',
       page: 'source',
@@ -306,11 +378,13 @@ const PageNavigationTutorial = () => {
       }
       
       // Check if we're on "Click Create Workspace" step but dropdown is closed
-      if (currentPage === 'projects' && currentStep === 3) {
+      // Only run this ONCE per step 3 to prevent re-opening
+      if (currentPage === 'projects' && currentStep === 3 && !hasOpenedDropdownRef.current) {
         const createButton = document.querySelector('[data-tutorial="create-workspace"]');
         
         if (!createButton) {
           console.log('🔄 TUTORIAL: Create Workspace button not visible. Auto-opening dropdown...');
+          hasOpenedDropdownRef.current = true; // Mark that we've opened it
           
           setTimeout(() => {
             const dropdownButton = document.querySelector('[data-tutorial="workspace-dropdown"]');
@@ -324,82 +398,49 @@ const PageNavigationTutorial = () => {
         }
       }
       
-      // Check if we're on a workspace form step but modal is closed (after refresh)
-      if (currentPage === 'projects' && (currentStep === 4 || currentStep === 5 || currentStep === 6)) {
-        const isModalOpen = document.querySelector('[role="dialog"], .workspace-modal, [data-tutorial="workspace-name-input"]');
+      // Reset dropdown flag when leaving step 3
+      if (currentStep !== 3 && hasOpenedDropdownRef.current) {
+        hasOpenedDropdownRef.current = false;
+      }
+      
+      // DISABLED: Modal check was causing loops
+      // Only check modal on actual page refresh/reload, not during normal progression
+      // The workspace modal will stay open during steps 4-6, no need to check
+      // if (currentPage === 'projects' && (currentStep === 4 || currentStep === 5 || currentStep === 6)) {
+      //   // Modal check disabled to prevent switching/looping
+      // }
+      
+      // Check if we're on a project form step after refresh
+      // Always reset to step 7 (New Project button) to ensure user goes through the full flow
+      if (currentPage === 'projects' && (currentStep === 8 || currentStep === 9 || currentStep === 10) && !hasCheckedProjectModal()) {
+        setCheckedProjectModal(); // Mark that we've checked
         
-        if (!isModalOpen) {
-          console.log('🔄 TUTORIAL: Workspace form step detected but modal closed. Auto-opening modal...');
-          
-          // Try multiple times with increasing delays to handle race conditions
-          let attempts = 0;
-          const maxAttempts = 5;
-          
-          const tryOpenModal = () => {
-            attempts++;
-            console.log(`🔄 TUTORIAL: Attempt ${attempts}/${maxAttempts} to open modal`);
-            
-            // First check if modal is now open
-            const modalCheck = document.querySelector('[role="dialog"], .workspace-modal, [data-tutorial="workspace-name-input"]');
-            if (modalCheck) {
-              console.log('✅ TUTORIAL: Modal is now open, showing tutorial');
-              setIsVisible(true);
-              document.body.style.overflow = 'hidden';
-              return;
-            }
-            
-            // Try to open it
-            const dropdownButton = document.querySelector('[data-tutorial="workspace-dropdown"]');
-            if (dropdownButton) {
-              dropdownButton.click();
-              console.log('🔄 TUTORIAL: Clicked workspace dropdown');
-              
-              // Then click Create Workspace button
-              setTimeout(() => {
-                const createButton = document.querySelector('[data-tutorial="create-workspace"]');
-                if (createButton) {
-                  createButton.click();
-                  console.log('✅ TUTORIAL: Clicked Create Workspace button');
-                  
-                  // Verify modal opened
-                  setTimeout(() => {
-                    const finalCheck = document.querySelector('[role="dialog"], .workspace-modal, [data-tutorial="workspace-name-input"]');
-                    if (finalCheck) {
-                      console.log('✅ TUTORIAL: Modal successfully opened');
-                      setIsVisible(true);
-                      document.body.style.overflow = 'hidden';
-                    } else if (attempts < maxAttempts) {
-                      console.log('⚠️ TUTORIAL: Modal not opened, retrying...');
-                      setTimeout(tryOpenModal, 1000);
-                    } else {
-                      console.error('❌ TUTORIAL: Failed to open modal after max attempts');
-                      // Fallback: Skip to next step if modal won't open
-                      console.log('🔄 TUTORIAL: Skipping to next step (new-project)');
-                      setPageNavigationStep(7); // Skip to "new-project" step
-                    }
-                  }, 500);
-                }
-              }, 400);
-            } else if (attempts < maxAttempts) {
-              console.log('⚠️ TUTORIAL: Dropdown not found, retrying...');
-              setTimeout(tryOpenModal, 1000);
-            }
-          };
-          
-          // Start the process
-          setTimeout(tryOpenModal, 500);
-          return;
-        } else {
-          // Modal is already open, just show the tutorial
-          console.log('✅ TUTORIAL: Modal already open, showing tutorial');
-          setIsVisible(true);
-          document.body.style.overflow = 'hidden';
+        console.log('🔄 TUTORIAL: Project form step detected after refresh');
+        console.log('🔄 TUTORIAL: Resetting to step 7 to restart project creation flow');
+        
+        // Close any open project modal
+        const closeButton = document.querySelector('[role="dialog"] button[aria-label="Close"], [role="dialog"] .close-button');
+        if (closeButton) {
+          closeButton.click();
+          console.log('🔄 TUTORIAL: Closed project modal');
         }
+        
+        // Reset to "click New Project" step
+        setPageNavigationStep(7);
+        setIsVisible(false);
+        return;
       }
       
       // Show tutorial if current step matches current page or if we're on step 0
       const shouldShow = currentStep === 0 || 
                         (currentStepData && currentStepData.page === currentPage);
+      
+      console.log('🎯 TUTORIAL: Visibility check', { 
+        currentStep, 
+        currentPage, 
+        stepPage: currentStepData?.page,
+        shouldShow 
+      });
       
       if (shouldShow) {
         setIsVisible(true);
@@ -418,8 +459,17 @@ const PageNavigationTutorial = () => {
   }, []);
 
   const handleNext = () => {
+    console.log('🚀 TUTORIAL: handleNext called', { 
+      from: currentStep, 
+      to: currentStep + 1,
+      stepName: tutorialSteps[currentStep]?.id 
+    });
+    
     // Clean up current highlights before advancing
     cleanupHighlights();
+    
+    // Reset highlight flag for next step
+    hasSetHighlightRef.current = false;
     
     if (currentStep < tutorialSteps.length - 1) {
       setPageNavigationStep(currentStep + 1);
@@ -453,11 +503,27 @@ const PageNavigationTutorial = () => {
   const handleElementHighlight = (target, validation = null) => {
     const element = document.querySelector(target);
     if (element) {
-      // Scroll element into view
-      element.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center' 
-      });
+      // Check if element is inside a modal
+      const parentModal = element.closest('[role="dialog"], .modal, .workspace-modal');
+      
+      // Only scroll if element is NOT in a modal (modals are already centered)
+      if (!parentModal) {
+        element.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+      } else {
+        // For modal elements, just ensure they're visible without aggressive scrolling
+        const rect = element.getBoundingClientRect();
+        const isVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
+        
+        if (!isVisible) {
+          element.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest' // Less aggressive - only scroll if needed
+          });
+        }
+      }
 
       // Get element position and size
       const rect = element.getBoundingClientRect();
@@ -678,6 +744,12 @@ const PageNavigationTutorial = () => {
   // Auto-highlight when step changes for highlight-element and progressive-form actions
   useEffect(() => {
     if ((currentStepData?.action === 'highlight-element' || currentStepData?.action === 'progressive-form') && currentStepData?.target) {
+      // Prevent re-highlighting for same step
+      if (hasSetHighlightRef.current) {
+        console.log('🔒 TUTORIAL: Already set highlight for this step, skipping');
+        return;
+      }
+      
       // Special handling for create-workspace button (inside dropdown)
       if (currentStepData.target === '[data-tutorial="create-workspace"]') {
         console.log('🎯 TUTORIAL: Looking for Create Workspace button...');
@@ -687,6 +759,7 @@ const PageNavigationTutorial = () => {
           const button = document.querySelector('[data-tutorial="create-workspace"]');
           if (button) {
             console.log('✅ TUTORIAL: Found Create Workspace button');
+            hasSetHighlightRef.current = true;
             setHighlightTarget(currentStepData.target);
           } else {
             console.log('⏳ TUTORIAL: Create Workspace button not found, checking again...');
@@ -703,6 +776,7 @@ const PageNavigationTutorial = () => {
           const element = document.querySelector(currentStepData.target);
           if (element) {
             console.log('✅ TUTORIAL: Found progressive form element');
+            hasSetHighlightRef.current = true;
             setHighlightTarget(currentStepData.target);
           } else {
             console.log('⏳ TUTORIAL: Element not found, checking again...');
@@ -713,14 +787,26 @@ const PageNavigationTutorial = () => {
         checkForElement();
       } else {
         // Wait a bit for page to settle before highlighting (prevents positioning issues)
+        let attempts = 0;
+        const maxAttempts = 10; // Try for 2 seconds (10 * 200ms)
+        
         const checkForElement = () => {
+          attempts++;
           const element = document.querySelector(currentStepData.target);
           if (element) {
             console.log('✅ TUTORIAL: Found element for highlighting');
+            hasSetHighlightRef.current = true;
             setHighlightTarget(currentStepData.target);
-          } else {
-            console.log('⏳ TUTORIAL: Element not ready, checking again...');
+          } else if (attempts < maxAttempts) {
+            console.log(`⏳ TUTORIAL: Element not ready, checking again... (${attempts}/${maxAttempts})`);
             setTimeout(checkForElement, 200);
+          } else {
+            console.warn('⚠️ TUTORIAL: Element not found after max attempts:', currentStepData.target);
+            console.warn('⚠️ TUTORIAL: Showing tutorial anyway without highlight');
+            hasSetHighlightRef.current = true;
+            // Show tutorial even without highlighting the element
+            setIsVisible(true);
+            document.body.style.overflow = 'hidden';
           }
         };
         
@@ -787,10 +873,10 @@ const PageNavigationTutorial = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100000]"
+                className="fixed inset-0 z-[100]"
                 style={{
                   background: 'rgba(0, 0, 0, 0.8)',
-                  pointerEvents: 'auto'
+                  pointerEvents: currentStepData.action === 'click-anywhere' ? 'auto' : 'none' // Clickable for click-anywhere, otherwise let modals through
                 }}
                 onClick={currentStepData.action === 'click-anywhere' ? handleNext : undefined}
               />
@@ -809,9 +895,14 @@ const PageNavigationTutorial = () => {
                 stiffness: 300,
                 delay: 0.1 
               }}
-              className={`fixed z-[100005] max-w-md rounded-3xl shadow-2xl overflow-hidden ${
-                currentStepData?.id === 'select-team' ? 'bottom-4 left-4' : 'top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2'
-              }`}
+              className={`fixed z-[1000000] rounded-3xl shadow-2xl overflow-hidden
+                ${
+                  // Position based on which step we're on
+                  currentStep >= 4 && currentStep <= 10 
+                    ? 'top-4 left-4 w-[90vw] max-w-[320px] sm:max-w-xs md:max-w-sm' // Top-left for modal steps, very small on mobile
+                    : 'top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md' // Center for other steps
+                }
+              `}
               onClick={currentStepData?.action === 'click-anywhere' ? handleNext : (e) => {
                 // CRITICAL: Don't let tutorial modal clicks close workspace modal
                 e.stopPropagation();

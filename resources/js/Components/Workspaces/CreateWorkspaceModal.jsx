@@ -43,16 +43,30 @@ const PRIVACY_OPTIONS = [
 ]
 
 const CreateWorkspaceModal = ({ show, onClose }) => {
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    type: 'team',
-    privacy: 'private'
+  // Initialize form data from localStorage during tutorial or use defaults
+  const [formData, setFormData] = useState(() => {
+    const { isPageTutorialActive } = useTutorialStore.getState()
+    if (isPageTutorialActive) {
+      const saved = localStorage.getItem('tutorial_workspace_form')
+      if (saved) {
+        try {
+          return JSON.parse(saved)
+        } catch (e) {
+          console.error('Failed to parse saved form data:', e)
+        }
+      }
+    }
+    return {
+      name: '',
+      description: '',
+      type: 'team',
+      privacy: 'private'
+    }
   })
   const [errors, setErrors] = useState({})
 
   const { createWorkspace, isLoading, error } = useWorkspaceStore()
-  const { isPageTutorialActive } = useTutorialStore()
+  const { isPageTutorialActive, setTutorialWorkspaceId } = useTutorialStore()
   
   // During tutorial: force team workspace type
   useEffect(() => {
@@ -61,11 +75,27 @@ const CreateWorkspaceModal = ({ show, onClose }) => {
     }
   }, [isPageTutorialActive, show])
 
+  // During tutorial: persist form data to localStorage
+  useEffect(() => {
+    if (isPageTutorialActive && show) {
+      localStorage.setItem('tutorial_workspace_form', JSON.stringify(formData))
+    }
+  }, [formData, isPageTutorialActive, show])
+
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    // Use callback to avoid unnecessary re-renders
+    setFormData(prev => {
+      // Only update if value actually changed
+      if (prev[field] === value) return prev
+      return { ...prev, [field]: value }
+    })
     // Clear error for this field
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: null }))
+      setErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors[field]
+        return newErrors
+      })
     }
   }
 
@@ -88,14 +118,25 @@ const CreateWorkspaceModal = ({ show, onClose }) => {
     if (!validateForm()) return
 
     try {
-      await createWorkspace({
+      // During tutorial: save the workspace ID BEFORE creating (so it persists before redirect)
+      const workspaceData = {
         name: formData.name.trim(),
         description: formData.description.trim(),
         type: formData.type,
         settings: {
           privacy: formData.privacy
         }
-      })
+      };
+      
+      const result = await createWorkspace(workspaceData)
+      
+      // During tutorial: save the workspace ID immediately after creation
+      if (isPageTutorialActive && result?.id) {
+        setTutorialWorkspaceId(result.id)
+        console.log('🎯 TUTORIAL: Saved workspace ID:', result.id)
+        // Force persist to localStorage immediately before redirect
+        localStorage.setItem('tutorial-workspace-id', result.id.toString())
+      }
       
       // Reset form and close modal
       setFormData({
@@ -105,6 +146,12 @@ const CreateWorkspaceModal = ({ show, onClose }) => {
         privacy: 'private'
       })
       setErrors({})
+      
+      // Clear persisted form data
+      if (isPageTutorialActive) {
+        localStorage.removeItem('tutorial_workspace_form')
+      }
+      
       onClose()
     } catch (error) {
       console.error('Failed to create workspace:', error)
@@ -151,7 +198,8 @@ const CreateWorkspaceModal = ({ show, onClose }) => {
             onChange={(e) => handleInputChange('name', e.target.value)}
             placeholder="Acme Design Team"
             data-tutorial="workspace-name-input"
-            className={`w-full px-3 py-2 border rounded-lg bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent ${
+            autoComplete="off"
+            className={`w-full px-3 py-2 border rounded-lg bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-none ${
               errors.name ? 'border-red-300 dark:border-red-600' : 'border-[var(--color-border)]'
             }`}
             maxLength="50"
@@ -171,7 +219,8 @@ const CreateWorkspaceModal = ({ show, onClose }) => {
             onChange={(e) => handleInputChange('description', e.target.value)}
             placeholder="Brief description of what this workspace is for..."
             rows={3}
-            className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent resize-none"
+            autoComplete="off"
+            className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg bg-[var(--color-surface)] text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent resize-none transition-none"
             maxLength="200"
           />
           <div className="text-right text-xs text-[var(--color-text-muted)] mt-1">

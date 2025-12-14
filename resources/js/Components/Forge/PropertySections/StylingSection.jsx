@@ -1,6 +1,7 @@
-import React from 'react';
-import { Palette, Box, Circle, Sparkles, Filter, Paintbrush } from 'lucide-react';
+import React, { useState } from 'react';
+import { Palette, Box, Circle, Sparkles, Filter, Paintbrush, Image as ImageIcon } from 'lucide-react';
 import { PropertySection, InputField, SubsectionHeader, ButtonGrid, presetValues } from '../PropertyUtils';
+import AssetPickerModal from '../AssetPickerModal';
 import { 
   hexToOklch, 
   hexToOklab, 
@@ -13,6 +14,10 @@ import {
 } from '../utils/modernColorSupport';
 
 const StylingSection = ({ currentStyles, onPropertyChange, expandedSections, setExpandedSections, searchTerm, styleFramework = 'css' }) => {
+  
+  // Asset picker modal state
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [assetPickerTarget, setAssetPickerTarget] = useState(null); // 'backgroundImage' or 'borderImageSource'
   
   
   
@@ -88,320 +93,6 @@ const parseCurrentGradient = (backgroundImage) => {
   
   return (
     <>
-      {/* MODERN COLORS (CSS Color Level 4 & 5) - NEW */}
-      <PropertySection
-        title={
-          <div className="flex items-center gap-2">
-            <span>Modern Colors</span>
-            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white animate-pulse">
-              NEW
-            </span>
-          </div>
-        }
-        Icon={Palette}
-        sectionKey="modernColors"
-        expandedSections={expandedSections}
-        setExpandedSections={setExpandedSections}
-        searchTerm={searchTerm}
-      >
-        {/* Color Space Converter */}
-        <div>
-          <SubsectionHeader title="Color Space Converter" />
-          <div className="space-y-3">
-            <div className="flex gap-2">
-              <input
-                type="color"
-                id="modern-color-picker"
-                defaultValue="#667eea"
-                className="w-12 h-10 border rounded cursor-pointer"
-                style={{ borderColor: 'var(--color-border)' }}
-              />
-              <div className="flex-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                Pick a color to convert to modern formats
-              </div>
-            </div>
-            
-            <ButtonGrid
-              columns={2}
-              buttons={[
-                {
-                  label: '→ OKLCH',
-                  onClick: () => {
-                    const hex = document.getElementById('modern-color-picker').value;
-                    const oklch = hexToOklch(hex);
-                    onPropertyChange('color', oklch, 'style');
-                  },
-                  className: 'bg-purple-100 text-purple-800 hover:bg-purple-200 font-mono text-xs'
-                },
-                {
-                  label: '→ OKLAB',
-                  onClick: () => {
-                    const hex = document.getElementById('modern-color-picker').value;
-                    const oklab = hexToOklab(hex);
-                    onPropertyChange('color', oklab, 'style');
-                  },
-                  className: 'bg-blue-100 text-blue-800 hover:bg-blue-200 font-mono text-xs'
-                }
-              ]}
-            />
-          </div>
-        </div>
-
-        {/* OKLCH Palettes */}
-        <div>
-          <SubsectionHeader title="OKLCH Palettes" />
-          <div className="space-y-2">
-            {Object.entries(oklchPalettes).map(([paletteName, colors]) => (
-              <div key={paletteName}>
-                <p className="text-xs font-medium mb-1 capitalize" style={{ color: 'var(--color-text-muted)' }}>
-                  {paletteName}
-                </p>
-                <div className="grid grid-cols-3 gap-1">
-                  {Object.entries(colors).map(([colorName, colorValue]) => (
-                    <button
-                      key={colorName}
-                      onClick={() => onPropertyChange('color', colorValue, 'style')}
-                      className="h-10 rounded border-2 transition-all hover:scale-105"
-                      style={{
-                        background: colorValue,
-                        borderColor: 'var(--color-border)'
-                      }}
-                      title={`${colorName}: ${colorValue}`}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* color-mix() Generator */}
-        <div>
-          <SubsectionHeader title="color-mix() Generator" />
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="color"
-                id="color-mix-1"
-                defaultValue="#667eea"
-                className="w-full h-10 border rounded cursor-pointer"
-                style={{ borderColor: 'var(--color-border)' }}
-              />
-              <input
-                type="color"
-                id="color-mix-2"
-                defaultValue="#764ba2"
-                className="w-full h-10 border rounded cursor-pointer"
-                style={{ borderColor: 'var(--color-border)' }}
-              />
-            </div>
-            
-            <InputField
-              label="Mix Percentage"
-              value={50}
-              onChange={(value) => {
-                // Store for use in apply button
-                document.getElementById('color-mix-percentage').value = value;
-              }}
-              type="range"
-              options={{ min: 0, max: 100, step: 5, unit: '%' }}
-              searchTerm={searchTerm}
-            />
-            <input type="hidden" id="color-mix-percentage" value="50" />
-            
-            <div className="grid grid-cols-2 gap-2">
-              <select
-                id="color-mix-space"
-                className="px-3 py-2 border rounded-lg text-sm"
-                style={{
-                  backgroundColor: 'var(--color-surface)',
-                  borderColor: 'var(--color-border)',
-                  color: 'var(--color-text)'
-                }}
-                defaultValue="oklch"
-              >
-                <option value="oklch">OKLCH</option>
-                <option value="oklab">OKLAB</option>
-                <option value="srgb">sRGB</option>
-                <option value="srgb-linear">sRGB Linear</option>
-                <option value="lab">LAB</option>
-                <option value="lch">LCH</option>
-                <option value="hsl">HSL</option>
-              </select>
-              
-              <button
-                onClick={() => {
-                  const color1 = document.getElementById('color-mix-1').value;
-                  const color2 = document.getElementById('color-mix-2').value;
-                  const percentage = parseInt(document.getElementById('color-mix-percentage').value);
-                  const space = document.getElementById('color-mix-space').value;
-                  const mixed = createColorMix(color1, color2, percentage, space);
-                  onPropertyChange('color', mixed, 'style');
-                }}
-                className="px-3 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
-              >
-                Apply Mix
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick color-mix() Presets */}
-        <div>
-          <SubsectionHeader title="Quick color-mix() Effects" />
-          <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
-            Apply to current text color
-          </p>
-          <ButtonGrid
-            columns={2}
-            buttons={[
-              {
-                label: '💡 Lighten',
-                onClick: () => {
-                  const current = currentStyles.color || '#000000';
-                  onPropertyChange('color', colorMixPresets.lighten(current), 'style');
-                },
-                className: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-              },
-              {
-                label: '🌑 Darken',
-                onClick: () => {
-                  const current = currentStyles.color || '#000000';
-                  onPropertyChange('color', colorMixPresets.darken(current), 'style');
-                },
-                className: 'bg-gray-800 text-white hover:bg-gray-900'
-              },
-              {
-                label: '🎨 Saturate',
-                onClick: () => {
-                  const current = currentStyles.color || '#000000';
-                  onPropertyChange('color', colorMixPresets.saturate(current), 'style');
-                },
-                className: 'bg-pink-100 text-pink-800 hover:bg-pink-200'
-              },
-              {
-                label: '🔘 Desaturate',
-                onClick: () => {
-                  const current = currentStyles.color || '#000000';
-                  onPropertyChange('color', colorMixPresets.desaturate(current), 'style');
-                },
-                className: 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-              },
-              {
-                label: '👻 50% Transparent',
-                onClick: () => {
-                  const current = currentStyles.color || '#000000';
-                  onPropertyChange('color', colorMixPresets.transparent(current, 50), 'style');
-                },
-                className: 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-              },
-              {
-                label: '✨ 75% Transparent',
-                onClick: () => {
-                  const current = currentStyles.color || '#000000';
-                  onPropertyChange('color', colorMixPresets.transparent(current, 25), 'style');
-                },
-                className: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200'
-              }
-            ]}
-          />
-        </div>
-
-        {/* Color Scheme Generator */}
-        <div>
-          <SubsectionHeader title="OKLCH Color Schemes" />
-          <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
-            Generate harmonious colors from current color
-          </p>
-          <ButtonGrid
-            columns={2}
-            buttons={[
-              {
-                label: '🎨 Analogous',
-                onClick: () => {
-                  const colors = generateColorScheme(currentStyles.color || '#667eea', 'analogous');
-                  onPropertyChange('color', colors[0], 'style');
-                  console.log('Analogous scheme:', colors);
-                },
-                className: 'bg-green-100 text-green-800 hover:bg-green-200'
-              },
-              {
-                label: '⚖️ Complementary',
-                onClick: () => {
-                  const colors = generateColorScheme(currentStyles.color || '#667eea', 'complementary');
-                  onPropertyChange('color', colors[0], 'style');
-                  console.log('Complementary scheme:', colors);
-                },
-                className: 'bg-orange-100 text-orange-800 hover:bg-orange-200'
-              },
-              {
-                label: '🔺 Triadic',
-                onClick: () => {
-                  const colors = generateColorScheme(currentStyles.color || '#667eea', 'triadic');
-                  onPropertyChange('color', colors[0], 'style');
-                  console.log('Triadic scheme:', colors);
-                },
-                className: 'bg-purple-100 text-purple-800 hover:bg-purple-200'
-              },
-              {
-                label: '🔲 Tetradic',
-                onClick: () => {
-                  const colors = generateColorScheme(currentStyles.color || '#667eea', 'tetradic');
-                  onPropertyChange('color', colors[0], 'style');
-                  console.log('Tetradic scheme:', colors);
-                },
-                className: 'bg-red-100 text-red-800 hover:bg-red-200'
-              },
-              {
-                label: '📊 Monochromatic',
-                onClick: () => {
-                  const colors = generateColorScheme(currentStyles.color || '#667eea', 'monochromatic');
-                  onPropertyChange('color', colors[2], 'style'); // Use middle value
-                  console.log('Monochromatic scheme:', colors);
-                },
-                className: 'bg-cyan-100 text-cyan-800 hover:bg-cyan-200'
-              }
-            ]}
-          />
-        </div>
-
-        {/* Browser Support Info */}
-        <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)', border: '1px solid var(--color-border)' }}>
-          <div className="flex items-start gap-2">
-            <span className="text-lg">💡</span>
-            <div>
-              <p className="text-sm font-medium mb-1" style={{ color: 'var(--color-text)' }}>
-                Modern Color Spaces
-              </p>
-              <ul className="text-xs space-y-1" style={{ color: 'var(--color-text-muted)' }}>
-                <li>• <strong>OKLCH:</strong> Perceptually uniform colors with better gradients</li>
-                <li>• <strong>OKLAB:</strong> Perceptually uniform Lab color space</li>
-                <li>• <strong>color-mix():</strong> Mix colors in any color space</li>
-                <li>• Tailwind CSS supports these in configuration</li>
-                <li>• Supported in Chrome 111+, Firefox 113+, Safari 16.4+</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* Current Color Info */}
-        <div>
-          <SubsectionHeader title="Current Color Info" />
-          <div className="p-3 rounded-lg font-mono text-xs space-y-1" style={{ backgroundColor: 'var(--color-bg-muted)', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
-            {(() => {
-              const { format, isModern } = detectColorFormat(currentStyles.color);
-              return (
-                <>
-                  <div>Format: <span className="font-bold" style={{ color: 'var(--color-text)' }}>{format}</span></div>
-                  <div>Modern: <span className={`font-bold ${isModern ? 'text-green-600' : 'text-orange-600'}`}>{isModern ? '✓ Yes' : '✗ No'}</span></div>
-                  <div>Value: <span className="font-bold" style={{ color: 'var(--color-text)' }}>{currentStyles.color || 'none'}</span></div>
-                </>
-              );
-            })()}
-          </div>
-        </div>
-      </PropertySection>
-
       {/* COLORS */}
       <PropertySection
         title="Colors"
@@ -485,13 +176,41 @@ const parseCurrentGradient = (backgroundImage) => {
         setExpandedSections={setExpandedSections}
         searchTerm={searchTerm}
       >
-        <InputField
-          label="Background Image"
-          value={currentStyles.backgroundImage}
-          onChange={(value) => onPropertyChange('backgroundImage', value, 'style')}
-          options={{ placeholder: 'url() or none' }}
-          searchTerm={searchTerm}
-        />
+        {/* Background Image with Asset Picker */}
+        <div>
+          <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>
+            Background Image
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={currentStyles.backgroundImage || ''}
+              onChange={(e) => onPropertyChange('backgroundImage', e.target.value, 'style')}
+              placeholder="url() or none"
+              className="flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)'
+              }}
+            />
+            <button
+              onClick={() => {
+                setAssetPickerTarget('backgroundImage');
+                setShowAssetPicker(true);
+              }}
+              className="px-3 py-2 rounded-lg border transition-all hover:shadow-sm flex items-center gap-2"
+              style={{
+                backgroundColor: 'var(--color-primary-soft)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-primary)'
+              }}
+              title="Pick from Assets"
+            >
+              <ImageIcon className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
         
         <InputField
           label="Background Size"
@@ -814,13 +533,40 @@ const parseCurrentGradient = (backgroundImage) => {
         {/* Border Image */}
         <div>
           <SubsectionHeader title="Border Image" />
-          <InputField
-            label="Border Image Source"
-            value={currentStyles.borderImageSource}
-            onChange={(value) => onPropertyChange('borderImageSource', value, 'style')}
-            placeholder="url(...) or gradient"
-            searchTerm={searchTerm}
-          />
+          <div>
+            <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>
+              Border Image Source
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={currentStyles.borderImageSource || ''}
+                onChange={(e) => onPropertyChange('borderImageSource', e.target.value, 'style')}
+                placeholder="url(...) or gradient"
+                className="flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)'
+                }}
+              />
+              <button
+                onClick={() => {
+                  setAssetPickerTarget('borderImageSource');
+                  setShowAssetPicker(true);
+                }}
+                className="px-3 py-2 rounded-lg border transition-all hover:shadow-sm flex items-center gap-2"
+                style={{
+                  backgroundColor: 'var(--color-primary-soft)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-primary)'
+                }}
+                title="Pick from Assets"
+              >
+                <ImageIcon className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <InputField
               label="Image Slice"
@@ -897,560 +643,11 @@ const parseCurrentGradient = (backgroundImage) => {
         setExpandedSections={setExpandedSections}
         searchTerm={searchTerm}
       >
-        {/* Quick Presets */}
-        <div>
-          <SubsectionHeader title="Quick Presets" />
-          <InputField
-            label="Border Radius"
-            value={currentStyles.borderRadius}
-            onChange={(value) => onPropertyChange('borderRadius', value, 'style')}
-            type="preset"
-            options={{
-              presets: presetValues.borderRadius
-            }}
-            searchTerm={searchTerm}
-          />
-        </div>
-        
-        {/* Individual Corners */}
-        <div>
-          <SubsectionHeader title="Individual Corners" />
-          <div className="grid grid-cols-2 gap-2">
-            <InputField
-              label="Top Left"
-              value={currentStyles.borderTopLeftRadius}
-              onChange={(value) => onPropertyChange('borderTopLeftRadius', value, 'style')}
-              searchTerm={searchTerm}
-            />
-            <InputField
-              label="Top Right"
-              value={currentStyles.borderTopRightRadius}
-              onChange={(value) => onPropertyChange('borderTopRightRadius', value, 'style')}
-              searchTerm={searchTerm}
-            />
-            <InputField
-              label="Bottom Left"
-              value={currentStyles.borderBottomLeftRadius}
-              onChange={(value) => onPropertyChange('borderBottomLeftRadius', value, 'style')}
-              searchTerm={searchTerm}
-            />
-            <InputField
-              label="Bottom Right"
-              value={currentStyles.borderBottomRightRadius}
-              onChange={(value) => onPropertyChange('borderBottomRightRadius', value, 'style')}
-              searchTerm={searchTerm}
-            />
-          </div>
-        </div>
-        
-        {/* Advanced Shape Controls */}
-        <div>
-          <SubsectionHeader title="Advanced Shapes" />
-          <ButtonGrid
-            columns={2}
-            buttons={[
-              {
-                label: 'Circle',
-                onClick: () => onPropertyChange('borderRadius', '50%', 'style'),
-                className: 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-              },
-              {
-                label: 'Square',
-                onClick: () => onPropertyChange('borderRadius', '0', 'style'),
-                className: 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-              },
-              {
-                label: 'Pill Top',
-                onClick: () => {
-                  onPropertyChange('borderTopLeftRadius', '50px', 'style');
-                  onPropertyChange('borderTopRightRadius', '50px', 'style');
-                  onPropertyChange('borderBottomLeftRadius', '0', 'style');
-                  onPropertyChange('borderBottomRightRadius', '0', 'style');
-                },
-                className: 'bg-green-100 text-green-800 hover:bg-green-200'
-              },
-              {
-                label: 'Organic',
-                onClick: () => {
-                  onPropertyChange('borderTopLeftRadius', '20px', 'style');
-                  onPropertyChange('borderTopRightRadius', '20px', 'style');
-                  onPropertyChange('borderBottomLeftRadius', '50px', 'style');
-                  onPropertyChange('borderBottomRightRadius', '50px', 'style');
-                },
-                className: 'bg-purple-100 text-purple-800 hover:bg-purple-200'
-              }
-            ]}
-          />
-        </div>
-        
-        {/* Clip Path for Complex Shapes */}
-        <div>
-          <SubsectionHeader title="Clip Path Shapes" />
-          <InputField
-            label="Clip Path"
-            value={currentStyles.clipPath}
-            onChange={(value) => onPropertyChange('clipPath', value, 'style')}
-            type="select"
-            options={{
-              values: [
-                'none',
-                'circle(50% at 50% 50%)',
-                'ellipse(50% 60% at 50% 50%)',
-                'polygon(50% 0%, 0% 100%, 100% 100%)',
-                'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)',
-                'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
-                'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)',
-                'polygon(0% 20%, 60% 20%, 60% 0%, 100% 50%, 60% 100%, 60% 80%, 0% 80%)',
-                'polygon(25% 0%, 100% 0%, 75% 100%, 0% 100%)'
-              ]
-            }}
-            searchTerm={searchTerm}
-          />
-        </div>
-      </PropertySection>
-
-      {/* CONTAINER QUERIES - NEW */}
-      <PropertySection
-        title={
-          <div className="flex items-center gap-2">
-            <span>Container Queries</span>
-            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white animate-pulse">
-              NEW
-            </span>
-          </div>
-        }
-        Icon={Box}
-        sectionKey="containerQueries"
-        expandedSections={expandedSections}
-        setExpandedSections={setExpandedSections}
-        searchTerm={searchTerm}
-      >
-        {/* Container Type */}
-        <div>
-          <SubsectionHeader title="Container Type" />
-          <InputField
-            label="Container Type"
-            value={currentStyles.containerType}
-            onChange={(value) => onPropertyChange('containerType', value, 'style')}
-            type="select"
-            options={{
-              values: ['normal', 'size', 'inline-size', 'block-size']
-            }}
-            searchTerm={searchTerm}
-          />
-          <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            Makes this element a container for child query breakpoints
-          </p>
-        </div>
-
-        {/* Container Name */}
-        <div>
-          <SubsectionHeader title="Container Name" />
-          <InputField
-            label="Container Name"
-            value={currentStyles.containerName}
-            onChange={(value) => onPropertyChange('containerName', value, 'style')}
-            options={{ placeholder: 'e.g., sidebar, card, hero' }}
-            searchTerm={searchTerm}
-          />
-          <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            Give this container a name to reference in @container queries
-          </p>
-        </div>
-
-        {/* Quick Presets */}
-        <div>
-          <SubsectionHeader title="Quick Setup" />
-          <ButtonGrid
-            columns={2}
-            buttons={[
-              {
-                label: '📦 Basic Container',
-                onClick: () => {
-                  onPropertyChange('containerType', 'inline-size', 'style');
-                },
-                className: 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-              },
-              {
-                label: '📐 Size Container',
-                onClick: () => {
-                  onPropertyChange('containerType', 'size', 'style');
-                },
-                className: 'bg-purple-100 text-purple-800 hover:bg-purple-200'
-              },
-              {
-                label: '📏 Inline Container',
-                onClick: () => {
-                  onPropertyChange('containerType', 'inline-size', 'style');
-                },
-                className: 'bg-green-100 text-green-800 hover:bg-green-200'
-              },
-              {
-                label: '❌ Disable',
-                onClick: () => {
-                  onPropertyChange('containerType', 'normal', 'style');
-                  onPropertyChange('containerName', '', 'style');
-                },
-                className: 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-              }
-            ]}
-          />
-        </div>
-
-        {/* Named Container Presets */}
-        <div>
-          <SubsectionHeader title="Common Container Names" />
-          <ButtonGrid
-            columns={2}
-            buttons={[
-              {
-                label: '🎴 Card',
-                onClick: () => {
-                  onPropertyChange('containerType', 'inline-size', 'style');
-                  onPropertyChange('containerName', 'card', 'style');
-                },
-                className: 'bg-pink-100 text-pink-800 hover:bg-pink-200'
-              },
-              {
-                label: '📊 Sidebar',
-                onClick: () => {
-                  onPropertyChange('containerType', 'inline-size', 'style');
-                  onPropertyChange('containerName', 'sidebar', 'style');
-                },
-                className: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200'
-              },
-              {
-                label: '🎯 Hero',
-                onClick: () => {
-                  onPropertyChange('containerType', 'size', 'style');
-                  onPropertyChange('containerName', 'hero', 'style');
-                },
-                className: 'bg-orange-100 text-orange-800 hover:bg-orange-200'
-              },
-              {
-                label: '📰 Article',
-                onClick: () => {
-                  onPropertyChange('containerType', 'inline-size', 'style');
-                  onPropertyChange('containerName', 'article', 'style');
-                },
-                className: 'bg-cyan-100 text-cyan-800 hover:bg-cyan-200'
-              },
-              {
-                label: '🎬 Media',
-                onClick: () => {
-                  onPropertyChange('containerType', 'size', 'style');
-                  onPropertyChange('containerName', 'media', 'style');
-                },
-                className: 'bg-red-100 text-red-800 hover:bg-red-200'
-              },
-              {
-                label: '📋 Form',
-                onClick: () => {
-                  onPropertyChange('containerType', 'inline-size', 'style');
-                  onPropertyChange('containerName', 'form', 'style');
-                },
-                className: 'bg-teal-100 text-teal-800 hover:bg-teal-200'
-              }
-            ]}
-          />
-        </div>
-
-        {/* Info Box */}
-        <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)', border: '1px solid var(--color-border)' }}>
-          <div className="flex items-start gap-2">
-            <span className="text-lg">💡</span>
-            <div>
-              <p className="text-sm font-medium mb-1" style={{ color: 'var(--color-text)' }}>
-                How Container Queries Work
-              </p>
-              <ul className="text-xs space-y-1" style={{ color: 'var(--color-text-muted)' }}>
-                <li>• Set a container type on parent elements</li>
-                <li>• Child elements can respond to container size</li>
-                <li>• Use @container in CSS instead of @media</li>
-                <li>• More powerful than traditional media queries</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* Example Code */}
-        <div>
-          <SubsectionHeader title="Example Usage" />
-          <div className="p-3 rounded-lg font-mono text-xs" style={{ backgroundColor: 'var(--color-bg-muted)', border: '1px solid var(--color-border)' }}>
-            <div style={{ color: 'var(--color-text-muted)' }}>
-              <span style={{ color: '#22c55e' }}>/* Parent element */</span><br/>
-              <span style={{ color: '#3b82f6' }}>.container</span> {'{'}<br/>
-              &nbsp;&nbsp;container-type: inline-size;<br/>
-              &nbsp;&nbsp;container-name: {currentStyles.containerName || 'myContainer'};<br/>
-              {'}'}<br/><br/>
-              
-              <span style={{ color: '#22c55e' }}>/* Child responds to container */</span><br/>
-              <span style={{ color: '#f59e0b' }}>@container</span> <span style={{ color: '#3b82f6' }}>{currentStyles.containerName || 'myContainer'}</span> (min-width: 400px) {'{'}<br/>
-              &nbsp;&nbsp;<span style={{ color: '#3b82f6' }}>.child</span> {'{'}<br/>
-              &nbsp;&nbsp;&nbsp;&nbsp;font-size: 1.5rem;<br/>
-              &nbsp;&nbsp;{'}'}<br/>
-              {'}'}
-            </div>
-          </div>
-        </div>
-
-        {/* Visual Status */}
-        <div>
-          <SubsectionHeader title="Current Status" />
-          <div className="p-4 rounded-lg text-center" style={{ backgroundColor: 'var(--color-bg-muted)', border: '2px solid var(--color-border)' }}>
-            {currentStyles.containerType && currentStyles.containerType !== 'normal' ? (
-              <>
-                <div className="text-2xl mb-2">✅</div>
-                <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
-                  Container Active
-                </p>
-                <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                  Type: <span className="font-mono font-bold">{currentStyles.containerType}</span>
-                  {currentStyles.containerName && (
-                    <>
-                      <br/>Name: <span className="font-mono font-bold">{currentStyles.containerName}</span>
-                    </>
-                  )}
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="text-2xl mb-2">⚪</div>
-                <p className="text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>
-                  No Container Set
-                </p>
-                <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                  Click a preset above to enable
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-      </PropertySection>
-
-      {/* ASPECT RATIO - NEW */}
-      <PropertySection
-        title={
-          <div className="flex items-center gap-2">
-            <span>Aspect Ratio</span>
-            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white animate-pulse">
-              NEW
-            </span>
-          </div>
-        }
-        Icon={Box}
-        sectionKey="aspectRatio"
-        expandedSections={expandedSections}
-        setExpandedSections={setExpandedSections}
-        searchTerm={searchTerm}
-      >
-        {/* Common Aspect Ratios */}
-        <div>
-          <SubsectionHeader title="Common Ratios" />
-          <ButtonGrid
-            columns={3}
-            buttons={[
-              {
-                label: '1:1',
-                onClick: () => onPropertyChange('aspectRatio', '1 / 1', 'style'),
-                className: 'bg-blue-100 text-blue-800 hover:bg-blue-200 font-medium'
-              },
-              {
-                label: '4:3',
-                onClick: () => onPropertyChange('aspectRatio', '4 / 3', 'style'),
-                className: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200 font-medium'
-              },
-              {
-                label: '3:2',
-                onClick: () => onPropertyChange('aspectRatio', '3 / 2', 'style'),
-                className: 'bg-purple-100 text-purple-800 hover:bg-purple-200 font-medium'
-              },
-              {
-                label: '16:9',
-                onClick: () => onPropertyChange('aspectRatio', '16 / 9', 'style'),
-                className: 'bg-pink-100 text-pink-800 hover:bg-pink-200 font-medium'
-              },
-              {
-                label: '21:9',
-                onClick: () => onPropertyChange('aspectRatio', '21 / 9', 'style'),
-                className: 'bg-red-100 text-red-800 hover:bg-red-200 font-medium'
-              },
-              {
-                label: '9:16',
-                onClick: () => onPropertyChange('aspectRatio', '9 / 16', 'style'),
-                className: 'bg-orange-100 text-orange-800 hover:bg-orange-200 font-medium'
-              }
-            ]}
-          />
-        </div>
-
-        {/* Device & Screen Ratios */}
-        <div>
-          <SubsectionHeader title="Device Ratios" />
-          <ButtonGrid
-            columns={2}
-            buttons={[
-              {
-                label: '📱 iPhone (19.5:9)',
-                onClick: () => onPropertyChange('aspectRatio', '19.5 / 9', 'style'),
-                className: 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-              },
-              {
-                label: '📱 Android (20:9)',
-                onClick: () => onPropertyChange('aspectRatio', '20 / 9', 'style'),
-                className: 'bg-green-100 text-green-800 hover:bg-green-200'
-              },
-              {
-                label: '💻 Laptop (16:10)',
-                onClick: () => onPropertyChange('aspectRatio', '16 / 10', 'style'),
-                className: 'bg-cyan-100 text-cyan-800 hover:bg-cyan-200'
-              },
-              {
-                label: '🖥️ Monitor (16:9)',
-                onClick: () => onPropertyChange('aspectRatio', '16 / 9', 'style'),
-                className: 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-              },
-              {
-                label: '📺 Cinema (2.39:1)',
-                onClick: () => onPropertyChange('aspectRatio', '2.39 / 1', 'style'),
-                className: 'bg-purple-100 text-purple-800 hover:bg-purple-200'
-              },
-              {
-                label: '🎬 IMAX (1.43:1)',
-                onClick: () => onPropertyChange('aspectRatio', '1.43 / 1', 'style'),
-                className: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200'
-              }
-            ]}
-          />
-        </div>
-
-        {/* Social Media Ratios */}
-        <div>
-          <SubsectionHeader title="Social Media" />
-          <ButtonGrid
-            columns={2}
-            buttons={[
-              {
-                label: '📸 Instagram Post (1:1)',
-                onClick: () => onPropertyChange('aspectRatio', '1 / 1', 'style'),
-                className: 'bg-pink-100 text-pink-800 hover:bg-pink-200'
-              },
-              {
-                label: '📱 Instagram Story (9:16)',
-                onClick: () => onPropertyChange('aspectRatio', '9 / 16', 'style'),
-                className: 'bg-purple-100 text-purple-800 hover:bg-purple-200'
-              },
-              {
-                label: '🎥 YouTube (16:9)',
-                onClick: () => onPropertyChange('aspectRatio', '16 / 9', 'style'),
-                className: 'bg-red-100 text-red-800 hover:bg-red-200'
-              },
-              {
-                label: '🐦 Twitter Header (3:1)',
-                onClick: () => onPropertyChange('aspectRatio', '3 / 1', 'style'),
-                className: 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-              },
-              {
-                label: '📘 Facebook Cover (2.7:1)',
-                onClick: () => onPropertyChange('aspectRatio', '2.7 / 1', 'style'),
-                className: 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-              },
-              {
-                label: '📌 Pinterest Pin (2:3)',
-                onClick: () => onPropertyChange('aspectRatio', '2 / 3', 'style'),
-                className: 'bg-red-100 text-red-800 hover:bg-red-200'
-              }
-            ]}
-          />
-        </div>
-
-        {/* Custom Aspect Ratio */}
-        <div>
-          <SubsectionHeader title="Custom Ratio" />
-          <InputField
-            label="Aspect Ratio"
-            value={currentStyles.aspectRatio}
-            onChange={(value) => onPropertyChange('aspectRatio', value, 'style')}
-            options={{ placeholder: 'e.g., 16 / 9 or auto' }}
-            searchTerm={searchTerm}
-          />
-        </div>
-
-        {/* Quick Actions */}
-        <div>
-          <SubsectionHeader title="Quick Actions" />
-          <ButtonGrid
-            columns={2}
-            buttons={[
-              {
-                label: '🔄 Flip Ratio',
-                onClick: () => {
-                  const current = currentStyles.aspectRatio;
-                  if (current && typeof current === 'string' && current.includes('/')) {
-                    const [width, height] = current.split('/').map(s => s.trim());
-                    onPropertyChange('aspectRatio', `${height} / ${width}`, 'style');
-                  }
-                },
-                className: 'bg-violet-100 text-violet-800 hover:bg-violet-200'
-              },
-              {
-                label: '❌ Reset',
-                onClick: () => onPropertyChange('aspectRatio', 'auto', 'style'),
-                className: 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-              }
-            ]}
-          />
-        </div>
-
-        {/* Visual Preview */}
-        <div>
-          <SubsectionHeader title="Live Preview" />
-          <div className="flex justify-center items-center p-6 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
-            <div
-              className="bg-gradient-to-br from-blue-500 to-purple-500 transition-all duration-300"
-              style={{
-                aspectRatio: currentStyles.aspectRatio || 'auto',
-                width: '100%',
-                maxWidth: '200px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '8px',
-                color: 'white',
-                fontSize: '12px',
-                fontWeight: 'bold'
-              }}
-            >
-              {currentStyles.aspectRatio || 'auto'}
-            </div>
-          </div>
-          <p className="text-xs text-center mt-2" style={{ color: 'var(--color-text-muted)' }}>
-            Preview shows actual aspect ratio
-          </p>
-        </div>
-      </PropertySection>
-
-      {/* CORNER SHAPE - NEW */}
-      <PropertySection
-        title={
-          <div className="flex items-center gap-2">
-            <span>Corner Shape</span>
-            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white animate-pulse">
-              NEW
-            </span>
-          </div>
-        }
-        Icon={Circle}
-        sectionKey="cornerShape"
-        expandedSections={expandedSections}
-        setExpandedSections={setExpandedSections}
-        searchTerm={searchTerm}
-      >
         {/* Corner Style Presets */}
         <div>
-          <SubsectionHeader title="Corner Style" />
+          <SubsectionHeader title="Corner Style Presets" />
           <ButtonGrid
-            columns={2}
+            columns={3}
             buttons={[
               {
                 label: '⬜ Sharp',
@@ -1468,7 +665,7 @@ const parseCurrentGradient = (backgroundImage) => {
                 className: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200 font-medium'
               },
               {
-                label: '⭕ Circular',
+                label: '⭕ Circle',
                 onClick: () => onPropertyChange('borderRadius', '50%', 'style'),
                 className: 'bg-purple-100 text-purple-800 hover:bg-purple-200 font-medium'
               },
@@ -1486,11 +683,11 @@ const parseCurrentGradient = (backgroundImage) => {
           />
         </div>
 
-        {/* Corner Size Control */}
+        {/* Corner Size Control with Range */}
         <div>
           <SubsectionHeader title="Corner Size" />
           <InputField
-            label="Corner Radius"
+            label="Border Radius"
             value={currentStyles.borderRadius}
             onChange={(value) => onPropertyChange('borderRadius', value, 'style')}
             type="range"
@@ -1498,10 +695,41 @@ const parseCurrentGradient = (backgroundImage) => {
             searchTerm={searchTerm}
           />
         </div>
-
-        {/* Asymmetric Corners */}
+        
+        {/* Individual Corners */}
         <div>
-          <SubsectionHeader title="Asymmetric Corners" />
+          <SubsectionHeader title="Fine-tune Each Corner" />
+          <div className="grid grid-cols-2 gap-2">
+            <InputField
+              label="↖️ Top Left"
+              value={currentStyles.borderTopLeftRadius}
+              onChange={(value) => onPropertyChange('borderTopLeftRadius', value, 'style')}
+              searchTerm={searchTerm}
+            />
+            <InputField
+              label="↗️ Top Right"
+              value={currentStyles.borderTopRightRadius}
+              onChange={(value) => onPropertyChange('borderTopRightRadius', value, 'style')}
+              searchTerm={searchTerm}
+            />
+            <InputField
+              label="↙️ Bottom Left"
+              value={currentStyles.borderBottomLeftRadius}
+              onChange={(value) => onPropertyChange('borderBottomLeftRadius', value, 'style')}
+              searchTerm={searchTerm}
+            />
+            <InputField
+              label="↘️ Bottom Right"
+              value={currentStyles.borderBottomRightRadius}
+              onChange={(value) => onPropertyChange('borderBottomRightRadius', value, 'style')}
+              searchTerm={searchTerm}
+            />
+          </div>
+        </div>
+
+        {/* Asymmetric Corner Patterns */}
+        <div>
+          <SubsectionHeader title="Asymmetric Patterns" />
           <ButtonGrid
             columns={2}
             buttons={[
@@ -1569,9 +797,9 @@ const parseCurrentGradient = (backgroundImage) => {
           />
         </div>
 
-        {/* Squircle & Modern Shapes */}
+        {/* Modern Shapes (Squircle, Egg, etc.) */}
         <div>
-          <SubsectionHeader title="Modern Shapes" />
+          <SubsectionHeader title="Modern Organic Shapes" />
           <ButtonGrid
             columns={2}
             buttons={[
@@ -1585,6 +813,26 @@ const parseCurrentGradient = (backgroundImage) => {
                 onClick: () => onPropertyChange('borderRadius', '50% 50% 50% 50% / 60% 60% 40% 40%', 'style'),
                 className: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 font-medium'
               },
+              {
+                label: '🎭 Blob 1',
+                onClick: () => onPropertyChange('borderRadius', '30% 70% 70% 30% / 30% 30% 70% 70%', 'style'),
+                className: 'bg-lime-100 text-lime-800 hover:bg-lime-200 font-medium'
+              },
+              {
+                label: '🎨 Blob 2',
+                onClick: () => onPropertyChange('borderRadius', '60% 40% 30% 70% / 60% 30% 70% 40%', 'style'),
+                className: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 font-medium'
+              }
+            ]}
+          />
+        </div>
+        
+        {/* Clip Path for Complex Shapes */}
+        <div>
+          <SubsectionHeader title="Complex Clip Path Shapes" />
+          <ButtonGrid
+            columns={2}
+            buttons={[
               {
                 label: '🔷 Diamond',
                 onClick: () => onPropertyChange('clipPath', 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', 'style'),
@@ -1604,63 +852,48 @@ const parseCurrentGradient = (backgroundImage) => {
                 label: '🔺 Triangle',
                 onClick: () => onPropertyChange('clipPath', 'polygon(50% 0%, 0% 100%, 100% 100%)', 'style'),
                 className: 'bg-red-100 text-red-800 hover:bg-red-200 font-medium'
+              },
+              {
+                label: '⬟ Pentagon',
+                onClick: () => onPropertyChange('clipPath', 'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)', 'style'),
+                className: 'bg-purple-100 text-purple-800 hover:bg-purple-200 font-medium'
+              },
+              {
+                label: '➡️ Arrow Right',
+                onClick: () => onPropertyChange('clipPath', 'polygon(0% 20%, 60% 20%, 60% 0%, 100% 50%, 60% 100%, 60% 80%, 0% 80%)', 'style'),
+                className: 'bg-sky-100 text-sky-800 hover:bg-sky-200 font-medium'
+              },
+              {
+                label: '🔹 Parallelogram',
+                onClick: () => onPropertyChange('clipPath', 'polygon(25% 0%, 100% 0%, 75% 100%, 0% 100%)', 'style'),
+                className: 'bg-fuchsia-100 text-fuchsia-800 hover:bg-fuchsia-200 font-medium'
+              },
+              {
+                label: '❌ Reset',
+                onClick: () => {
+                  onPropertyChange('clipPath', 'none', 'style');
+                  onPropertyChange('borderRadius', '0', 'style');
+                },
+                className: 'bg-gray-100 text-gray-800 hover:bg-gray-200 font-medium'
               }
             ]}
           />
         </div>
 
-        {/* Individual Corner Control */}
+        {/* Custom Clip Path Input */}
         <div>
-          <SubsectionHeader title="Fine-tune Each Corner" />
-          <div className="grid grid-cols-2 gap-2">
-            <InputField
-              label="↖️ Top Left"
-              value={currentStyles.borderTopLeftRadius}
-              onChange={(value) => onPropertyChange('borderTopLeftRadius', value, 'style')}
-              searchTerm={searchTerm}
-            />
-            <InputField
-              label="↗️ Top Right"
-              value={currentStyles.borderTopRightRadius}
-              onChange={(value) => onPropertyChange('borderTopRightRadius', value, 'style')}
-              searchTerm={searchTerm}
-            />
-            <InputField
-              label="↙️ Bottom Left"
-              value={currentStyles.borderBottomLeftRadius}
-              onChange={(value) => onPropertyChange('borderBottomLeftRadius', value, 'style')}
-              searchTerm={searchTerm}
-            />
-            <InputField
-              label="↘️ Bottom Right"
-              value={currentStyles.borderBottomRightRadius}
-              onChange={(value) => onPropertyChange('borderBottomRightRadius', value, 'style')}
-              searchTerm={searchTerm}
-            />
-          </div>
-        </div>
-
-        {/* Visual Preview */}
-        <div>
-          <SubsectionHeader title="Live Preview" />
-          <div className="flex justify-center p-6 rounded-lg" style={{ backgroundColor: 'var(--color-bg-muted)' }}>
-            <div
-              className="w-32 h-32 bg-gradient-to-br from-purple-500 to-pink-500 transition-all duration-300"
-              style={{
-                borderRadius: currentStyles.borderRadius || '0',
-                borderTopLeftRadius: currentStyles.borderTopLeftRadius,
-                borderTopRightRadius: currentStyles.borderTopRightRadius,
-                borderBottomLeftRadius: currentStyles.borderBottomLeftRadius,
-                borderBottomRightRadius: currentStyles.borderBottomRightRadius,
-                clipPath: currentStyles.clipPath || 'none'
-              }}
-            />
-          </div>
-          <p className="text-xs text-center mt-2" style={{ color: 'var(--color-text-muted)' }}>
-            Preview updates in real-time
-          </p>
+          <SubsectionHeader title="Custom Clip Path" />
+          <InputField
+            label="Clip Path"
+            value={currentStyles.clipPath}
+            onChange={(value) => onPropertyChange('clipPath', value, 'style')}
+            options={{ placeholder: 'polygon(...) or circle(...) or none' }}
+            searchTerm={searchTerm}
+          />
         </div>
       </PropertySection>
+
+
 
       {/* SHADOWS & LIGHTING */}
       <PropertySection
@@ -1897,6 +1130,23 @@ const parseCurrentGradient = (backgroundImage) => {
           />
         </div>
       </PropertySection>
+      
+      {/* Asset Picker Modal */}
+      <AssetPickerModal
+        isOpen={showAssetPicker}
+        onClose={() => {
+          setShowAssetPicker(false);
+          setAssetPickerTarget(null);
+        }}
+        onSelectAsset={(asset) => {
+          if (assetPickerTarget === 'backgroundImage') {
+            onPropertyChange('backgroundImage', `url('${asset.url}')`, 'style');
+          } else if (assetPickerTarget === 'borderImageSource') {
+            onPropertyChange('borderImageSource', `url('${asset.url}')`, 'style');
+          }
+          setAssetPickerTarget(null);
+        }}
+      />
     </>
   );
 };

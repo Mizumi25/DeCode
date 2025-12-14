@@ -1918,7 +1918,7 @@ useEffect(() => {
       />
 
       {/* Page Navigation Tutorial */}
-      <PageNavigationTutorial />
+      {/* <PageNavigationTutorial /> */}
       
      <DndContext
         sensors={sensors}
@@ -2028,7 +2028,14 @@ useEffect(() => {
 
         {/* UI Elements - z-index: 20+ (above everything) */}
         {/* FloatingToolbox - Hide for Viewer */}
-        {myRole !== 'viewer' && (
+        {(() => {
+          console.log('🔍 FloatingToolbox render check:', { 
+            myRole, 
+            shouldRender: myRole !== 'viewer',
+            toolsCount: floatingTools.length 
+          });
+          return myRole !== 'viewer';
+        })() && (
           <FloatingToolbox tools={floatingTools} />
         )}
 

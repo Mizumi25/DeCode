@@ -17,38 +17,62 @@ const CATEGORIES = {
   layout: {
     icon: Layout,
     label: 'Layout',
-    description: 'Structural elements and containers',
+    description: 'Structure containers (div, section, flex, grid, article)',
     color: '#10b981'
   },
-  interactive: {
-    icon: MousePointer,
-    label: 'Interactive',
-    description: 'Buttons, forms, and interactive elements',
+  typography: {
+    icon: Type,
+    label: 'Typography',
+    description: 'Text elements (headings, paragraphs, spans, labels)',
+    color: '#6366f1'
+  },
+  buttons: {
+    icon: Square,
+    label: 'Buttons',
+    description: 'Button elements and CTAs',
     color: '#3b82f6'
+  },
+  inputs: {
+    icon: Tag,
+    label: 'Form Inputs',
+    description: 'Input fields (text, email, number, textarea, select)',
+    color: '#06b6d4'
   },
   media: {
     icon: Image,
     label: 'Media',
-    description: 'Images, videos, and media elements',
+    description: 'Images, videos, audio, icons, SVG',
     color: '#f59e0b'
-  },
-  display: {
-    icon: Sparkles,
-    label: 'Display',
-    description: 'Text, badges, and visual elements',
-    color: '#8b5cf6'
   },
   navigation: {
     icon: Menu,
     label: 'Navigation',
-    description: 'Navigation bars and menus',
+    description: 'Navbars, menus, breadcrumbs, tabs, sidebars',
     color: '#ef4444'
   },
-  form: {
-    icon: Tag,
-    label: 'Forms',
-    description: 'Form inputs and controls',
-    color: '#06b6d4'
+  cards: {
+    icon: Layers,
+    label: 'Cards & Lists',
+    description: 'Cards, list items, tiles, panels',
+    color: '#8b5cf6'
+  },
+  feedback: {
+    icon: Sparkles,
+    label: 'Feedback',
+    description: 'Alerts, toasts, badges, notifications, tooltips',
+    color: '#ec4899'
+  },
+  overlays: {
+    icon: Layers,
+    label: 'Overlays',
+    description: 'Modals, dialogs, drawers, popovers, dropdowns',
+    color: '#a855f7'
+  },
+  data: {
+    icon: Layout,
+    label: 'Data Display',
+    description: 'Tables, charts, graphs, stats, progress bars',
+    color: '#14b8a6'
   }
 };
 

@@ -3369,10 +3369,10 @@ const handleCanvasClick = useCallback((e) => {
       selectedComponent={selectedComponent}
       
       onPropertyUpdate={handlePropertyUpdate}
-          onComponentDelete={handleComponentDelete}
-          onGenerateCode={generateCode}
-          componentLibraryService={componentLibraryService}
-        />
+      onComponentDelete={handleComponentDelete}
+      onGenerateCode={generateCode}
+      componentLibraryService={componentLibraryService}
+    />
       ) : null
     ),
     createMockPanel('assets-panel', 'Assets',
@@ -3521,7 +3521,7 @@ const handleCanvasClick = useCallback((e) => {
       />
 
       {/* Page Navigation Tutorial */}
-      <PageNavigationTutorial />
+      {/* <PageNavigationTutorial /> */}
       
       {/* Enhanced Tooltip with mobile detection */}
       {CodeTooltip && <CodeTooltip hoveredToken={hoveredToken} showTooltips={showTooltips && !isMobile} />}

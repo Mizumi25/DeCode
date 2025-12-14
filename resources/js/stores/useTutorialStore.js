@@ -17,6 +17,9 @@ const useTutorialStore = create(
             isPageTutorialActive: false,
             currentPage: null,
             pageNavigationStep: 0,
+            tutorialWorkspaceId: typeof window !== 'undefined' 
+                ? (localStorage.getItem('tutorial-workspace-id') ? parseInt(localStorage.getItem('tutorial-workspace-id')) : null)
+                : null, // Store workspace ID created during tutorial
             
             // Debug flag
             debug: true,
@@ -209,9 +212,14 @@ const useTutorialStore = create(
                 set({
                     isPageTutorialActive: false,
                     pageNavigationStep: 0,
-                    currentPage: null
+                    currentPage: null,
+                    tutorialWorkspaceId: null
                 });
                 localStorage.setItem('pageNavigationTutorial', 'completed');
+                localStorage.removeItem('tutorial-workspace-id');
+                // Clear modal check flags
+                sessionStorage.removeItem('tutorial-workspace-modal-checked');
+                sessionStorage.removeItem('tutorial-project-modal-checked');
             },
 
             setCurrentPage: (page) => {
@@ -225,6 +233,19 @@ const useTutorialStore = create(
             
             getPageNavigationStep: () => {
                 return get().pageNavigationStep;
+            },
+            
+            setTutorialWorkspaceId: (workspaceId) => {
+                console.log('🎯 PAGE TUTORIAL: Setting tutorial workspace ID:', workspaceId);
+                set({ tutorialWorkspaceId: workspaceId });
+                // Also save to localStorage for persistence across page reloads
+                if (typeof window !== 'undefined' && workspaceId) {
+                    localStorage.setItem('tutorial-workspace-id', workspaceId.toString());
+                }
+            },
+            
+            getTutorialWorkspaceId: () => {
+                return get().tutorialWorkspaceId;
             },
 
             // API integration
