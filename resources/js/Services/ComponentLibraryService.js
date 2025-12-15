@@ -273,6 +273,43 @@ class ComponentLibraryService {
       children = this.getElementChildren(mergedProps, component.children);
     }
     
+    // 7. Special renderers for media types
+    // 🎮 3D Model Viewer
+    if (component.type === '3d-model' || component.type === '3d') {
+      // Lazy load the 3D viewer
+      return React.createElement('div', htmlAttrs, 
+        React.createElement('div', {
+          style: { 
+            width: '100%', 
+            height: '300px', 
+            background: '#f3f4f6', 
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '2px dashed #ccc'
+          }
+        }, '🎮 3D Model: ' + (mergedProps.alt || 'Model'))
+      );
+    }
+    
+    // ✨ Lottie Animation
+    if (component.type === 'lottie') {
+      return React.createElement('lottie-player', {
+        ...htmlAttrs,
+        src: mergedProps.src,
+        background: 'transparent',
+        speed: '1',
+        style: {
+          ...(htmlAttrs.style || {}),
+          width: htmlAttrs.style?.width || '200px',
+          height: htmlAttrs.style?.height || '200px'
+        },
+        loop: true,
+        autoplay: true
+      });
+    }
+    
     // 7. Create React element - ONE universal pattern for ALL
     return React.createElement(htmlTag, htmlAttrs, children);
   }
