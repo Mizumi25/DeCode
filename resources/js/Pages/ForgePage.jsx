@@ -2086,104 +2086,7 @@ const handleCanvasDrop = useCallback((e) => {
   if (!canvasRef.current) return;
 
   try {
-    // 🔥 NEW: Check for ASSET drop first (uses application/json)
-    const assetDataStr = e.dataTransfer.getData('application/json');
-    if (assetDataStr) {
-      console.log('📦 Asset drop detected');
-      let assetData;
-      try {
-        assetData = JSON.parse(assetDataStr);
-      } catch {
-        console.error('❌ Failed to parse asset data');
-      }
-      
-      // If it's an asset, handle it separately
-      if (assetData && assetData.type === 'asset') {
-        const { asset, assetType } = assetData;
-        const canvasRect = canvasRef.current.getBoundingClientRect();
-        const x = Math.max(0, e.clientX - canvasRect.left - 50);
-        const y = Math.max(0, e.clientY - canvasRect.top - 20);
-
-        // Create component from asset
-        let componentType;
-        let defaultProps = {};
-
-        switch (assetType) {
-          case 'image':
-            componentType = 'image';
-            defaultProps = {
-              src: asset.url,
-              alt: asset.name,
-              width: asset.dimensions?.width || 'auto',
-              height: asset.dimensions?.height || 'auto'
-            };
-            break;
-          case 'video':
-            componentType = 'video';
-            defaultProps = {
-              src: asset.url,
-              controls: true,
-              width: asset.dimensions?.width || 640,
-              height: asset.dimensions?.height || 360
-            };
-            break;
-          case 'audio':
-            componentType = 'audio-player';
-            defaultProps = {
-              src: asset.url,
-              title: asset.name,
-              duration: asset.duration
-            };
-            break;
-          default:
-            componentType = 'link';
-            defaultProps = {
-              href: asset.url,
-              text: asset.name,
-              target: '_blank'
-            };
-            break;
-        }
-
-        const newComponent = componentLibraryService?.createLayoutElement 
-          ? componentLibraryService.createLayoutElement(componentType, defaultProps)
-          : {
-              id: `${componentType}_${Date.now()}`,
-              type: componentType,
-              props: defaultProps,
-              position: { x, y },
-              name: `${asset.name} (${assetType})`,
-              style: {},
-              animation: {},
-              children: []
-            };
-
-        console.log('✅ Asset component created:', newComponent);
-
-        const updatedComponents = [...canvasComponents, newComponent];
-        
-        saveOriginRef.current = 'user';
-        setFrameCanvasComponents(prev => ({
-          ...prev,
-          [currentFrame]: updatedComponents
-        }));
-        
-        pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
-          componentName: newComponent.name,
-          componentType: newComponent.type,
-          position: { x, y },
-          componentId: newComponent.id
-        });
-        
-        setSelectedComponent(newComponent.id);
-        generateCode(updatedComponents);
-        
-        console.log('✅ ASSET DROP COMPLETE');
-        return; // Exit early for asset drops
-      }
-    }
-    
-    // 🔥 COMPONENT drop (from Component Panel)
+    // 🔥 UNIFIED: Handle ALL drops the same way (components AND assets!)
     const componentDataStr = e.dataTransfer.getData('text/plain');
     console.log('📦 Raw drag data:', componentDataStr);
     
@@ -2280,15 +2183,17 @@ const handleCanvasDrop = useCallback((e) => {
     // Get component definition for regular components
     let componentDef = componentLibraryService?.getComponentDefinition(componentType);
     
-    // 🔥 FIX: Merge default props + variant props correctly
+    // 🔥 UNIFIED: Merge default props + variant props + dragData props (for assets!)
     const baseProps = componentDef?.default_props || {};
     const variantProps = variant?.props || {};
     const variantStyle = variant?.style || {};
+    const dragProps = dragData.props || {}; // 🔥 Assets send props directly!
     
     // 🔥 FIX: Ensure text/content is included
     const mergedProps = {
       ...baseProps,
-      ...variantProps
+      ...variantProps,
+      ...dragProps  // 🔥 Override with drag props (for assets with src!)
     };
     
     // 🔥 CRITICAL: Make sure content/text is preserved

@@ -62,7 +62,7 @@ class AssetController extends Controller
     {
         $validated = $request->validate([
             'file' => 'required|file|max:102400', // 100MB max
-            'type' => 'required|in:image,video,audio,gif',
+            'type' => 'required|in:image,video,audio,gif,3d,gltf,glb,lottie,json,document,pdf',
             'project_id' => 'nullable|string'
         ]);
 

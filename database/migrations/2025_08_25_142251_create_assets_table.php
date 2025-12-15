@@ -15,7 +15,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->uuid('project_id')->nullable();
             $table->string('name');
-            $table->enum('type', ['image', 'video', 'audio', 'gif'])->index();
+            $table->enum('type', ['image', 'video', 'audio', 'gif', '3d', 'gltf', 'glb', 'lottie', 'json', 'document', 'pdf'])->index();
             $table->string('file_path');
             $table->string('thumbnail_path')->nullable();
             $table->unsignedBigInteger('file_size');

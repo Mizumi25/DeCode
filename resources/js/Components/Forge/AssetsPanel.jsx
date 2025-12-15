@@ -20,10 +20,16 @@ import {
   Filter,
   Play,
   Pause,
-  Volume2
+  Volume2,
+  Box,
+  Sparkles,
+  FileText
 } from 'lucide-react';
 import axios from 'axios';
 import ConfirmationDialog from '@/Components/ConfirmationDialog';
+import ThreeDModelViewer from './viewers/ThreeDModelViewer';
+import LottieViewer from './viewers/LottieViewer';
+import DocumentViewer from './viewers/DocumentViewer';
 
 const AssetsPanel = ({ onAssetDrop, onAssetSelect }) => {
   const [assets, setAssets] = useState([]);
@@ -56,6 +62,8 @@ const filterTabs = [
   { key: 'images', icon: FileImage, label: 'Images' },
   { key: 'videos', icon: Video, label: 'Videos' },
   { key: 'audio', icon: Music, label: 'Audio' },
+  { key: '3d', icon: Box, label: '3D' },
+  { key: 'lottie', icon: Sparkles, label: 'Lottie' },
   { key: 'documents', icon: File, label: 'Documents' },
 ];
   const fileInputRef = useRef(null);
@@ -82,9 +90,35 @@ const filterTabs = [
 
   // File type detection
   const getFileType = (file) => {
+    console.log('🔍 Detecting file type:', {
+      name: file.name,
+      mimeType: file.type,
+      extension: file.name.split('.').pop().toLowerCase()
+    });
+    
+    // Check MIME type first
     if (file.type.startsWith('image/')) return 'image';
     if (file.type.startsWith('video/')) return 'video';
     if (file.type.startsWith('audio/')) return 'audio';
+    
+    // Check file extension for special types
+    const ext = file.name.split('.').pop().toLowerCase();
+    console.log('📦 Extension detected:', ext);
+    
+    if (['gltf', 'glb'].includes(ext)) {
+      console.log('✅ Detected as 3D');
+      return '3d';
+    }
+    if (ext === 'json') {
+      console.log('✅ Detected as Lottie');
+      return 'lottie';
+    }
+    if (ext === 'pdf' || file.type === 'application/pdf') {
+      console.log('✅ Detected as PDF');
+      return 'pdf';
+    }
+    
+    console.log('📄 Defaulting to document');
     return 'document';
   };
 
@@ -93,6 +127,13 @@ const filterTabs = [
       case 'image': return FileImage;
       case 'video': return Video;
       case 'audio': return Music;
+      case '3d':
+      case 'gltf':
+      case 'glb': return Box;
+      case 'lottie':
+      case 'json': return Sparkles;
+      case 'document':
+      case 'pdf': return FileText;
       default: return File;
     }
   };
@@ -177,12 +218,72 @@ const filterTabs = [
   const handleAssetDragStart = (e, asset) => {
     console.log('🎬 Asset drag start:', asset.name);
     
+    // 🔥 Format asset as component (SAME as ComponentsPanel!)
+    let componentType;
+    let componentProps = {};
+    
+    switch (asset.type) {
+      case 'image':
+      case 'gif':
+        componentType = 'image';
+        componentProps = {
+          src: asset.url,
+          alt: asset.name || 'Image',
+        };
+        break;
+      case 'video':
+        componentType = 'video';
+        componentProps = {
+          src: asset.url,
+          controls: true,
+        };
+        break;
+      case 'audio':
+        componentType = 'audio';
+        componentProps = {
+          src: asset.url,
+          controls: true,
+        };
+        break;
+      case '3d':
+      case 'gltf':
+      case 'glb':
+        componentType = '3d-model';
+        componentProps = {
+          src: asset.url,
+          alt: asset.name,
+        };
+        break;
+      case 'lottie':
+      case 'json':
+        componentType = 'lottie';
+        componentProps = {
+          src: asset.url,
+          autoplay: true,
+          loop: true,
+        };
+        break;
+      default:
+        componentType = 'link';
+        componentProps = {
+          href: asset.url,
+          children: asset.name,
+          target: '_blank',
+        };
+        break;
+    }
+    
+    // Send as component (EXACTLY like ComponentsPanel!)
+    const dragData = {
+      type: componentType,        // 'image', 'video', 'audio'
+      props: componentProps,      // {src: '...', alt: '...'}
+      fromPanel: true             // Mark as from panel
+    };
+    
+    console.log('📦 Drag data:', dragData);
+    
     e.dataTransfer.effectAllowed = 'copy';
-    e.dataTransfer.setData('application/json', JSON.stringify({
-      type: 'asset',
-      assetType: asset.type,
-      asset: asset
-    }));
+    e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
 
     // Create drag preview
     const dragPreview = document.createElement('div');
@@ -516,6 +617,8 @@ const handleDeleteAsset = async (asset) => {
       (filterType === 'images' && asset.type === 'image') ||
       (filterType === 'videos' && asset.type === 'video') ||
       (filterType === 'audio' && asset.type === 'audio') ||
+      (filterType === '3d' && ['3d', 'gltf', 'glb'].includes(asset.type)) ||
+      (filterType === 'lottie' && ['lottie', 'json'].includes(asset.type)) ||
       (filterType === 'documents' && asset.type === 'document');
     
     return matchesSearch && matchesFilter;
@@ -998,7 +1101,7 @@ const handleDeleteAsset = async (asset) => {
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
-                className="max-w-4xl max-h-full bg-white rounded-xl overflow-hidden"
+                className={`${['3d', 'gltf', 'glb'].includes(showPreview.type) ? 'max-w-7xl w-[90vw]' : 'max-w-4xl'} max-h-full bg-white rounded-xl overflow-hidden`}
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between p-4 border-b">
@@ -1017,7 +1120,7 @@ const handleDeleteAsset = async (asset) => {
                   </button>
                 </div>
                 
-                <div className="p-4 max-h-96 overflow-auto">
+                <div className={`p-4 ${['3d', 'gltf', 'glb'].includes(showPreview.type) ? 'max-h-[700px]' : 'max-h-96'} overflow-auto`}>
                   {showPreview.type === 'image' && (
                     <img 
                       src={showPreview.url} 
@@ -1036,6 +1139,15 @@ const handleDeleteAsset = async (asset) => {
                     <div className="flex items-center justify-center p-8">
                       <audio src={showPreview.url} controls className="w-full max-w-md" />
                     </div>
+                  )}
+                  {['3d', 'gltf', 'glb'].includes(showPreview.type) && (
+                    <ThreeDModelViewer src={showPreview.url} alt={showPreview.name} />
+                  )}
+                  {['lottie', 'json'].includes(showPreview.type) && (
+                    <LottieViewer src={showPreview.url} alt={showPreview.name} />
+                  )}
+                  {['document', 'pdf'].includes(showPreview.type) && (
+                    <DocumentViewer src={showPreview.url} alt={showPreview.name} type={showPreview.type} />
                   )}
                 </div>
               </motion.div>
