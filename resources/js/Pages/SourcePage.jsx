@@ -167,7 +167,7 @@ export default function SourcePage({ projectId, frameId, frame }) {
     const panelMap = {
       'explorer': 'explorer-panel',
       'layers': 'explorer-panel',       // SAME panel as explorer - because explorer IS the layers
-      'preview': 'preview-panel',
+      'preview': 'source-preview-panel',
       'terminal': 'terminal-panel',
       'output': 'output-panel',
       'problems': 'problems-panel',
@@ -227,11 +227,11 @@ export default function SourcePage({ projectId, frameId, frame }) {
     const panels = [];
 
     // Preview panel (always visible unless all hidden)
-    if (isSourcePanelOpen('preview-panel')) {
+    if (isSourcePanelOpen('source-preview-panel')) {
       // Get canvas components from frame
       const canvasComponents = props.frame?.canvas_data?.components || [];
       
-      panels.push(createSourcePanel('preview-panel', 'PREVIEW',
+      panels.push(createSourcePanel('source-preview-panel', 'PREVIEW',
         <PreviewPanelModal
           canvasComponents={canvasComponents}
           frame={props.frame}
@@ -280,6 +280,7 @@ export default function SourcePage({ projectId, frameId, frame }) {
         onPanelToggle: handlePanelToggle,
         panelStates: legacyPanelStates, // Keep for compatibility
         sourcePanelStates: sourcePanelStates, // Pass source panel states for active indicators
+        toggleSourcePanel: toggleSourcePanel, // 🔥 Pass toggle function for preview button
         onModeSwitch: handleModeSwitch,
         currentFrame: frame?.uuid || frameId, // Pass frame UUID for lock button
         projectId: projectId,
@@ -360,7 +361,7 @@ export default function SourcePage({ projectId, frameId, frame }) {
                   canvasComponents={props.frame?.canvas_data?.components || []}
                   frame={props.frame}
                   componentLibraryService={componentLibraryService}
-                  onClose={() => toggleSourcePanel('preview-panel')}
+                  onClose={() => toggleSourcePanel('source-preview-panel')}
                   initialMode="modal"
                 />
               </div>
@@ -392,7 +393,7 @@ export default function SourcePage({ projectId, frameId, frame }) {
         <div className="fixed bottom-4 left-4 bg-black bg-opacity-80 text-white p-2 rounded text-xs font-mono z-50">
           <div>Layers: {isSourcePanelOpen('explorer-panel') ? 'ON' : 'OFF'}</div>
           <div>Explorer: {isSourcePanelOpen('explorer-panel') ? 'ON' : 'OFF'}</div>
-          <div>Preview: {isSourcePanelOpen('preview-panel') ? 'ON' : 'OFF'}</div>
+          <div>Preview: {isSourcePanelOpen('source-preview-panel') ? 'ON' : 'OFF'}</div>
           <div>Terminal: {isSourcePanelOpen('terminal-panel') ? 'ON' : 'OFF'}</div>
           <div>All Hidden: {allSourcePanelsHidden ? 'YES' : 'NO'}</div>
         </div>

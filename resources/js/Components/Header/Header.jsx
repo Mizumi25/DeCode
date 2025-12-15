@@ -37,6 +37,11 @@ export default function Header({
   setLinkMode,
   // 🔥 NEW: Linked components modal callback
   onLinkedComponentsClick,
+  // 🔥 NEW: Toggle functions for preview panels
+  toggleSourcePanel,
+  // 🔥 NEW: Panel states
+  forgePanelStates,
+  sourcePanelStates,
   isMobile
 }) {
   const { props, url } = usePage()
@@ -233,8 +238,10 @@ export default function Header({
             profileDropdownOpen={profileDropdownOpen}
             setProfileDropdownOpen={handleProfileDropdownToggle}
             toggleForgePanel={toggleForgePanel}
+            toggleSourcePanel={toggleSourcePanel}  // 🔥 Pass source toggle function
             isMobile={isMobile}
-            sourcePanelStates={props.sourcePanelStates}
+            forgePanelStates={forgePanelStates}   // 🔥 Pass forge panel states
+            sourcePanelStates={sourcePanelStates} // 🔥 Pass source panel states
           />
         </div>
 

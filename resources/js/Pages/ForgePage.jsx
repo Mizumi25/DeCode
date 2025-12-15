@@ -3416,6 +3416,7 @@ const handleCanvasClick = useCallback((e) => {
       headerProps={{
         onPanelToggle: handlePanelToggle,
         panelStates: {},
+        forgePanelStates: forgePanelStates,  // 🔥 Pass forge panel states to header
         onModeSwitch: () => {},
         onLinkedComponentsClick: handleLinkedComponentsClick
       }}
@@ -3880,12 +3881,12 @@ const handleCanvasClick = useCallback((e) => {
       <IconWindowPanel onIconSelect={handleIconSelect} />
       
       {/* Preview Panel Modal */}
-      {isForgePanelOpen('preview-panel') && (
+      {isForgePanelOpen('forge-preview-panel') && (
         <PreviewPanelModal
           canvasComponents={canvasComponents}
           frame={frame}
           componentLibraryService={componentLibraryService}
-          onClose={() => toggleForgePanel('preview-panel')}
+          onClose={() => toggleForgePanel('forge-preview-panel')}
         />
       )}
       

@@ -13,7 +13,9 @@ export const useForgeStore = create(
         'layers-panel': false,
         'properties-panel': false,  // Changed from true to false
         'assets-panel': false,       // Changed from true to false
-        'linked-components-modal': false  // 🔥 NEW: Linked components modal state
+        'linked-components-modal': false,  // 🔥 NEW: Linked components modal state
+        'forge-preview-panel': false,      // 🔥 NEW: Forge-specific preview panel
+        'source-preview-panel': false      // 🔥 NEW: Source-specific preview panel
       },
             
       // ADD THESE LINES (after codePanelMode: 'bottom',)
