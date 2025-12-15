@@ -89,6 +89,15 @@ Object.assign(HTML_TAG_MAP, {
   'footer-component': 'footer',
   'cta': 'section',
   
+  // Media and assets
+  '3d-model': 'div',
+  '3d': 'div',
+  'gltf': 'div',
+  'glb': 'div',
+  'lottie': 'lottie-player',
+  'document': 'div',
+  'pdf': 'div',
+  
   // Special
   'icon': 'span',
   'frame-component-instance': 'div'
@@ -274,40 +283,110 @@ class ComponentLibraryService {
     }
     
     // 7. Special renderers for media types
-    // 🎮 3D Model Viewer
-    if (component.type === '3d-model' || component.type === '3d') {
-      // Lazy load the 3D viewer
-      return React.createElement('div', htmlAttrs, 
-        React.createElement('div', {
-          style: { 
-            width: '100%', 
-            height: '300px', 
-            background: '#f3f4f6', 
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: '2px dashed #ccc'
-          }
-        }, '🎮 3D Model: ' + (mergedProps.alt || 'Model'))
+    // 🎮 3D Model Viewer - Using react-three-fiber Canvas
+    if (component.type === '3d-model' || component.type === '3d' || component.type === 'gltf' || component.type === 'glb') {
+      // Use React.lazy for dynamic import (works in browser)
+      const ThreeDModelViewer = React.lazy(() => import('@/Components/Forge/viewers/ThreeDModelViewer'));
+      
+      const modelStyle = {
+        width: htmlAttrs.style?.width || '400px',
+        height: htmlAttrs.style?.height || '400px',
+        ...htmlAttrs.style,
+        position: htmlAttrs.style?.position || 'relative'
+      };
+      
+      return React.createElement('div', {
+        ...htmlAttrs,
+        style: modelStyle,
+        className: '3d-model-viewer-wrapper'
+      }, 
+        React.createElement(React.Suspense, {
+          fallback: React.createElement('div', {
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              height: '100%',
+              background: '#f3f4f6',
+              borderRadius: '8px'
+            }
+          }, '🎮 Loading 3D Model...')
+        },
+          React.createElement(ThreeDModelViewer, {
+            src: mergedProps.src,
+            alt: mergedProps.alt || '3D Model'
+          })
+        )
       );
     }
     
-    // ✨ Lottie Animation
-    if (component.type === 'lottie') {
+    // ✨ Lottie Animation - Using lottie-player web component
+    if (component.type === 'lottie' || component.type === 'json') {
+      // Load Lottie player script if not loaded
+      if (typeof window !== 'undefined' && !window.LottiePlayer) {
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js';
+        script.async = true;
+        document.body.appendChild(script);
+      }
+      
+      const lottieStyle = {
+        width: htmlAttrs.style?.width || '300px',
+        height: htmlAttrs.style?.height || '300px',
+        ...htmlAttrs.style
+      };
+      
       return React.createElement('lottie-player', {
-        ...htmlAttrs,
+        key: htmlAttrs.key,
+        'data-component-element': htmlAttrs['data-component-element'],
+        'data-element-type': htmlAttrs['data-element-type'],
         src: mergedProps.src,
         background: 'transparent',
-        speed: '1',
-        style: {
-          ...(htmlAttrs.style || {}),
-          width: htmlAttrs.style?.width || '200px',
-          height: htmlAttrs.style?.height || '200px'
-        },
-        loop: true,
-        autoplay: true
+        speed: mergedProps.speed || '1',
+        style: lottieStyle,
+        loop: mergedProps.loop !== false,
+        autoplay: mergedProps.autoplay !== false,
+        controls: mergedProps.controls || false
       });
+    }
+    
+    // 📄 Document Viewer - PDF and other documents
+    if (component.type === 'document' || component.type === 'pdf') {
+      const DocumentViewer = React.lazy(() => import('@/Components/Forge/viewers/DocumentViewer'));
+      
+      const docStyle = {
+        width: htmlAttrs.style?.width || '100%',
+        minHeight: htmlAttrs.style?.minHeight || '200px',
+        ...htmlAttrs.style,
+        position: htmlAttrs.style?.position || 'relative'
+      };
+      
+      return React.createElement('div', {
+        ...htmlAttrs,
+        style: docStyle,
+        className: 'document-viewer-wrapper'
+      }, 
+        React.createElement(React.Suspense, {
+          fallback: React.createElement('div', {
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              minHeight: '200px',
+              background: '#f9fafb',
+              borderRadius: '8px'
+            }
+          }, '📄 Loading Document...')
+        },
+          React.createElement(DocumentViewer, {
+            src: mergedProps.src,
+            alt: mergedProps.alt || 'Document',
+            type: component.type === 'pdf' ? 'pdf' : 'document'
+          })
+        )
+      );
     }
     
     // 7. Create React element - ONE universal pattern for ALL
@@ -1244,9 +1323,45 @@ buildDynamicProps(comp) {
     if (comp.props?.target) props.push(`target="${comp.props.target}"`);
   }
   
-  if (comp.type === 'img') {
+  if (comp.type === 'img' || comp.type === 'image') {
     if (comp.props?.src) props.push(`src="${comp.props.src}"`);
     if (comp.props?.alt) props.push(`alt="${comp.props.alt}"`);
+  }
+  
+  if (comp.type === 'video') {
+    if (comp.props?.src) props.push(`src="${comp.props.src}"`);
+    if (comp.props?.controls) props.push('controls');
+    if (comp.props?.autoplay) props.push('autoplay');
+    if (comp.props?.loop) props.push('loop');
+    if (comp.props?.muted) props.push('muted');
+  }
+  
+  if (comp.type === 'audio') {
+    if (comp.props?.src) props.push(`src="${comp.props.src}"`);
+    if (comp.props?.controls) props.push('controls');
+    if (comp.props?.autoplay) props.push('autoplay');
+    if (comp.props?.loop) props.push('loop');
+  }
+  
+  // 3D Model props
+  if (['3d-model', '3d', 'gltf', 'glb'].includes(comp.type)) {
+    if (comp.props?.src) props.push(`src="${comp.props.src}"`);
+    if (comp.props?.alt) props.push(`alt="${comp.props.alt}"`);
+  }
+  
+  // Lottie animation props
+  if (comp.type === 'lottie' || comp.type === 'json') {
+    if (comp.props?.src) props.push(`src="${comp.props.src}"`);
+    if (comp.props?.autoplay !== false) props.push('autoplay');
+    if (comp.props?.loop !== false) props.push('loop');
+    if (comp.props?.controls) props.push('controls');
+    if (comp.props?.speed) props.push(`speed="${comp.props.speed}"`);
+  }
+  
+  // Document props
+  if (comp.type === 'document' || comp.type === 'pdf') {
+    if (comp.props?.src) props.push(`src="${comp.props.src}"`);
+    if (comp.props?.alt) props.push(`title="${comp.props.alt}"`);
   }
   
   return props.join('\n      ');
@@ -1266,6 +1381,10 @@ getComponentTag(type) {
     'textarea': 'textarea',
     'select': 'select',
     'link': 'a',
+    'image': 'img',
+    'img': 'img',
+    'video': 'video',
+    'audio': 'audio',
     'p': 'p',
     'span': 'span',
     'h1': 'h1',
@@ -1278,7 +1397,16 @@ getComponentTag(type) {
     'strong': 'strong',
     'em': 'em',
     'small': 'small',
-    'blockquote': 'blockquote'
+    'blockquote': 'blockquote',
+    // Media components
+    '3d-model': 'div',
+    '3d': 'div',
+    'gltf': 'div',
+    'glb': 'div',
+    'lottie': 'lottie-player',
+    'json': 'lottie-player',
+    'document': 'div',
+    'pdf': 'div'
   };
   
   return tagMap[type] || 'div';
