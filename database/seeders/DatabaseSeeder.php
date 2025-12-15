@@ -35,6 +35,9 @@ class DatabaseSeeder extends Seeder
             // Basic elements
             BasicElementsSeeder::class,
             
+            // 🔥 NEW: Modern UI Elements (100 elements with 500+ variants)
+            ModernUIElementsSeeder::class,
+            
             // Navigation components
             NavigationBarSeeder::class,
             

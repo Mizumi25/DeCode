@@ -16,9 +16,22 @@ import { usePage } from '@inertiajs/react';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 import { useMessageStore } from '@/stores/useMessageStore';
 
-const WorkspaceChat = () => {
+const WorkspaceChat = ({ position = 'bottom-right' }) => {
   const { auth, currentWorkspace } = usePage().props;
   const [isOpen, setIsOpen] = useState(false);
+  
+  // Position configuration
+  const positionStyles = position === 'top-left' 
+    ? {
+        button: { left: '1.5rem', top: '20%', right: 'auto', bottom: 'auto' },
+        panel: { left: 0, top: '20%', right: 'auto', bottom: 'auto' },
+        slideFrom: '-100%'
+      }
+    : {
+        button: { right: '1.5rem', bottom: '1.5rem', left: 'auto', top: 'auto' },
+        panel: { right: 0, bottom: '1.5rem', left: 'auto', top: 'auto' },
+        slideFrom: '100%'
+      };
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
@@ -424,10 +437,10 @@ useEffect(() => {
     setIsTyping(false);
   };
 
-  // Animation variants
+  // Animation variants - dynamic based on position
   const slideInVariants = {
     closed: {
-      x: '100%',
+      x: positionStyles.slideFrom,
       opacity: 0,
       transition: {
         duration: 0.3,
@@ -451,7 +464,7 @@ useEffect(() => {
   return (
     <>
       {/* Chat Trigger Button */}
-      <div className="fixed right-6 bottom-6 z-40">
+      <div className="fixed z-40" style={positionStyles.button}>
         <motion.button
           onClick={handleOpen}
           whileHover={{ scale: 1.05 }}
@@ -480,7 +493,10 @@ useEffect(() => {
             initial="closed"
             animate="open"
             exit="closed"
-            className="fixed right-0 bottom-6 z-50 w-96 h-[600px] max-h-[80vh] bg-[var(--color-surface)] border-l border-[var(--color-border)] shadow-2xl flex flex-col"
+            className={`fixed z-50 w-96 h-[600px] max-h-[80vh] bg-[var(--color-surface)] shadow-2xl flex flex-col ${
+              position === 'top-left' ? 'border-r' : 'border-l'
+            } border-[var(--color-border)]`}
+            style={positionStyles.panel}
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)] bg-[var(--color-surface)]">

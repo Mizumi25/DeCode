@@ -2196,7 +2196,7 @@ useEffect(() => {
 
         {/* Workspace Chat - Hide for Viewer */}
         {myRole !== 'viewer' && currentWorkspace && (
-          <WorkspaceChat workspaceId={currentWorkspace.uuid} />
+          <WorkspaceChat position="top-left" />
         )}
 
         {/* System Notifications */}

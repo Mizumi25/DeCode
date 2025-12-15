@@ -125,7 +125,7 @@ export default function FloatingToolbox({ tools }) {
   }
 
   return (
-    <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-[999999999] pointer-events-auto">
+    <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-30 pointer-events-auto">
       <div 
         ref={floatingToolsRef}
         className="flex flex-col gap-2 pointer-events-auto"

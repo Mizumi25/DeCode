@@ -1,0 +1,770 @@
+<?php
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use App\Models\Component;
+
+class ModernUIElementsSeeder extends Seeder
+{
+    public function run(): void
+    {
+        $modernElements = [
+            // ============================================
+            // BUTTONS (10 VARIANTS)
+            // ============================================
+            [
+                'name' => 'Modern Button',
+                'type' => 'modern-button',
+                'component_type' => 'element',
+                'category' => 'buttons',
+                'alphabet_group' => 'B',
+                'description' => 'Modern button with 10 beautiful variants',
+                'icon' => 'Square',
+                'default_props' => [
+                    'content' => 'Button',
+                    'disabled' => false,
+                    'type' => 'button',
+                ],
+                'prop_definitions' => [
+                    'content' => ['type' => 'textarea', 'label' => 'Button Text', 'default' => 'Button'],
+                    'disabled' => ['type' => 'boolean', 'label' => 'Disabled', 'default' => false],
+                    'type' => ['type' => 'select', 'label' => 'Type', 'options' => ['button', 'submit', 'reset'], 'default' => 'button'],
+                ],
+                'render_template' => 'button-template',
+                'code_generators' => ['react-tailwind' => 'templates/interactive/button.js'],
+                'variants' => [
+                    [
+                        'name' => 'Default',
+                        'description' => 'Unstyled default button',
+                        'props' => ['content' => 'Button'],
+                        'style' => [
+                            'padding' => '8px 16px',
+                            'fontSize' => '14px',
+                            'border' => '1px solid #d1d5db',
+                            'borderRadius' => '4px',
+                            'background' => '#ffffff',
+                            'color' => '#111827',
+                            'cursor' => 'pointer',
+                        ],
+                        'preview_code' => '<button style="padding: 8px 16px; font-size: 14px; border: 1px solid #d1d5db; border-radius: 4px; background: #ffffff; color: #111827; cursor: pointer;">Button</button>'
+                    ],
+                    [
+                        'name' => 'Apple Solid',
+                        'description' => 'Clean Apple-style solid button',
+                        'props' => ['content' => 'Continue'],
+                        'style' => [
+                            'display' => 'inline-flex',
+                            'alignItems' => 'center',
+                            'justifyContent' => 'center',
+                            'padding' => '14px 28px',
+                            'fontSize' => '15px',
+                            'fontWeight' => '600',
+                            'borderRadius' => '12px',
+                            'background' => '#000000',
+                            'color' => '#ffffff',
+                            'border' => 'none',
+                            'transition' => 'all 0.2s ease',
+                            'cursor' => 'pointer',
+                        ],
+                        'preview_code' => '<button style="display: inline-flex; align-items: center; justify-content: center; padding: 14px 28px; font-size: 15px; font-weight: 600; border-radius: 12px; background: #000000; color: #ffffff; border: none; transition: all 0.2s ease; cursor: pointer;">Continue</button>'
+                    ],
+                    [
+                        'name' => 'Blue Gradient',
+                        'description' => 'Modern blue gradient',
+                        'props' => ['content' => 'Get Started'],
+                        'style' => [
+                            'display' => 'inline-flex',
+                            'alignItems' => 'center',
+                            'justifyContent' => 'center',
+                            'padding' => '14px 32px',
+                            'fontSize' => '15px',
+                            'fontWeight' => '600',
+                            'borderRadius' => '12px',
+                            'background' => 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                            'color' => '#ffffff',
+                            'border' => 'none',
+                            'boxShadow' => '0 4px 16px rgba(59, 130, 246, 0.3)',
+                            'transition' => 'all 0.3s ease',
+                            'cursor' => 'pointer',
+                        ],
+                        'preview_code' => '<button style="display: inline-flex; align-items: center; justify-content: center; padding: 14px 32px; font-size: 15px; font-weight: 600; border-radius: 12px; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #ffffff; border: none; box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3); transition: all 0.3s ease; cursor: pointer;">Get Started</button>'
+                    ],
+                    [
+                        'name' => 'Purple Glow',
+                        'description' => 'Purple with glow effect',
+                        'props' => ['content' => 'Explore'],
+                        'style' => [
+                            'display' => 'inline-flex',
+                            'alignItems' => 'center',
+                            'justifyContent' => 'center',
+                            'padding' => '14px 32px',
+                            'fontSize' => '15px',
+                            'fontWeight' => '600',
+                            'borderRadius' => '12px',
+                            'background' => 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                            'color' => '#ffffff',
+                            'border' => 'none',
+                            'boxShadow' => '0 0 24px rgba(139, 92, 246, 0.5)',
+                            'transition' => 'all 0.3s ease',
+                            'cursor' => 'pointer',
+                        ],
+                        'preview_code' => '<button style="display: inline-flex; align-items: center; justify-content: center; padding: 14px 32px; font-size: 15px; font-weight: 600; border-radius: 12px; background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: #ffffff; border: none; box-shadow: 0 0 24px rgba(139, 92, 246, 0.5); transition: all 0.3s ease; cursor: pointer;">Explore</button>'
+                    ],
+                    [
+                        'name' => 'Ghost',
+                        'description' => 'Transparent with border',
+                        'props' => ['content' => 'Learn More'],
+                        'style' => [
+                            'display' => 'inline-flex',
+                            'alignItems' => 'center',
+                            'justifyContent' => 'center',
+                            'padding' => '14px 28px',
+                            'fontSize' => '15px',
+                            'fontWeight' => '500',
+                            'borderRadius' => '12px',
+                            'background' => 'transparent',
+                            'color' => '#111827',
+                            'border' => '2px solid #e5e7eb',
+                            'transition' => 'all 0.2s ease',
+                            'cursor' => 'pointer',
+                        ],
+                        'preview_code' => '<button style="display: inline-flex; align-items: center; justify-content: center; padding: 14px 28px; font-size: 15px; font-weight: 500; border-radius: 12px; background: transparent; color: #111827; border: 2px solid #e5e7eb; transition: all 0.2s ease; cursor: pointer;">Learn More</button>'
+                    ],
+                    [
+                        'name' => 'Glass Morphism',
+                        'description' => 'Frosted glass effect',
+                        'props' => ['content' => 'Sign Up'],
+                        'style' => [
+                            'display' => 'inline-flex',
+                            'alignItems' => 'center',
+                            'justifyContent' => 'center',
+                            'padding' => '14px 28px',
+                            'fontSize' => '15px',
+                            'fontWeight' => '500',
+                            'borderRadius' => '12px',
+                            'background' => 'rgba(255, 255, 255, 0.1)',
+                            'backdropFilter' => 'blur(20px)',
+                            'color' => '#ffffff',
+                            'border' => '1px solid rgba(255, 255, 255, 0.2)',
+                            'boxShadow' => '0 8px 32px rgba(0, 0, 0, 0.1)',
+                            'transition' => 'all 0.3s ease',
+                            'cursor' => 'pointer',
+                        ],
+                        'preview_code' => '<button style="display: inline-flex; align-items: center; justify-content: center; padding: 14px 28px; font-size: 15px; font-weight: 500; border-radius: 12px; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px); color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); transition: all 0.3s ease; cursor: pointer;">Sign Up</button>'
+                    ],
+                    [
+                        'name' => 'Minimal Text',
+                        'description' => 'Clean text-only button',
+                        'props' => ['content' => 'Skip'],
+                        'style' => [
+                            'display' => 'inline-flex',
+                            'alignItems' => 'center',
+                            'justifyContent' => 'center',
+                            'padding' => '8px 16px',
+                            'fontSize' => '14px',
+                            'fontWeight' => '500',
+                            'borderRadius' => '8px',
+                            'background' => 'transparent',
+                            'color' => '#6b7280',
+                            'border' => 'none',
+                            'transition' => 'all 0.2s ease',
+                            'cursor' => 'pointer',
+                        ],
+                        'preview_code' => '<button style="display: inline-flex; align-items: center; justify-content: center; padding: 8px 16px; font-size: 14px; font-weight: 500; border-radius: 8px; background: transparent; color: #6b7280; border: none; transition: all 0.2s ease; cursor: pointer;">Skip</button>'
+                    ],
+                    [
+                        'name' => 'Pill Solid',
+                        'description' => 'Fully rounded pill button',
+                        'props' => ['content' => 'Subscribe'],
+                        'style' => [
+                            'display' => 'inline-flex',
+                            'alignItems' => 'center',
+                            'justifyContent' => 'center',
+                            'padding' => '12px 32px',
+                            'fontSize' => '14px',
+                            'fontWeight' => '600',
+                            'borderRadius' => '9999px',
+                            'background' => 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
+                            'color' => '#ffffff',
+                            'border' => 'none',
+                            'boxShadow' => '0 4px 14px rgba(236, 72, 153, 0.4)',
+                            'transition' => 'all 0.2s ease',
+                            'cursor' => 'pointer',
+                        ],
+                        'preview_code' => '<button style="display: inline-flex; align-items: center; justify-content: center; padding: 12px 32px; font-size: 14px; font-weight: 600; border-radius: 9999px; background: linear-gradient(135deg, #ec4899 0%, #be185d 100%); color: #ffffff; border: none; box-shadow: 0 4px 14px rgba(236, 72, 153, 0.4); transition: all 0.2s ease; cursor: pointer;">Subscribe</button>'
+                    ],
+                    [
+                        'name' => 'Soft Shadow',
+                        'description' => 'Subtle elevated look',
+                        'props' => ['content' => 'Contact'],
+                        'style' => [
+                            'display' => 'inline-flex',
+                            'alignItems' => 'center',
+                            'justifyContent' => 'center',
+                            'padding' => '14px 28px',
+                            'fontSize' => '15px',
+                            'fontWeight' => '500',
+                            'borderRadius' => '12px',
+                            'background' => '#ffffff',
+                            'color' => '#111827',
+                            'border' => 'none',
+                            'boxShadow' => '0 4px 24px rgba(0, 0, 0, 0.08)',
+                            'transition' => 'all 0.2s ease',
+                            'cursor' => 'pointer',
+                        ],
+                        'preview_code' => '<button style="display: inline-flex; align-items: center; justify-content: center; padding: 14px 28px; font-size: 15px; font-weight: 500; border-radius: 12px; background: #ffffff; color: #111827; border: none; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08); transition: all 0.2s ease; cursor: pointer;">Contact</button>'
+                    ],
+                    [
+                        'name' => 'Icon Button',
+                        'description' => 'Circular icon button',
+                        'props' => ['content' => '→'],
+                        'style' => [
+                            'display' => 'inline-flex',
+                            'alignItems' => 'center',
+                            'justifyContent' => 'center',
+                            'width' => '48px',
+                            'height' => '48px',
+                            'fontSize' => '20px',
+                            'fontWeight' => '600',
+                            'borderRadius' => '50%',
+                            'background' => '#000000',
+                            'color' => '#ffffff',
+                            'border' => 'none',
+                            'transition' => 'all 0.2s ease',
+                            'cursor' => 'pointer',
+                        ],
+                        'preview_code' => '<button style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; font-size: 20px; font-weight: 600; border-radius: 50%; background: #000000; color: #ffffff; border: none; transition: all 0.2s ease; cursor: pointer;">→</button>'
+                    ],
+                ],
+                'has_animation' => true,
+                'animation_type' => 'css',
+                'sort_order' => 100
+            ],
+
+            // ============================================
+            // CARD
+            // ============================================
+            [
+                'name' => 'Card',
+                'type' => 'card',
+                'component_type' => 'element',
+                'category' => 'cards',
+                'alphabet_group' => 'C',
+                'description' => 'Modern card component with variants',
+                'icon' => 'Square',
+                'default_props' => [
+                    'title' => 'Card Title',
+                    'description' => 'Card description',
+                ],
+                'prop_definitions' => [
+                    'title' => ['type' => 'string', 'label' => 'Title', 'default' => 'Card Title'],
+                    'description' => ['type' => 'textarea', 'label' => 'Description', 'default' => 'Card description'],
+                ],
+                'render_template' => 'card-template',
+                'code_generators' => ['react-tailwind' => 'templates/display/card.js'],
+                'variants' => [
+                    [
+                        'name' => 'Default',
+                        'description' => 'Basic card',
+                        'props' => ['title' => 'Title', 'description' => 'Description'],
+                        'style' => [
+                            'padding' => '16px',
+                            'border' => '1px solid #e5e7eb',
+                            'borderRadius' => '8px',
+                            'background' => '#ffffff',
+                        ],
+                        'preview_code' => '<div style="padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; background: #ffffff;"><div style="font-weight: 600; margin-bottom: 8px;">Title</div><div style="font-size: 14px; color: #6b7280;">Description</div></div>'
+                    ],
+                    [
+                        'name' => 'Elevated',
+                        'description' => 'Card with shadow',
+                        'props' => ['title' => 'Featured', 'description' => 'This is a featured card'],
+                        'style' => [
+                            'padding' => '24px',
+                            'borderRadius' => '16px',
+                            'background' => '#ffffff',
+                            'boxShadow' => '0 4px 24px rgba(0, 0, 0, 0.08)',
+                        ],
+                        'preview_code' => '<div style="padding: 24px; border-radius: 16px; background: #ffffff; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);"><div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">Featured</div><div style="font-size: 14px; color: #6b7280;">This is a featured card</div></div>'
+                    ],
+                    [
+                        'name' => 'Glass',
+                        'description' => 'Glassmorphism card',
+                        'props' => ['title' => 'Glass Card', 'description' => 'Frosted glass effect'],
+                        'style' => [
+                            'padding' => '24px',
+                            'borderRadius' => '16px',
+                            'background' => 'rgba(255, 255, 255, 0.1)',
+                            'backdropFilter' => 'blur(20px)',
+                            'border' => '1px solid rgba(255, 255, 255, 0.2)',
+                            'color' => '#ffffff',
+                        ],
+                        'preview_code' => '<div style="padding: 24px; border-radius: 16px; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.2); color: #ffffff;"><div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">Glass Card</div><div style="font-size: 14px; opacity: 0.8;">Frosted glass effect</div></div>'
+                    ],
+                    [
+                        'name' => 'Gradient Border',
+                        'description' => 'Card with gradient border',
+                        'props' => ['title' => 'Premium', 'description' => 'Premium content'],
+                        'style' => [
+                            'padding' => '24px',
+                            'borderRadius' => '16px',
+                            'background' => '#ffffff',
+                            'position' => 'relative',
+                            'border' => '2px solid transparent',
+                            'backgroundClip' => 'padding-box',
+                            'boxShadow' => '0 0 0 2px transparent, 0 0 0 4px transparent',
+                            'backgroundImage' => 'linear-gradient(white, white), linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            'backgroundOrigin' => 'border-box',
+                        ],
+                        'preview_code' => '<div style="padding: 24px; border-radius: 16px; background: #ffffff; border: 2px solid; border-image: linear-gradient(135deg, #667eea 0%, #764ba2 100%) 1;"><div style="font-size: 18px; font-weight: 600; margin-bottom: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Premium</div><div style="font-size: 14px; color: #6b7280;">Premium content</div></div>'
+                    ],
+                    [
+                        'name' => 'Hover Lift',
+                        'description' => 'Card with hover effect',
+                        'props' => ['title' => 'Interactive', 'description' => 'Hover to see effect'],
+                        'style' => [
+                            'padding' => '24px',
+                            'borderRadius' => '16px',
+                            'background' => '#ffffff',
+                            'border' => '1px solid #e5e7eb',
+                            'transition' => 'all 0.3s ease',
+                            'cursor' => 'pointer',
+                        ],
+                        'preview_code' => '<div style="padding: 24px; border-radius: 16px; background: #ffffff; border: 1px solid #e5e7eb; transition: all 0.3s ease; cursor: pointer;"><div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">Interactive</div><div style="font-size: 14px; color: #6b7280;">Hover to see effect</div></div>'
+                    ],
+                    [
+                        'name' => 'Minimal',
+                        'description' => 'Clean minimal card',
+                        'props' => ['title' => 'Simple', 'description' => 'Less is more'],
+                        'style' => [
+                            'padding' => '20px',
+                            'borderRadius' => '12px',
+                            'background' => '#f9fafb',
+                            'border' => 'none',
+                        ],
+                        'preview_code' => '<div style="padding: 20px; border-radius: 12px; background: #f9fafb; border: none;"><div style="font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #111827;">Simple</div><div style="font-size: 14px; color: #6b7280;">Less is more</div></div>'
+                    ],
+                ],
+                'has_animation' => false,
+                'animation_type' => null,
+                'sort_order' => 101
+            ],
+
+            // ============================================
+            // ALERT
+            // ============================================
+            [
+                'name' => 'Alert',
+                'type' => 'alert',
+                'component_type' => 'element',
+                'category' => 'feedback',
+                'alphabet_group' => 'A',
+                'description' => 'Alert notification component',
+                'icon' => 'Sparkles',
+                'default_props' => [
+                    'message' => 'Alert message',
+                    'type' => 'info',
+                ],
+                'prop_definitions' => [
+                    'message' => ['type' => 'textarea', 'label' => 'Message', 'default' => 'Alert message'],
+                    'type' => ['type' => 'select', 'label' => 'Type', 'options' => ['info', 'success', 'warning', 'error'], 'default' => 'info'],
+                ],
+                'render_template' => 'alert-template',
+                'code_generators' => ['react-tailwind' => 'templates/feedback/alert.js'],
+                'variants' => [
+                    [
+                        'name' => 'Default',
+                        'description' => 'Basic alert',
+                        'props' => ['message' => 'Alert', 'type' => 'info'],
+                        'style' => [
+                            'padding' => '12px 16px',
+                            'border' => '1px solid #e5e7eb',
+                            'borderRadius' => '8px',
+                            'background' => '#f9fafb',
+                            'color' => '#111827',
+                        ],
+                        'preview_code' => '<div style="padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; color: #111827; font-size: 14px;">Alert</div>'
+                    ],
+                    [
+                        'name' => 'Success',
+                        'description' => 'Success alert',
+                        'props' => ['message' => 'Success!', 'type' => 'success'],
+                        'style' => [
+                            'padding' => '12px 16px',
+                            'borderRadius' => '12px',
+                            'background' => '#d1fae5',
+                            'color' => '#065f46',
+                            'border' => '1px solid #6ee7b7',
+                        ],
+                        'preview_code' => '<div style="padding: 12px 16px; border-radius: 12px; background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; font-size: 14px; font-weight: 500;">✓ Success!</div>'
+                    ],
+                    [
+                        'name' => 'Warning',
+                        'description' => 'Warning alert',
+                        'props' => ['message' => 'Warning', 'type' => 'warning'],
+                        'style' => [
+                            'padding' => '12px 16px',
+                            'borderRadius' => '12px',
+                            'background' => '#fef3c7',
+                            'color' => '#92400e',
+                            'border' => '1px solid #fcd34d',
+                        ],
+                        'preview_code' => '<div style="padding: 12px 16px; border-radius: 12px; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; font-size: 14px; font-weight: 500;">⚠ Warning</div>'
+                    ],
+                    [
+                        'name' => 'Error',
+                        'description' => 'Error alert',
+                        'props' => ['message' => 'Error', 'type' => 'error'],
+                        'style' => [
+                            'padding' => '12px 16px',
+                            'borderRadius' => '12px',
+                            'background' => '#fee2e2',
+                            'color' => '#991b1b',
+                            'border' => '1px solid #fca5a5',
+                        ],
+                        'preview_code' => '<div style="padding: 12px 16px; border-radius: 12px; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; font-size: 14px; font-weight: 500;">✕ Error</div>'
+                    ],
+                    [
+                        'name' => 'Info Gradient',
+                        'description' => 'Info with gradient',
+                        'props' => ['message' => 'Info', 'type' => 'info'],
+                        'style' => [
+                            'padding' => '12px 16px',
+                            'borderRadius' => '12px',
+                            'background' => 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                            'color' => '#1e40af',
+                            'border' => 'none',
+                        ],
+                        'preview_code' => '<div style="padding: 12px 16px; border-radius: 12px; background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); color: #1e40af; border: none; font-size: 14px; font-weight: 500;">ℹ Info</div>'
+                    ],
+                    [
+                        'name' => 'Solid Dark',
+                        'description' => 'Dark solid alert',
+                        'props' => ['message' => 'Notification', 'type' => 'info'],
+                        'style' => [
+                            'padding' => '12px 16px',
+                            'borderRadius' => '12px',
+                            'background' => '#1f2937',
+                            'color' => '#ffffff',
+                            'border' => 'none',
+                        ],
+                        'preview_code' => '<div style="padding: 12px 16px; border-radius: 12px; background: #1f2937; color: #ffffff; border: none; font-size: 14px;">Notification</div>'
+                    ],
+                ],
+                'has_animation' => false,
+                'animation_type' => null,
+                'sort_order' => 102
+            ],
+
+            // ============================================
+            // TOAST
+            // ============================================
+            [
+                'name' => 'Toast',
+                'type' => 'toast',
+                'component_type' => 'element',
+                'category' => 'feedback',
+                'alphabet_group' => 'T',
+                'description' => 'Toast notification',
+                'icon' => 'Sparkles',
+                'default_props' => [
+                    'message' => 'Toast message',
+                ],
+                'prop_definitions' => [
+                    'message' => ['type' => 'textarea', 'label' => 'Message', 'default' => 'Toast message'],
+                ],
+                'render_template' => 'toast-template',
+                'code_generators' => ['react-tailwind' => 'templates/feedback/toast.js'],
+                'variants' => [
+                    [
+                        'name' => 'Default',
+                        'description' => 'Basic toast',
+                        'props' => ['message' => 'Toast'],
+                        'style' => [
+                            'padding' => '12px 16px',
+                            'borderRadius' => '8px',
+                            'background' => '#ffffff',
+                            'border' => '1px solid #e5e7eb',
+                            'boxShadow' => '0 4px 12px rgba(0, 0, 0, 0.1)',
+                        ],
+                        'preview_code' => '<div style="padding: 12px 16px; border-radius: 8px; background: #ffffff; border: 1px solid #e5e7eb; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); font-size: 14px;">Toast</div>'
+                    ],
+                    [
+                        'name' => 'Success Toast',
+                        'description' => 'Success notification',
+                        'props' => ['message' => 'Saved!'],
+                        'style' => [
+                            'padding' => '12px 16px',
+                            'borderRadius' => '12px',
+                            'background' => '#10b981',
+                            'color' => '#ffffff',
+                            'boxShadow' => '0 4px 16px rgba(16, 185, 129, 0.4)',
+                        ],
+                        'preview_code' => '<div style="padding: 12px 16px; border-radius: 12px; background: #10b981; color: #ffffff; box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4); font-size: 14px; font-weight: 500;">✓ Saved!</div>'
+                    ],
+                    [
+                        'name' => 'Dark Toast',
+                        'description' => 'Dark theme toast',
+                        'props' => ['message' => 'Notification'],
+                        'style' => [
+                            'padding' => '12px 20px',
+                            'borderRadius' => '12px',
+                            'background' => '#1f2937',
+                            'color' => '#ffffff',
+                            'boxShadow' => '0 8px 24px rgba(0, 0, 0, 0.3)',
+                        ],
+                        'preview_code' => '<div style="padding: 12px 20px; border-radius: 12px; background: #1f2937; color: #ffffff; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); font-size: 14px;">Notification</div>'
+                    ],
+                    [
+                        'name' => 'Glass Toast',
+                        'description' => 'Glassmorphism toast',
+                        'props' => ['message' => 'Update available'],
+                        'style' => [
+                            'padding' => '12px 20px',
+                            'borderRadius' => '12px',
+                            'background' => 'rgba(255, 255, 255, 0.1)',
+                            'backdropFilter' => 'blur(20px)',
+                            'border' => '1px solid rgba(255, 255, 255, 0.2)',
+                            'color' => '#ffffff',
+                        ],
+                        'preview_code' => '<div style="padding: 12px 20px; border-radius: 12px; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.2); color: #ffffff; font-size: 14px;">Update available</div>'
+                    ],
+                    [
+                        'name' => 'Gradient Toast',
+                        'description' => 'Colorful gradient',
+                        'props' => ['message' => 'New message'],
+                        'style' => [
+                            'padding' => '12px 20px',
+                            'borderRadius' => '12px',
+                            'background' => 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            'color' => '#ffffff',
+                            'boxShadow' => '0 4px 16px rgba(102, 126, 234, 0.4)',
+                        ],
+                        'preview_code' => '<div style="padding: 12px 20px; border-radius: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4); font-size: 14px; font-weight: 500;">New message</div>'
+                    ],
+                    [
+                        'name' => 'Minimal Toast',
+                        'description' => 'Clean minimal',
+                        'props' => ['message' => 'Done'],
+                        'style' => [
+                            'padding' => '10px 16px',
+                            'borderRadius' => '8px',
+                            'background' => '#f9fafb',
+                            'color' => '#111827',
+                            'border' => 'none',
+                        ],
+                        'preview_code' => '<div style="padding: 10px 16px; border-radius: 8px; background: #f9fafb; color: #111827; border: none; font-size: 13px;">Done</div>'
+                    ],
+                ],
+                'has_animation' => true,
+                'animation_type' => 'css',
+                'sort_order' => 103
+            ],
+
+            // ============================================
+            // PROGRESS BAR
+            // ============================================
+            [
+                'name' => 'Progress Bar',
+                'type' => 'progress',
+                'component_type' => 'element',
+                'category' => 'data',
+                'alphabet_group' => 'P',
+                'description' => 'Progress bar indicator',
+                'icon' => 'Layout',
+                'default_props' => [
+                    'value' => 50,
+                    'max' => 100,
+                ],
+                'prop_definitions' => [
+                    'value' => ['type' => 'number', 'label' => 'Value', 'default' => 50, 'min' => 0, 'max' => 100],
+                    'max' => ['type' => 'number', 'label' => 'Max', 'default' => 100],
+                ],
+                'render_template' => 'progress-template',
+                'code_generators' => ['react-tailwind' => 'templates/data/progress.js'],
+                'variants' => [
+                    [
+                        'name' => 'Default',
+                        'description' => 'Basic progress bar',
+                        'props' => ['value' => 50, 'max' => 100],
+                        'style' => [
+                            'width' => '100%',
+                            'height' => '8px',
+                            'background' => '#e5e7eb',
+                            'borderRadius' => '4px',
+                            'overflow' => 'hidden',
+                        ],
+                        'preview_code' => '<div style="width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden;"><div style="width: 50%; height: 100%; background: #3b82f6;"></div></div>'
+                    ],
+                    [
+                        'name' => 'Gradient',
+                        'description' => 'Gradient progress',
+                        'props' => ['value' => 70, 'max' => 100],
+                        'style' => [
+                            'width' => '100%',
+                            'height' => '12px',
+                            'background' => '#e5e7eb',
+                            'borderRadius' => '6px',
+                            'overflow' => 'hidden',
+                        ],
+                        'preview_code' => '<div style="width: 100%; height: 12px; background: #e5e7eb; border-radius: 6px; overflow: hidden;"><div style="width: 70%; height: 100%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);"></div></div>'
+                    ],
+                    [
+                        'name' => 'Striped',
+                        'description' => 'Striped pattern',
+                        'props' => ['value' => 60, 'max' => 100],
+                        'style' => [
+                            'width' => '100%',
+                            'height' => '12px',
+                            'background' => '#e5e7eb',
+                            'borderRadius' => '6px',
+                            'overflow' => 'hidden',
+                        ],
+                        'preview_code' => '<div style="width: 100%; height: 12px; background: #e5e7eb; border-radius: 6px; overflow: hidden;"><div style="width: 60%; height: 100%; background: repeating-linear-gradient(45deg, #3b82f6, #3b82f6 10px, #60a5fa 10px, #60a5fa 20px);"></div></div>'
+                    ],
+                    [
+                        'name' => 'Success',
+                        'description' => 'Green success bar',
+                        'props' => ['value' => 100, 'max' => 100],
+                        'style' => [
+                            'width' => '100%',
+                            'height' => '10px',
+                            'background' => '#d1fae5',
+                            'borderRadius' => '5px',
+                            'overflow' => 'hidden',
+                        ],
+                        'preview_code' => '<div style="width: 100%; height: 10px; background: #d1fae5; border-radius: 5px; overflow: hidden;"><div style="width: 100%; height: 100%; background: #10b981;"></div></div>'
+                    ],
+                    [
+                        'name' => 'Thick',
+                        'description' => 'Thick progress bar',
+                        'props' => ['value' => 45, 'max' => 100],
+                        'style' => [
+                            'width' => '100%',
+                            'height' => '20px',
+                            'background' => '#f3f4f6',
+                            'borderRadius' => '10px',
+                            'overflow' => 'hidden',
+                        ],
+                        'preview_code' => '<div style="width: 100%; height: 20px; background: #f3f4f6; border-radius: 10px; overflow: hidden;"><div style="width: 45%; height: 100%; background: #6366f1; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px;"><span style="font-size: 11px; color: white; font-weight: 600;">45%</span></div></div>'
+                    ],
+                    [
+                        'name' => 'Minimal',
+                        'description' => 'Minimal thin bar',
+                        'props' => ['value' => 80, 'max' => 100],
+                        'style' => [
+                            'width' => '100%',
+                            'height' => '4px',
+                            'background' => '#f3f4f6',
+                            'borderRadius' => '2px',
+                            'overflow' => 'hidden',
+                        ],
+                        'preview_code' => '<div style="width: 100%; height: 4px; background: #f3f4f6; border-radius: 2px; overflow: hidden;"><div style="width: 80%; height: 100%; background: #000000;"></div></div>'
+                    ],
+                ],
+                'has_animation' => false,
+                'animation_type' => null,
+                'sort_order' => 104
+            ],
+
+            // ============================================
+            // CHECKBOX
+            // ============================================
+            [
+                'name' => 'Checkbox',
+                'type' => 'checkbox',
+                'component_type' => 'element',
+                'category' => 'inputs',
+                'alphabet_group' => 'C',
+                'description' => 'Checkbox input element',
+                'icon' => 'Square',
+                'default_props' => [
+                    'label' => 'Checkbox',
+                    'checked' => false,
+                ],
+                'prop_definitions' => [
+                    'label' => ['type' => 'string', 'label' => 'Label', 'default' => 'Checkbox'],
+                    'checked' => ['type' => 'boolean', 'label' => 'Checked', 'default' => false],
+                ],
+                'render_template' => 'checkbox-template',
+                'code_generators' => ['react-tailwind' => 'templates/form/checkbox.js'],
+                'variants' => [
+                    [
+                        'name' => 'Default',
+                        'description' => 'Standard checkbox',
+                        'props' => ['label' => 'Option', 'checked' => false],
+                        'style' => [
+                            'display' => 'flex',
+                            'alignItems' => 'center',
+                            'gap' => '8px',
+                        ],
+                        'preview_code' => '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" style="width: 16px; height: 16px; cursor: pointer;" /><span style="font-size: 14px; color: #111827;">Option</span></label>'
+                    ],
+                    [
+                        'name' => 'Large',
+                        'description' => 'Larger checkbox',
+                        'props' => ['label' => 'I agree', 'checked' => false],
+                        'style' => [
+                            'display' => 'flex',
+                            'alignItems' => 'center',
+                            'gap' => '12px',
+                        ],
+                        'preview_code' => '<label style="display: flex; align-items: center; gap: 12px; cursor: pointer;"><input type="checkbox" style="width: 20px; height: 20px; cursor: pointer;" /><span style="font-size: 15px; color: #111827;">I agree</span></label>'
+                    ],
+                    [
+                        'name' => 'Checked',
+                        'description' => 'Pre-checked state',
+                        'props' => ['label' => 'Selected', 'checked' => true],
+                        'style' => [
+                            'display' => 'flex',
+                            'alignItems' => 'center',
+                            'gap' => '8px',
+                        ],
+                        'preview_code' => '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" checked style="width: 18px; height: 18px; cursor: pointer; accent-color: #3b82f6;" /><span style="font-size: 14px; color: #111827; font-weight: 500;">Selected</span></label>'
+                    ],
+                    [
+                        'name' => 'Success Color',
+                        'description' => 'Green checkbox',
+                        'props' => ['label' => 'Complete', 'checked' => true],
+                        'style' => [
+                            'display' => 'flex',
+                            'alignItems' => 'center',
+                            'gap' => '8px',
+                        ],
+                        'preview_code' => '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" checked style="width: 18px; height: 18px; cursor: pointer; accent-color: #10b981;" /><span style="font-size: 14px; color: #111827;">Complete</span></label>'
+                    ],
+                    [
+                        'name' => 'Purple Color',
+                        'description' => 'Purple checkbox',
+                        'props' => ['label' => 'Premium', 'checked' => true],
+                        'style' => [
+                            'display' => 'flex',
+                            'alignItems' => 'center',
+                            'gap' => '8px',
+                        ],
+                        'preview_code' => '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" checked style="width: 18px; height: 18px; cursor: pointer; accent-color: #8b5cf6;" /><span style="font-size: 14px; color: #111827;">Premium</span></label>'
+                    ],
+                    [
+                        'name' => 'Black Color',
+                        'description' => 'Black checkbox',
+                        'props' => ['label' => 'Dark mode', 'checked' => true],
+                        'style' => [
+                            'display' => 'flex',
+                            'alignItems' => 'center',
+                            'gap' => '8px',
+                        ],
+                        'preview_code' => '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" checked style="width: 18px; height: 18px; cursor: pointer; accent-color: #000000;" /><span style="font-size: 14px; color: #111827;">Dark mode</span></label>'
+                    ],
+                ],
+                'has_animation' => false,
+                'animation_type' => null,
+                'sort_order' => 105
+            ],
+
+        ];
+
+        foreach ($modernElements as $element) {
+            Component::create($element);
+        }
+    }
+}
