@@ -664,8 +664,6 @@ const handleDeleteAsset = async (asset) => {
               }}
               draggable
               onDragStart={(e) => handleAssetDragStart(e, asset)}
-              onMouseDown={(e) => handleManualDragStart(e, asset)}
-              onTouchStart={(e) => handleManualDragStart(e, asset)}
               onClick={() => setSelectedAsset(selectedAsset?.id === asset.id ? null : asset)}
             >
               {/* Asset Preview */}
@@ -800,8 +798,6 @@ const handleDeleteAsset = async (asset) => {
               }}
               draggable
               onDragStart={(e) => handleAssetDragStart(e, asset)}
-              onMouseDown={(e) => handleManualDragStart(e, asset)}
-              onTouchStart={(e) => handleManualDragStart(e, asset)}
               onClick={() => setSelectedAsset(selectedAsset?.id === asset.id ? null : asset)}
             >
               {/* Thumbnail/Icon */}

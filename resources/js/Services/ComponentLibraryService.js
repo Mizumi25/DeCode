@@ -1443,7 +1443,7 @@ generateHTMLCSSCode(allComponents, frameName = 'GeneratedComponent') {
         html += content + `</${htmlTag}>`;
       } else {
         // Self-closing tags
-        if (['input', 'img', 'br', 'hr'].includes(comp.type)) {
+        if (['input', 'img', 'image', 'br', 'hr'].includes(comp.type)) {
           const selfClosing = `${indent}<${htmlTag}${cssClass ? ` class="${cssClass}"` : ''}${attrs ? ` ${attrs}` : ''} />`;
           
           // Store line mapping
@@ -1525,7 +1525,13 @@ getReactTag(type) {
     'strong': 'strong',
     'em': 'em',
     'small': 'small',
-    'blockquote': 'blockquote'
+    'blockquote': 'blockquote',
+    // Media elements
+    'image': 'img',
+    'video': 'video',
+    'audio': 'audio',
+    '3d-model': 'div',
+    'lottie': 'div'
   };
   
   return reactMap[type] || 'div';
@@ -1550,7 +1556,18 @@ buildReactProps(component) {
     if (component.props?.target) props.push(`target="${component.props.target}"`);
   }
   
-  return props.join('\n      ');
+  // Media elements
+  if (component.type === 'image') {
+    if (component.props?.src) props.push(`src="${component.props.src}"`);
+    if (component.props?.alt) props.push(`alt="${component.props.alt}"`);
+  }
+  
+  if (component.type === 'video' || component.type === 'audio') {
+    if (component.props?.src) props.push(`src="${component.props.src}"`);
+    if (component.props?.controls) props.push('controls');
+  }
+  
+  return props.join(' ');
 }
 
 generateModernCSS(allComponents) {
@@ -1730,7 +1747,7 @@ const renderHTMLTree = (components, depth = 0) => {
       html += content + `</${htmlTag}>`;
     } else {
       // Self-closing tags for empty elements
-      if (['input', 'img', 'br', 'hr'].includes(comp.type)) {
+      if (['input', 'img', 'image', 'br', 'hr'].includes(comp.type)) {
         return `${indent}<${htmlTag}${classes ? ` class="${classes}"` : ''}${attrs ? ` ${attrs}` : ''} />`;
       }
       html += `</${htmlTag}>`;
@@ -1792,7 +1809,13 @@ getHTMLTag(type) {
     'strong': 'strong',
     'em': 'em',
     'small': 'small',
-    'blockquote': 'blockquote'
+    'blockquote': 'blockquote',
+    // Media elements
+    'image': 'img',
+    'video': 'video',
+    'audio': 'audio',
+    '3d-model': 'div',
+    'lottie': 'div'
   };
   
   return htmlMap[type] || 'div';
@@ -1819,9 +1842,15 @@ buildHTMLAttributes(comp) {
     if (comp.props?.target) attrs.push(`target="${comp.props.target}"`);
   }
   
-  if (comp.type === 'img') {
-    attrs.push(`src="${comp.props?.src || ''}"`);
-    attrs.push(`alt="${comp.props?.alt || ''}"`);
+  // Media elements
+  if (comp.type === 'img' || comp.type === 'image') {
+    if (comp.props?.src) attrs.push(`src="${comp.props.src}"`);
+    if (comp.props?.alt) attrs.push(`alt="${comp.props.alt}"`);
+  }
+  
+  if (comp.type === 'video' || comp.type === 'audio') {
+    if (comp.props?.src) attrs.push(`src="${comp.props.src}"`);
+    if (comp.props?.controls) attrs.push('controls');
   }
   
   return attrs.join(' ');
@@ -2619,7 +2648,7 @@ rebuildComponentTree(flatComponents) {
         } else if (content) {
           jsx += content + `</${tag}>`;
         } else {
-          if (['input', 'img', 'br', 'hr'].includes(comp.type)) {
+          if (['input', 'img', 'image', 'br', 'hr'].includes(comp.type)) {
             return `${indent}<${tag}${classes ? ` className="${classes}"` : ''}${props ? ` ${props}` : ''} />`;
           }
           jsx += `</${tag}>`;
