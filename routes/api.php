@@ -19,6 +19,7 @@ use App\Models\ProjectComponent;
 use App\Http\Controllers\ForgePageController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\AssetController;
+use App\Http\Controllers\IconController;
 use App\Http\Controllers\CollaborationController;
 use App\Http\Controllers\AiController;
 use App\Http\Controllers\FrameContainerController;
@@ -219,6 +220,16 @@ Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasS
         Route::post('/remove-background', [AssetController::class, 'removeBackground']);
         Route::post('/bulk-delete', [AssetController::class, 'bulkDelete']);
         Route::get('/search', [AssetController::class, 'search']);
+    });
+
+    // Icon routes (similar to components)
+    Route::prefix('icons')->group(function () {
+        Route::get('/', [IconController::class, 'index']);
+        Route::get('/type/{type}', [IconController::class, 'getByType']);
+        Route::post('/upload-svg', [IconController::class, 'uploadSvg']);
+        Route::post('/create-svg', [IconController::class, 'createSvg']);
+        Route::delete('/{icon}', [IconController::class, 'destroy']);
+        Route::get('/search', [IconController::class, 'search']);
     });
     
 

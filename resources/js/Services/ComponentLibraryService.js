@@ -1441,6 +1441,41 @@ export default ${componentName};`,
     const componentName = name.replace(/[^a-zA-Z0-9]/g, '');
     return `import ${componentName} from './${componentName}';`;
   }).filter((v, i, a) => a.indexOf(v) === i);
+  
+  // 🔥 NEW: Collect icon imports from all components (including nested)
+  const collectIcons = (components) => {
+    const icons = [];
+    components.forEach(comp => {
+      if (comp.type === 'icon' && comp.props?.iconType && comp.props?.iconName) {
+        icons.push({
+          type: comp.props.iconType,
+          name: comp.props.iconName
+        });
+      }
+      if (comp.children && comp.children.length > 0) {
+        icons.push(...collectIcons(comp.children));
+      }
+    });
+    return icons;
+  };
+  
+  const icons = collectIcons(allComponents);
+  const lucideIcons = [...new Set(icons.filter(i => i.type === 'lucide').map(i => {
+    // Convert kebab-case to PascalCase
+    return i.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+  }))];
+  const heroIcons = [...new Set(icons.filter(i => i.type === 'heroicons').map(i => {
+    // Convert kebab-case to PascalCase + Icon suffix
+    return i.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('') + 'Icon';
+  }))];
+  
+  const iconImports = [];
+  if (lucideIcons.length > 0) {
+    iconImports.push(`import { ${lucideIcons.join(', ')} } from 'lucide-react';`);
+  }
+  if (heroIcons.length > 0) {
+    iconImports.push(`import { ${heroIcons.join(', ')} } from '@heroicons/react/24/outline';`);
+  }
 
   // 🔥 FIXED: Recursive React component rendering with CSS classes
   const renderReactTree = (components, depth = 0) => {
@@ -1499,11 +1534,12 @@ export default ${componentName};`,
   const reactComponents = renderReactTree(allComponents);
   const componentName = frameName.replace(/[^a-zA-Z0-9]/g, '');
   const importsSection = componentImports.length > 0 ? componentImports.join('\n') + '\n' : '';
+  const iconImportsSection = iconImports.length > 0 ? iconImports.join('\n') + '\n' : '';
   const componentCount = allComponents.length;
 
   return {
     react: `import React from 'react';
-${importsSection}import './${componentName}.css';
+${iconImportsSection}${importsSection}import './${componentName}.css';
 
 // Generated React Component for Frame: ${frameName}
 function ${componentName}() {
@@ -1574,6 +1610,30 @@ generateHTMLCSSCode(allComponents, frameName = 'GeneratedComponent') {
         const textContent = comp.props?.content || comp.props?.text || comp.text_content || '';
         htmlLine += 1;
         return `${indent}${textContent}`;
+      }
+      
+      // 🔥 Handle icon type
+      if (comp.type === 'icon') {
+        const iconName = comp.props?.iconName || comp.name;
+        const iconType = comp.props?.iconType || 'lucide';
+        const cssClass = this.generateCSSClassName(comp);
+        
+        if (comp.props?.svgData || comp.props?.svgContent) {
+          // Custom SVG icon - embed directly
+          const svgData = comp.props.svgData || comp.props.svgContent;
+          htmlLine += 1;
+          componentLineMap[comp.id] = {
+            html: { startLine: htmlStartLine, endLine: htmlLine - 1 }
+          };
+          return `${indent}<span${cssClass ? ` class="${cssClass}"` : ''}>${svgData}</span>`;
+        }
+        
+        // For library icons, show comment (HTML doesn't support React components)
+        htmlLine += 1;
+        componentLineMap[comp.id] = {
+          html: { startLine: htmlStartLine, endLine: htmlLine - 1 }
+        };
+        return `${indent}<span${cssClass ? ` class="${cssClass}"` : ''}><!-- ${iconType}: ${iconName || 'Icon'} --></span>`;
       }
       
       // Generate unique CSS class for this component
@@ -1884,6 +1944,22 @@ const renderHTMLTree = (components, depth = 0) => {
       return `${indent}${textContent}`; // ✅ Just raw text, no tags
     }
     
+    // 🔥 Handle icon type
+    if (comp.type === 'icon') {
+      const iconName = comp.props?.iconName || comp.name;
+      const iconType = comp.props?.iconType || 'lucide';
+      const classes = this.buildDynamicTailwindClasses(comp);
+      
+      if (comp.props?.svgData || comp.props?.svgContent) {
+        // Custom SVG icon - embed directly
+        const svgData = comp.props.svgData || comp.props.svgContent;
+        return `${indent}<span${classes ? ` class="${classes}"` : ''}>${svgData}</span>`;
+      }
+      
+      // For library icons, show comment (HTML doesn't support React components)
+      return `${indent}<span${classes ? ` class="${classes}"` : ''}><!-- ${iconType}: ${iconName || 'Icon'} --></span>`;
+    }
+    
     const classes = this.buildDynamicTailwindClasses(comp);
     const content = this.extractComponentContent(comp);
     const hasChildren = comp.children && comp.children.length > 0;
@@ -2060,6 +2136,30 @@ buildHTMLAttributes(comp) {
             ${comp.props.title ? `<h3 className="font-semibold text-lg mb-2 text-gray-900">${comp.props.title}</h3>` : ''}
             <div className="text-gray-600">${comp.props.content || 'Card content'}</div>
           </div>`;
+      case 'icon':
+        // Render icon based on library type (Lucide or Heroicons)
+        const iconName = comp.props.iconName || comp.name;
+        const iconType = comp.props.iconType || 'lucide';
+        
+        if (comp.props.svgData || comp.props.svgContent) {
+          // Custom SVG icon
+          const svgData = comp.props.svgData || comp.props.svgContent;
+          return `<span className="${classes}" dangerouslySetInnerHTML={{ __html: \`${svgData.replace(/`/g, '\\`')}\` }}></span>`;
+        }
+        
+        // Lucide or Heroicons library icons
+        if (iconType === 'lucide') {
+          // Import from lucide-react
+          const componentName = iconName ? iconName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('') : 'HelpCircle';
+          return `<${componentName} className="${classes}" size={${comp.props.size || 24}} ${comp.props.color ? `color="${comp.props.color}"` : ''} />`;
+        } else if (iconType === 'heroicons') {
+          // Import from @heroicons/react
+          const componentName = iconName ? iconName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('') + 'Icon' : 'QuestionMarkCircleIcon';
+          return `<${componentName} className="${classes}" style={{ width: '${comp.props.size || 24}px', height: '${comp.props.size || 24}px'${comp.props.color ? `, color: '${comp.props.color}'` : ''} }} />`;
+        }
+        
+        // Fallback
+        return `<span className="${classes}">{/* ${iconName || 'Icon'} */}</span>`;
       default:
         return `<div className="${classes}">${comp.name || componentDef.name}</div>`;
     }
@@ -2100,6 +2200,19 @@ buildHTMLAttributes(comp) {
         ${comp.props.title ? `<h3 class="font-semibold text-lg mb-2 text-gray-900">${comp.props.title}</h3>` : ''}
         <div class="text-gray-600">${comp.props.content || 'Card content'}</div>
       </div>`;
+      case 'icon':
+        // Render icon for HTML output
+        const iconName = comp.props.iconName || comp.name;
+        const iconType = comp.props.iconType || 'lucide';
+        
+        if (comp.props.svgData || comp.props.svgContent) {
+          // Custom SVG icon - embed directly
+          const svgData = comp.props.svgData || comp.props.svgContent;
+          return `<span class="${classes}">${svgData}</span>`;
+        }
+        
+        // For library icons, show comment about the icon (HTML doesn't support React components)
+        return `<span class="${classes}"><!-- ${iconType}: ${iconName || 'Icon'} --></span>`;
       default:
         return `<div class="${classes}">${comp.name || componentDef.name}</div>`;
     }
@@ -2779,6 +2892,39 @@ rebuildComponentTree(flatComponents) {
         tailwind: ''
       };
     }
+    
+    // 🔥 Collect icon imports from all components (including nested)
+    const collectIcons = (components) => {
+      const icons = [];
+      components.forEach(comp => {
+        if (comp.type === 'icon' && comp.props?.iconType && comp.props?.iconName) {
+          icons.push({
+            type: comp.props.iconType,
+            name: comp.props.iconName
+          });
+        }
+        if (comp.children && comp.children.length > 0) {
+          icons.push(...collectIcons(comp.children));
+        }
+      });
+      return icons;
+    };
+    
+    const icons = collectIcons(allComponents);
+    const lucideIcons = [...new Set(icons.filter(i => i.type === 'lucide').map(i => {
+      return i.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+    }))];
+    const heroIcons = [...new Set(icons.filter(i => i.type === 'heroicons').map(i => {
+      return i.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('') + 'Icon';
+    }))];
+    
+    const iconImports = [];
+    if (lucideIcons.length > 0) {
+      iconImports.push(`import { ${lucideIcons.join(', ')} } from 'lucide-react';`);
+    }
+    if (heroIcons.length > 0) {
+      iconImports.push(`import { ${heroIcons.join(', ')} } from '@heroicons/react/24/outline';`);
+    }
 
     const renderReactTree = (components, depth = 0) => {
       return components.map(comp => {
@@ -2792,6 +2938,31 @@ rebuildComponentTree(flatComponents) {
         if (comp.type === 'text-node') {
           const textContent = comp.props?.content || comp.props?.text || comp.text_content || '';
           return `${indent}{${JSON.stringify(textContent)}}`;
+        }
+        
+        // 🔥 Handle icon type specially
+        if (comp.type === 'icon') {
+          const iconName = comp.props?.iconName || comp.name;
+          const iconType = comp.props?.iconType || 'lucide';
+          const classes = this.buildDynamicTailwindClasses(comp);
+          
+          if (comp.props?.svgData || comp.props?.svgContent) {
+            // Custom SVG icon
+            const svgData = comp.props.svgData || comp.props.svgContent;
+            return `${indent}<span${classes ? ` className="${classes}"` : ''} dangerouslySetInnerHTML={{ __html: \`${svgData.replace(/`/g, '\\`')}\` }} />`;
+          }
+          
+          // Lucide or Heroicons library icons
+          if (iconType === 'lucide') {
+            const componentName = iconName ? iconName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('') : 'HelpCircle';
+            return `${indent}<${componentName}${classes ? ` className="${classes}"` : ''} size={${comp.props?.size || 24}}${comp.props?.color ? ` color="${comp.props.color}"` : ''} />`;
+          } else if (iconType === 'heroicons') {
+            const componentName = iconName ? iconName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('') + 'Icon' : 'QuestionMarkCircleIcon';
+            return `${indent}<${componentName}${classes ? ` className="${classes}"` : ''} style={{ width: '${comp.props?.size || 24}px', height: '${comp.props?.size || 24}px'${comp.props?.color ? `, color: '${comp.props.color}'` : ''} }} />`;
+          }
+          
+          // Fallback
+          return `${indent}<span${classes ? ` className="${classes}"` : ''}>{/* ${iconName || 'Icon'} */}</span>`;
         }
         
         const classes = this.buildDynamicTailwindClasses(comp);
@@ -2824,9 +2995,10 @@ rebuildComponentTree(flatComponents) {
     };
 
     const reactComponents = renderReactTree(allComponents);
+    const iconImportsSection = iconImports.length > 0 ? iconImports.join('\n') + '\n' : '';
     
     return {
-      react: `import React from 'react';\n\nfunction ${frameName}() {\n  return (\n    <div className="w-full min-h-screen">\n${reactComponents}\n    </div>\n  );\n}\n\nexport default ${frameName};`,
+      react: `import React from 'react';\n${iconImportsSection}\nfunction ${frameName}() {\n  return (\n    <div className="w-full min-h-screen">\n${reactComponents}\n    </div>\n  );\n}\n\nexport default ${frameName};`,
       tailwind: allComponents.map(comp => 
         `/* ${comp.name} (${comp.type}) */\n${this.buildDynamicTailwindClasses(comp)}`
       ).join('\n\n')
