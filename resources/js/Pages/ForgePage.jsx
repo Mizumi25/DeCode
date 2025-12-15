@@ -1202,11 +1202,15 @@ useEffect(() => {
   }
   
   // Skip if components haven't actually changed (use hash comparison)
+  // 🔥 FIXED: Include responsive styles in hash to detect changes
   const currentHash = JSON.stringify(canvasComponents.map(c => ({
     id: c.id,
     type: c.type,
     parentId: c.parentId,
     style: c.style,
+    style_mobile: c.style_mobile,    // 🔥 RESPONSIVE
+    style_tablet: c.style_tablet,    // 🔥 RESPONSIVE
+    style_desktop: c.style_desktop,  // 🔥 RESPONSIVE
     props: c.props,
   })));
   

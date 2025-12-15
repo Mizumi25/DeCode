@@ -4,7 +4,8 @@ import { Head, router, usePage } from '@inertiajs/react';
 import Panel from '@/Components/Panel';
 // Import components
 import ExplorerPanel from '@/Components/Source/ExplorerPanel';
-import PreviewPanel from '@/Components/Source/PreviewPanel';
+import PreviewPanelModal from '@/Components/Forge/PreviewPanelModal';
+import componentLibraryService from '@/Services/ComponentLibraryService';
 import CodeEditor from '@/Components/Source/CodeEditor';
 import TerminalPanel from '@/Components/Source/TerminalPanel';
 // Import the new Source store
@@ -227,10 +228,17 @@ export default function SourcePage({ projectId, frameId, frame }) {
 
     // Preview panel (always visible unless all hidden)
     if (isSourcePanelOpen('preview-panel')) {
+      // Get canvas components from frame
+      const canvasComponents = props.frame?.canvas_data?.components || [];
+      
       panels.push(createSourcePanel('preview-panel', 'PREVIEW',
-        PreviewPanel ? (
-          <PreviewPanel previewMode={previewMode} setPreviewMode={setPreviewMode} />
-        ) : null
+        <PreviewPanelModal
+          canvasComponents={canvasComponents}
+          frame={props.frame}
+          componentLibraryService={componentLibraryService}
+          onClose={() => {}} // No close needed in panel mode
+          initialMode="fullscreen" // Start in fullscreen mode in SourcePage
+        />
       ));
     }
 
@@ -271,6 +279,7 @@ export default function SourcePage({ projectId, frameId, frame }) {
       headerProps={{
         onPanelToggle: handlePanelToggle,
         panelStates: legacyPanelStates, // Keep for compatibility
+        sourcePanelStates: sourcePanelStates, // Pass source panel states for active indicators
         onModeSwitch: handleModeSwitch,
         currentFrame: frame?.uuid || frameId, // Pass frame UUID for lock button
         projectId: projectId,
@@ -318,8 +327,8 @@ export default function SourcePage({ projectId, frameId, frame }) {
           </div>
         )}
 
-        {/* Main Code Editor Area */}
-        <div className="flex-1 flex flex-col min-w-0">
+        {/* Main Code Editor Area - Takes full available space */}
+        <div className="flex-1 flex flex-col min-w-0 relative">
           {/* Code Editor */}
           <div className="flex-1 min-h-0">
             {CodeEditor ? (
@@ -343,6 +352,21 @@ export default function SourcePage({ projectId, frameId, frame }) {
             )}
           </div>
           
+          {/* Preview Panel - Overlays the code editor when open */}
+          {hasRightPanels && (
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="h-full w-full pointer-events-auto">
+                <PreviewPanelModal
+                  canvasComponents={props.frame?.canvas_data?.components || []}
+                  frame={props.frame}
+                  componentLibraryService={componentLibraryService}
+                  onClose={() => toggleSourcePanel('preview-panel')}
+                  initialMode="modal"
+                />
+              </div>
+            </div>
+          )}
+          
           {/* Terminal/Output Area */}
           {isSourcePanelOpen('terminal-panel') && (
             <div className="h-48 border-t" style={{ borderColor: 'var(--color-border)' }}>
@@ -360,26 +384,7 @@ export default function SourcePage({ projectId, frameId, frame }) {
           )}
         </div>
 
-        {/* Right Panel Container - Preview & Debug */}
-        {hasRightPanels && (
-          <div className="w-80 flex-shrink-0 shadow-lg">
-            <Panel
-              key={`right-panels-${_sourceTriggerUpdate}`} // Force re-render with key
-              isOpen={true}
-              initialPanels={rightPanels}
-              allowedDockPositions={['right']}
-              onPanelClose={handlePanelClose}
-              onPanelStateChange={handlePanelStateChange}
-              snapToEdge={true}
-              mergePanels={true}
-              mergePosition="right"
-              showTabs={rightPanels.length > 1}
-              defaultWidth={320}
-              minWidth={280}
-              maxWidth={400}
-            />
-          </div>
-        )}
+        {/* Right Panel Container removed - Preview now overlays code editor */}
       </div>
 
       {/* Debug overlay for development */}

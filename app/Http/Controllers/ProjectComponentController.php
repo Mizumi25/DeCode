@@ -69,9 +69,9 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
         'z_index' => $componentData['zIndex'] ?? 0,
         'sort_order' => $componentData['sortOrder'] ?? 0,
         'style' => $finalStyle,
-        'style_mobile' => $componentData['style_mobile'] ?? null,     // 🔥 RESPONSIVE
-        'style_tablet' => $componentData['style_tablet'] ?? null,     // 🔥 RESPONSIVE
-        'style_desktop' => $componentData['style_desktop'] ?? null,   // 🔥 RESPONSIVE
+        'style_mobile' => $componentData['style_mobile'] ?? [],     // 🔥 RESPONSIVE: Default to empty array not null
+        'style_tablet' => $componentData['style_tablet'] ?? [],     // 🔥 RESPONSIVE: Default to empty array not null
+        'style_desktop' => $componentData['style_desktop'] ?? [],   // 🔥 RESPONSIVE: Default to empty array not null
         'animation' => $componentData['animation'] ?? [],
         'is_layout_container' => $componentData['isLayoutContainer'] ?? false,
         'visible' => $componentData['visible'] ?? true,
@@ -477,9 +477,9 @@ private function normalizeStyleData($componentData)
             'sort_order' => $componentData['sortOrder'] ?? 0,
             'variant' => $componentData['variant'] ?? null,
             'style' => $componentData['style'] ?? [],
-            'style_mobile' => $componentData['style_mobile'] ?? null,     // 🔥 RESPONSIVE
-            'style_tablet' => $componentData['style_tablet'] ?? null,     // 🔥 RESPONSIVE
-            'style_desktop' => $componentData['style_desktop'] ?? null,   // 🔥 RESPONSIVE
+            'style_mobile' => $componentData['style_mobile'] ?? [],     // 🔥 RESPONSIVE: Default to empty array
+            'style_tablet' => $componentData['style_tablet'] ?? [],     // 🔥 RESPONSIVE: Default to empty array
+            'style_desktop' => $componentData['style_desktop'] ?? [],   // 🔥 RESPONSIVE: Default to empty array
             'animation' => $componentData['animation'] ?? [],
             'is_layout_container' => $componentData['isLayoutContainer'] ?? false,
             'visible' => $componentData['visible'] ?? true,

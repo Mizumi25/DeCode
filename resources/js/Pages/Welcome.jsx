@@ -1098,7 +1098,7 @@ export default function Welcome({ auth }) {
                 
                 <div className="lg:col-span-5 fade-up-blur space-y-8">
                   <div className="text-xs tracking-widest text-gray-500">
-                    RETAIL / 2024
+                    RETAIL / 2025
                   </div>
                   <h3 className="text-4xl lg:text-5xl font-extralight">Minimal Store</h3>
                   <p className="text-minimal">
@@ -1121,7 +1121,7 @@ export default function Welcome({ auth }) {
               <div className="grid lg:grid-cols-12 gap-8 lg:gap-16 items-center">
                 <div className="lg:col-span-5 fade-up-blur space-y-8 lg:order-1">
                   <div className="text-xs tracking-widest text-gray-500">
-                    SAAS / 2024
+                    SAAS / 2025
                   </div>
                   <h3 className="text-4xl lg:text-5xl font-extralight">Dashboard Pro</h3>
                   <p className="text-minimal">
@@ -1162,7 +1162,7 @@ export default function Welcome({ auth }) {
                 
                 <div className="lg:col-span-5 fade-up-blur space-y-8">
                   <div className="text-xs tracking-widest text-gray-500">
-                    CREATIVE / 2024
+                    CREATIVE / 2025
                   </div>
                   <h3 className="text-4xl lg:text-5xl font-extralight">Artist Portfolio</h3>
                   <p className="text-minimal">
@@ -1185,7 +1185,7 @@ export default function Welcome({ auth }) {
               <div className="grid lg:grid-cols-12 gap-8 lg:gap-16 items-center">
                 <div className="lg:col-span-5 section-reveal space-y-8 lg:order-1">
                   <div className="text-xs tracking-widest text-gray-500">
-                    STARTUP / 2024
+                    STARTUP / 2025
                   </div>
                   <h3 className="text-4xl lg:text-5xl font-extralight">Tech Landing</h3>
                   <p className="text-minimal">
@@ -1231,32 +1231,50 @@ export default function Welcome({ auth }) {
             
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
               {[
-                { name: "James Rafty Libago", role: "Technical Lead", desc: "Full-stack architect and sole developer of DeCode's core systems", image: "/images/welcome/devs/mizumi.jpg" },
+                { name: "James Rafty Libago", role: "Technical Lead", desc: "Full-stack architect and sole developer of DeCode's core systems", image: "/images/welcome/devs/mizumi.jpg", link: "https://mizumi.vercel.app" },
                 { name: "Krislyn Ramoso", role: "Research Lead", desc: "Research coordinator and technical documentation specialist", image: "/images/welcome/devs/kris.jpg" },
-                { name: "Christian Cesar", role: "Documentation Lead", desc: "Documentation architect and content strategist" },
-                { name: "Jay Obdencio", role: "Project Manager", desc: "Project coordination and strategic planning" }
-              ].map((member, i) => (
-                <div key={i} className="magnetic-card grid-item feature-card-minimal p-8 lg:p-10 space-y-6 text-center">
-                  <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-purple-600/20 to-blue-600/20 border border-white/10 flex items-center justify-center bounce-reveal transition-all duration-500 hover:scale-110 hover:border-purple-500/50 overflow-hidden">
-                    {member.image ? (
-                      <img 
-                        src={member.image} 
-                        alt={member.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="text-3xl font-light">{member.name.charAt(0)}</div>
-                    )}
+                { name: "Christian Cesar", role: "Documentation Lead", desc: "Documentation architect and content strategist", image: "/images/welcome/devs/shan.jpg" },
+                { name: "Jay Obdencio", role: "Project Manager", desc: "Project coordination and strategic planning", image: "/images/welcome/devs/jay.jpg" }
+              ].map((member, i) => {
+                const CardContent = (
+                  <>
+                    <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-purple-600/20 to-blue-600/20 border border-white/10 flex items-center justify-center bounce-reveal transition-all duration-500 hover:scale-110 hover:border-purple-500/50 overflow-hidden">
+                      {member.image ? (
+                        <img 
+                          src={member.image} 
+                          alt={member.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="text-3xl font-light">{member.name.charAt(0)}</div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-light text-xl mb-2">{member.name}</div>
+                      <div className="text-sm text-purple-400 mb-4 tracking-wider">{member.role}</div>
+                      <p className="text-minimal text-sm leading-relaxed">
+                        {member.desc}
+                      </p>
+                    </div>
+                  </>
+                );
+
+                return member.link ? (
+                  <a 
+                    key={i} 
+                    href={member.link} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="magnetic-card grid-item feature-card-minimal p-8 lg:p-10 space-y-6 text-center block hover:border-purple-500/50 transition-all duration-300 cursor-pointer"
+                  >
+                    {CardContent}
+                  </a>
+                ) : (
+                  <div key={i} className="magnetic-card grid-item feature-card-minimal p-8 lg:p-10 space-y-6 text-center">
+                    {CardContent}
                   </div>
-                  <div>
-                    <div className="font-light text-xl mb-2">{member.name}</div>
-                    <div className="text-sm text-purple-400 mb-4 tracking-wider">{member.role}</div>
-                    <p className="text-minimal text-sm leading-relaxed">
-                      {member.desc}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
@@ -1433,7 +1451,7 @@ export default function Welcome({ auth }) {
                 <a href="#" className="hover:text-white transition-colors duration-500">CONTACT</a>
               </div>
               
-              <div className="text-xs text-gray-600">© 2024 DeCode. All rights reserved.</div>
+              <div className="text-xs text-gray-600">© 2025 DeCode. All rights reserved.</div>
             </div>
           </div>
         </footer>

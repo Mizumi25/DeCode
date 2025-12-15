@@ -370,17 +370,29 @@ const RightSection = ({
               </div>
             )}
 
-            {/* Preview - Only on Forge Page */}
-            {onForgePage && toggleForgePanel && (
+            {/* Preview - Forge and Source Pages */}
+            {(onForgePage || onSourcePage) && toggleForgePanel && (
               <div className="flex flex-col items-center gap-0.5">
                 <button 
                   onClick={() => toggleForgePanel('preview-panel')}
-                  className="p-0.5 hover:bg-[var(--color-bg-muted)] rounded transition-colors"
+                  className={`p-0.5 rounded transition-colors ${
+                    props.forgePanelStates?.['preview-panel'] || props.sourcePanelStates?.['preview-panel']
+                      ? 'bg-[var(--color-primary)]/20'
+                      : 'hover:bg-[var(--color-bg-muted)]'
+                  }`}
                   title="Open interactive preview"
                 >
-                  <Eye className="w-2.5 h-2.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)]" />
+                  <Eye className={`w-2.5 h-2.5 ${
+                    props.forgePanelStates?.['preview-panel'] || props.sourcePanelStates?.['preview-panel']
+                      ? 'text-[var(--color-primary)]'
+                      : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+                  }`} />
                 </button>
-                <span className="text-[7px] text-[var(--color-text-muted)]">Preview</span>
+                <span className={`text-[7px] ${
+                  props.forgePanelStates?.['preview-panel'] || props.sourcePanelStates?.['preview-panel']
+                    ? 'text-[var(--color-primary)]'
+                    : 'text-[var(--color-text-muted)]'
+                }`}>Preview</span>
               </div>
             )}
 

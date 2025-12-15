@@ -234,6 +234,7 @@ export default function Header({
             setProfileDropdownOpen={handleProfileDropdownToggle}
             toggleForgePanel={toggleForgePanel}
             isMobile={isMobile}
+            sourcePanelStates={props.sourcePanelStates}
           />
         </div>
 

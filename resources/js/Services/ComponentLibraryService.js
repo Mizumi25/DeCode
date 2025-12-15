@@ -2630,9 +2630,9 @@ async saveProjectComponents(projectId, frameId, components, options = {}) {
                 sortOrder: index,                         
                 variant: comp.variant || null,
                 style: comp.style || {}, // Base styles
-                style_mobile: comp.style_mobile || {}, // 🔥 RESPONSIVE: Mobile styles
-                style_tablet: comp.style_tablet || {}, // 🔥 RESPONSIVE: Tablet styles
-                style_desktop: comp.style_desktop || {}, // 🔥 RESPONSIVE: Desktop styles
+                style_mobile: comp.style_mobile || null, // 🔥 FIXED: Use null to preserve existing DB values
+                style_tablet: comp.style_tablet || null, // 🔥 FIXED: Use null to preserve existing DB values
+                style_desktop: comp.style_desktop || null, // 🔥 FIXED: Use null to preserve existing DB values
                 animation: comp.animation || {},
                 isLayoutContainer: comp.isLayoutContainer || false,
                 children: comp.children || [],            

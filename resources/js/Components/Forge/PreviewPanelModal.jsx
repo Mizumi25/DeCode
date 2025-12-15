@@ -7,7 +7,8 @@ export default function PreviewPanelModal({
   canvasComponents, 
   frame, 
   componentLibraryService,
-  onClose 
+  onClose,
+  initialMode = "modal" // Allow passing initial mode (modal, window, fullscreen)
 }) {
   const [isLoading, setIsLoading] = useState(true);
   const previewRef = useRef(null);
@@ -112,7 +113,7 @@ export default function PreviewPanelModal({
       title="Preview"
       content={previewContent}
       onClose={onClose}
-      initialMode="modal"
+      initialMode={initialMode}
       initialSize={{ width: 1000, height: 700 }}
       minSize={{ width: 600, height: 400 }}
       maxSize={{ width: 1600, height: 1000 }}
