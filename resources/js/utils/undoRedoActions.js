@@ -207,20 +207,22 @@ export const createUpdatePropsAction = (setComponents, componentId, oldProps, ne
 };
 
 /**
- * Create action for updating component styles
+ * Create action for updating component styles (supports responsive modes)
  * @param {Function} setComponents - State setter for components
  * @param {string} componentId - Component to update
  * @param {Object} oldStyle - Old style object
  * @param {Object} newStyle - New style object
+ * @param {string} styleField - Style field name ('style', 'style_mobile', 'style_tablet', 'style_desktop')
  */
-export const createUpdateStyleAction = (setComponents, componentId, oldStyle, newStyle) => {
+export const createUpdateStyleAction = (setComponents, componentId, oldStyle, newStyle, styleField = 'style') => {
   const updateStyle = (targetStyle) => {
     // ✅ FIX: setComponents is a callback that expects an array of components
     // It should NOT receive prev as a parameter since the callback handles that
     const updateRecursive = (components) => {
       return components.map(c => {
         if (c.id === componentId) {
-          return { ...c, style: { ...c.style, ...targetStyle } };
+          // 🔥 NEW: Support responsive style fields
+          return { ...c, [styleField]: { ...c[styleField], ...targetStyle } };
         }
         if (c.children && c.children.length > 0) {
           return { ...c, children: updateRecursive(c.children) };
@@ -241,23 +243,26 @@ export const createUpdateStyleAction = (setComponents, componentId, oldStyle, ne
 
   return {
     type: 'UPDATE_STYLE',
+    styleField, // 🔥 NEW: Track which field is being updated
     do: () => {
-      console.log('🔨 DO: Update style', componentId, newStyle);
+      console.log(`🔨 DO: Update ${styleField}`, componentId, newStyle);
       updateStyle(newStyle);
     },
     undo: () => {
-      console.log('⏪ UNDO: Restore style', componentId, oldStyle);
+      console.log(`⏪ UNDO: Restore ${styleField}`, componentId, oldStyle);
       updateStyle(oldStyle);
     },
     serialize: () => ({
       type: 'UPDATE_STYLE',
       componentId: componentId,
-      style: newStyle,
+      styleField, // 🔥 NEW: Include field name
+      [styleField]: newStyle,
     }),
     serializeUndo: () => ({
       type: 'UPDATE_STYLE',
       componentId: componentId,
-      style: oldStyle,
+      styleField, // 🔥 NEW: Include field name
+      [styleField]: oldStyle,
     }),
   };
 };

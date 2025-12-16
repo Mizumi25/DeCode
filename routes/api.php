@@ -489,6 +489,12 @@ if (!function_exists('buildComponentTree')) {
                     'props' => $comp->props,
                     'name' => $comp->name,
                     'style' => $comp->style ?? [],
+                    'style_mobile' => $comp->style_mobile ?? null, // 🔥 RESPONSIVE
+                    'style_tablet' => $comp->style_tablet ?? null, // 🔥 RESPONSIVE
+                    'style_desktop' => $comp->style_desktop ?? null, // 🔥 RESPONSIVE
+                    'animation' => $comp->animation ?? [],
+                    'parentId' => $comp->parent_id, // 🔥 FIX: Include parent_id so frontend knows the relationship
+                    'isLayoutContainer' => $comp->is_layout_container ?? false,
                     'children' => buildComponentTree($components, $comp->id)
                 ];
                 $tree[] = $node;

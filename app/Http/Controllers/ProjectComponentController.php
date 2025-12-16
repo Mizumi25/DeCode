@@ -163,6 +163,13 @@ private function normalizeStyleData($componentData)
       
       foreach ($components as $component) {
           if ($component->parent_id == $parentId) {
+              // 🔥 FIX: Find parent's component_instance_id for frontend
+              $parentInstanceId = null;
+              if ($component->parent_id) {
+                  $parentComponent = $components->firstWhere('id', $component->parent_id);
+                  $parentInstanceId = $parentComponent?->component_instance_id;
+              }
+              
               $node = [
                   'id' => $component->component_instance_id,
                   'type' => $component->component_type,
@@ -181,7 +188,7 @@ private function normalizeStyleData($componentData)
                   'isLayoutContainer' => $component->is_layout_container,
                   'visible' => $component->visible ?? true,
                   'locked' => $component->locked ?? false,
-                  'parentId' => $parentId ? $components->firstWhere('id', $parentId)?->component_instance_id : null, // 🔥 ADD parent reference
+                  'parentId' => $parentInstanceId, // 🔥 FIX: Use the actual parent's component_instance_id
                   'children' => $this->buildComponentTree($components, $component->id)
               ];
               
@@ -190,8 +197,9 @@ private function normalizeStyleData($componentData)
                   'id' => $node['id'],
                   'type' => $node['type'],
                   'parentId' => $node['parentId'],
+                  'parent_db_id' => $component->parent_id,
                   'isNested' => !!$node['parentId'],
-                  'style_keys' => array_keys($node['style']),
+                  'has_children' => count($node['children']) > 0,
               ]);
               
               $tree[] = $node;

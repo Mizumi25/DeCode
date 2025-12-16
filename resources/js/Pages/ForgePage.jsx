@@ -141,11 +141,6 @@ export default function ForgePage({
     addComment
   } = useEditorStore();
   
-  // 🔥 DEBUG: Log responsive mode changes
-  useEffect(() => {
-    console.log('🎯 [ForgePage] Responsive mode changed to:', responsiveMode);
-  }, [responsiveMode]);
-  
   const {
     initializeFrame: initUndoRedoFrame,
     pushHistory,
@@ -155,8 +150,18 @@ export default function ForgePage({
     redo,
     canUndo,
     canRedo,
-    executeAction
+    executeAction,
+    setResponsiveMode: setUndoRedoResponsiveMode // 🔥 NEW: Sync responsive mode to undo/redo store
   } = useForgeUndoRedoStore();
+  
+  // 🔥 Sync responsive mode to undo/redo store
+  useEffect(() => {
+    console.log('🎯 [ForgePage] Responsive mode changed to:', responsiveMode);
+    if (setUndoRedoResponsiveMode) {
+      setUndoRedoResponsiveMode(responsiveMode);
+      console.log('✅ Synced responsive mode to undo/redo store:', responsiveMode);
+    }
+  }, [responsiveMode, setUndoRedoResponsiveMode]);
   
   const { 
     syncedCode,         
@@ -1378,8 +1383,8 @@ const handleAssetDrop = useCallback((e) => {
   // Initialize undo/redo when frame and components are ready
   useEffect(() => {
     if (currentFrame && componentsLoaded) {
-      console.log('ForgePage: Initializing undo/redo for frame:', currentFrame);
-      initUndoRedoFrame(currentFrame);
+      console.log('ForgePage: Initializing undo/redo for frame:', currentFrame, 'mode:', responsiveMode);
+      initUndoRedoFrame(currentFrame, responsiveMode); // 🔥 Pass responsive mode
       
       // Push initial state if we have components
       if (canvasComponents.length > 0) {
@@ -1660,10 +1665,13 @@ const handlePropertyUpdate = useCallback((componentId, propName, value) => {
   const component = findComponent(canvasComponents, componentId);
   const componentName = component?.name || component?.type || 'component';
   
-  // 🔥 NEW: Create undo/redo action for property changes
-  if (propName === 'style' && component) {
-    const oldStyle = component.style || {};
+  // 🔥 NEW: Create undo/redo action for property changes (supports responsive styles)
+  if (propName === 'style' || propName === 'style_mobile' || propName === 'style_tablet' || propName === 'style_desktop') {
+    // 🔥 Handle responsive style fields
+    const oldStyle = component[propName] || {};
     const newStyle = value;
+    
+    console.log(`🎯 Creating undo action for ${propName}:`, { componentId, oldStyle, newStyle });
     
     // ✅ FIX: Pass a proper setter function that works with the frame-based structure
     const action = createUpdateStyleAction(
@@ -1683,11 +1691,12 @@ const handlePropertyUpdate = useCallback((componentId, propName, value) => {
       },
       componentId,
       oldStyle,
-      newStyle
+      newStyle,
+      propName // 🔥 NEW: Pass the field name (style, style_mobile, etc.)
     );
     
     executeAction(currentFrame, action);
-    console.log('✅ Style undo action created');
+    console.log(`✅ ${propName} undo action created for ${responsiveMode} mode`);
   } else if ((propName === 'props' || propName === 'animation') && component) {
     const oldProps = propName === 'props' ? (component.props || {}) : (component.animation || {});
     const newProps = value;
@@ -3418,7 +3427,10 @@ const handleCanvasClick = useCallback((e) => {
         panelStates: {},
         forgePanelStates: forgePanelStates,  // 🔥 Pass forge panel states to header
         onModeSwitch: () => {},
-        onLinkedComponentsClick: handleLinkedComponentsClick
+        onLinkedComponentsClick: handleLinkedComponentsClick,
+        handleUndo: handleUndo,  // 🔥 FIXED: Pass undo function for header buttons
+        handleRedo: handleRedo,  // 🔥 FIXED: Pass redo function for header buttons
+        canvasComponents: canvasComponents  // 🔥 Pass for undo/redo component
       }}
     >
       <Head title={`Forge - ${frame?.name || 'Visual Builder'}`} />
