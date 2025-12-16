@@ -278,8 +278,25 @@ const detectDropTarget = useCallback((pointerX, pointerY) => {
         }
       } else {
         // Non-layout: only before/after
-        const centerY = elementRect.top + elementRect.height / 2;
-        intent = relativeY < centerY ? 'before' : 'after';
+        // 🔥 FIX: Detect horizontal vs vertical layout
+        // Check parent's flexDirection or if siblings are arranged horizontally
+        const parent = element.parentElement;
+        const parentStyle = parent ? window.getComputedStyle(parent) : null;
+        const isHorizontalLayout = parentStyle && (
+          parentStyle.display === 'flex' && parentStyle.flexDirection === 'row' ||
+          parentStyle.display === 'inline-flex' && parentStyle.flexDirection === 'row' ||
+          parentStyle.display === 'grid' && parentStyle.gridAutoFlow === 'column'
+        );
+        
+        if (isHorizontalLayout) {
+          // Use X-axis for horizontal layouts
+          const centerX = elementRect.left + elementRect.width / 2;
+          intent = relativeX < centerX ? 'before' : 'after';
+        } else {
+          // Use Y-axis for vertical layouts (default)
+          const centerY = elementRect.top + elementRect.height / 2;
+          intent = relativeY < centerY ? 'before' : 'after';
+        }
       }
 
       // Found the deepest matching target

@@ -23,7 +23,7 @@ import {
   wouldCreateCircularRef,
   canAcceptChildren 
 } from '@/utils/dropZoneDetection';
-import { createMoveComponentAction } from '@/utils/undoRedoActions'; // 🔥 NEW: Import move action creator
+import { createMoveComponentAction, createAddComponentAction } from '@/utils/undoRedoActions'; // 🔥 NEW: Import action creators
 
 
 
@@ -1193,21 +1193,33 @@ const handleAddSection = useCallback((targetComponentId, position) => {
   // Rebuild tree
   const newTree = rebuildTree(newFlatArray);
   
-  // Update state
+  // 🔥 NEW: Create proper undo action
+  const action = createAddComponentAction(
+    (updater) => {
+      setFrameCanvasComponents(prev => {
+        const currentComponents = prev[currentFrame] || [];
+        const updatedComponents = typeof updater === 'function' 
+          ? updater(currentComponents) 
+          : updater;
+        
+        return {
+          ...prev,
+          [currentFrame]: updatedComponents
+        };
+      });
+    },
+    newSection
+  );
+  
+  // Apply the add immediately
   setFrameCanvasComponents(prev => ({
     ...prev,
     [currentFrame]: newTree
   }));
   
-  // Push to history
-  if (pushHistory && actionTypes) {
-    pushHistory(currentFrame, newTree, actionTypes.ADD, {
-      componentId: newSection.id,
-      action: 'add_section_via_hover',
-      position,
-      targetId: targetComponentId
-    });
-  }
+  // Add to undo/redo history
+  executeAction(currentFrame, action);
+  console.log('✅ Add section undo action created');
   
   // Auto-save
   setTimeout(() => {
@@ -1226,7 +1238,7 @@ const handleAddSection = useCallback((targetComponentId, position) => {
       // Vibration blocked - ignore
     }
   }
-}, [canvasComponents, currentFrame, flattenForReorder, setFrameCanvasComponents, pushHistory, actionTypes, componentLibraryService, projectId, setSelectedComponent]);
+}, [canvasComponents, currentFrame, flattenForReorder, setFrameCanvasComponents, executeAction, componentLibraryService, projectId, setSelectedComponent]);
 
 // 🔥 FIXED: Handle component drag end with proper parent context
 const handleComponentDragEnd = useCallback(({ componentId, targetId, intent }) => {

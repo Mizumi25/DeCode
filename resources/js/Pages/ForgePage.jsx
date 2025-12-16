@@ -11,7 +11,7 @@ import {
 import { useForgeStore } from '@/stores/useForgeStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useForgeUndoRedoStore } from '@/stores/useForgeUndoRedoStore';
-import { createUpdateStyleAction, createUpdatePropsAction } from '@/utils/undoRedoActions';
+import { createUpdateStyleAction, createUpdatePropsAction, createAddComponentAction } from '@/utils/undoRedoActions';
 import { useCodeSyncStore } from '@/stores/useCodeSyncStore';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 import { useThumbnail } from '@/hooks/useThumbnail';
@@ -2179,13 +2179,26 @@ const handleCanvasDrop = useCallback((e) => {
       setSelectedComponent(newComponent.id);
       handleComponentDragEnd();
       
-      if (pushHistory && actionTypes) {
-        pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
-          componentName: newComponent.name,
-          componentType: newComponent.type,
-          componentId: newComponent.id
-        });
-      }
+      // 🔥 NEW: Create proper undo action for linked component drop
+      const action = createAddComponentAction(
+        (updater) => {
+          setFrameCanvasComponents(prev => {
+            const currentComponents = prev[currentFrame] || [];
+            const updatedComponents = typeof updater === 'function' 
+              ? updater(currentComponents) 
+              : updater;
+            
+            return {
+              ...prev,
+              [currentFrame]: updatedComponents
+            };
+          });
+        },
+        newComponent
+      );
+      
+      executeAction(currentFrame, action);
+      console.log('✅ Linked component drop undo action created');
       
       generateCode(updatedComponents);
       
@@ -2301,13 +2314,26 @@ const handleCanvasDrop = useCallback((e) => {
     setSelectedComponent(newComponent.id);
     handleComponentDragEnd();
     
-    if (pushHistory && actionTypes) {
-      pushHistory(currentFrame, updatedComponents, actionTypes.DROP, {
-        componentName: newComponent.name,
-        componentType: newComponent.type,
-        componentId: newComponent.id
-      });
-    }
+    // 🔥 NEW: Create proper undo action for component panel drop
+    const action = createAddComponentAction(
+      (updater) => {
+        setFrameCanvasComponents(prev => {
+          const currentComponents = prev[currentFrame] || [];
+          const updatedComponents = typeof updater === 'function' 
+            ? updater(currentComponents) 
+            : updater;
+          
+          return {
+            ...prev,
+            [currentFrame]: updatedComponents
+          };
+        });
+      },
+      newComponent
+    );
+    
+    executeAction(currentFrame, action);
+    console.log('✅ Component panel drop undo action created');
     
     generateCode(updatedComponents);
     
@@ -3515,26 +3541,76 @@ const handleCanvasClick = useCallback((e) => {
                         <EmptyCanvasState
                             frameType={frame?.type || 'page'}
                             onAddSection={() => {
-                                // Auto-add a section for pages
+                                // Auto-add a section for pages with undo/redo
                                 const sectionComponent = componentLibraryService?.createLayoutElement('section');
                                 if (sectionComponent) {
                                     const updatedComponents = [sectionComponent];
+                                    
+                                    // 🔥 NEW: Create undo action
+                                    const action = createAddComponentAction(
+                                      (updater) => {
+                                        setFrameCanvasComponents(prev => {
+                                          const currentComponents = prev[currentFrame] || [];
+                                          const updatedComponents = typeof updater === 'function' 
+                                            ? updater(currentComponents) 
+                                            : updater;
+                                          
+                                          return {
+                                            ...prev,
+                                            [currentFrame]: updatedComponents
+                                          };
+                                        });
+                                      },
+                                      sectionComponent
+                                    );
+                                    
+                                    // Apply immediately
                                     setFrameCanvasComponents(prev => ({
                                         ...prev,
                                         [currentFrame]: updatedComponents
                                     }));
+                                    
+                                    // Add to undo/redo
+                                    executeAction(currentFrame, action);
+                                    console.log('✅ Empty canvas add section undo action created');
+                                    
                                     setSelectedComponent(sectionComponent.id);
                                 }
                             }}
                             onAddElement={() => {
-                                // Auto-add a div for components
+                                // Auto-add a div for components with undo/redo
                                 const divComponent = componentLibraryService?.createLayoutElement('div');
                                 if (divComponent) {
                                     const updatedComponents = [divComponent];
+                                    
+                                    // 🔥 NEW: Create undo action
+                                    const action = createAddComponentAction(
+                                      (updater) => {
+                                        setFrameCanvasComponents(prev => {
+                                          const currentComponents = prev[currentFrame] || [];
+                                          const updatedComponents = typeof updater === 'function' 
+                                            ? updater(currentComponents) 
+                                            : updater;
+                                          
+                                          return {
+                                            ...prev,
+                                            [currentFrame]: updatedComponents
+                                          };
+                                        });
+                                      },
+                                      divComponent
+                                    );
+                                    
+                                    // Apply immediately
                                     setFrameCanvasComponents(prev => ({
                                         ...prev,
                                         [currentFrame]: updatedComponents
                                     }));
+                                    
+                                    // Add to undo/redo
+                                    executeAction(currentFrame, action);
+                                    console.log('✅ Empty canvas add element undo action created');
+                                    
                                     setSelectedComponent(divComponent.id);
                                 }
                             }}
