@@ -16,6 +16,8 @@ const ForgeUndoRedo = ({
   const {
     initializeFrame,
     pushHistory,
+    undo, // 🔥 ADD: undo function
+    redo, // 🔥 ADD: redo function
     canUndo,
     canRedo,
     getHistoryInfo,
@@ -58,13 +60,21 @@ const ForgeUndoRedo = ({
 
 
 
-// 🔥 ADD THIS - only update on explicit history changes
+// 🔥 UPDATE THIS - update on explicit history changes
 const updateHistoryInfo = useCallback(() => {
   if (!frameId) return;
   
   const info = getHistoryInfo(frameId);
   const canUndoState = canUndo(frameId);
   const canRedoState = canRedo(frameId);
+  
+  console.log('🔄 ForgeUndoRedo updating:', { 
+    frameId, 
+    canUndo: canUndoState, 
+    canRedo: canRedoState,
+    undoCount: info.undoCount,
+    redoCount: info.redoCount 
+  });
   
   setHistoryInfo({
     ...info,
@@ -73,11 +83,20 @@ const updateHistoryInfo = useCallback(() => {
   });
 }, [frameId, getHistoryInfo, canUndo, canRedo]);
 
-
-
-// Only update on explicit signals
+// 🔥 FIX: Listen to store changes - simple subscription
 useEffect(() => {
+  if (!frameId) return;
+  
+  // Initial update
   updateHistoryInfo();
+  
+  // Subscribe to ALL store changes
+  const unsubscribe = useForgeUndoRedoStore.subscribe(() => {
+    console.log('📢 Store updated, refreshing history info');
+    updateHistoryInfo();
+  });
+  
+  return () => unsubscribe();
 }, [frameId, updateHistoryInfo]); 
 
 

@@ -23,6 +23,7 @@ import {
   wouldCreateCircularRef,
   canAcceptChildren 
 } from '@/utils/dropZoneDetection';
+import { createMoveComponentAction } from '@/utils/undoRedoActions'; // 🔥 NEW: Import move action creator
 
 
 
@@ -208,7 +209,7 @@ const isRemoteUpdateRef = useRef(false);
   const { overlays, isOverlayEnabled } = useCanvasOverlayStore();
   
   // Get undo/redo functionality
-  const { pushHistory, actionTypes } = useForgeUndoRedoStore();
+  const { pushHistory, actionTypes, executeAction } = useForgeUndoRedoStore(); // 🔥 ADD: executeAction
 
   // Local state for canvas interactions
   const [isDraggingComponent, setIsDraggingComponent] = useState(false);
@@ -1260,24 +1261,44 @@ const handleComponentDragEnd = useCallback(({ componentId, targetId, intent }) =
     if (targetId === '__canvas_root__') {
       console.log('🎯 Moving to canvas root');
       
+      const oldState = { ...draggedComp };
       let updatedTree = removeComponentFromTree(currentComponents, componentId);
       // Add to root level (no parent)
-      updatedTree.push({
+      const movedComp = {
         ...draggedComp,
         parentId: null,
-      });
+      };
+      updatedTree.push(movedComp);
       
+      // 🔥 NEW: Create proper undo action
+      const action = createMoveComponentAction(
+        (updater) => {
+          setFrameCanvasComponents(prev => {
+            const currentComponents = prev[currentFrame] || [];
+            const updatedComponents = typeof updater === 'function' 
+              ? updater(currentComponents) 
+              : updater;
+            
+            return {
+              ...prev,
+              [currentFrame]: updatedComponents
+            };
+          });
+        },
+        componentId,
+        oldState,
+        movedComp
+      );
+      
+      // Apply the move immediately
       setFrameCanvasComponents(prev => ({
         ...prev,
         [currentFrame]: updatedTree
       }));
       
-      if (pushHistory && actionTypes) {
-        pushHistory(currentFrame, updatedTree, actionTypes.MOVE, {
-          componentId,
-          action: 'moved_to_canvas_root'
-        });
-      }
+      // Add to undo/redo history
+      executeAction(currentFrame, action);
+      console.log('✅ Move to canvas root undo action created');
       
       setTimeout(() => {
         if (componentLibraryService?.saveProjectComponents) {
@@ -1290,24 +1311,43 @@ const handleComponentDragEnd = useCallback(({ componentId, targetId, intent }) =
     }
     
     // Regular container nesting
+    const oldState = { ...draggedComp };
     let updatedTree = removeComponentFromTree(currentComponents, componentId);
-    updatedTree = addComponentToContainer(updatedTree, targetId, {
+    const movedComp = {
       ...draggedComp,
       parentId: targetId,
-    });
+    };
+    updatedTree = addComponentToContainer(updatedTree, targetId, movedComp);
     
+    // 🔥 NEW: Create proper undo action
+    const action = createMoveComponentAction(
+      (updater) => {
+        setFrameCanvasComponents(prev => {
+          const currentComponents = prev[currentFrame] || [];
+          const updatedComponents = typeof updater === 'function' 
+            ? updater(currentComponents) 
+            : updater;
+          
+          return {
+            ...prev,
+            [currentFrame]: updatedComponents
+          };
+        });
+      },
+      componentId,
+      oldState,
+      movedComp
+    );
+    
+    // Apply the move immediately
     setFrameCanvasComponents(prev => ({
       ...prev,
       [currentFrame]: updatedTree
     }));
     
-    if (pushHistory && actionTypes) {
-      pushHistory(currentFrame, updatedTree, actionTypes.MOVE, {
-        componentId,
-        action: 'nested_into_container',
-        containerId: targetId
-      });
-    }
+    // Add to undo/redo history
+    executeAction(currentFrame, action);
+    console.log('✅ Nest into container undo action created');
     
     setTimeout(() => {
       if (componentLibraryService?.saveProjectComponents) {
@@ -1353,21 +1393,39 @@ const handleComponentDragEnd = useCallback(({ componentId, targetId, intent }) =
       });
       
       // Reorder root components
+      const oldState = { ...draggedComp, sortOrder: draggedRootIndex };
       const reorderedRoot = arrayMove(rootComponents, draggedRootIndex, newRootIndex);
+      const movedComp = { ...reorderedRoot.find(c => c.id === componentId), sortOrder: newRootIndex };
       
+      // 🔥 NEW: Create proper undo action
+      const action = createMoveComponentAction(
+        (updater) => {
+          setFrameCanvasComponents(prev => {
+            const currentComponents = prev[currentFrame] || [];
+            const updatedComponents = typeof updater === 'function' 
+              ? updater(currentComponents) 
+              : updater;
+            
+            return {
+              ...prev,
+              [currentFrame]: updatedComponents
+            };
+          });
+        },
+        componentId,
+        oldState,
+        movedComp
+      );
+      
+      // Apply the reorder immediately
       setFrameCanvasComponents(prev => ({
         ...prev,
         [currentFrame]: reorderedRoot
       }));
       
-      if (pushHistory && actionTypes) {
-        pushHistory(currentFrame, reorderedRoot, actionTypes.MOVE, {
-          componentId,
-          action: 'reorder_root',
-          fromIndex: draggedRootIndex,
-          toIndex: newRootIndex
-        });
-      }
+      // Add to undo/redo history
+      executeAction(currentFrame, action);
+      console.log('✅ Reorder root undo action created');
       
       setTimeout(() => {
         if (componentLibraryService?.saveProjectComponents) {
