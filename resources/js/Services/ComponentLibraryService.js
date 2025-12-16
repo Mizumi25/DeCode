@@ -10,18 +10,19 @@ import React from 'react';
  * ALL valid HTML5 elements mapped to themselves
  * This makes the system truly universal - supports ANY HTML element
  */
+// 🔥 ALL HTML5 Elements - Complete List (110+ elements)
 const ALL_HTML_ELEMENTS = [
   // Document structure
-  'html', 'head', 'body', 'title', 'meta', 'link', 'style', 'script',
+  'html', 'head', 'body', 'title', 'meta', 'link', 'style', 'script', 'noscript', 'base',
   
   // Sections
-  'header', 'nav', 'main', 'section', 'article', 'aside', 'footer',
+  'header', 'nav', 'main', 'section', 'article', 'aside', 'footer', 'address', 'hgroup',
   
   // Content grouping
-  'div', 'span', 'p', 'pre', 'blockquote', 'hr', 'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+  'div', 'span', 'p', 'pre', 'blockquote', 'hr', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'menu',
   
   // Text semantics
-  'a', 'strong', 'em', 'b', 'i', 'u', 's', 'mark', 'small', 'sub', 'sup', 'code', 'kbd', 'samp', 'var', 'time', 'abbr', 'dfn', 'cite', 'q',
+  'a', 'strong', 'em', 'b', 'i', 'u', 's', 'mark', 'small', 'sub', 'sup', 'code', 'kbd', 'samp', 'var', 'time', 'abbr', 'dfn', 'cite', 'q', 'ins', 'del', 'data', 'bdi', 'bdo', 'ruby', 'rt', 'rp', 'wbr',
   
   // Headings
   'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -33,13 +34,16 @@ const ALL_HTML_ELEMENTS = [
   'details', 'summary', 'dialog',
   
   // Embedded content
-  'img', 'iframe', 'embed', 'object', 'param', 'video', 'audio', 'source', 'track', 'canvas', 'svg', 'math',
+  'img', 'iframe', 'embed', 'object', 'param', 'video', 'audio', 'source', 'track', 'canvas', 'svg', 'math', 'picture', 'area', 'map',
   
   // Tables
   'table', 'caption', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'col', 'colgroup',
   
-  // Other
-  'figure', 'figcaption', 'picture', 'template', 'slot'
+  // Scripting
+  'script', 'noscript', 'template', 'slot', 'canvas',
+  
+  // Other semantic elements
+  'figure', 'figcaption', 'search'
 ];
 
 /**
@@ -416,8 +420,23 @@ class ComponentLibraryService {
    * 🔥 Only self-closing elements can't have children
    */
   canAcceptChildren(type) {
-    const selfClosingTypes = ['input', 'img', 'br', 'hr', 'meta', 'link', 'area', 'base', 'col', 'embed', 'source', 'track', 'wbr'];
-    return !selfClosingTypes.includes(type);
+    return !this.isSelfClosing(type);
+  }
+  
+  // 🔥 DYNAMIC: Check if component type is self-closing
+  isSelfClosing(type) {
+    const htmlTag = this.getHTMLTag(type);
+    return this.isSelfClosingTag(htmlTag);
+  }
+  
+  // 🔥 NEW: Check if an HTML tag name is self-closing
+  isSelfClosingTag(tagName) {
+    // HTML5 void elements (self-closing tags)
+    const VOID_ELEMENTS = [
+      'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+      'link', 'meta', 'param', 'source', 'track', 'wbr'
+    ];
+    return VOID_ELEMENTS.includes(tagName.toLowerCase());
   }
   
   /**
@@ -837,23 +856,24 @@ class ComponentLibraryService {
   
 
 calculateResponsiveStyles(component, responsiveMode, canvasDimensions, parentStyles = {}) {
-  // 🔥 NEW: Merge base styles with responsive overrides
+  // 🔥 FIXED: Explicit overrides ALWAYS win over auto-transforms
   const baseStyles = { ...component.style };
-  const responsiveOverrides = component[`style_${responsiveMode}`] || {};
-  const mergedStyles = { ...baseStyles, ...responsiveOverrides };
+  const explicitOverrides = component[`style_${responsiveMode}`] || {};
   
-  console.log(`🎨 calculateResponsiveStyles for ${component.type} in ${responsiveMode}:`, {
-    baseStyles,
-    responsiveOverrides,
-    mergedStyles,
-    hasOverrides: Object.keys(responsiveOverrides).length > 0
-  });
+  // Debug logging (only if enabled)
+  if (typeof window !== 'undefined' && window.__DEBUG_RESPONSIVE__) {
+    console.log(`🎨 calculateResponsiveStyles for ${component.type} in ${responsiveMode}:`, {
+      baseStyles,
+      explicitOverrides,
+      hasExplicitOverrides: Object.keys(explicitOverrides).length > 0
+    });
+  }
   
   const isLayoutContainer = component.isLayoutContainer || 
                             ['section', 'container', 'div', 'flex', 'grid'].includes(component.type);
   
-  // 🔥 UPDATED: Start with merged styles (base + responsive overrides)
-  const responsiveStyles = { ...mergedStyles };
+  // 🔥 STEP 1: Start with base styles, then apply auto-transforms
+  const responsiveStyles = { ...baseStyles };
   
   // 🔥 ACTUAL RESPONSIVE TRANSFORMATIONS based on device mode
   if (responsiveMode === 'mobile') {
@@ -932,10 +952,13 @@ calculateResponsiveStyles(component, responsiveMode, canvasDimensions, parentSty
   }
   // Desktop: no changes, use original styles
   
-  // 🔥 Store responsive mode for debugging
-  responsiveStyles._responsiveMode = responsiveMode;
+  // 🔥 STEP 2: Explicit overrides ALWAYS win (merge on top of auto-transforms)
+  const finalStyles = { ...responsiveStyles, ...explicitOverrides };
   
-  return responsiveStyles;
+  // Store responsive mode for debugging
+  finalStyles._responsiveMode = responsiveMode;
+  
+  return finalStyles;
 }
 
 /**
@@ -1177,22 +1200,124 @@ buildDynamicTailwindClasses(comp) {
     return breakpointClasses.filter(Boolean).map(cls => prefix ? `${prefix}:${cls}` : cls);
   };
   
+  // 🔥 NEW: Add missing Tailwind conversions (transforms, animations, positioning, filters)
+  const getAdvancedStyleClasses = (styleObj, prefix = '') => {
+    const breakpointClasses = [];
+    
+    // 🔥 POSITIONING
+    if (styleObj.position) {
+      const posMap = { 'static': 'static', 'relative': 'relative', 'absolute': 'absolute', 'fixed': 'fixed', 'sticky': 'sticky' };
+      if (posMap[styleObj.position]) breakpointClasses.push(posMap[styleObj.position]);
+    }
+    if (styleObj.top) breakpointClasses.push(`top-[${styleObj.top}]`);
+    if (styleObj.right) breakpointClasses.push(`right-[${styleObj.right}]`);
+    if (styleObj.bottom) breakpointClasses.push(`bottom-[${styleObj.bottom}]`);
+    if (styleObj.left) breakpointClasses.push(`left-[${styleObj.left}]`);
+    if (styleObj.zIndex) breakpointClasses.push(`z-[${styleObj.zIndex}]`);
+    
+    // 🔥 TRANSFORMS (rotate, scale, translate)
+    if (styleObj.transform) {
+      const transforms = styleObj.transform.match(/(rotate|scale|translate[XY]?|skew[XY]?)\(([^)]+)\)/g);
+      if (transforms) {
+        transforms.forEach(t => {
+          if (t.includes('rotate')) {
+            const deg = t.match(/-?\d+/)?.[0];
+            if (deg) breakpointClasses.push(`rotate-[${deg}deg]`);
+          }
+          if (t.includes('scale')) {
+            const scale = t.match(/[\d.]+/)?.[0];
+            if (scale) breakpointClasses.push(`scale-[${scale}]`);
+          }
+          if (t.includes('translateX')) {
+            const val = t.match(/[^()]+(?=\))/)?.[0];
+            if (val) breakpointClasses.push(`translate-x-[${val}]`);
+          }
+          if (t.includes('translateY')) {
+            const val = t.match(/[^()]+(?=\))/)?.[0];
+            if (val) breakpointClasses.push(`translate-y-[${val}]`);
+          }
+        });
+      }
+    }
+    
+    // 🔥 TRANSITIONS & ANIMATIONS
+    if (styleObj.transition) {
+      if (styleObj.transition.includes('all')) breakpointClasses.push('transition-all');
+      else breakpointClasses.push('transition');
+      
+      if (styleObj.transition.includes('ease-in-out')) breakpointClasses.push('ease-in-out');
+      else if (styleObj.transition.includes('ease-in')) breakpointClasses.push('ease-in');
+      else if (styleObj.transition.includes('ease-out')) breakpointClasses.push('ease-out');
+    }
+    
+    if (styleObj.animation) {
+      if (styleObj.animation.includes('spin')) breakpointClasses.push('animate-spin');
+      else if (styleObj.animation.includes('ping')) breakpointClasses.push('animate-ping');
+      else if (styleObj.animation.includes('pulse')) breakpointClasses.push('animate-pulse');
+      else if (styleObj.animation.includes('bounce')) breakpointClasses.push('animate-bounce');
+    }
+    
+    // 🔥 FILTERS
+    if (styleObj.filter) {
+      const filters = styleObj.filter.match(/(blur|brightness|contrast|grayscale|invert)\(([^)]+)\)/g);
+      if (filters) {
+        filters.forEach(f => {
+          if (f.includes('blur')) {
+            const val = f.match(/\d+/)?.[0];
+            if (val) breakpointClasses.push(`blur-[${val}px]`);
+          }
+          if (f.includes('brightness')) {
+            const val = f.match(/[\d.]+/)?.[0];
+            if (val) breakpointClasses.push(`brightness-[${val}]`);
+          }
+          if (f.includes('grayscale')) breakpointClasses.push('grayscale');
+          if (f.includes('invert')) breakpointClasses.push('invert');
+        });
+      }
+    }
+    
+    // 🔥 BACKDROP FILTER
+    if (styleObj.backdropFilter && styleObj.backdropFilter.includes('blur')) {
+      const val = styleObj.backdropFilter.match(/\d+/)?.[0];
+      if (val) breakpointClasses.push(`backdrop-blur-[${val}px]`);
+    }
+    
+    // 🔥 OVERFLOW
+    if (styleObj.overflow) breakpointClasses.push(`overflow-${styleObj.overflow}`);
+    if (styleObj.overflowX) breakpointClasses.push(`overflow-x-${styleObj.overflowX}`);
+    if (styleObj.overflowY) breakpointClasses.push(`overflow-y-${styleObj.overflowY}`);
+    
+    // 🔥 GRID TEMPLATES
+    if (styleObj.gridTemplateColumns) {
+      const cols = styleObj.gridTemplateColumns.match(/repeat\((\d+)/)?.[1];
+      if (cols) breakpointClasses.push(`grid-cols-${cols}`);
+      else breakpointClasses.push(`grid-cols-[${styleObj.gridTemplateColumns}]`);
+    }
+    if (styleObj.gridTemplateRows) breakpointClasses.push(`grid-rows-[${styleObj.gridTemplateRows}]`);
+    
+    return breakpointClasses.filter(Boolean).map(cls => prefix ? `${prefix}:${cls}` : cls);
+  };
+  
   // Add base styles (default/desktop for mobile-first, or base styles)
   classes.push(...getStyleClasses(style, ''));
+  classes.push(...getAdvancedStyleClasses(style, '')); // 🔥 Add advanced styles
   
   // Add mobile-specific styles (sm: breakpoint - 640px+)
   if (Object.keys(styleMobile).length > 0) {
     classes.push(...getStyleClasses(styleMobile, 'sm'));
+    classes.push(...getAdvancedStyleClasses(styleMobile, 'sm')); // 🔥 Add advanced styles
   }
   
   // Add tablet-specific styles (md: breakpoint - 768px+)
   if (Object.keys(styleTablet).length > 0) {
     classes.push(...getStyleClasses(styleTablet, 'md'));
+    classes.push(...getAdvancedStyleClasses(styleTablet, 'md')); // 🔥 Add advanced styles
   }
   
   // Add desktop-specific styles (lg: breakpoint - 1024px+)
   if (Object.keys(styleDesktop).length > 0) {
     classes.push(...getStyleClasses(styleDesktop, 'lg'));
+    classes.push(...getAdvancedStyleClasses(styleDesktop, 'lg')); // 🔥 Add advanced styles
   }
   
   return classes.filter(Boolean).join(' ');
@@ -1368,49 +1493,9 @@ buildDynamicProps(comp) {
 }
 
 
-getComponentTag(type) {
-  const tagMap = {
-    'text-node': 'span',
-    'section': 'section',
-    'container': 'div',
-    'div': 'div',
-    'flex': 'div',
-    'grid': 'div',
-    'button': 'button',
-    'input': 'input',
-    'textarea': 'textarea',
-    'select': 'select',
-    'link': 'a',
-    'image': 'img',
-    'img': 'img',
-    'video': 'video',
-    'audio': 'audio',
-    'p': 'p',
-    'span': 'span',
-    'h1': 'h1',
-    'h2': 'h2',
-    'h3': 'h3',
-    'h4': 'h4',
-    'h5': 'h5',
-    'h6': 'h6',
-    'label': 'label',
-    'strong': 'strong',
-    'em': 'em',
-    'small': 'small',
-    'blockquote': 'blockquote',
-    // Media components
-    '3d-model': 'div',
-    '3d': 'div',
-    'gltf': 'div',
-    'glb': 'div',
-    'lottie': 'lottie-player',
-    'json': 'lottie-player',
-    'document': 'div',
-    'pdf': 'div'
-  };
-  
-  return tagMap[type] || 'div';
-}
+// 🔥 REMOVED: This method duplicated getHTMLTag()
+// Now all code generation uses the UNIVERSAL getHTMLTag() method
+// which reads from HTML_TAG_MAP at the top of the file
 
 
   // Around line 750 - REPLACE generateReactCSSCode
@@ -1500,8 +1585,8 @@ export default ${componentName};`,
       const content = this.extractComponentContent(comp);
       const hasChildren = comp.children && comp.children.length > 0;
       
-      // Get React tag (section, div, button, etc.)
-      const reactTag = this.getReactTag(comp.type);
+      // 🔥 UNIFIED: Get HTML tag using the SAME method as rendering
+      const reactTag = this.getHTMLTag(comp.type);
       
       let jsx = `${indent}<${reactTag}`;
       
@@ -1667,8 +1752,10 @@ generateHTMLCSSCode(allComponents, frameName = 'GeneratedComponent') {
       } else if (content) {
         html += content + `</${htmlTag}>`;
       } else {
-        // Self-closing tags
-        if (['input', 'img', 'image', 'br', 'hr'].includes(comp.type)) {
+        // 🔥 DYNAMIC: Check if tag is self-closing using HTML standard
+        const isSelfClosing = this.isSelfClosingTag(htmlTag);
+        
+        if (isSelfClosing) {
           const selfClosing = `${indent}<${htmlTag}${cssClass ? ` class="${cssClass}"` : ''}${attrs ? ` ${attrs}` : ''} />`;
           
           // Store line mapping
@@ -1726,71 +1813,35 @@ generateCSSClassName(component) {
   return `${baseName}-${uniqueId}`;
 }
 
-getReactTag(type) {
-  const reactMap = {
-    'button': 'button',
-    'input': 'input',
-    'textarea': 'textarea',
-    'select': 'select',
-    'link': 'a',
-    'section': 'section',
-    'container': 'div',
-    'div': 'div',
-    'flex': 'div',
-    'grid': 'div',
-    'p': 'p',
-    'span': 'span',
-    'h1': 'h1',
-    'h2': 'h2',
-    'h3': 'h3',
-    'h4': 'h4',
-    'h5': 'h5',
-    'h6': 'h6',
-    'label': 'label',
-    'strong': 'strong',
-    'em': 'em',
-    'small': 'small',
-    'blockquote': 'blockquote',
-    // Media elements
-    'image': 'img',
-    'video': 'video',
-    'audio': 'audio',
-    '3d-model': 'div',
-    'lottie': 'div'
-  };
-  
-  return reactMap[type] || 'div';
-}
+// 🔥 REMOVED: This method duplicated getHTMLTag()
+// Now React code generation uses the UNIVERSAL getHTMLTag() method
+// which automatically handles ALL HTML5 elements + custom types
 
+// 🔥 DYNAMIC: Build React props for ANY component type (no hardcoding)
 buildReactProps(component) {
   const props = [];
   
-  // Type-specific props
-  if (component.type === 'input') {
-    if (component.props?.type) props.push(`type="${component.props.type}"`);
-    if (component.props?.placeholder) props.push(`placeholder="${component.props.placeholder}"`);
-    if (component.props?.disabled) props.push('disabled');
-  }
+  if (!component.props) return '';
   
-  if (component.type === 'button' && component.props?.disabled) {
-    props.push('disabled');
-  }
-  
-  if (component.type === 'link' || component.type === 'a') {
-    props.push(`href="${component.props?.href || '#'}"`);
-    if (component.props?.target) props.push(`target="${component.props.target}"`);
-  }
-  
-  // Media elements
-  if (component.type === 'image') {
-    if (component.props?.src) props.push(`src="${component.props.src}"`);
-    if (component.props?.alt) props.push(`alt="${component.props.alt}"`);
-  }
-  
-  if (component.type === 'video' || component.type === 'audio') {
-    if (component.props?.src) props.push(`src="${component.props.src}"`);
-    if (component.props?.controls) props.push('controls');
-  }
+  // 🔥 UNIVERSAL: Map ALL component props to HTML attributes dynamically
+  Object.entries(component.props).forEach(([key, value]) => {
+    // Skip props that aren't HTML attributes
+    if (['style', 'text', 'content', 'children', 'className'].includes(key)) {
+      return;
+    }
+    
+    // Map prop name to HTML attribute name
+    const attrName = PROP_TO_ATTR_MAP[key] || key;
+    
+    // Handle boolean attributes (disabled, checked, required, etc.)
+    if (typeof value === 'boolean') {
+      if (value) props.push(attrName);
+    }
+    // Handle string/number attributes
+    else if (value !== null && value !== undefined) {
+      props.push(`${attrName}="${value}"`);
+    }
+  });
   
   return props.join(' ');
 }
@@ -2025,74 +2076,36 @@ ${htmlComponents || `      <!-- ${componentCount} ${componentCount === 1 ? 'comp
   };
 }
 
-// 🔥 ADD NEW METHOD (around line 920)
-getHTMLTag(type) {
-  const htmlMap = {
-    'button': 'button',
-    'input': 'input',
-    'textarea': 'textarea',
-    'select': 'select',
-    'link': 'a',
-    'section': 'section',
-    'container': 'div',
-    'div': 'div',
-    'flex': 'div',
-    'grid': 'div',
-    'p': 'p',
-    'span': 'span',
-    'h1': 'h1',
-    'h2': 'h2',
-    'h3': 'h3',
-    'h4': 'h4',
-    'h5': 'h5',
-    'h6': 'h6',
-    'label': 'label',
-    'strong': 'strong',
-    'em': 'em',
-    'small': 'small',
-    'blockquote': 'blockquote',
-    // Media elements
-    'image': 'img',
-    'video': 'video',
-    'audio': 'audio',
-    '3d-model': 'div',
-    'lottie': 'div'
-  };
-  
-  return htmlMap[type] || 'div';
-}
+// 🔥 NOTE: getHTMLTag() is ALREADY defined at line 402 (near the top)
+// It uses HTML_TAG_MAP which supports ALL HTML5 elements automatically
+// NO need for duplicate method here!
 
 
 
-// 🔥 NEW: Build HTML attributes
+// 🔥 DYNAMIC: Build HTML attributes for ANY component type (no hardcoding)
 buildHTMLAttributes(comp) {
   const attrs = [];
   
-  if (comp.type === 'input') {
-    if (comp.props?.type) attrs.push(`type="${comp.props.type}"`);
-    if (comp.props?.placeholder) attrs.push(`placeholder="${comp.props.placeholder}"`);
-    if (comp.props?.disabled) attrs.push('disabled');
-  }
+  if (!comp.props) return '';
   
-  if (comp.type === 'button' && comp.props?.disabled) {
-    attrs.push('disabled');
-  }
-  
-  if (comp.type === 'a') {
-    attrs.push(`href="${comp.props?.href || '#'}"`);
-    if (comp.props?.target) attrs.push(`target="${comp.props.target}"`);
-  }
-  
-  // Media elements
-  if (comp.type === 'img' || comp.type === 'image') {
-    if (comp.props?.src) attrs.push(`src="${comp.props.src}"`);
-    if (comp.props?.alt) attrs.push(`alt="${comp.props.alt}"`);
-  }
-  
-  if (comp.type === 'video' || comp.type === 'audio') {
-    if (comp.props?.src) attrs.push(`src="${comp.props.src}"`);
-    if (comp.props?.controls) attrs.push('controls');
-  }
+  // 🔥 UNIVERSAL: Map ALL component props to HTML attributes dynamically
+  Object.entries(comp.props).forEach(([key, value]) => {
+    // Skip props that aren't HTML attributes
+    if (['style', 'text', 'content', 'children', 'className', 'class'].includes(key)) {
+      return;
+    }
+    
+    // Handle boolean attributes (disabled, checked, required, controls, autoplay, etc.)
+    if (typeof value === 'boolean') {
+      if (value) attrs.push(key);
+    }
+    // Handle string/number attributes
+    else if (value !== null && value !== undefined) {
+      // Escape double quotes in attribute values
+      const escapedValue = String(value).replace(/"/g, '&quot;');
+      attrs.push(`${key}="${escapedValue}"`);
+    }
+  });
   
   return attrs.join(' ');
 }
@@ -2968,7 +2981,8 @@ rebuildComponentTree(flatComponents) {
         const classes = this.buildDynamicTailwindClasses(comp);
         const content = this.extractComponentContent(comp);
         const hasChildren = comp.children && comp.children.length > 0;
-        const tag = this.getReactTag(comp.type);
+        // 🔥 UNIFIED: Use the SAME method as rendering for ALL HTML elements
+        const tag = this.getHTMLTag(comp.type);
         
         let jsx = `${indent}<${tag}`;
         if (classes) jsx += ` className="${classes}"`;
