@@ -18,6 +18,43 @@
         @viteReactRefresh
         @vite(['resources/js/app.jsx', "resources/js/Pages/{$page['component']}.jsx"])
         @inertiaHead
+        
+        <!-- 🔥 Aggressive mobile zoom prevention -->
+        <style>
+            /* Prevent zoom on all input elements */
+            input, select, textarea, button {
+                font-size: 16px !important;
+            }
+            
+            /* Monaco Editor specific anti-zoom */
+            .monaco-editor {
+                touch-action: manipulation !important;
+                -webkit-touch-callout: none !important;
+            }
+            
+            .monaco-editor .view-lines,
+            .monaco-editor input,
+            .monaco-editor textarea {
+                font-size: 16px !important;
+                min-height: 44px !important; /* iOS minimum touch target */
+            }
+            
+            /* Force all text inputs to 16px minimum */
+            * {
+                -webkit-text-size-adjust: 100% !important;
+                -moz-text-size-adjust: 100% !important;
+                -ms-text-size-adjust: 100% !important;
+                text-size-adjust: 100% !important;
+            }
+            
+            /* Additional touch prevention */
+            @media screen and (max-device-width: 480px), screen and (max-device-height: 480px) {
+                * {
+                    -webkit-text-size-adjust: none !important;
+                    -webkit-user-zoom: fixed !important;
+                }
+            }
+        </style>
     </head>
     <body class="font-sans antialiased">
         @inertia
@@ -45,6 +82,39 @@
             forceTLS: false
         };
     @endif
+    
+    // 🔥 Aggressive zoom prevention for Monaco Editor
+    document.addEventListener('DOMContentLoaded', function() {
+        // Prevent zoom on Monaco Editor focus
+        function preventZoomOnFocus() {
+            const monacoElements = document.querySelectorAll('.monaco-editor input, .monaco-editor textarea, .view-lines');
+            monacoElements.forEach(element => {
+                element.addEventListener('touchstart', function(e) {
+                    // Set font size before focus
+                    this.style.fontSize = '16px';
+                    this.style.setProperty('font-size', '16px', 'important');
+                });
+                
+                element.addEventListener('focus', function(e) {
+                    // Ensure 16px on focus
+                    this.style.fontSize = '16px';
+                    this.style.setProperty('font-size', '16px', 'important');
+                });
+            });
+        }
+        
+        // Run immediately and on mutations (when Monaco loads)
+        preventZoomOnFocus();
+        
+        const observer = new MutationObserver(function(mutations) {
+            preventZoomOnFocus();
+        });
+        
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    });
 </script>
 
 

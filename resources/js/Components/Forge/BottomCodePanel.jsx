@@ -20,6 +20,7 @@ import {
   ExternalLink,
   PanelRight
 } from 'lucide-react';
+import useCodePanelStore from '@/stores/useCodePanelStore';
 import Editor from '@monaco-editor/react';
 
 const BottomCodePanel = ({
@@ -61,7 +62,10 @@ const BottomCodePanel = ({
   
   // Editor states
   const [editorTheme, setEditorTheme] = useState('vs-dark');
-  const [fontSize, setFontSize] = useState(isMobile ? 12 : 14);
+  
+  // Code panel store for UI controls
+  const { showCodeStyleTabs, toggleCodeStyleTabs } = useCodePanelStore();
+  const [fontSize, setFontSize] = useState(isMobile ? 16 : 14); // 🔥 FIX: 16px minimum for mobile
   const [wordWrap, setWordWrap] = useState('on');
   const [minimap, setMinimap] = useState(!isMobile);
   const [showSettings, setShowSettings] = useState(false);
@@ -104,7 +108,7 @@ const BottomCodePanel = ({
 
   // Mobile-optimized Monaco Editor configuration
   const editorOptions = {
-    fontSize: isMobile ? 12 : fontSize,
+    fontSize: isMobile ? 16 : fontSize, // 🔥 FIX: 16px minimum to prevent mobile zoom
     wordWrap: isMobile ? 'on' : wordWrap,
     minimap: { enabled: isMobile ? false : minimap },
     lineNumbers: isMobile ? 'off' : lineNumbers,
@@ -469,8 +473,8 @@ const BottomCodePanel = ({
             </div>
           )}
 
-          {/* Settings */}
-          {!isMobile && (
+          {/* Settings - Now visible on mobile too */}
+          {(
             <button
               onClick={() => setShowSettings(!showSettings)}
               className="p-2 rounded-xl transition-all"
@@ -484,6 +488,20 @@ const BottomCodePanel = ({
               <Settings className="w-4 h-4" />
             </button>
           )}
+
+          {/* Toggle Code Style Tabs */}
+          <button
+            onClick={toggleCodeStyleTabs}
+            className="p-2 rounded-xl transition-all"
+            style={{ 
+              backgroundColor: showCodeStyleTabs ? 'var(--color-primary-soft)' : 'var(--color-bg-muted)',
+              color: 'var(--color-text-muted)',
+              boxShadow: 'var(--shadow-sm)'
+            }}
+            title={showCodeStyleTabs ? 'Hide Code Style Tabs' : 'Show Code Style Tabs'}
+          >
+            <Code2 className="w-4 h-4" />
+          </button>
 
           {/* Mode Switching Buttons */}
           <button
@@ -623,12 +641,13 @@ const BottomCodePanel = ({
           )}
 
           {/* Code Style Selector */}
-          <div 
-            className="p-4 space-y-3 flex-shrink-0 border-b"
-          >
-            <label className="block text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
-              Code Style
-            </label>
+          {showCodeStyleTabs && (
+            <div 
+              className="p-4 space-y-3 flex-shrink-0 border-b"
+            >
+              <label className="block text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+                Code Style
+              </label>
             <div className={`grid ${isMobile ? 'grid-cols-2' : 'grid-cols-4'} gap-2`}>
               {[
                 { value: 'react-tailwind', label: 'React + Tailwind', desc: 'Modern JSX with utility classes' },
@@ -657,7 +676,8 @@ const BottomCodePanel = ({
                 </button>
               ))}
             </div>
-          </div>
+            </div>
+          )}
       
           {/* ENHANCED CODE TABS WITH ICONS */}
           <div 
@@ -847,8 +867,8 @@ const BottomCodePanel = ({
           100% { opacity: 0; transform: translateY(-10px); }
         }
 
-        /* Mobile optimizations */
-        @media (max-width: 768px) {
+        /* Touch device optimizations */
+        @media (pointer: coarse), (hover: none) {
           .monaco-editor .margin,
           .monaco-editor .margin-view-overlays {
             background: var(--color-surface-dark, #1a1a1a) !important;
@@ -859,8 +879,13 @@ const BottomCodePanel = ({
           }
           
           .monaco-editor .view-lines {
-            font-size: 12px !important;
-            line-height: 18px !important;
+            font-size: 16px !important; /* 🔥 FIX: 16px minimum to prevent mobile zoom */
+            line-height: 24px !important;
+          }
+          
+          /* 🔥 NEW: Prevent mobile zoom on touch */
+          .monaco-editor {
+            touch-action: manipulation !important;
           }
         }
       `}</style>

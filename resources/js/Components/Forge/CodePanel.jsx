@@ -16,6 +16,8 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react';
+import reverseCodeParserService from '../../Services/ReverseCodeParserService.js';
+import useCodePanelStore from '@/stores/useCodePanelStore';
 
 const CodePanel = ({ 
   showTooltips,
@@ -35,10 +37,14 @@ const CodePanel = ({
   canvasComponents,
   handleCodeEdit,
   isMobile = false,
-  selectedComponent = null // 🔥 NEW: Pass selected component for highlighting
+  selectedComponent = null, // 🔥 NEW: Pass selected component for highlighting
+  // 🔥 NEW: Reverse parsing props
+  onCodeToVisual = null, // Callback when code creates visual components
+  onHighlightComponent = null, // Callback to highlight component in canvas
+  reverseParsingEnabled = true // Enable/disable reverse parsing
 }) => {
   const [editorTheme, setEditorTheme] = useState('vs-dark');
-  const [fontSize, setFontSize] = useState(isMobile ? 12 : 14);
+  const [fontSize, setFontSize] = useState(isMobile ? 16 : 14); // 🔥 FIX: 16px minimum for mobile
   const [wordWrap, setWordWrap] = useState('on'); // Enable word wrap by default on mobile
   const [minimap, setMinimap] = useState(!isMobile); // Disable minimap on mobile
   const [showSettings, setShowSettings] = useState(false);
@@ -49,6 +55,16 @@ const CodePanel = ({
   const editorContainerRef = useRef(null);
   const monacoRef = useRef(null); // 🔥 NEW: Monaco instance
   const decorationsRef = useRef([]); // 🔥 NEW: Decoration IDs
+  
+  // 🔥 NEW: Reverse parsing state
+  const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
+  const [highlightedComponent, setHighlightedComponent] = useState(null);
+  const [parsedComponents, setParsedComponents] = useState([]);
+  const [isCodeEditing, setIsCodeEditing] = useState(false);
+  const [lastCodeChange, setLastCodeChange] = useState('');
+
+  // Code panel store for UI controls
+  const { showCodeStyleTabs } = useCodePanelStore();
 
   // 🔥 NEW: Highlight lines for selected component
   useEffect(() => {
@@ -110,7 +126,7 @@ const CodePanel = ({
 
   // Mobile-optimized Monaco Editor configuration
   const editorOptions = {
-    fontSize: isMobile ? 12 : fontSize,
+    fontSize: isMobile ? 16 : fontSize, // 🔥 FIX: 16px minimum to prevent mobile zoom
     wordWrap: isMobile ? 'on' : wordWrap,
     minimap: { enabled: isMobile ? false : minimap },
     lineNumbers: isMobile ? 'off' : lineNumbers,
@@ -199,6 +215,11 @@ const CodePanel = ({
     editorRef.current = editor;
     monacoRef.current = monaco; // 🔥 Store monaco instance
     setEditorMounted(true);
+    
+    // 🔥 NEW: Real-time cursor tracking
+    if (reverseParsingEnabled) {
+      setupReverseParsingTracking(editor, monaco);
+    }
     
     // Configure themes
     monaco.editor.defineTheme('mobile-dark', {
@@ -317,6 +338,101 @@ const CodePanel = ({
     }, 100);
   };
 
+  // 🔥 Reverse parsing helpers
+  const getLanguageForTab = useCallback((tab) => {
+    switch (tab) {
+      case 'react': return 'jsx';
+      case 'html': return 'html';
+      case 'css': return 'css';
+      case 'tailwind': return 'css';
+      default: return 'html';
+    }
+  }, []);
+
+  const highlightComponentInCanvas = useCallback((componentId, { incomplete = false } = {}) => {
+    if (onHighlightComponent) {
+      onHighlightComponent(componentId, { incomplete });
+    } else {
+      // Fallback to global event
+      window.dispatchEvent(new CustomEvent('canvas-highlight-component', {
+        detail: { componentId, incomplete }
+      }));
+    }
+  }, [onHighlightComponent]);
+
+  const parseAndSyncVisual = useCallback((code, tab, cursor) => {
+    if (!reverseParsingEnabled) return;
+    const language = getLanguageForTab(tab);
+
+    try {
+      const components = reverseCodeParserService.parseCodeToComponents(code, language);
+      setParsedComponents(components);
+
+      // Find component under cursor
+      const compId = reverseCodeParserService.getComponentAtCursor(cursor.lineNumber || cursor.line, cursor.column);
+      setHighlightedComponent(compId || null);
+
+      // Notify canvas
+      const payload = { 
+        components, 
+        language, 
+        cursor: { line: cursor.lineNumber || cursor.line, column: cursor.column },
+      };
+
+      if (onCodeToVisual) {
+        onCodeToVisual(payload);
+      } else {
+        window.dispatchEvent(new CustomEvent('code-to-visual-update', { detail: payload }));
+      }
+
+      if (compId) {
+        const metaIncomplete = false; // can be enhanced by mapping line->meta
+        highlightComponentInCanvas(compId, { incomplete: metaIncomplete });
+      }
+    } catch (e) {
+      console.warn('Reverse parsing failed:', e);
+    }
+  }, [getLanguageForTab, reverseParsingEnabled, onCodeToVisual, highlightComponentInCanvas]);
+
+  const setupReverseParsingTracking = useCallback((editor, monaco) => {
+    const model = editor.getModel();
+    if (!model) return;
+
+    // Initial parse
+    parseAndSyncVisual(model.getValue() || '', activeCodeTab, { lineNumber: 1, column: 1 });
+
+    // Cursor tracking
+    editor.onDidChangeCursorPosition((event) => {
+      setCursorPosition({ line: event.position.lineNumber, column: event.position.column });
+      const code = model.getValue() || '';
+      parseAndSyncVisual(code, activeCodeTab, event.position);
+    });
+
+    // Content changes
+    editor.onDidChangeModelContent((event) => {
+      const code = model.getValue() || '';
+
+      // Detect deletion
+      const deletion = reverseCodeParserService.detectDeletion(lastCodeChange, code, cursorPosition.line);
+      if (deletion && deletion.componentId) {
+        window.dispatchEvent(new CustomEvent('canvas-element-deleted', {
+          detail: deletion
+        }));
+      }
+
+      setLastCodeChange(code);
+      parseAndSyncVisual(code, activeCodeTab, editor.getPosition() || { lineNumber: 1, column: 1 });
+    });
+
+    // Mobile/touch enhancements: selection change also triggers
+    editor.onDidChangeCursorSelection((event) => {
+      const pos = event.position || event.selection?.getPosition?.() || editor.getPosition();
+      if (!pos) return;
+      const code = model.getValue() || '';
+      parseAndSyncVisual(code, activeCodeTab, pos);
+    });
+  }, [activeCodeTab, parseAndSyncVisual, lastCodeChange, cursorPosition.line]);
+
   // 🔥 ENHANCED: Handle editor change with typing effect and two-way binding
   const handleEditorChange = useCallback((value) => {
     if (value === undefined) return;
@@ -338,6 +454,14 @@ const CodePanel = ({
     // 🔥 Two-way binding: Update canvas if code is valid
     if (handleCodeEdit) {
       handleCodeEdit(value, activeCodeTab);
+    }
+
+    // 🔥 Reverse parsing: Update canvas from code
+    try {
+      const cursor = editorRef.current?.getPosition?.() || { lineNumber: 1, column: 1 };
+      parseAndSyncVisual(value, activeCodeTab, cursor);
+    } catch (e) {
+      console.warn('Reverse parse error on change:', e);
     }
     
     // 🔥 Dispatch code change event for canvas rendering
@@ -612,40 +736,42 @@ const CodePanel = ({
       
       {!codePanelMinimized && (
         <>
-          {/* Code Style Selector - Simplified for mobile */}
-          <div 
-            className="p-2 sm:p-4 space-y-2 sm:space-y-3 flex-shrink-0 border-b"
-            style={{ borderColor: 'var(--color-border)' }}
-          >
-            <label className="block text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
-              Code Style
-            </label>
-            <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2'} gap-2`}>
-              {[
-                { value: 'react-tailwind', label: 'React + Tailwind', desc: 'Modern JSX with utility classes' },
-                { value: 'react-css', label: 'React + CSS', desc: 'JSX with traditional stylesheets' },
-                { value: 'html-css', label: 'HTML + CSS', desc: 'Vanilla HTML with CSS files' },
-                { value: 'html-tailwind', label: 'HTML + Tailwind', desc: 'HTML with utility classes' }
-              ].map(option => (
-                <button
-                  key={option.value}
-                  onClick={() => {
-                    setCodeStyle(option.value);
-                    generateCode(canvasComponents);
-                  }}
-                  className="p-2 sm:p-3 rounded-lg text-left transition-all border-2"
-                  style={{
-                    backgroundColor: codeStyle === option.value ? 'var(--color-primary-soft)' : 'var(--color-bg-muted)',
-                    borderColor: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-border)',
-                    color: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text)'
-                  }}
-                >
-                  <div className="font-semibold text-xs sm:text-sm">{option.label}</div>
-                  {!isMobile && <div className="text-xs opacity-80">{option.desc}</div>}
-                </button>
-              ))}
+          {/* Code Style Selector - Conditional visibility */}
+          {showCodeStyleTabs && (
+            <div 
+              className="p-2 sm:p-4 space-y-2 sm:space-y-3 flex-shrink-0 border-b"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
+              <label className="block text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+                Code Style
+              </label>
+              <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2'} gap-2`}>
+                {[
+                  { value: 'react-tailwind', label: 'React + Tailwind', desc: 'Modern JSX with utility classes' },
+                  { value: 'react-css', label: 'React + CSS', desc: 'JSX with traditional stylesheets' },
+                  { value: 'html-css', label: 'HTML + CSS', desc: 'Vanilla HTML with CSS files' },
+                  { value: 'html-tailwind', label: 'HTML + Tailwind', desc: 'HTML with utility classes' }
+                ].map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      setCodeStyle(option.value);
+                      generateCode(canvasComponents);
+                    }}
+                    className="p-2 sm:p-3 rounded-lg text-left transition-all border-2"
+                    style={{
+                      backgroundColor: codeStyle === option.value ? 'var(--color-primary-soft)' : 'var(--color-bg-muted)',
+                      borderColor: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-border)',
+                      color: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text)'
+                    }}
+                  >
+                    <div className="font-semibold text-xs sm:text-sm">{option.label}</div>
+                    {!isMobile && <div className="text-xs opacity-80">{option.desc}</div>}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
       
           {/* Code tabs - Responsive */}
           <div 
@@ -833,8 +959,8 @@ const CodePanel = ({
           50% { opacity: 0.8; }
         }
 
-        /* Mobile optimizations */
-        @media (max-width: 768px) {
+        /* Touch device optimizations */
+        @media (pointer: coarse), (hover: none) {
           .monaco-editor .margin,
           .monaco-editor .margin-view-overlays {
             background: var(--color-surface-dark, #1a1a1a) !important;
@@ -845,8 +971,13 @@ const CodePanel = ({
           }
           
           .monaco-editor .view-lines {
-            font-size: 12px !important;
-            line-height: 18px !important;
+            font-size: 16px !important; /* 🔥 FIX: 16px minimum to prevent mobile zoom */
+            line-height: 24px !important;
+          }
+          
+          /* 🔥 NEW: Prevent mobile zoom on touch */
+          .monaco-editor {
+            touch-action: manipulation !important;
           }
         }
         

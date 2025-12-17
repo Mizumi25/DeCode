@@ -16,6 +16,7 @@ import {
   SquareDashed,
   ExternalLink
 } from 'lucide-react';
+import useCodePanelStore from '@/stores/useCodePanelStore';
 
 const SidebarCodePanel = ({
   showTooltips,
@@ -42,6 +43,9 @@ const SidebarCodePanel = ({
   const [editorMounted, setEditorMounted] = useState(false);
   const editorRef = useRef(null);
   const editorContainerRef = useRef(null);
+
+  // Code panel store for UI controls
+  const { showCodeStyleTabs, toggleCodeStyleTabs } = useCodePanelStore();
 
   // Monaco Editor configuration
   const editorOptions = {
@@ -284,6 +288,19 @@ const SidebarCodePanel = ({
           >
             <Settings className="w-3.5 h-3.5" />
           </button>
+
+          {/* Toggle Code Style Tabs */}
+          <button
+            onClick={toggleCodeStyleTabs}
+            className="p-1.5 rounded transition-colors"
+            style={{ 
+              color: 'var(--color-text-muted)',
+              backgroundColor: showCodeStyleTabs ? 'var(--color-primary-soft)' : 'transparent'
+            }}
+            title={showCodeStyleTabs ? 'Hide Code Style Tabs' : 'Show Code Style Tabs'}
+          >
+            <Code className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
@@ -332,34 +349,36 @@ const SidebarCodePanel = ({
         </div>
       )}
       
-      {/* Compact Code Style Selector */}
-      <div className="flex-shrink-0">
-        <div className="grid grid-cols-2 gap-1.5">
-          {[
-            { value: 'react-tailwind', label: 'R+T' },
-            { value: 'react-css', label: 'R+C' },
-            { value: 'html-css', label: 'H+C' },
-            { value: 'html-tailwind', label: 'H+T' }
-          ].map(option => (
-            <button
-              key={option.value}
-              onClick={() => {
-                setCodeStyle(option.value);
-                generateCode(canvasComponents);
-              }}
-              className="px-2 py-1.5 rounded text-xs font-medium transition-all"
-              style={{
-                backgroundColor: codeStyle === option.value ? 'var(--color-primary-soft)' : 'var(--color-bg-muted)',
-                color: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                boxShadow: codeStyle === option.value ? 'var(--shadow-sm)' : 'none'
-              }}
-              title={option.value}
-            >
-              {option.label}
-            </button>
-          ))}
+      {/* Compact Code Style Selector - Conditional visibility */}
+      {showCodeStyleTabs && (
+        <div className="flex-shrink-0">
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { value: 'react-tailwind', label: 'R+T' },
+              { value: 'react-css', label: 'R+C' },
+              { value: 'html-css', label: 'H+C' },
+              { value: 'html-tailwind', label: 'H+T' }
+            ].map(option => (
+              <button
+                key={option.value}
+                onClick={() => {
+                  setCodeStyle(option.value);
+                  generateCode(canvasComponents);
+                }}
+                className="px-2 py-1.5 rounded text-xs font-medium transition-all"
+                style={{
+                  backgroundColor: codeStyle === option.value ? 'var(--color-primary-soft)' : 'var(--color-bg-muted)',
+                  color: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                  boxShadow: codeStyle === option.value ? 'var(--shadow-sm)' : 'none'
+                }}
+                title={option.value}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Compact Code tabs */}
       <div 
@@ -484,6 +503,18 @@ const SidebarCodePanel = ({
           20% { opacity: 1; transform: translateY(0); }
           80% { opacity: 1; transform: translateY(0); }
           100% { opacity: 0; transform: translateY(-10px); }
+        }
+
+        /* 🔥 NEW: Touch device optimizations */
+        @media (pointer: coarse), (hover: none) {
+          .monaco-editor {
+            touch-action: manipulation !important;
+          }
+          
+          .monaco-editor .view-lines {
+            font-size: 16px !important;
+            line-height: 24px !important;
+          }
         }
       `}</style>
     </div>

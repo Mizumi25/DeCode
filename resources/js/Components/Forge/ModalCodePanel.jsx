@@ -23,6 +23,7 @@ import {
   SquareDashed,
   ExternalLink
 } from 'lucide-react';
+import useCodePanelStore from '@/stores/useCodePanelStore';
 import gsap from 'gsap';
 import { Draggable } from 'gsap/Draggable';
 
@@ -70,7 +71,10 @@ const ModalCodePanel = ({
 
   // Editor states
   const [editorTheme, setEditorTheme] = useState('vs-dark');
-  const [fontSize, setFontSize] = useState(isMobile ? 12 : 14);
+  
+  // Code panel store for UI controls
+  const { showCodeStyleTabs, toggleCodeStyleTabs } = useCodePanelStore();
+  const [fontSize, setFontSize] = useState(isMobile ? 16 : 14); // 🔥 FIX: 16px minimum for mobile
   const [wordWrap, setWordWrap] = useState('on');
   const [minimap, setMinimap] = useState(!isMobile);
   const [showSettings, setShowSettings] = useState(false);
@@ -81,7 +85,7 @@ const ModalCodePanel = ({
 
   // Mobile-optimized Monaco Editor configuration
   const editorOptions = {
-    fontSize: isMobile ? 12 : fontSize,
+    fontSize: isMobile ? 16 : fontSize, // 🔥 FIX: 16px minimum to prevent mobile zoom
     wordWrap: isMobile ? 'on' : wordWrap,
     minimap: { enabled: isMobile ? false : minimap },
     lineNumbers: isMobile ? 'off' : lineNumbers,
@@ -604,20 +608,31 @@ const ModalCodePanel = ({
                 <ExternalLink className="w-4 h-4" />
               </button>
 
-              {/* Settings */}
-              {!isMobile && (
-                <button
-                  onClick={() => setShowSettings(!showSettings)}
-                  className="p-2 rounded-lg transition-colors"
-                  style={{ 
-                    color: 'var(--color-text-muted)',
-                    backgroundColor: showSettings ? 'var(--color-primary-soft)' : 'transparent'
-                  }}
-                  title="Editor Settings"
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
-              )}
+              {/* Settings - Now visible on mobile too */}
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="p-2 rounded-lg transition-colors"
+                style={{ 
+                  color: 'var(--color-text-muted)',
+                  backgroundColor: showSettings ? 'var(--color-primary-soft)' : 'transparent'
+                }}
+                title="Editor Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+
+              {/* Toggle Code Style Tabs */}
+              <button
+                onClick={toggleCodeStyleTabs}
+                className="p-2 rounded-lg transition-colors"
+                style={{ 
+                  color: 'var(--color-text-muted)',
+                  backgroundColor: showCodeStyleTabs ? 'var(--color-primary-soft)' : 'transparent'
+                }}
+                title={showCodeStyleTabs ? 'Hide Code Style Tabs' : 'Show Code Style Tabs'}
+              >
+                <Code2 className="w-4 h-4" />
+              </button>
 
               {/* Minimize */}
               <button
@@ -708,14 +723,15 @@ const ModalCodePanel = ({
                 </div>
               )}
 
-              {/* Code Style Selector */}
-              <div 
-                className="p-4 space-y-3 flex-shrink-0 border-b"
-                style={{ borderColor: 'var(--color-border)' }}
-              >
-                <label className="block text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
-                  Code Style
-                </label>
+              {/* Code Style Selector - Conditional visibility */}
+              {showCodeStyleTabs && (
+                <div 
+                  className="p-4 space-y-3 flex-shrink-0 border-b"
+                  style={{ borderColor: 'var(--color-border)' }}
+                >
+                  <label className="block text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+                    Code Style
+                  </label>
                 <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2'} gap-2`}>
                   {[
                     { value: 'react-tailwind', label: 'React + Tailwind', desc: 'Modern JSX with utility classes' },
@@ -741,7 +757,8 @@ const ModalCodePanel = ({
                     </button>
                   ))}
                 </div>
-              </div>
+                </div>
+              )}
 
               {/* Code tabs */}
               <div 
@@ -919,6 +936,18 @@ const ModalCodePanel = ({
               20% { opacity: 1; transform: translateY(0); }
               80% { opacity: 1; transform: translateY(0); }
               100% { opacity: 0; transform: translateY(-10px); }
+            }
+
+            /* 🔥 NEW: Touch device optimizations */
+            @media (pointer: coarse), (hover: none) {
+              .monaco-editor {
+                touch-action: manipulation !important;
+              }
+              
+              .monaco-editor .view-lines {
+                font-size: 16px !important;
+                line-height: 24px !important;
+              }
             }
           `}</style>
         </motion.div>

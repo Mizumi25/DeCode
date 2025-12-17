@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { FileText, Code2, Settings, Plus, X } from 'lucide-react';
 import Editor, { useMonaco } from '@monaco-editor/react';
 import { useCodeSyncStore } from '@/stores/useCodeSyncStore';
+import reverseCodeParserService from '@/Services/ReverseCodeParserService';
 
 const tabs = [
   { name: 'App.jsx', icon: FileText, color: '#61dafb', active: true },
@@ -25,6 +26,10 @@ export default function CodeEditor() {
   } = useCodeSyncStore();
 
   const [localValue, setLocalValue] = useState('');
+  const [cursorPosition, setCursorPosition] = useState({ lineNumber: 1, column: 1 });
+  const [parsedComponents, setParsedComponents] = useState([]);
+  const [highlightedComponent, setHighlightedComponent] = useState(null);
+  const [lastCodeSnapshot, setLastCodeSnapshot] = useState('');
 
   // ADDED: Sync from store to editor
   useEffect(() => {
@@ -62,9 +67,17 @@ export default function CodeEditor() {
         codeLength: value.length
       });
     }, 500);
+
+    // Reverse parse immediately for responsiveness
+    try {
+      const cursor = editorRef.current?.getPosition?.() || { lineNumber: 1, column: 1 };
+      runReverseParsing(value, cursor);
+    } catch (e) {
+      console.warn('Reverse parse error in Source on change:', e);
+    }
     
     return () => clearTimeout(timeoutId);
-  }, [activeCodeTab, syncedCode, updateSyncedCode]);
+  }, [activeCodeTab, syncedCode, updateSyncedCode, runReverseParsing]);
 
   // Get CSS variable value
   const getCSSVar = (name) =>
@@ -128,17 +141,51 @@ export default function CodeEditor() {
   // Get language based on active tab
   const getLanguage = () => {
     switch (activeCodeTab) {
-      case 'react':
-        return 'javascript';
-      case 'html':
-        return 'html';
+      case 'react': return 'javascript';
+      case 'html': return 'html';
       case 'css':
-      case 'tailwind':
-        return 'css';
-      default:
-        return 'javascript';
+      case 'tailwind': return 'css';
+      default: return 'javascript';
     }
   };
+
+  // Reverse parsing helpers
+  const getParseLanguage = () => {
+    switch (activeCodeTab) {
+      case 'react': return 'jsx';
+      case 'html': return 'html';
+      case 'css':
+      case 'tailwind': return 'css';
+      default: return 'html';
+    }
+  };
+
+  const dispatchHighlight = (componentId, { incomplete = false } = {}) => {
+    window.dispatchEvent(new CustomEvent('canvas-highlight-component', {
+      detail: { componentId, incomplete }
+    }));
+  };
+
+  const runReverseParsing = useCallback((code, cursor = { lineNumber: 1, column: 1 }) => {
+    try {
+      const language = getParseLanguage();
+      const comps = reverseCodeParserService.parseCodeToComponents(code, language);
+      setParsedComponents(comps);
+      setLastCodeSnapshot(code);
+
+      const compId = reverseCodeParserService.getComponentAtCursor(cursor.lineNumber, cursor.column);
+      setHighlightedComponent(compId || null);
+
+      // Broadcast to canvas/preview
+      window.dispatchEvent(new CustomEvent('code-to-visual-update', {
+        detail: { components: comps, language, cursor }
+      }));
+
+      if (compId) dispatchHighlight(compId, { incomplete: false });
+    } catch (e) {
+      console.warn('Source reverse parsing failed:', e);
+    }
+  }, [activeCodeTab]);
 
   return (
     <div className="flex flex-col h-full">
@@ -209,6 +256,12 @@ export default function CodeEditor() {
 
       {/* Monaco Code Editor - MODIFIED to use synced code */}
       <div className="flex-grow flex flex-col min-h-0" style={{ backgroundColor: 'var(--color-surface)' }}>
+        {/* Live code → visual debug info (dev only) */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="px-3 py-1 text-[11px] font-mono text-gray-500 border-b" style={{ borderColor: 'var(--color-border)' }}>
+            Cursor: L{cursorPosition.lineNumber} C{cursorPosition.column} | Parsed: {parsedComponents.length} elements | Highlight: {highlightedComponent || 'none'}
+          </div>
+        )}
         <Editor
           height="100%"
           language={getLanguage()}
@@ -217,7 +270,7 @@ export default function CodeEditor() {
           options={{
             automaticLayout: true,
             minimap: { enabled: false },
-            fontSize: 13,
+            fontSize: ('ontouchstart' in window || navigator.maxTouchPoints > 0) ? 16 : 13, // 🔥 FIX: 16px minimum for touch devices
             wordWrap: 'on',
             scrollBeyondLastLine: false,
             renderLineHighlight: 'line',
@@ -229,6 +282,35 @@ export default function CodeEditor() {
             if (localValue) {
               editor.setValue(localValue);
             }
+
+            // Initial reverse parse
+            runReverseParsing(editor.getValue() || '', editor.getPosition() || { lineNumber: 1, column: 1 });
+
+            // Cursor tracking
+            editor.onDidChangeCursorPosition((event) => {
+              setCursorPosition({ lineNumber: event.position.lineNumber, column: event.position.column });
+              const code = editor.getValue() || '';
+              runReverseParsing(code, event.position);
+            });
+
+            // Selection change (mobile/touch-friendly)
+            editor.onDidChangeCursorSelection((event) => {
+              const pos = event.position || event.selection?.getPosition?.() || editor.getPosition();
+              if (!pos) return;
+              const code = editor.getValue() || '';
+              runReverseParsing(code, pos);
+            });
+
+            // Content change with deletion detection
+            editor.onDidChangeModelContent(() => {
+              const code = editor.getValue() || '';
+              const deletion = reverseCodeParserService.detectDeletion(lastCodeSnapshot, code, cursorPosition.lineNumber);
+              if (deletion && deletion.componentId) {
+                window.dispatchEvent(new CustomEvent('canvas-element-deleted', { detail: deletion }));
+              }
+              setLastCodeSnapshot(code);
+              runReverseParsing(code, editor.getPosition() || { lineNumber: 1, column: 1 });
+            });
           }}
           onChange={handleEditorChange}
         />
@@ -253,6 +335,20 @@ export default function CodeEditor() {
           <span>{localValue ? 'Synced' : 'No content'}</span>
         </div>
       </div>
+
+      {/* 🔥 NEW: Touch device optimizations */}
+      <style jsx>{`
+        @media (pointer: coarse), (hover: none) {
+          .monaco-editor {
+            touch-action: manipulation !important;
+          }
+          
+          .monaco-editor .view-lines {
+            font-size: 16px !important;
+            line-height: 24px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

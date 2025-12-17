@@ -1151,6 +1151,181 @@ useEffect(() => {
 
 
 
+// 🔥 Code-to-Visual: Global canvas listeners for highlight and deletion
+useEffect(() => {
+  const highlightTimers = new Map();
+
+  const applyHighlight = (id, { incomplete = false } = {}) => {
+    if (!id) return;
+    const el = document.querySelector(`[data-component-id="${id}"]`);
+    if (!el) return;
+
+    // Clear previous timer
+    const prev = highlightTimers.get(id);
+    if (prev) clearTimeout(prev);
+
+    const prevOutline = el.style.outline;
+    const prevOutlineOffset = el.style.outlineOffset;
+    const prevTransition = el.style.transition;
+    const prevBoxShadow = el.style.boxShadow;
+
+    el.style.transition = 'outline-color 120ms ease, box-shadow 120ms ease';
+    if (incomplete) {
+      el.style.outline = '2px solid rgba(239,68,68,0.9)'; // red
+      el.style.outlineOffset = '2px';
+      el.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.25)';
+    } else {
+      el.style.outline = '2px solid rgba(59,130,246,0.9)'; // blue
+      el.style.outlineOffset = '2px';
+      el.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.25)';
+    }
+
+    // Auto-clear after 1200ms if not re-triggered
+    const t = setTimeout(() => {
+      el.style.outline = prevOutline || '';
+      el.style.outlineOffset = prevOutlineOffset || '';
+      el.style.boxShadow = prevBoxShadow || '';
+      el.style.transition = prevTransition || '';
+      highlightTimers.delete(id);
+    }, 1200);
+
+    highlightTimers.set(id, t);
+  };
+
+  const fadeOutDeletion = (id) => {
+    if (!id) return;
+    const el = document.querySelector(`[data-component-id="${id}"]`);
+    if (!el) return;
+
+    const prevTransition = el.style.transition;
+    const prevOpacity = el.style.opacity;
+    const prevTransform = el.style.transform;
+
+    el.style.transition = 'opacity 220ms ease, transform 220ms ease';
+    el.style.opacity = '0.0';
+    el.style.transform = 'scale(0.98)';
+
+    setTimeout(() => {
+      el.style.opacity = prevOpacity || '';
+      el.style.transform = prevTransform || '';
+      el.style.transition = prevTransition || '';
+    }, 260);
+  };
+
+  const handleHighlightEvent = (e) => {
+    const { componentId, incomplete } = e.detail || {};
+    applyHighlight(componentId, { incomplete: !!incomplete });
+  };
+
+  const handleDeletedEvent = (e) => {
+    const { componentId } = e.detail || {};
+    fadeOutDeletion(componentId);
+  };
+
+  const handleCodeUpdate = (e) => {
+    const { components: parsedTree, cursor } = e.detail || {};
+    if (!parsedTree || !Array.isArray(parsedTree)) return;
+
+    // Helper: find deepest node at cursor line
+    const findNodeAtLine = (nodes, line, path = []) => {
+      let found = null;
+      for (const node of nodes) {
+        const start = node?.metadata?.startLine || 0;
+        const end = node?.metadata?.endLine || start;
+        if (line >= start && line <= end) {
+          // search deeper first
+          const deeper = findNodeAtLine(node.children || [], line, [...path, node]);
+          if (deeper) return deeper;
+          return { node, path: [...path, node] };
+        }
+      }
+      return null;
+    };
+
+    const selected = findNodeAtLine(parsedTree, cursor?.line || cursor?.lineNumber || 1);
+    if (!selected) return;
+
+    const { node, path } = selected;
+    const tag = (node?.metadata?.originalTag || '').toLowerCase();
+    if (!tag) return;
+
+    // Clear previous overlays
+    document.querySelectorAll('[data-code-visual-overlay]')?.forEach(el => {
+      el.style.outline = '';
+      el.style.outlineOffset = '';
+      el.style.boxShadow = '';
+      el.removeAttribute('data-code-visual-overlay');
+    });
+
+    // Collect tags for ancestors and descendants
+    const ancestorTags = (path || []).slice(0, -1).map(p => (p?.metadata?.originalTag || '').toLowerCase()).filter(Boolean);
+    const collectDescTags = (n, acc = []) => {
+      (n.children || []).forEach(c => {
+        acc.push((c?.metadata?.originalTag || '').toLowerCase());
+        collectDescTags(c, acc);
+      });
+      return acc;
+    };
+    const descendantTags = collectDescTags(node, []);
+
+    // Highlight primary tag (thick purple)
+    const primaryEls = document.querySelectorAll(`[data-component-type="${tag}"]`);
+    primaryEls.forEach(el => {
+      el.setAttribute('data-code-visual-overlay', 'primary');
+      el.style.outline = '2px solid rgba(168,85,247,0.95)'; // purple-500
+      el.style.outlineOffset = '2px';
+      el.style.boxShadow = '0 0 0 3px rgba(168,85,247,0.2)';
+    });
+
+    // Ancestors (dotted)
+    ancestorTags.forEach(t => {
+      if (!t) return;
+      const els = document.querySelectorAll(`[data-component-type="${t}"]`);
+      els.forEach(el => {
+        if (el.getAttribute('data-code-visual-overlay')) return;
+        el.setAttribute('data-code-visual-overlay', 'ancestor');
+        el.style.outline = '1px dotted rgba(59,130,246,0.8)';
+        el.style.outlineOffset = '2px';
+      });
+    });
+
+    // Descendants (faint)
+    descendantTags.forEach(t => {
+      if (!t) return;
+      const els = document.querySelectorAll(`[data-component-type="${t}"]`);
+      els.forEach(el => {
+        if (el.getAttribute('data-code-visual-overlay')) return;
+        el.setAttribute('data-code-visual-overlay', 'descendant');
+        el.style.outline = '1px solid rgba(59,130,246,0.35)';
+        el.style.outlineOffset = '2px';
+      });
+    });
+
+    // Auto-clear overlays after short delay to reduce clutter
+    setTimeout(() => {
+      document.querySelectorAll('[data-code-visual-overlay]')?.forEach(el => {
+        el.style.outline = '';
+        el.style.outlineOffset = '';
+        el.style.boxShadow = '';
+        el.removeAttribute('data-code-visual-overlay');
+      });
+    }, 1200);
+  };
+
+  window.addEventListener('canvas-highlight-component', handleHighlightEvent);
+  window.addEventListener('canvas-element-deleted', handleDeletedEvent);
+  window.addEventListener('code-to-visual-update', handleCodeUpdate);
+
+  return () => {
+    window.removeEventListener('canvas-highlight-component', handleHighlightEvent);
+    window.removeEventListener('canvas-element-deleted', handleDeletedEvent);
+    window.removeEventListener('code-to-visual-update', handleCodeUpdate);
+    // clear timers
+    highlightTimers.forEach((t) => clearTimeout(t));
+    highlightTimers.clear();
+  };
+}, []);
+
 // 🔥 NEW: Handle adding section via hover line
 const handleAddSection = useCallback((targetComponentId, position) => {
   console.log('➕ Adding section:', position, 'of', targetComponentId);
@@ -2566,5 +2741,9 @@ const renderComponent = useCallback((component, index, parentStyle = {}, depth =
     </div>
   );
 };
+
+// 🔥 RovoDev: Code-to-Visual event listeners for highlighting and deletions
+// Attach global listeners to sync from code editor to canvas visuals
+// This is lightweight and non-invasive: purely visual effects (no data mutation)
 
 export default CanvasComponent;
