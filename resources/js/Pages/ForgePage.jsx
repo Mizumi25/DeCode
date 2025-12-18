@@ -47,7 +47,7 @@ import PublishOverlay from '@/Components/PublishOverlay';
 // Import dynamic component service
 import { componentLibraryService } from '@/Services/ComponentLibraryService';
 import { tooltipDatabase } from '@/Components/Forge/TooltipDatabase';
-import { formatCode, highlightCode, parseCodeAndUpdateComponents } from '@/Components/Forge/CodeUtils';
+import { formatCode, highlightCode } from '@/Components/Forge/CodeUtils';
 import PageLoadingProgress from '@/Components/PageLoadingProgress';
 import { usePageLoadingProgress } from '@/hooks/usePageLoadingProgress';
 import PageNavigationTutorial from '@/Components/Tutorial/PageNavigationTutorial';
@@ -2179,7 +2179,7 @@ const handleCanvasDrop = useCallback((e) => {
       setSelectedComponent(newComponent.id);
       handleComponentDragEnd();
       
-      // 🔥 NEW: Create proper undo action for linked component drop
+      // 🔥 FIXED: Record action in history WITHOUT executing (component already added above)
       const action = createAddComponentAction(
         (updater) => {
           setFrameCanvasComponents(prev => {
@@ -2197,8 +2197,8 @@ const handleCanvasDrop = useCallback((e) => {
         newComponent
       );
       
-      executeAction(currentFrame, action);
-      console.log('✅ Linked component drop undo action created');
+      pushHistory(currentFrame, updatedComponents, actionTypes.ADD, action);
+      console.log('✅ Linked component drop recorded in undo history');
       
       generateCode(updatedComponents);
       
@@ -2314,7 +2314,7 @@ const handleCanvasDrop = useCallback((e) => {
     setSelectedComponent(newComponent.id);
     handleComponentDragEnd();
     
-    // 🔥 NEW: Create proper undo action for component panel drop
+    // 🔥 FIXED: Record action in history WITHOUT executing (component already added above)
     const action = createAddComponentAction(
       (updater) => {
         setFrameCanvasComponents(prev => {
@@ -2332,8 +2332,8 @@ const handleCanvasDrop = useCallback((e) => {
       newComponent
     );
     
-    executeAction(currentFrame, action);
-    console.log('✅ Component panel drop undo action created');
+    pushHistory(currentFrame, updatedComponents, actionTypes.ADD, action);
+    console.log('✅ Component panel drop recorded in undo history');
     
     generateCode(updatedComponents);
     
