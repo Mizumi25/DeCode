@@ -469,6 +469,21 @@ const CodePanel = ({
       detail: { code: value, tab: activeCodeTab }
     }));
   }, [handleCodeEdit, activeCodeTab]);
+
+  // 🔥 FIX: Update editor when activeCodeTab changes (auto-switch from main tab change)
+  useEffect(() => {
+    if (editorRef.current && generatedCode && generatedCode[activeCodeTab] !== undefined) {
+      const currentValue = editorRef.current.getValue();
+      const newValue = generatedCode[activeCodeTab] || '';
+      
+      // Only update if value is actually different
+      if (currentValue !== newValue) {
+        console.log('🔄 [CodePanel] Updating editor content for tab:', activeCodeTab);
+        editorRef.current.setValue(newValue);
+        editorRef.current.layout();
+      }
+    }
+  }, [activeCodeTab, generatedCode]);
   
   // 🔥 NEW: Add imports to code based on style
   const addImportsToCode = useCallback((code, tab) => {

@@ -253,6 +253,21 @@ const BottomCodePanel = ({
     }
   }, [handleCodeEdit, activeCodeTab]);
 
+  // 🔥 FIX: Update editor when activeCodeTab changes (auto-switch from main tab change)
+  useEffect(() => {
+    if (editorRef.current && generatedCode && generatedCode[activeCodeTab] !== undefined) {
+      const currentValue = editorRef.current.getValue();
+      const newValue = generatedCode[activeCodeTab] || '';
+      
+      // Only update if value is actually different
+      if (currentValue !== newValue) {
+        console.log('🔄 Updating editor content for tab:', activeCodeTab);
+        editorRef.current.setValue(newValue);
+        editorRef.current.layout();
+      }
+    }
+  }, [activeCodeTab, generatedCode]);
+
   // Start drag (mouse + touch)
   const startDrag = (clientY) => {
     setIsDragging(true);
@@ -659,7 +674,8 @@ const BottomCodePanel = ({
                   key={option.value}
                   onClick={() => {
                     setCodeStyle(option.value);
-                    generateCode(canvasComponents);
+                    // 🔥 FIX: Pass the new codeStyle to generateCode immediately
+                    generateCode(canvasComponents, option.value);
                   }}
                   className="p-3 rounded-xl text-left transition-all border-2"
                   style={{

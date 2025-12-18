@@ -319,6 +319,33 @@ export default function ForgePage({
   
   const [codePanelPosition, setCodePanelPosition] = useState('bottom')
   const [activeCodeTab, setActiveCodeTab] = useState('react')
+  
+  // 🔥 FIX: Auto-switch activeCodeTab when codeStyle changes
+  useEffect(() => {
+    // Inline getAvailableTabs logic to avoid dependency issues
+    let availableTabs = ['react', 'tailwind']; // default
+    
+    switch (codeStyle) {
+      case 'react-tailwind':
+        availableTabs = ['react', 'tailwind'];
+        break;
+      case 'react-css':
+        availableTabs = ['react', 'css'];
+        break;
+      case 'html-css':
+        availableTabs = ['html', 'css'];
+        break;
+      case 'html-tailwind':
+        availableTabs = ['html', 'tailwind'];
+        break;
+    }
+    
+    // If current activeCodeTab is not in available tabs, switch to first available
+    if (!availableTabs.includes(activeCodeTab)) {
+      console.log('🔄 Auto-switching sub-tab from', activeCodeTab, 'to', availableTabs[0], 'due to codeStyle change:', codeStyle);
+      setActiveCodeTab(availableTabs[0]);
+    }
+  }, [codeStyle, activeCodeTab]); // Run when codeStyle changes
   const [showTooltips, setShowTooltips] = useState(true)
   const [hoveredToken, setHoveredToken] = useState(null)
   
@@ -542,9 +569,13 @@ const isLayoutElement = (type) => LAYOUT_TYPES.includes(type);
 
 
     // MODIFY existing generateCode callback
-  const generateCode = useCallback(async (components) => {
+  // 🔥 FIX: Accept optional codeStyleOverride to fix tab switching issue
+  const generateCode = useCallback(async (components, codeStyleOverride = null) => {
     try {
       const frameName = frame?.name || currentFrame?.name || 'Generated Component';
+      const styleToUse = codeStyleOverride || codeStyle; // Use override if provided
+      
+      console.log('🎨 Generating code with style:', styleToUse);
       
       // 🔥 NEW: Check if frame has GitHub imported code
       if (frame?.has_github_code && frame?.generated_code) {
@@ -576,11 +607,11 @@ const isLayoutElement = (type) => LAYOUT_TYPES.includes(type);
         return;
       }
   
-      const code = await componentLibraryService.clientSideCodeGeneration(components, codeStyle, frameName);
+      const code = await componentLibraryService.clientSideCodeGeneration(components, styleToUse, frameName);
       setGeneratedCode(code);
       await updateSyncedCode(code); // 🔥 AWAIT database save
       
-      console.log('Code generated and synced successfully for frame:', frameName, Object.keys(code));
+      console.log('✅ Code generated and synced successfully for frame:', frameName, Object.keys(code));
     } catch (error) {
       console.error('Failed to generate code:', error);
       const mockCode = {
