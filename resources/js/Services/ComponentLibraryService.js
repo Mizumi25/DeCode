@@ -1169,10 +1169,18 @@ buildDynamicTailwindClasses(comp) {
     else if (styleObj.height === 'auto') breakpointClasses.push('h-auto');
     else if (styleObj.height) breakpointClasses.push(`h-[${styleObj.height}]`);
     
-    // Colors
-    if (styleObj.backgroundColor) {
+    // Colors & Gradients
+    // 🔥 GRADIENT FIX: Check for gradient in BOTH backgroundImage AND background properties
+    const gradientSource = styleObj.backgroundImage || styleObj.background;
+    if (gradientSource && gradientSource.includes('gradient')) {
+      const gradientClasses = this.convertGradientToTailwind(gradientSource);
+      if (gradientClasses) {
+        breakpointClasses.push(gradientClasses);
+      }
+    } else if (styleObj.backgroundColor) {
       breakpointClasses.push(this.convertColorToTailwind('bg', styleObj.backgroundColor));
     }
+    
     if (styleObj.color) {
       breakpointClasses.push(this.convertColorToTailwind('text', styleObj.color));
     }
@@ -2877,6 +2885,86 @@ rebuildComponentTree(flatComponents) {
       console.error('Error generating component code:', error);
       return `<!-- Error generating ${componentDef.type} -->`;
     }
+  }
+
+  // 🔥 GRADIENT FIX: Helper to parse gradient from backgroundImage
+  parseGradient(backgroundImage) {
+    if (!backgroundImage || typeof backgroundImage !== 'string') return null;
+    
+    // Check if it's a gradient
+    const gradientMatch = backgroundImage.match(/(linear|radial|conic)-gradient\(([^)]+)\)/);
+    if (!gradientMatch) return null;
+    
+    const type = gradientMatch[1]; // linear, radial, or conic
+    const gradientContent = gradientMatch[2];
+    
+    // Extract direction (for linear gradients)
+    let direction = 'to right'; // default
+    const directionMatch = gradientContent.match(/^(to\s+\w+|[\d.]+deg),?\s*/);
+    if (directionMatch) {
+      direction = directionMatch[1];
+    }
+    
+    // Extract colors
+    const colorMatches = gradientContent.match(/#[0-9a-fA-F]{3,6}|rgb\([^)]+\)|rgba\([^)]+\)|hsl\([^)]+\)|hsla\([^)]+\)/g);
+    const colors = colorMatches || [];
+    
+    return {
+      type,
+      direction,
+      colors,
+      raw: backgroundImage
+    };
+  }
+
+  // 🔥 GRADIENT FIX: Convert gradient to Tailwind classes
+  convertGradientToTailwind(backgroundImage) {
+    const gradient = this.parseGradient(backgroundImage);
+    if (!gradient) return null;
+    
+    const classes = [];
+    
+    // Map direction to Tailwind gradient direction
+    const directionMap = {
+      'to right': 'bg-gradient-to-r',
+      'to left': 'bg-gradient-to-l',
+      'to top': 'bg-gradient-to-t',
+      'to bottom': 'bg-gradient-to-b',
+      'to top right': 'bg-gradient-to-tr',
+      'to top left': 'bg-gradient-to-tl',
+      'to bottom right': 'bg-gradient-to-br',
+      'to bottom left': 'bg-gradient-to-bl',
+      '90deg': 'bg-gradient-to-r',
+      '180deg': 'bg-gradient-to-b',
+      '270deg': 'bg-gradient-to-l',
+      '0deg': 'bg-gradient-to-t',
+      '45deg': 'bg-gradient-to-tr',
+      '135deg': 'bg-gradient-to-br',
+      '225deg': 'bg-gradient-to-bl',
+      '315deg': 'bg-gradient-to-tl',
+    };
+    
+    // Add gradient direction class
+    classes.push(directionMap[gradient.direction] || 'bg-gradient-to-r');
+    
+    // Convert colors to Tailwind from-/via-/to- classes
+    if (gradient.colors.length >= 2) {
+      // First color = from
+      const fromColor = this.convertColorToTailwind('from', gradient.colors[0]);
+      if (fromColor) classes.push(fromColor);
+      
+      // Last color = to
+      const toColor = this.convertColorToTailwind('to', gradient.colors[gradient.colors.length - 1]);
+      if (toColor) classes.push(toColor);
+      
+      // Middle colors = via (if more than 2 colors)
+      if (gradient.colors.length > 2) {
+        const viaColor = this.convertColorToTailwind('via', gradient.colors[1]);
+        if (viaColor) classes.push(viaColor);
+      }
+    }
+    
+    return classes.filter(Boolean).join(' ');
   }
 
   // 🔥 GRADIENT FIX: Helper method to build inline styles (for CSS modes)
