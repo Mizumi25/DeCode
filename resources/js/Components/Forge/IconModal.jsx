@@ -9,7 +9,7 @@ import { useIconStore } from '@/stores/useIconStore';
 import axios from 'axios';
 import SvgDrawingTool from './SvgDrawingTool';
 
-const IconModal = ({ onIconSelect }) => {
+const IconModal = ({ onIconSelect, enableDrag = true }) => {
   const {
     activeTab,
     searchTerm,
@@ -28,6 +28,22 @@ const IconModal = ({ onIconSelect }) => {
   const [uploading, setUploading] = useState(false);
   const [showDrawingTool, setShowDrawingTool] = useState(false);
   const fileInputRef = useRef(null);
+  
+  // 🔥 Manual drag system for touch/mobile support (like AssetsPanel)
+  const [isDragging, setIsDragging] = useState(false);
+  const [draggedIcon, setDraggedIcon] = useState(null);
+  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+  const dragInteractionRef = useRef({
+    isWatching: false,
+    startX: 0,
+    startY: 0,
+    hasCrossedThreshold: false,
+    icon: null,
+    longPressTimer: null,
+  });
+  
+  const DRAG_THRESHOLD = 8;
+  const LONG_PRESS_DURATION = 300;
 
   // Fetch icons from database on mount
   useEffect(() => {
@@ -115,6 +131,143 @@ const IconModal = ({ onIconSelect }) => {
       };
       onIconSelect(iconData);
     }
+  };
+  
+  // 🔥 Manual drag handlers for touch support
+  const handleManualDragStart = (e, icon) => {
+    if (!enableDrag) return;
+    
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    console.log('👆 Icon press start:', icon.name);
+    
+    dragInteractionRef.current = {
+      isWatching: true,
+      startX: clientX,
+      startY: clientY,
+      hasCrossedThreshold: false,
+      icon: icon,
+      longPressTimer: null,
+    };
+    
+    dragInteractionRef.current.longPressTimer = setTimeout(() => {
+      if (dragInteractionRef.current.isWatching && !dragInteractionRef.current.hasCrossedThreshold) {
+        if (navigator.vibrate) navigator.vibrate(50);
+        dragInteractionRef.current.hasCrossedThreshold = true;
+        setIsDragging(true);
+        setDraggedIcon(icon);
+        setDragPosition({ x: clientX, y: clientY });
+      }
+    }, LONG_PRESS_DURATION);
+    
+    document.addEventListener('mousemove', handleManualDragMove);
+    document.addEventListener('mouseup', handleManualDragEnd);
+    document.addEventListener('touchmove', handleManualDragMove, { passive: false });
+    document.addEventListener('touchend', handleManualDragEnd);
+  };
+  
+  const handleManualDragMove = (e) => {
+    if (!dragInteractionRef.current.isWatching) return;
+    
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    if (!dragInteractionRef.current.hasCrossedThreshold) {
+      const deltaX = Math.abs(clientX - dragInteractionRef.current.startX);
+      const deltaY = Math.abs(clientY - dragInteractionRef.current.startY);
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+      
+      if (distance < DRAG_THRESHOLD) return;
+      
+      e.preventDefault();
+      dragInteractionRef.current.hasCrossedThreshold = true;
+      setIsDragging(true);
+      setDraggedIcon(dragInteractionRef.current.icon);
+      
+      if (dragInteractionRef.current.longPressTimer) {
+        clearTimeout(dragInteractionRef.current.longPressTimer);
+      }
+      if (navigator.vibrate) navigator.vibrate(30);
+    }
+    
+    if (dragInteractionRef.current.hasCrossedThreshold) {
+      e.preventDefault();
+      setDragPosition({ x: clientX, y: clientY });
+    }
+  };
+  
+  const handleManualDragEnd = (e) => {
+    if (!dragInteractionRef.current.isWatching) return;
+    
+    const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+    const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+    
+    if (dragInteractionRef.current.longPressTimer) {
+      clearTimeout(dragInteractionRef.current.longPressTimer);
+    }
+    
+    if (!dragInteractionRef.current.hasCrossedThreshold) {
+      dragInteractionRef.current.isWatching = false;
+      document.removeEventListener('mousemove', handleManualDragMove);
+      document.removeEventListener('mouseup', handleManualDragEnd);
+      document.removeEventListener('touchmove', handleManualDragMove);
+      document.removeEventListener('touchend', handleManualDragEnd);
+      return;
+    }
+    
+    const canvasEl = document.querySelector('[data-canvas-area]');
+    if (canvasEl) {
+      const rect = canvasEl.getBoundingClientRect();
+      const isOverCanvas = clientX >= rect.left && clientX <= rect.right &&
+                          clientY >= rect.top && clientY <= rect.bottom;
+      
+      if (isOverCanvas) {
+        if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+        
+        const icon = dragInteractionRef.current.icon;
+        const dragData = {
+          type: 'icon',
+          props: {
+            iconLibrary: activeTab,
+            iconName: icon.name,
+            svgCode: activeTab === 'svg' ? icon.svg_code : null,
+            size: 24,
+          },
+          fromPanel: true
+        };
+        
+        const dropEvent = new DragEvent('drop', {
+          bubbles: true,
+          cancelable: true,
+          clientX: clientX,
+          clientY: clientY,
+        });
+        
+        Object.defineProperty(dropEvent, 'dataTransfer', {
+          value: {
+            getData: (format) => {
+              if (format === 'text/plain' || format === 'application/json') {
+                return JSON.stringify(dragData);
+              }
+              return '';
+            }
+          }
+        });
+        
+        canvasEl.dispatchEvent(dropEvent);
+      }
+    }
+    
+    setIsDragging(false);
+    setDraggedIcon(null);
+    dragInteractionRef.current.isWatching = false;
+    dragInteractionRef.current.hasCrossedThreshold = false;
+    
+    document.removeEventListener('mousemove', handleManualDragMove);
+    document.removeEventListener('mouseup', handleManualDragEnd);
+    document.removeEventListener('touchmove', handleManualDragMove);
+    document.removeEventListener('touchend', handleManualDragEnd);
   };
 
   // Handle SVG file upload
@@ -261,8 +414,11 @@ const IconModal = ({ onIconSelect }) => {
         transition={{ delay: index * 0.02 }}
         className="group relative bg-[var(--color-surface)] rounded-lg p-3 border border-[var(--color-border)] hover:border-[var(--color-primary)] transition-all duration-200 cursor-grab active:cursor-grabbing hover:shadow-md hover:-translate-y-0.5"
         onClick={() => handleIconSelect(icon)}
-        draggable={true} // CRITICAL: Make draggable
+        draggable={enableDrag}
         onDragStart={handleDragStart}
+        onMouseDown={(e) => handleManualDragStart(e, icon)}
+        onTouchStart={(e) => handleManualDragStart(e, icon)}
+        style={{ touchAction: 'none' }}
         title={`${icon.name}${icon.category ? ` - ${icon.category}` : ''} (Drag to canvas)`}
       >
         <div className="flex flex-col items-center gap-2">
@@ -418,6 +574,59 @@ const IconModal = ({ onIconSelect }) => {
         onClose={() => setShowDrawingTool(false)}
         onSave={handleDrawingSave}
       />
+      
+      {/* 🔥 Drag Preview Ghost (for touch/manual drag) */}
+      {isDragging && draggedIcon && (
+        <div
+          style={{
+            position: 'fixed',
+            left: dragPosition.x - 40,
+            top: dragPosition.y - 40,
+            width: '80px',
+            height: '80px',
+            pointerEvents: 'none',
+            zIndex: 10000,
+            opacity: 0.8,
+            transform: 'scale(1.1)',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'var(--color-primary)',
+              borderRadius: '12px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+              border: '2px solid var(--color-primary)',
+              padding: '8px',
+            }}
+          >
+            {activeTab === 'svg' && draggedIcon.svg_code ? (
+              <div 
+                style={{ width: '32px', height: '32px', color: 'white' }}
+                dangerouslySetInnerHTML={{ __html: draggedIcon.svg_code }}
+              />
+            ) : draggedIcon.icon ? (
+              React.createElement(draggedIcon.icon, {
+                className: 'w-8 h-8 text-white'
+              })
+            ) : null}
+            <div style={{ 
+              fontSize: '10px', 
+              color: 'white', 
+              marginTop: '4px',
+              textAlign: 'center',
+              fontWeight: 600
+            }}>
+              {draggedIcon.name}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
