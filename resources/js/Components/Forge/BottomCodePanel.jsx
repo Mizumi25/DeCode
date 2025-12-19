@@ -861,7 +861,7 @@ const BottomCodePanel = ({
       )}
 
       {/* Custom CSS for copied notification */}
-      <style jsx>{`
+      <style>{`
         .copied-notification::after {
           content: '✓ Copied!';
           position: absolute;

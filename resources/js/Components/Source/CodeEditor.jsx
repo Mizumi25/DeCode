@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { FileText, Code2, Settings, Plus, X } from 'lucide-react';
 import Editor, { useMonaco } from '@monaco-editor/react';
 import { useCodeSyncStore } from '@/stores/useCodeSyncStore';
-import reverseCodeParserService from '@/Services/ReverseCodeParserService';
+// 🔥 REMOVED: ReverseCodeParserService import (not needed in SourcePage)
 
 const tabs = [
   { name: 'App.jsx', icon: FileText, color: '#61dafb', active: true },
@@ -68,16 +68,11 @@ export default function CodeEditor() {
       });
     }, 500);
 
-    // Reverse parse immediately for responsiveness
-    try {
-      const cursor = editorRef.current?.getPosition?.() || { lineNumber: 1, column: 1 };
-      runReverseParsing(value, cursor);
-    } catch (e) {
-      console.warn('Reverse parse error in Source on change:', e);
-    }
+    // 🔥 REMOVED: runReverseParsing from onChange (causes browser freeze!)
+    // It's already called in onDidChangeModelContent below
     
     return () => clearTimeout(timeoutId);
-  }, [activeCodeTab, syncedCode, updateSyncedCode, runReverseParsing]);
+  }, [activeCodeTab, syncedCode, updateSyncedCode]); // 🔥 REMOVED runReverseParsing from deps
 
   // Get CSS variable value
   const getCSSVar = (name) =>
@@ -133,7 +128,14 @@ export default function CodeEditor() {
     mediaQuery.addEventListener('change', updateTheme);
 
     return () => {
-      if (observer) observer.disconnect();
+      // 🔥 FIX: Safe observer disconnect
+      try {
+        if (observer && typeof observer.disconnect === 'function') {
+          observer.disconnect();
+        }
+      } catch (e) {
+        // Ignore cleanup errors
+      }
       mediaQuery.removeEventListener('change', updateTheme);
     };
   }, [monaco]);
@@ -160,32 +162,8 @@ export default function CodeEditor() {
     }
   };
 
-  const dispatchHighlight = (componentId, { incomplete = false } = {}) => {
-    window.dispatchEvent(new CustomEvent('canvas-highlight-component', {
-      detail: { componentId, incomplete }
-    }));
-  };
-
-  const runReverseParsing = useCallback((code, cursor = { lineNumber: 1, column: 1 }) => {
-    try {
-      const language = getParseLanguage();
-      const comps = reverseCodeParserService.parseCodeToComponents(code, language);
-      setParsedComponents(comps);
-      setLastCodeSnapshot(code);
-
-      const compId = reverseCodeParserService.getComponentAtCursor(cursor.lineNumber, cursor.column);
-      setHighlightedComponent(compId || null);
-
-      // Broadcast to canvas/preview
-      window.dispatchEvent(new CustomEvent('code-to-visual-update', {
-        detail: { components: comps, language, cursor }
-      }));
-
-      if (compId) dispatchHighlight(compId, { incomplete: false });
-    } catch (e) {
-      console.warn('Source reverse parsing failed:', e);
-    }
-  }, [activeCodeTab]);
+  // 🔥 REMOVED: All reverse parsing functions (not needed in SourcePage)
+  // SourcePage is for direct code editing only, no visual sync
 
   return (
     <div className="flex flex-col h-full">
@@ -283,33 +261,18 @@ export default function CodeEditor() {
               editor.setValue(localValue);
             }
 
-            // Initial reverse parse
-            runReverseParsing(editor.getValue() || '', editor.getPosition() || { lineNumber: 1, column: 1 });
-
-            // Cursor tracking
+            // 🔥 DISABLED: All reverse parsing (causes browser freeze)
+            // SourcePage is for CODE EDITING only, not visual sync
+            
+            // Just track cursor position
             editor.onDidChangeCursorPosition((event) => {
               setCursorPosition({ lineNumber: event.position.lineNumber, column: event.position.column });
-              const code = editor.getValue() || '';
-              runReverseParsing(code, event.position);
             });
 
-            // Selection change (mobile/touch-friendly)
-            editor.onDidChangeCursorSelection((event) => {
-              const pos = event.position || event.selection?.getPosition?.() || editor.getPosition();
-              if (!pos) return;
-              const code = editor.getValue() || '';
-              runReverseParsing(code, pos);
-            });
-
-            // Content change with deletion detection
+            // Track content changes for snapshot
             editor.onDidChangeModelContent(() => {
               const code = editor.getValue() || '';
-              const deletion = reverseCodeParserService.detectDeletion(lastCodeSnapshot, code, cursorPosition.lineNumber);
-              if (deletion && deletion.componentId) {
-                window.dispatchEvent(new CustomEvent('canvas-element-deleted', { detail: deletion }));
-              }
               setLastCodeSnapshot(code);
-              runReverseParsing(code, editor.getPosition() || { lineNumber: 1, column: 1 });
             });
           }}
           onChange={handleEditorChange}
@@ -337,7 +300,7 @@ export default function CodeEditor() {
       </div>
 
       {/* 🔥 NEW: Touch device optimizations */}
-      <style jsx>{`
+      <style>{`
         @media (pointer: coarse), (hover: none) {
           .monaco-editor {
             touch-action: manipulation !important;
