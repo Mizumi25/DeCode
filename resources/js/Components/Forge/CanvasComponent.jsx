@@ -32,8 +32,9 @@ import { createMoveComponentAction, createAddComponentAction } from '@/utils/und
 
 // 🔥 HELPER: Remove component from tree recursively
 const removeComponentFromTree = (components, componentId) => {
-  return components.reduce((acc, comp) => {
+  const result = components.reduce((acc, comp) => {
     if (comp.id === componentId) {
+      console.log('🗑️ Removing component from tree:', componentId);
       return acc; // Skip this component
     }
     
@@ -46,12 +47,19 @@ const removeComponentFromTree = (components, componentId) => {
     
     return [...acc, comp];
   }, []);
+  console.log('🌳 After removal, tree has', result.length, 'root components');
+  return result;
 };
 
 // 🔥 HELPER: Add component to container recursively
 const addComponentToContainer = (components, containerId, childToAdd) => {
-  return components.map(comp => {
+  const result = components.map(comp => {
     if (comp.id === containerId) {
+      console.log('📦 Adding component to container:', { 
+        containerId, 
+        componentId: childToAdd.id,
+        containerCurrentChildren: comp.children?.length || 0 
+      });
       return {
         ...comp,
         children: [
@@ -73,6 +81,11 @@ const addComponentToContainer = (components, containerId, childToAdd) => {
     
     return comp;
   });
+  console.log('🌳 After adding, root components:', result.map(c => ({ 
+    id: c.id, 
+    childCount: c.children?.length || 0 
+  })));
+  return result;
 };
 
 // 🔥 HELPER: Array move utility

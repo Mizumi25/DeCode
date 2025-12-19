@@ -2636,7 +2636,20 @@ async saveProjectComponents(projectId, frameId, components, options = {}) {
             this.normalizeComponentStyles(comp)
         );
         
+        console.log('🌳 Tree BEFORE flattening:', normalizedComponents.map(c => ({ 
+            id: c.id, 
+            name: c.name, 
+            parentId: c.parentId, 
+            childrenCount: c.children?.length || 0 
+        })));
+        
         const flattenedComponents = this.flattenComponentTree(normalizedComponents, seenIds);
+        
+        console.log('📏 AFTER flattening:', flattenedComponents.map(c => ({ 
+            id: c.id, 
+            name: c.name, 
+            parentId: c.parentId 
+        })));
         
         
         
@@ -2657,7 +2670,7 @@ async saveProjectComponents(projectId, frameId, components, options = {}) {
                 animation: comp.animation || {},
                 isLayoutContainer: comp.isLayoutContainer || false,
                 children: comp.children || [],            
-                parent_id: comp.parentId || null, // 🔥 CRITICAL FIX: Use parent_id (snake_case) for database
+                parentId: comp.parentId || null, // 🔥 CRITICAL FIX: Send parentId (camelCase) to match backend validation
             };
             
             // 🔥 Log frame-component-instances
@@ -2678,7 +2691,13 @@ async saveProjectComponents(projectId, frameId, components, options = {}) {
             firstComponent: mappedComponents[0],
             componentsWithResponsive: mappedComponents.filter(c => 
                 c.style_mobile || c.style_tablet || c.style_desktop
-            ).length
+            ).length,
+            allComponents: mappedComponents.map(c => ({ 
+                id: c.id, 
+                name: c.name, 
+                parentId: c.parentId,
+                hasChildren: c.children?.length > 0 
+            }))
         });
         
         const response = await axios.post('/api/project-components/bulk-update', {
@@ -2716,10 +2735,12 @@ flattenComponentTree(components, seenIds = new Set(), parentId = null) {
         
         seenIds.add(comp.id);
         
-        // 🔥 ENSURE styles are preserved during flattening
+        // 🔥 CRITICAL FIX: The parentId parameter is the SOURCE OF TRUTH
+        // If this component is in a parent's children array, the parameter tells us the correct parent
+        // The component's own parentId might be stale from a previous operation
         const flatComp = {
             ...comp,
-            parentId: parentId,
+            parentId: parentId, // ✅ Use the parameter - it represents the actual tree structure
             style: comp.style || {}, // ✅ Explicitly preserve
             props: comp.props || {}, // ✅ Explicitly preserve
         };
@@ -2727,6 +2748,7 @@ flattenComponentTree(components, seenIds = new Set(), parentId = null) {
         flattened.push(flatComp);
         
         if (comp.children && comp.children.length > 0) {
+            // Pass comp.id as parentId for children - this establishes the parent-child relationship
             const childrenFlat = this.flattenComponentTree(comp.children, seenIds, comp.id);
             flattened.push(...childrenFlat);
         }

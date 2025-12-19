@@ -19,7 +19,7 @@ class ProjectComponentController extends Controller
 
 
 // REPLACE the saveComponentTreeWithTracking method (around line 180)
-private function saveComponentTreeWithTracking($componentData, $projectId, $frameId, &$savedComponentIds, $parentDbId = null, $depth = 0)
+private function saveComponentTreeWithTracking($componentData, $projectId, $frameId, &$savedComponentIds, $parentDbId = null, $depth = 0, &$instanceIdToDbIdMap = [])
 {
     if ($depth > 20) {
         \Log::warning('Max depth reached', ['component' => $componentData['id'] ?? 'unknown']);
@@ -40,9 +40,45 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
         $textContent = $componentData['props']['content'] ?? $componentData['props']['text'] ?? '';
     }
 
+    // 🔥 CRITICAL FIX: If component has parentId, resolve it using our mapping
+    $resolvedParentDbId = $parentDbId;
+    if (isset($componentData['parentId']) && $componentData['parentId']) {
+        // First check our instance ID to DB ID mapping (for components saved in this batch)
+        if (isset($instanceIdToDbIdMap[$componentData['parentId']])) {
+            $resolvedParentDbId = $instanceIdToDbIdMap[$componentData['parentId']];
+            \Log::info('🔗 Resolved parentId from mapping:', [
+                'component_id' => $componentData['id'],
+                'parentId' => $componentData['parentId'],
+                'parent_db_id' => $resolvedParentDbId
+            ]);
+        } else {
+            // Fallback: try to find in database (for existing components)
+            $parentComponent = ProjectComponent::where('project_id', $projectId)
+                ->where('frame_id', $frameId)
+                ->where('component_instance_id', $componentData['parentId'])
+                ->first();
+            
+            if ($parentComponent) {
+                $resolvedParentDbId = $parentComponent->id;
+                \Log::info('🔗 Resolved parentId from database:', [
+                    'component_id' => $componentData['id'],
+                    'parentId' => $componentData['parentId'],
+                    'parent_db_id' => $resolvedParentDbId
+                ]);
+            } else {
+                \Log::warning('⚠️ Parent component not found:', [
+                    'component_id' => $componentData['id'],
+                    'parentId' => $componentData['parentId']
+                ]);
+            }
+        }
+    }
+
     \Log::info('💾 Saving component:', [
         'id' => $componentData['id'],
         'type' => $componentData['type'],
+        'parentId' => $componentData['parentId'] ?? null,
+        'resolved_parent_db_id' => $resolvedParentDbId,
         'final_style_keys' => array_keys($finalStyle),
     ]);
 
@@ -60,7 +96,7 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
     $component = ProjectComponent::create([
         'project_id' => $projectId,
         'frame_id' => $frameId,
-        'parent_id' => $parentDbId,
+        'parent_id' => $resolvedParentDbId,  // 🔥 FIX: Use resolved parent DB ID
         'component_instance_id' => $componentData['id'],
         'component_type' => $componentData['component_type'] ?? $componentData['type'], // 🔥 Use component_type if exists
         'props' => $componentData['props'] ?? [],
@@ -78,6 +114,9 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
         'locked' => $componentData['locked'] ?? false,
     ]);
     
+    // 🔥 FIX: Store the mapping of instance ID to database ID
+    $instanceIdToDbIdMap[$componentData['id']] = $component->id;
+    
     $savedComponentIds[] = $componentData['id'];
 
     // Recursively save children
@@ -89,7 +128,8 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
                 $frameId,
                 $savedComponentIds,
                 $component->id, 
-                $depth + 1
+                $depth + 1,
+                $instanceIdToDbIdMap  // 🔥 Pass the mapping to children
             );
         }
     }
@@ -352,6 +392,7 @@ private function normalizeStyleData($componentData)
             'components.*.style_desktop' => 'nullable|array',
             'components.*.animation' => 'nullable|array',
             'components.*.isLayoutContainer' => 'nullable|boolean',
+            'components.*.parentId' => 'nullable|string',  // 🔥 FIX: Accept parentId from frontend
             'components.*.children' => 'nullable|array',
             'create_revision' => 'boolean'
         ]);
@@ -375,7 +416,22 @@ private function normalizeStyleData($componentData)
                        ->where('frame_id', $frame->id)
                        ->delete();
 
+        // 🔥 DEBUG: Log what we received
+        \Log::info('📥 Received components for save:', [
+            'total' => count($validated['components']),
+            'components' => array_map(function($c) {
+                return [
+                    'id' => $c['id'],
+                    'name' => $c['name'],
+                    'parentId' => $c['parentId'] ?? null,
+                    'has_children' => isset($c['children']) && count($c['children']) > 0
+                ];
+            }, $validated['components'])
+        ]);
+
         $savedComponentIds = [];
+        // 🔥 FIX: Map component_instance_id to database ID during save
+        $instanceIdToDbIdMap = [];
         
         foreach ($validated['components'] as $componentData) {
             if (in_array($componentData['id'], $savedComponentIds)) {
@@ -388,7 +444,8 @@ private function normalizeStyleData($componentData)
                 $frame->id,
                 $savedComponentIds,
                 null,
-                0
+                0,
+                $instanceIdToDbIdMap  // 🔥 Pass the mapping
             );
         }
 

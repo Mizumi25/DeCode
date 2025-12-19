@@ -21,27 +21,13 @@ class ForgeController extends Controller
     private function getFrameData(Frame $frame): array
     {
         // Load components from ProjectComponents table
-        $projectComponents = \App\Models\ProjectComponent::where('frame_id', $frame->id)
+        $components = \App\Models\ProjectComponent::where('frame_id', $frame->id)
             ->with('component')
             ->ordered()
-            ->get()
-            ->map(function($comp) {
-                return [
-                    'id' => $comp->component_instance_id,
-                    'type' => $comp->component_type,
-                    'props' => $comp->props ?? [],
-                    'position' => $comp->position ?? ['x' => 0, 'y' => 0],
-                    'name' => $comp->name,
-                    'zIndex' => $comp->z_index ?? 0,
-                    'variant' => $comp->variant,
-                    'style' => $comp->style ?? [],
-                    'style_mobile' => $comp->style_mobile ?? null,   // 🔥 RESPONSIVE
-                    'style_tablet' => $comp->style_tablet ?? null,   // 🔥 RESPONSIVE
-                    'style_desktop' => $comp->style_desktop ?? null, // 🔥 RESPONSIVE
-                    'animation' => $comp->animation ?? [],
-                    'children' => []
-                ];
-            })->toArray();
+            ->get();
+        
+        // 🔥 FIX: Build tree structure based on parent_id relationships
+        $projectComponents = $this->buildComponentTree($components);
         
         // 🔥 FIX: Merge with existing canvas_data to preserve device, viewport, etc.
         $existingCanvasData = $frame->canvas_data ?? [];
@@ -84,6 +70,39 @@ class ForgeController extends Controller
         ];
     }
     
+    /**
+     * 🔥 CRITICAL: Build component tree structure based on parent_id relationships
+     */
+    private function buildComponentTree($components, $parentId = null)
+    {
+        $tree = [];
+        
+        foreach ($components as $component) {
+            if ($component->parent_id == $parentId) {
+                $node = [
+                    'id' => $component->component_instance_id,
+                    'type' => $component->component_type,
+                    'props' => $component->props ?? [],
+                    'position' => $component->position ?? ['x' => 0, 'y' => 0],
+                    'name' => $component->name,
+                    'zIndex' => $component->z_index ?? 0,
+                    'variant' => $component->variant,
+                    'style' => $component->style ?? [],
+                    'style_mobile' => $component->style_mobile ?? null,
+                    'style_tablet' => $component->style_tablet ?? null,
+                    'style_desktop' => $component->style_desktop ?? null,
+                    'animation' => $component->animation ?? [],
+                    'isLayoutContainer' => $component->is_layout_container ?? false,
+                    'children' => $this->buildComponentTree($components, $component->id)
+                ];
+                
+                $tree[] = $node;
+            }
+        }
+        
+        return $tree;
+    }
+
     /**
      * 🔥 CRITICAL: Decode canvas fields from JSON strings to arrays
      */
