@@ -290,6 +290,9 @@ main, .main-content {
 @tailwind components;
 @tailwind utilities;
 
+/* 🎨 Glassy Minimalist Property Panel - Framer-inspired */
+@import './glassy-property-panel.css';
+
 /* Publish Lottie Animation Color Override */
 .publish-lottie svg path,
 .publish-lottie svg g,
