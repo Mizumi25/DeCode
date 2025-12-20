@@ -226,13 +226,17 @@ const IconModal = ({ onIconSelect, enableDrag = true }) => {
         if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
         
         const icon = dragInteractionRef.current.icon;
+        // 🔥 FIX: Match the format expected by handleCanvasDrop
         const dragData = {
           type: 'icon',
+          componentType: 'icon',
           props: {
-            iconLibrary: activeTab,
-            iconName: icon.name,
-            svgCode: activeTab === 'svg' ? icon.svg_code : null,
+            iconType: activeTab, // 'heroicons', 'lucide', or 'svg'
+            iconName: icon.library_name || icon.name, // Use library_name for correct import
+            svgData: activeTab === 'svg' ? icon.svg_code : null,
+            svgContent: activeTab === 'svg' ? icon.svg_code : null,
             size: 24,
+            color: 'currentColor'
           },
           fromPanel: true
         };
@@ -360,14 +364,20 @@ const IconModal = ({ onIconSelect, enableDrag = true }) => {
     const handleDragStart = (e) => {
       e.stopPropagation();
       
+      // 🔥 FIX: Match the format expected by handleCanvasDrop in ForgePage
       const dragData = {
-        type: 'icon-element', // Identifier for icon drops
-        iconType: activeTab, // 'heroicons', 'lucide', or 'svg'
-        iconName: icon.name,
-        iconCategory: icon.category,
-        svgData: activeTab === 'svg' ? icon.svg_code : null,
-        iconComponent: activeTab !== 'svg' ? icon.icon : null,
-        libraryName: icon.library_name
+        type: 'icon', // Component type
+        componentType: 'icon', // Explicit component type
+        props: {
+          iconType: activeTab, // 'heroicons', 'lucide', or 'svg'
+          iconName: icon.library_name || icon.name, // Use library_name for correct import
+          svgData: activeTab === 'svg' ? icon.svg_code : null,
+          svgContent: activeTab === 'svg' ? icon.svg_code : null, // Alias for compatibility
+          size: 24,
+          color: 'currentColor'
+        },
+        name: icon.name,
+        category: icon.category
       };
       
       e.dataTransfer.effectAllowed = 'copy';
@@ -431,11 +441,6 @@ const IconModal = ({ onIconSelect, enableDrag = true }) => {
             ) : IconComponent ? (
               <IconComponent className="w-full h-full" />
             ) : null}
-          </div>
-          <div className="text-center">
-            <div className="text-[10px] font-medium text-[var(--color-text)] truncate w-full max-w-[60px]">
-              {icon.name}
-            </div>
           </div>
           
           {/* SVG specific actions for custom icons */}

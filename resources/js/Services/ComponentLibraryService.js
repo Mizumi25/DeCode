@@ -3,6 +3,27 @@ import axios from 'axios';
 import React from 'react';
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 🔥 HERO ICONS SVG MAP - For HTML embedding
+// ═══════════════════════════════════════════════════════════════════════════
+const HERO_ICONS_SVG = {
+  'HomeIcon': '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>',
+  'AcademicCapIcon': '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" /></svg>',
+  'ChevronLeftIcon': '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>',
+  'ChevronRightIcon': '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>',
+  'ChevronUpIcon': '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>',
+  'ChevronDownIcon': '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>',
+  'XMarkIcon': '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>',
+  'CheckIcon': '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>',
+  'MagnifyingGlassIcon': '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>',
+  'Bars3Icon': '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>',
+  'UserIcon': '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>',
+  'HeartIcon': '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" /></svg>',
+  'StarIcon': '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" /></svg>',
+  'BellIcon': '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>',
+  'CogIcon': '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>'
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 🔥 COMPLETE DOM-LIKE UNIFIED RENDERING SYSTEM
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -104,6 +125,7 @@ Object.assign(HTML_TAG_MAP, {
   
   // Special
   'icon': 'span',
+  'icon-element': 'span', // 🔥 FIX: Icon drag creates type 'icon-element'
   'frame-component-instance': 'div'
 });
 
@@ -391,6 +413,121 @@ class ComponentLibraryService {
           })
         )
       );
+    }
+    
+    // 🎨 Icon/SVG Renderer - Handles Lucide, Hero Icons, and custom SVGs
+    if (component.type === 'icon' || component.type === 'icon-element' || component.type === 'svg') {
+      // Check for SVG content (custom SVG or uploaded icon)
+      if (mergedProps.svgData || mergedProps.svgContent) {
+        const svgContent = mergedProps.svgData || mergedProps.svgContent;
+        
+        // 🔥 FIX: Override default width:100% for icons - use proper sizing
+        const iconStyle = {
+          display: 'inline-block',
+          width: htmlAttrs.style?.width || '24px',
+          height: htmlAttrs.style?.height || '24px',
+          ...htmlAttrs.style
+        };
+        
+        return React.createElement('span', {
+          ...htmlAttrs,
+          style: iconStyle,
+          dangerouslySetInnerHTML: { __html: svgContent }
+        });
+      }
+      
+      // Check for Lucide or Hero icon (iconType + iconName)
+      if (mergedProps.iconType && mergedProps.iconName) {
+        const iconStyle = {
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: htmlAttrs.style?.width || '24px',
+          height: htmlAttrs.style?.height || '24px',
+          ...htmlAttrs.style
+        };
+        
+        // Try to dynamically import icon from lucide-react or heroicons
+        if (mergedProps.iconType === 'lucide' || mergedProps.iconType === 'lucide-react') {
+          try {
+            // Dynamically import Lucide icon
+            const LucideIcon = React.lazy(() => 
+              import('lucide-react').then(mod => {
+                const IconComponent = mod[mergedProps.iconName];
+                if (!IconComponent) {
+                  console.warn(`Lucide icon not found: ${mergedProps.iconName}`);
+                  return { default: () => React.createElement('span', null, '?') };
+                }
+                return { default: IconComponent };
+              })
+            );
+            
+            return React.createElement('span', {
+              ...htmlAttrs,
+              style: iconStyle
+            },
+              React.createElement(React.Suspense, {
+                fallback: React.createElement('span', { style: { opacity: 0.5 } }, '⏳')
+              },
+                React.createElement(LucideIcon, {
+                  size: parseInt(iconStyle.width) || 24,
+                  color: htmlAttrs.style?.color || 'currentColor'
+                })
+              )
+            );
+          } catch (err) {
+            console.warn('Failed to load Lucide icon:', mergedProps.iconName, err);
+          }
+        } else if (mergedProps.iconType === 'heroicon' || mergedProps.iconType === 'heroicons') {
+          try {
+            // Dynamically import Hero icon
+            const HeroIcon = React.lazy(() => 
+              import('@heroicons/react/24/outline').then(mod => {
+                const IconComponent = mod[mergedProps.iconName];
+                if (!IconComponent) {
+                  console.warn(`Hero icon not found: ${mergedProps.iconName}`);
+                  return { default: () => React.createElement('span', null, '?') };
+                }
+                return { default: IconComponent };
+              })
+            );
+            
+            return React.createElement('span', {
+              ...htmlAttrs,
+              style: iconStyle
+            },
+              React.createElement(React.Suspense, {
+                fallback: React.createElement('span', { style: { opacity: 0.5 } }, '⏳')
+              },
+                React.createElement(HeroIcon, {
+                  width: parseInt(iconStyle.width) || 24,
+                  height: parseInt(iconStyle.height) || 24,
+                  color: htmlAttrs.style?.color || 'currentColor'
+                })
+              )
+            );
+          } catch (err) {
+            console.warn('Failed to load Hero icon:', mergedProps.iconName, err);
+          }
+        }
+      }
+      
+      // Fallback: render small placeholder (not full width!)
+      return React.createElement('span', {
+        ...htmlAttrs,
+        style: {
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: htmlAttrs.style?.width || '24px',
+          height: htmlAttrs.style?.height || '24px',
+          backgroundColor: '#f3f4f6',
+          borderRadius: '4px',
+          fontSize: '12px',
+          color: '#9ca3af',
+          flexShrink: 0 // Prevent shrinking
+        }
+      }, '🎨');
     }
     
     // 7. Create React element - ONE universal pattern for ALL
@@ -1267,20 +1404,24 @@ buildDynamicTailwindClasses(comp) {
     
     // 🔥 FILTERS
     if (styleObj.filter) {
-      const filters = styleObj.filter.match(/(blur|brightness|contrast|grayscale|invert)\(([^)]+)\)/g);
-      if (filters) {
-        filters.forEach(f => {
-          if (f.includes('blur')) {
-            const val = f.match(/\d+/)?.[0];
-            if (val) breakpointClasses.push(`blur-[${val}px]`);
-          }
-          if (f.includes('brightness')) {
-            const val = f.match(/[\d.]+/)?.[0];
-            if (val) breakpointClasses.push(`brightness-[${val}]`);
-          }
-          if (f.includes('grayscale')) breakpointClasses.push('grayscale');
-          if (f.includes('invert')) breakpointClasses.push('invert');
-        });
+      // 🔥 FIX: Check if filter is a string before calling .match()
+      const filterString = typeof styleObj.filter === 'string' ? styleObj.filter : '';
+      if (filterString) {
+        const filters = filterString.match(/(blur|brightness|contrast|grayscale|invert)\(([^)]+)\)/g);
+        if (filters) {
+          filters.forEach(f => {
+            if (f.includes('blur')) {
+              const val = f.match(/\d+/)?.[0];
+              if (val) breakpointClasses.push(`blur-[${val}px]`);
+            }
+            if (f.includes('brightness')) {
+              const val = f.match(/[\d.]+/)?.[0];
+              if (val) breakpointClasses.push(`brightness-[${val}]`);
+            }
+            if (f.includes('grayscale')) breakpointClasses.push('grayscale');
+            if (f.includes('invert')) breakpointClasses.push('invert');
+          });
+        }
       }
     }
     
@@ -1539,7 +1680,7 @@ export default ${componentName};`,
   const collectIcons = (components) => {
     const icons = [];
     components.forEach(comp => {
-      if (comp.type === 'icon' && comp.props?.iconType && comp.props?.iconName) {
+      if ((comp.type === 'icon' || comp.type === 'icon-element') && comp.props?.iconType && comp.props?.iconName) {
         icons.push({
           type: comp.props.iconType,
           name: comp.props.iconName
@@ -1553,14 +1694,10 @@ export default ${componentName};`,
   };
   
   const icons = collectIcons(allComponents);
-  const lucideIcons = [...new Set(icons.filter(i => i.type === 'lucide').map(i => {
-    // Convert kebab-case to PascalCase
-    return i.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
-  }))];
-  const heroIcons = [...new Set(icons.filter(i => i.type === 'heroicons').map(i => {
-    // Convert kebab-case to PascalCase + Icon suffix
-    return i.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('') + 'Icon';
-  }))];
+  // 🔥 FIX: iconName already contains the correct library name (e.g., "Home", "AcademicCapIcon")
+  // No need to convert or add suffix - just use it directly
+  const lucideIcons = [...new Set(icons.filter(i => i.type === 'lucide' || i.type === 'lucide-react').map(i => i.name))];
+  const heroIcons = [...new Set(icons.filter(i => i.type === 'heroicons' || i.type === 'heroicon').map(i => i.name))];
   
   const iconImports = [];
   if (lucideIcons.length > 0) {
@@ -1586,6 +1723,31 @@ export default ${componentName};`,
       if (comp.type === 'text-node') {
         const textContent = comp.props?.content || comp.props?.text || comp.text_content || '';
         return `${indent}${textContent}`;
+      }
+      
+      // 🔥 FIX: Handle icon components specially (they need component syntax, not just tags)
+      if (comp.type === 'icon' || comp.type === 'icon-element') {
+        const cssClass = this.generateCSSClassName(comp);
+        const iconName = comp.props?.iconName || comp.name;
+        const iconType = comp.props?.iconType || 'lucide';
+        
+        // Custom SVG icon - embed directly
+        if (comp.props?.svgData || comp.props?.svgContent) {
+          const svgData = comp.props.svgData || comp.props.svgContent;
+          return `${indent}<span className="${cssClass}" dangerouslySetInnerHTML={{ __html: \`${svgData.replace(/`/g, '\\`')}\` }}></span>`;
+        }
+        
+        // Lucide or Hero icon component
+        if (iconType === 'lucide' || iconType === 'lucide-react') {
+          const componentName = iconName || 'HelpCircle';
+          return `${indent}<${componentName} className="${cssClass}" size={${comp.props?.size || 24}} ${comp.props?.color ? `color="${comp.props.color}"` : ''} />`;
+        } else if (iconType === 'heroicons' || iconType === 'heroicon') {
+          const componentName = iconName || 'QuestionMarkCircleIcon';
+          return `${indent}<${componentName} className="${cssClass}" style={{ width: '${comp.props?.size || 24}px', height: '${comp.props?.size || 24}px'${comp.props?.color ? `, color: '${comp.props.color}'` : ''} }} />`;
+        }
+        
+        // Fallback
+        return `${indent}<span className="${cssClass}">{/* Icon: ${iconName} */}</span>`;
       }
       
       // Generate unique CSS class for this component
@@ -1706,7 +1868,7 @@ generateHTMLCSSCode(allComponents, frameName = 'GeneratedComponent') {
       }
       
       // 🔥 Handle icon type
-      if (comp.type === 'icon') {
+      if (comp.type === 'icon' || comp.type === 'icon-element') {
         const iconName = comp.props?.iconName || comp.name;
         const iconType = comp.props?.iconType || 'lucide';
         const cssClass = this.generateCSSClassName(comp);
@@ -1788,6 +1950,27 @@ generateHTMLCSSCode(allComponents, frameName = 'GeneratedComponent') {
   const htmlComponents = renderHTMLTree(allComponents);
   const componentCount = allComponents.length;
 
+  // 🔥 Check if we need Lucide CSS
+  const collectIcons = (components) => {
+    const icons = { lucide: false, heroicons: false };
+    const checkComp = (comp) => {
+      if ((comp.type === 'icon' || comp.type === 'icon-element') && comp.props?.iconType) {
+        if (comp.props.iconType === 'lucide' || comp.props.iconType === 'lucide-react') {
+          icons.lucide = true;
+        }
+        if (comp.props.iconType === 'heroicons' || comp.props.iconType === 'heroicon') {
+          icons.heroicons = true;
+        }
+      }
+      if (comp.children) comp.children.forEach(checkComp);
+    };
+    components.forEach(checkComp);
+    return icons;
+  };
+  
+  const iconsUsed = collectIcons(allComponents);
+  const lucideLink = iconsUsed.lucide ? '\n    <link rel="stylesheet" href="https://unpkg.com/lucide-static@latest/font/lucide.css" />' : '';
+
   return {
     html: `<!DOCTYPE html>
 <html lang="en">
@@ -1795,7 +1978,7 @@ generateHTMLCSSCode(allComponents, frameName = 'GeneratedComponent') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${frameName}</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css">${lucideLink}
 </head>
 <body>
     <!-- Generated HTML for Frame: ${frameName} -->
@@ -1833,8 +2016,27 @@ buildReactProps(component) {
   
   // 🔥 UNIVERSAL: Map ALL component props to HTML attributes dynamically
   Object.entries(component.props).forEach(([key, value]) => {
-    // Skip props that aren't HTML attributes
-    if (['style', 'text', 'content', 'children', 'className'].includes(key)) {
+    // Skip props that aren't HTML attributes or are internal/component-specific
+    if ([
+      'style', 
+      'text', 
+      'content', 
+      'children', 
+      'className',
+      // 🔥 FIX: Skip icon-specific props (these are used for rendering, not JSX attributes)
+      'iconType',
+      'iconName',
+      'svgData',
+      'svgContent',
+      'size', // Icon size
+      'color', // Icon color
+      // Skip other component-specific props
+      'variant',
+      'isLayoutContainer',
+      'projectComponents',
+      'sourceFrameName',
+      'frameId'
+    ].includes(key)) {
       return;
     }
     
@@ -2062,6 +2264,27 @@ const renderHTMLTree = (components, depth = 0) => {
   const htmlComponents = renderHTMLTree(allComponents);
   const componentCount = allComponents.length;
 
+  // 🔥 Check if we need Lucide CSS
+  const collectIcons = (components) => {
+    const icons = { lucide: false, heroicons: false };
+    const checkComp = (comp) => {
+      if ((comp.type === 'icon' || comp.type === 'icon-element') && comp.props?.iconType) {
+        if (comp.props.iconType === 'lucide' || comp.props.iconType === 'lucide-react') {
+          icons.lucide = true;
+        }
+        if (comp.props.iconType === 'heroicons' || comp.props.iconType === 'heroicon') {
+          icons.heroicons = true;
+        }
+      }
+      if (comp.children) comp.children.forEach(checkComp);
+    };
+    components.forEach(checkComp);
+    return icons;
+  };
+  
+  const iconsUsed = collectIcons(allComponents);
+  const lucideLink = iconsUsed.lucide ? '\n    <link rel="stylesheet" href="https://unpkg.com/lucide-static@latest/font/lucide.css" />' : '';
+
   return {
     html: `<!DOCTYPE html>
 <html lang="en">
@@ -2069,7 +2292,7 @@ const renderHTMLTree = (components, depth = 0) => {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${frameName}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com"></script>${lucideLink}
 </head>
 <body>
     <!-- Generated HTML with Tailwind for Frame: ${frameName} -->
@@ -2098,8 +2321,28 @@ buildHTMLAttributes(comp) {
   
   // 🔥 UNIVERSAL: Map ALL component props to HTML attributes dynamically
   Object.entries(comp.props).forEach(([key, value]) => {
-    // Skip props that aren't HTML attributes
-    if (['style', 'text', 'content', 'children', 'className', 'class'].includes(key)) {
+    // Skip props that aren't HTML attributes or are internal/component-specific
+    if ([
+      'style', 
+      'text', 
+      'content', 
+      'children', 
+      'className', 
+      'class',
+      // 🔥 FIX: Skip icon-specific props (these are used for rendering, not HTML attributes)
+      'iconType',
+      'iconName',
+      'svgData',
+      'svgContent',
+      'size', // Icon size
+      'color', // Icon color
+      // Skip other component-specific props
+      'variant',
+      'isLayoutContainer',
+      'projectComponents',
+      'sourceFrameName',
+      'frameId'
+    ].includes(key)) {
       return;
     }
     
@@ -2158,24 +2401,25 @@ buildHTMLAttributes(comp) {
             <div className="text-gray-600">${comp.props.content || 'Card content'}</div>
           </div>`;
       case 'icon':
-        // Render icon based on library type (Lucide or Heroicons)
+      case 'icon-element':
+        // 🔥 FIX: Render icon based on library type (Lucide or Heroicons)
         const iconName = comp.props.iconName || comp.name;
         const iconType = comp.props.iconType || 'lucide';
         
         if (comp.props.svgData || comp.props.svgContent) {
-          // Custom SVG icon
+          // Custom SVG icon - embed directly
           const svgData = comp.props.svgData || comp.props.svgContent;
           return `<span className="${classes}" dangerouslySetInnerHTML={{ __html: \`${svgData.replace(/`/g, '\\`')}\` }}></span>`;
         }
         
         // Lucide or Heroicons library icons
-        if (iconType === 'lucide') {
-          // Import from lucide-react
-          const componentName = iconName ? iconName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('') : 'HelpCircle';
+        if (iconType === 'lucide' || iconType === 'lucide-react') {
+          // 🔥 FIX: iconName is already the component name (e.g., "Home", "ChevronLeft")
+          const componentName = iconName || 'HelpCircle';
           return `<${componentName} className="${classes}" size={${comp.props.size || 24}} ${comp.props.color ? `color="${comp.props.color}"` : ''} />`;
-        } else if (iconType === 'heroicons') {
-          // Import from @heroicons/react
-          const componentName = iconName ? iconName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('') + 'Icon' : 'QuestionMarkCircleIcon';
+        } else if (iconType === 'heroicons' || iconType === 'heroicon') {
+          // 🔥 FIX: iconName is already the full component name (e.g., "ChevronLeftIcon")
+          const componentName = iconName || 'QuestionMarkCircleIcon';
           return `<${componentName} className="${classes}" style={{ width: '${comp.props.size || 24}px', height: '${comp.props.size || 24}px'${comp.props.color ? `, color: '${comp.props.color}'` : ''} }} />`;
         }
         
@@ -2222,9 +2466,10 @@ buildHTMLAttributes(comp) {
         <div class="text-gray-600">${comp.props.content || 'Card content'}</div>
       </div>`;
       case 'icon':
-        // Render icon for HTML output
-        const iconName = comp.props.iconName || comp.name;
-        const iconType = comp.props.iconType || 'lucide';
+      case 'icon-element':
+        // 🔥 FIX: Render icon for HTML output
+        const iconNameHTML = comp.props.iconName || comp.name;
+        const iconTypeHTML = comp.props.iconType || 'lucide';
         
         if (comp.props.svgData || comp.props.svgContent) {
           // Custom SVG icon - embed directly
@@ -2232,8 +2477,26 @@ buildHTMLAttributes(comp) {
           return `<span class="${classes}">${svgData}</span>`;
         }
         
-        // For library icons, show comment about the icon (HTML doesn't support React components)
-        return `<span class="${classes}"><!-- ${iconType}: ${iconName || 'Icon'} --></span>`;
+        // 🔥 NEW: Lucide icons - use CSS font
+        if (iconTypeHTML === 'lucide' || iconTypeHTML === 'lucide-react') {
+          const lucideIconName = iconNameHTML ? iconNameHTML.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '') : 'help-circle';
+          return `<i class="${classes} lucide-${lucideIconName}"></i>`;
+        }
+        
+        // 🔥 NEW: Hero icons - inline SVG from map
+        if (iconTypeHTML === 'heroicons' || iconTypeHTML === 'heroicon') {
+          const heroSvg = HERO_ICONS_SVG[iconNameHTML];
+          if (heroSvg) {
+            // We have the SVG - embed it
+            return `<span class="${classes}">${heroSvg}</span>`;
+          } else {
+            // Icon not in map - show placeholder with note
+            return `<span class="${classes}"><!-- heroicons: ${iconNameHTML} (SVG not in map) --></span>`;
+          }
+        }
+        
+        // Fallback
+        return `<span class="${classes}"><!-- ${iconTypeHTML}: ${iconNameHTML || 'Icon'} --></span>`;
       default:
         return `<div class="${classes}">${comp.name || componentDef.name}</div>`;
     }
@@ -2852,8 +3115,12 @@ rebuildComponentTree(flatComponents) {
       }
     } catch (error) {
       console.error('Code generation error:', error);
+      console.error('Error stack:', error.stack);
+      console.error('Error message:', error.message);
+      console.error('Style requested:', style);
+      console.error('Components count:', components?.length);
       return {
-        react: `// Error generating code for Frame: ${frameName}\nfunction ${frameName}() {\n  return <div>Error generating code</div>;\n}`,
+        react: `// Error generating code for Frame: ${frameName}\n// Error: ${error.message}\nfunction ${frameName}() {\n  return <div>Error generating code</div>;\n}`,
         html: `<!-- Error generating HTML -->`,
         css: `/* Error generating CSS */`,
         tailwind: `<!-- Error generating Tailwind -->`
@@ -3020,7 +3287,7 @@ rebuildComponentTree(flatComponents) {
     const collectIcons = (components) => {
       const icons = [];
       components.forEach(comp => {
-        if (comp.type === 'icon' && comp.props?.iconType && comp.props?.iconName) {
+        if ((comp.type === 'icon' || comp.type === 'icon-element') && comp.props?.iconType && comp.props?.iconName) {
           icons.push({
             type: comp.props.iconType,
             name: comp.props.iconName
@@ -3034,12 +3301,9 @@ rebuildComponentTree(flatComponents) {
     };
     
     const icons = collectIcons(allComponents);
-    const lucideIcons = [...new Set(icons.filter(i => i.type === 'lucide').map(i => {
-      return i.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
-    }))];
-    const heroIcons = [...new Set(icons.filter(i => i.type === 'heroicons').map(i => {
-      return i.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('') + 'Icon';
-    }))];
+    // 🔥 FIX: iconName already contains the correct library name - use directly
+    const lucideIcons = [...new Set(icons.filter(i => i.type === 'lucide' || i.type === 'lucide-react').map(i => i.name))];
+    const heroIcons = [...new Set(icons.filter(i => i.type === 'heroicons' || i.type === 'heroicon').map(i => i.name))];
     
     const iconImports = [];
     if (lucideIcons.length > 0) {
@@ -3064,7 +3328,7 @@ rebuildComponentTree(flatComponents) {
         }
         
         // 🔥 Handle icon type specially
-        if (comp.type === 'icon') {
+        if (comp.type === 'icon' || comp.type === 'icon-element') {
           const iconName = comp.props?.iconName || comp.name;
           const iconType = comp.props?.iconType || 'lucide';
           const classes = this.buildDynamicTailwindClasses(comp);
@@ -3075,12 +3339,12 @@ rebuildComponentTree(flatComponents) {
             return `${indent}<span${classes ? ` className="${classes}"` : ''} dangerouslySetInnerHTML={{ __html: \`${svgData.replace(/`/g, '\\`')}\` }} />`;
           }
           
-          // Lucide or Heroicons library icons
-          if (iconType === 'lucide') {
-            const componentName = iconName ? iconName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('') : 'HelpCircle';
+          // 🔥 FIX: iconName is already the correct component name - use directly
+          if (iconType === 'lucide' || iconType === 'lucide-react') {
+            const componentName = iconName || 'HelpCircle';
             return `${indent}<${componentName}${classes ? ` className="${classes}"` : ''} size={${comp.props?.size || 24}}${comp.props?.color ? ` color="${comp.props.color}"` : ''} />`;
-          } else if (iconType === 'heroicons') {
-            const componentName = iconName ? iconName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('') + 'Icon' : 'QuestionMarkCircleIcon';
+          } else if (iconType === 'heroicons' || iconType === 'heroicon') {
+            const componentName = iconName || 'QuestionMarkCircleIcon';
             return `${indent}<${componentName}${classes ? ` className="${classes}"` : ''} style={{ width: '${comp.props?.size || 24}px', height: '${comp.props?.size || 24}px'${comp.props?.color ? `, color: '${comp.props.color}'` : ''} }} />`;
           }
           

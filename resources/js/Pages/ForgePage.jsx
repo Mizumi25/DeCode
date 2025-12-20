@@ -2651,14 +2651,15 @@ const handleComponentDelete = useCallback((componentId) => {
 const handleIconSelect = useCallback((icon) => {
     console.log('Icon selected in Forge:', icon);
     
-    // Create icon component based on selected icon
+    // 🔥 FIX: Use correct prop names and ensure SVG data is included
     const iconComponent = componentLibraryService?.createLayoutElement 
       ? componentLibraryService.createLayoutElement('icon', {
           iconType: icon.type,
           iconName: icon.name,
           size: 24,
           color: 'var(--color-text)',
-          svgData: icon.data || null
+          svgData: icon.data || null,
+          svgContent: icon.data || null // Alias for compatibility
         })
       : {
           id: `icon_${Date.now()}`,
@@ -2668,7 +2669,8 @@ const handleIconSelect = useCallback((icon) => {
             iconName: icon.name,
             size: 24,
             color: 'var(--color-text)',
-            svgData: icon.data || null
+            svgData: icon.data || null,
+            svgContent: icon.data || null // Alias for compatibility
           },
           position: { x: 100, y: 100 },
           name: `${icon.name} Icon`,
