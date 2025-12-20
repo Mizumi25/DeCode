@@ -1883,7 +1883,31 @@ generateHTMLCSSCode(allComponents, frameName = 'GeneratedComponent') {
           return `${indent}<span${cssClass ? ` class="${cssClass}"` : ''}>${svgData}</span>`;
         }
         
-        // For library icons, show comment (HTML doesn't support React components)
+        // 🔥 FIX: Lucide icons - use CSS font
+        if (iconType === 'lucide' || iconType === 'lucide-react') {
+          const lucideIconName = iconName ? iconName.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '') : 'help-circle';
+          htmlLine += 1;
+          componentLineMap[comp.id] = {
+            html: { startLine: htmlStartLine, endLine: htmlLine - 1 }
+          };
+          return `${indent}<i${cssClass ? ` class="${cssClass} lucide-${lucideIconName}"` : ` class="lucide-${lucideIconName}"`}></i>`;
+        }
+        
+        // 🔥 FIX: Hero icons - inline SVG from map
+        if (iconType === 'heroicons' || iconType === 'heroicon') {
+          const heroSvg = HERO_ICONS_SVG[iconName];
+          htmlLine += 1;
+          componentLineMap[comp.id] = {
+            html: { startLine: htmlStartLine, endLine: htmlLine - 1 }
+          };
+          if (heroSvg) {
+            return `${indent}<span${cssClass ? ` class="${cssClass}"` : ''}>${heroSvg}</span>`;
+          } else {
+            return `${indent}<span${cssClass ? ` class="${cssClass}"` : ''}><!-- heroicons: ${iconName} (SVG not in map) --></span>`;
+          }
+        }
+        
+        // Fallback
         htmlLine += 1;
         componentLineMap[comp.id] = {
           html: { startLine: htmlStartLine, endLine: htmlLine - 1 }
@@ -2206,7 +2230,7 @@ const renderHTMLTree = (components, depth = 0) => {
     }
     
     // 🔥 Handle icon type
-    if (comp.type === 'icon') {
+    if (comp.type === 'icon' || comp.type === 'icon-element') {
       const iconName = comp.props?.iconName || comp.name;
       const iconType = comp.props?.iconType || 'lucide';
       const classes = this.buildDynamicTailwindClasses(comp);
@@ -2217,7 +2241,23 @@ const renderHTMLTree = (components, depth = 0) => {
         return `${indent}<span${classes ? ` class="${classes}"` : ''}>${svgData}</span>`;
       }
       
-      // For library icons, show comment (HTML doesn't support React components)
+      // 🔥 FIX: Lucide icons - use CSS font
+      if (iconType === 'lucide' || iconType === 'lucide-react') {
+        const lucideIconName = iconName ? iconName.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '') : 'help-circle';
+        return `${indent}<i${classes ? ` class="${classes} lucide-${lucideIconName}"` : ` class="lucide-${lucideIconName}"`}></i>`;
+      }
+      
+      // 🔥 FIX: Hero icons - inline SVG from map
+      if (iconType === 'heroicons' || iconType === 'heroicon') {
+        const heroSvg = HERO_ICONS_SVG[iconName];
+        if (heroSvg) {
+          return `${indent}<span${classes ? ` class="${classes}"` : ''}>${heroSvg}</span>`;
+        } else {
+          return `${indent}<span${classes ? ` class="${classes}"` : ''}><!-- heroicons: ${iconName} (SVG not in map) --></span>`;
+        }
+      }
+      
+      // Fallback
       return `${indent}<span${classes ? ` class="${classes}"` : ''}><!-- ${iconType}: ${iconName || 'Icon'} --></span>`;
     }
     

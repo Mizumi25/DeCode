@@ -68,19 +68,32 @@ const IconModal = ({ onIconSelect, enableDrag = true }) => {
   const lucideIconComponents = useMemo(() => {
     const components = {};
     Object.keys(LucideIcons).forEach(key => {
-      if (typeof LucideIcons[key] === 'function') {
+      // 🔥 FIX: Check if it's a component (object with $$typeof or function)
+      // Skip 'default', 'createLucideIcon', and other non-component exports
+      if (key !== 'default' && 
+          key !== 'createLucideIcon' && 
+          !key.startsWith('Icon') &&
+          LucideIcons[key] &&
+          (typeof LucideIcons[key] === 'function' || typeof LucideIcons[key] === 'object')) {
         components[key] = LucideIcons[key];
       }
     });
+    console.log('Lucide components loaded:', Object.keys(components).length, 'Sample:', Object.keys(components).slice(0, 10));
     return components;
   }, []);
 
   // Convert database icons to renderable format
   const lucideIcons = useMemo(() => 
-    icons.lucide.map(icon => ({
-      ...icon,
-      icon: lucideIconComponents[icon.library_name] || LucideIcons.HelpCircle
-    })),
+    icons.lucide.map(icon => {
+      const IconComponent = lucideIconComponents[icon.library_name];
+      if (!IconComponent) {
+        console.warn(`Lucide icon not found: ${icon.library_name}`, 'Available keys:', Object.keys(lucideIconComponents).slice(0, 10));
+      }
+      return {
+        ...icon,
+        icon: IconComponent || LucideIcons.HelpCircle
+      };
+    }),
   [icons.lucide, lucideIconComponents]);
 
   const heroIcons = useMemo(() => 
@@ -124,7 +137,7 @@ const IconModal = ({ onIconSelect, enableDrag = true }) => {
     if (onIconSelect) {
       const iconData = {
         type: activeTab,
-        name: icon.name,
+        name: icon.library_name || icon.name, // 🔥 FIX: Use library_name for correct component name
         category: icon.category,
         data: activeTab === 'svg' ? icon.svgCode : null,
         component: activeTab !== 'lottie' && activeTab !== 'svg' ? icon.icon : null
