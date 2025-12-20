@@ -46,12 +46,10 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
         // First check our instance ID to DB ID mapping (for components saved in this batch)
         if (isset($instanceIdToDbIdMap[$componentData['parentId']])) {
             $resolvedParentDbId = $instanceIdToDbIdMap[$componentData['parentId']];
-            \Log::info('🔗 Resolved parentId from mapping:', [
-                'component_id' => $componentData['id'],
-                'parentId' => $componentData['parentId'],
-                'parent_db_id' => $resolvedParentDbId
-            ]);
-        } else {
+            // Removed log spam - only log failures
+        } 
+        // Only check database if NOT found in map
+        elseif (!$resolvedParentDbId || $resolvedParentDbId === $parentDbId) {
             // Fallback: try to find in database (for existing components)
             $parentComponent = ProjectComponent::where('project_id', $projectId)
                 ->where('frame_id', $frameId)
@@ -60,15 +58,14 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
             
             if ($parentComponent) {
                 $resolvedParentDbId = $parentComponent->id;
-                \Log::info('🔗 Resolved parentId from database:', [
-                    'component_id' => $componentData['id'],
-                    'parentId' => $componentData['parentId'],
-                    'parent_db_id' => $resolvedParentDbId
-                ]);
+                // Removed log spam
             } else {
-                \Log::warning('⚠️ Parent component not found:', [
+                \Log::warning('⚠️ Parent component not found - component will be orphaned:', [
                     'component_id' => $componentData['id'],
-                    'parentId' => $componentData['parentId']
+                    'component_name' => $componentData['name'],
+                    'parentId' => $componentData['parentId'],
+                    'searched_in_map' => isset($instanceIdToDbIdMap[$componentData['parentId']]),
+                    'available_parents_in_map' => array_keys($instanceIdToDbIdMap)
                 ]);
             }
         }
@@ -416,7 +413,26 @@ private function normalizeStyleData($componentData)
                        ->where('frame_id', $frame->id)
                        ->delete();
 
-        // 🔥 DEBUG: Log what we received
+        // 🔥 DEBUG: Log what we received + check for numeric parent IDs
+        $numericParentIds = [];
+        foreach ($validated['components'] as $c) {
+            if (isset($c['parentId']) && is_numeric($c['parentId'])) {
+                $numericParentIds[] = [
+                    'component' => $c['id'],
+                    'name' => $c['name'],
+                    'parentId' => $c['parentId'],
+                    'type' => gettype($c['parentId'])
+                ];
+            }
+        }
+        
+        if (!empty($numericParentIds)) {
+            \Log::error('🚨 FRONTEND BUG: Numeric parent IDs detected (should be strings):', [
+                'count' => count($numericParentIds),
+                'examples' => $numericParentIds
+            ]);
+        }
+        
         \Log::info('📥 Received components for save:', [
             'total' => count($validated['components']),
             'components' => array_map(function($c) {
@@ -424,6 +440,7 @@ private function normalizeStyleData($componentData)
                     'id' => $c['id'],
                     'name' => $c['name'],
                     'parentId' => $c['parentId'] ?? null,
+                    'parentId_type' => isset($c['parentId']) ? gettype($c['parentId']) : 'null',
                     'has_children' => isset($c['children']) && count($c['children']) > 0
                 ];
             }, $validated['components'])

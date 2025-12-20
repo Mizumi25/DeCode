@@ -404,6 +404,7 @@ const commonProps = {
   onPropertyChange: handlePropertyChange,
   expandedSections,
   setExpandedSections,
+  selectedComponent, // 🔥 NEW: For animation config
   selectedComponentData,
   searchTerm: activeSearchTerm,
   styleFramework: styleFramework // Pass style framework for CSS variable selector

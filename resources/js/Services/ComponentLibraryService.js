@@ -2186,6 +2186,64 @@ ${desktopCssProperties}
   
   allComponents.forEach(comp => generateComponentCSS(comp));
   
+  // 🎬 NEW: Generate CSS keyframes for animations
+  const generateAnimationKeyframes = (component) => {
+    if (component.props?.animation?.enabled && component.props.animation.type === 'css') {
+      const preset = component.props.animation.css?.preset || 'fadeIn';
+      const animationName = `${preset}-${component.id}`;
+      
+      // Keyframe definitions
+      const keyframesMap = {
+        fadeIn: { from: 'opacity: 0;', to: 'opacity: 1;' },
+        fadeOut: { from: 'opacity: 1;', to: 'opacity: 0;' },
+        slideUp: { from: 'opacity: 0; transform: translateY(30px);', to: 'opacity: 1; transform: translateY(0);' },
+        slideDown: { from: 'opacity: 0; transform: translateY(-30px);', to: 'opacity: 1; transform: translateY(0);' },
+        slideLeft: { from: 'opacity: 0; transform: translateX(30px);', to: 'opacity: 1; transform: translateX(0);' },
+        slideRight: { from: 'opacity: 0; transform: translateX(-30px);', to: 'opacity: 1; transform: translateX(0);' },
+        scale: { from: 'opacity: 0; transform: scale(0.8);', to: 'opacity: 1; transform: scale(1);' },
+        rotate: { from: 'opacity: 0; transform: rotate(-10deg);', to: 'opacity: 1; transform: rotate(0deg);' },
+        bounce: { '0%, 100%': 'transform: translateY(0);', '50%': 'transform: translateY(-20px);' },
+        pulse: { '0%, 100%': 'opacity: 1;', '50%': 'opacity: 0.5;' },
+        shake: { '0%, 100%': 'transform: translateX(0);', '25%': 'transform: translateX(-10px);', '75%': 'transform: translateX(10px);' },
+        flip: { from: 'transform: perspective(400px) rotateY(90deg); opacity: 0;', to: 'transform: perspective(400px) rotateY(0); opacity: 1;' }
+      };
+      
+      const keyframes = keyframesMap[preset] || keyframesMap.fadeIn;
+      
+      let keyframeCSS = `@keyframes ${animationName} {\n`;
+      Object.entries(keyframes).forEach(([key, value]) => {
+        keyframeCSS += `  ${key} {\n    ${value}\n  }\n`;
+      });
+      keyframeCSS += `}`;
+      
+      cssRules.push(keyframeCSS);
+      
+      // Add animation class
+      const className = this.generateCSSClassName(component);
+      const duration = component.props.animation.css?.duration || 0.5;
+      const delay = component.props.animation.css?.delay || 0;
+      const easing = component.props.animation.css?.easing || 'ease-in-out';
+      const iterations = component.props.animation.css?.iterations || 1;
+      const fillMode = component.props.animation.css?.fillMode || 'both';
+      
+      cssRules.push(`.${className} {
+  animation-name: ${animationName};
+  animation-duration: ${duration}s;
+  animation-delay: ${delay}s;
+  animation-timing-function: ${easing};
+  animation-iteration-count: ${iterations};
+  animation-fill-mode: ${fillMode};
+}`);
+    }
+    
+    // Recursively process children
+    if (component.children) {
+      component.children.forEach(child => generateAnimationKeyframes(child));
+    }
+  };
+  
+  allComponents.forEach(comp => generateAnimationKeyframes(comp));
+  
   return cssRules.join('\n\n');
 }
 

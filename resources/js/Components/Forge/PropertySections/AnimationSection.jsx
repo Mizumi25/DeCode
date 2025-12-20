@@ -1,10 +1,224 @@
-import React from 'react';
-import { RotateCw, Play, Zap, TrendingUp, Activity } from 'lucide-react';
+import React, { useState } from 'react';
+import { RotateCw, Play, Zap, TrendingUp, Activity, Eye, MousePointer, Scroll, Clock } from 'lucide-react';
 import { PropertySection, InputField, SubsectionHeader, ButtonGrid } from '../PropertyUtils';
 
-const AnimationSection = ({ currentStyles, currentAnimation, onPropertyChange, expandedSections, setExpandedSections }) => {
+// 🎬 CSS Animation Presets
+const CSS_ANIMATION_PRESETS = {
+  'fadeIn': 'Fade In',
+  'fadeOut': 'Fade Out', 
+  'slideUp': 'Slide Up',
+  'slideDown': 'Slide Down',
+  'slideLeft': 'Slide Left',
+  'slideRight': 'Slide Right',
+  'scale': 'Scale In',
+  'rotate': 'Rotate In',
+  'bounce': 'Bounce',
+  'pulse': 'Pulse',
+  'shake': 'Shake',
+  'flip': 'Flip'
+};
+
+const ANIMATION_TRIGGERS = {
+  'onLoad': { label: 'On Load', icon: Clock, desc: 'Play when page loads' },
+  'onScroll': { label: 'On Scroll', icon: Scroll, desc: 'Play when scrolled into view' },
+  'onClick': { label: 'On Click', icon: MousePointer, desc: 'Play when clicked' },
+  'onHover': { label: 'On Hover', icon: Eye, desc: 'Play when hovered' }
+};
+
+const AnimationSection = ({ currentStyles, currentAnimation, onPropertyChange, expandedSections, setExpandedSections, selectedComponent }) => {
+  // Get animation config from component props
+  const animationConfig = selectedComponent?.props?.animation || {
+    enabled: false,
+    type: 'css',
+    trigger: 'onLoad',
+    css: {
+      preset: 'fadeIn',
+      duration: 0.5,
+      delay: 0,
+      easing: 'ease-in-out',
+      iterations: 1,
+      direction: 'normal',
+      fillMode: 'both'
+    },
+    scrollConfig: {
+      threshold: 0.2,
+      once: true
+    }
+  };
+  
+  const updateAnimation = (key, value) => {
+    const newAnimation = { ...animationConfig, [key]: value };
+    onPropertyChange('animation', newAnimation, 'props');
+  };
+  
+  const updateCSSConfig = (key, value) => {
+    const newCSSConfig = { ...animationConfig.css, [key]: value };
+    updateAnimation('css', newCSSConfig);
+  };
+  
+  const updateScrollConfig = (key, value) => {
+    const newScrollConfig = { ...animationConfig.scrollConfig, [key]: value };
+    updateAnimation('scrollConfig', newScrollConfig);
+  };
+  
   return (
     <>
+      {/* CSS ANIMATIONS - NEW! */}
+      <PropertySection
+        title="CSS Animations"
+        Icon={Play}
+        sectionKey="animations"
+        expandedSections={expandedSections}
+        setExpandedSections={setExpandedSections}
+      >
+        {/* Enable Toggle */}
+        <div className="mb-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={animationConfig.enabled}
+              onChange={(e) => updateAnimation('enabled', e.target.checked)}
+              className="w-4 h-4 rounded"
+              style={{
+                accentColor: 'var(--color-primary)'
+              }}
+            />
+            <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+              Enable Animations
+            </span>
+          </label>
+        </div>
+        
+        {animationConfig.enabled && (
+          <>
+            {/* Animation Trigger */}
+            <div className="mb-4">
+              <SubsectionHeader title="When to Play" />
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(ANIMATION_TRIGGERS).map(([key, { label, icon: Icon, desc }]) => (
+                  <button
+                    key={key}
+                    onClick={() => updateAnimation('trigger', key)}
+                    className="p-3 rounded-lg border-2 text-left transition-all"
+                    style={{
+                      backgroundColor: animationConfig.trigger === key ? 'var(--color-primary-soft)' : 'var(--color-surface)',
+                      borderColor: animationConfig.trigger === key ? 'var(--color-primary)' : 'var(--color-border)',
+                      color: animationConfig.trigger === key ? 'var(--color-primary)' : 'var(--color-text)'
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Icon size={16} />
+                      <span className="text-sm font-medium">{label}</span>
+                    </div>
+                    <p className="text-xs opacity-70">{desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* Animation Preset */}
+            <div className="mb-4">
+              <SubsectionHeader title="Animation Style" />
+              <select
+                value={animationConfig.css?.preset || 'fadeIn'}
+                onChange={(e) => updateCSSConfig('preset', e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border"
+                style={{
+                  backgroundColor: 'var(--color-bg)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)'
+                }}
+              >
+                {Object.entries(CSS_ANIMATION_PRESETS).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </div>
+            
+            {/* Duration & Delay */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <InputField
+                label="Duration (s)"
+                value={animationConfig.css?.duration || 0.5}
+                onChange={(value) => updateCSSConfig('duration', parseFloat(value))}
+                type="range"
+                options={{ min: 0.1, max: 5, step: 0.1 }}
+              />
+              <InputField
+                label="Delay (s)"
+                value={animationConfig.css?.delay || 0}
+                onChange={(value) => updateCSSConfig('delay', parseFloat(value))}
+                type="range"
+                options={{ min: 0, max: 3, step: 0.1 }}
+              />
+            </div>
+            
+            {/* Easing */}
+            <InputField
+              label="Easing"
+              value={animationConfig.css?.easing || 'ease-in-out'}
+              onChange={(value) => updateCSSConfig('easing', value)}
+              type="select"
+              options={{
+                values: ['linear', 'ease', 'ease-in', 'ease-out', 'ease-in-out', 'cubic-bezier(0.4, 0, 0.2, 1)']
+              }}
+            />
+            
+            {/* Iterations */}
+            <InputField
+              label="Repeat"
+              value={animationConfig.css?.iterations || 1}
+              onChange={(value) => updateCSSConfig('iterations', value === 'infinite' ? 'infinite' : parseInt(value))}
+              type="select"
+              options={{
+                values: ['1', '2', '3', '5', '10', 'infinite']
+              }}
+            />
+            
+            {/* Scroll Config (if trigger is onScroll) */}
+            {animationConfig.trigger === 'onScroll' && (
+              <div className="mt-4 p-3 rounded-lg" style={{ backgroundColor: 'var(--color-surface)' }}>
+                <SubsectionHeader title="Scroll Settings" />
+                <InputField
+                  label="Visibility Threshold"
+                  value={animationConfig.scrollConfig?.threshold || 0.2}
+                  onChange={(value) => updateScrollConfig('threshold', parseFloat(value))}
+                  type="range"
+                  options={{ min: 0, max: 1, step: 0.1 }}
+                />
+                <label className="flex items-center gap-2 mt-2">
+                  <input
+                    type="checkbox"
+                    checked={animationConfig.scrollConfig?.once !== false}
+                    onChange={(e) => updateScrollConfig('once', e.target.checked)}
+                    className="w-4 h-4"
+                    style={{ accentColor: 'var(--color-primary)' }}
+                  />
+                  <span className="text-sm" style={{ color: 'var(--color-text)' }}>
+                    Play only once
+                  </span>
+                </label>
+              </div>
+            )}
+            
+            {/* Preview Button */}
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('openPreview'))}
+              className="w-full mt-4 py-2 px-4 rounded-lg font-medium transition-colors"
+              style={{
+                backgroundColor: 'var(--color-primary)',
+                color: 'white'
+              }}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <Eye size={16} />
+                <span>Preview Animation</span>
+              </div>
+            </button>
+          </>
+        )}
+      </PropertySection>
+      
       {/* TRANSFORMS - 2D & 3D */}
       <PropertySection
         title="Transforms (2D & 3D)"

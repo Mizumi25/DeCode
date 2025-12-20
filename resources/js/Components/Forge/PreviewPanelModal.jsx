@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Monitor, Tablet, Smartphone, Loader2 } from 'lucide-react';
 import WindowPanel from '@/Components/WindowPanel';
 import { useForgeStore } from '@/stores/useForgeStore';
+import AnimatedComponent, { generatePreviewKeyframes } from './AnimatedComponent';
 
 export default function PreviewPanelModal({ 
   canvasComponents, 
@@ -19,6 +20,25 @@ export default function PreviewPanelModal({
     const timer = setTimeout(() => setIsLoading(false), 500);
     return () => clearTimeout(timer);
   }, [canvasComponents]);
+  
+  // 🎬 Generate CSS keyframes for all animated components
+  const keyframesCSS = generatePreviewKeyframes(canvasComponents);
+  
+  // 🎬 Render component with animation wrapper
+  const renderAnimatedComponent = (component) => {
+    const renderedComponent = componentLibraryService.renderUnified(component, component.id);
+    
+    // Wrap with AnimatedComponent if animations are enabled
+    if (component.props?.animation?.enabled) {
+      return (
+        <AnimatedComponent key={component.id} component={component} isPreview={true}>
+          {renderedComponent}
+        </AnimatedComponent>
+      );
+    }
+    
+    return renderedComponent;
+  };
   
   const getPreviewDimensions = () => {
     switch (previewPanelResponsiveMode) {
@@ -94,12 +114,15 @@ export default function PreviewPanelModal({
                 <Loader2 className="w-8 h-8 animate-spin text-[var(--color-primary)]" />
               </div>
             ) : (
-              canvasComponents.map((component) => 
-                componentLibraryService.renderUnified(
-                  component,
-                  component.id
-                )
-              )
+              <>
+                {/* 🎬 Inject CSS Keyframes */}
+                {keyframesCSS.length > 0 && (
+                  <style>{keyframesCSS.join('\n\n')}</style>
+                )}
+                
+                {/* Render components with animations */}
+                {canvasComponents.map(renderAnimatedComponent)}
+              </>
             )}
           </div>
         </div>
