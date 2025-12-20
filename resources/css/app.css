@@ -1,6 +1,7 @@
 
 
-
+/* 🎨 Glassy Minimalist Property Panel - Framer-inspired */
+@import './glassy-property-panel.css';
 
 :root {
   /* === Base Colors === */
@@ -289,9 +290,6 @@ main, .main-content {
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* 🎨 Glassy Minimalist Property Panel - Framer-inspired */
-@import './glassy-property-panel.css';
 
 /* Publish Lottie Animation Color Override */
 .publish-lottie svg path,

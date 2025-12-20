@@ -97,6 +97,12 @@ Route::middleware('auth')->group(function () {
     
     // Asset upload via web (CSRF protected)
     Route::post('/assets/upload', [AssetController::class, 'upload'])->name('assets.upload')->middleware('auth');
+    
+    // Source page - get project files (frame-scoped)
+    Route::get('/projects/{project:uuid}/files', [SourceController::class, 'getProjectFiles'])->name('source.files');
+    
+    // Void page - get ALL project files (read-only overview)
+    Route::get('/projects/{project:uuid}/files/all', [SourceController::class, 'getAllProjectFiles'])->name('project.files.all');
 
     // Publish route (Inertia post)
     Route::post('/project/publish', [ProjectController::class, 'publish'])->name('project.publish')->middleware('auth');

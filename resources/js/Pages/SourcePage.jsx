@@ -70,6 +70,10 @@ export default function SourcePage({ projectId, frameId, frame }) {
   
   const [editorValue, setEditorValue] = useState('');
   
+  // 🔥 NEW: Tab management for files
+  const [openTabs, setOpenTabs] = useState([]);
+  const [activeTab, setActiveTab] = useState(null);
+  
   const { props } = usePage();
   const { auth } = props;
 
@@ -207,6 +211,53 @@ export default function SourcePage({ projectId, frameId, frame }) {
     )
   });
 
+  // 🔥 NEW: Handle file click from ExplorerPanel
+  const handleFileClick = useCallback((file) => {
+    console.log('SourcePage: File clicked:', file);
+    
+    // Check if tab is already open
+    const existingTab = openTabs.find(tab => tab.path === file.path);
+    
+    if (existingTab) {
+      // Switch to existing tab
+      setActiveTab(file.path);
+    } else {
+      // Open new tab
+      const newTab = {
+        path: file.path,
+        name: file.name,
+        content: file.content,
+        extension: file.extension,
+        isFrame: file.isFrame || false,
+        frameId: file.frameId || null
+      };
+      
+      setOpenTabs(prev => [...prev, newTab]);
+      setActiveTab(file.path);
+    }
+  }, [openTabs]);
+  
+  // 🔥 NEW: Handle tab close
+  const handleTabClose = useCallback((tabPath) => {
+    setOpenTabs(prev => {
+      const newTabs = prev.filter(tab => tab.path !== tabPath);
+      
+      // If closing active tab, switch to another tab
+      if (activeTab === tabPath && newTabs.length > 0) {
+        const closingIndex = prev.findIndex(tab => tab.path === tabPath);
+        const newActiveIndex = closingIndex > 0 ? closingIndex - 1 : 0;
+        setActiveTab(newTabs[newActiveIndex].path);
+      } else if (newTabs.length === 0) {
+        setActiveTab(null);
+      }
+      
+      return newTabs;
+    });
+  }, [activeTab]);
+  
+  // Get active file content
+  const activeFile = openTabs.find(tab => tab.path === activeTab);
+
   // Memoize left panels with actual components  
   const leftPanels = useMemo(() => {
     const panels = [];
@@ -214,13 +265,13 @@ export default function SourcePage({ projectId, frameId, frame }) {
     // Explorer panel (always visible unless all hidden) - This IS the layers panel
     if (isSourcePanelOpen('explorer-panel')) {
       panels.push(createSourcePanel('explorer-panel', 'EXPLORER', 
-        ExplorerPanel ? <ExplorerPanel /> : null
+        ExplorerPanel ? <ExplorerPanel onFileClick={handleFileClick} /> : null
       ));
     }
 
     console.log(`SourcePage: Left panels: ${panels.map(p => p.id).join(', ')}`);
     return panels;
-  }, [isSourcePanelOpen, ExplorerPanel, _sourceTriggerUpdate]);
+  }, [isSourcePanelOpen, ExplorerPanel, _sourceTriggerUpdate, handleFileClick]);
 
   // Memoize right panels
   const rightPanels = useMemo(() => {
@@ -330,10 +381,18 @@ export default function SourcePage({ projectId, frameId, frame }) {
 
         {/* Main Code Editor Area - Takes full available space */}
         <div className="flex-1 flex flex-col min-w-0 relative">
-          {/* Code Editor */}
-          <div className="flex-1 min-h-0">
+          {/* Code Editor with Tabs */}
+          <div className="flex-1 min-h-0 flex flex-col">
             {CodeEditor ? (
-              <CodeEditor />
+              <CodeEditor 
+                openTabs={openTabs}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                onTabClose={handleTabClose}
+                fileContent={activeFile?.content || ''}
+                fileName={activeFile?.name || ''}
+                fileExtension={activeFile?.extension || 'jsx'}
+              />
             ) : (
               <div className="h-full flex items-center justify-center bg-[var(--color-bg-muted)]">
                 <div className="text-center">
@@ -341,12 +400,11 @@ export default function SourcePage({ projectId, frameId, frame }) {
                     Code Editor
                   </h2>
                   <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                    Mock code editor area
+                    Select a file to view its contents
                   </div>
                   <div className="text-xs mt-4 space-y-1" style={{ color: 'var(--color-text-muted)' }}>
-                    <div>Project: {projectId || 'No project'}</div>
-                    <div>Frame: {frameId || 'No frame'}</div>
-                    <div>Explorer/Layers panel: {isSourcePanelOpen('explorer-panel') ? 'Open' : 'Closed'}</div>
+                    <div>Open tabs: {openTabs.length}</div>
+                    <div>Active: {activeTab || 'None'}</div>
                   </div>
                 </div>
               </div>
