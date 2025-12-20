@@ -18,6 +18,86 @@ import CanvasSettingsDropdown from './CanvasSettingsDropdown';
 import { useCanvasOverlayStore } from '@/stores/useCanvasOverlayStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 🎯 SMART PROPERTY PRIORITIZATION SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+const PROPERTY_RELEVANCE = {
+  // Text Elements - Typography is king
+  'h1': { typography: 'high', styling: 'high', layout: 'medium', animation: 'low', responsive: 'medium', interactions: 'low', custom: 'low' },
+  'h2': { typography: 'high', styling: 'high', layout: 'medium', animation: 'low', responsive: 'medium', interactions: 'low', custom: 'low' },
+  'h3': { typography: 'high', styling: 'high', layout: 'medium', animation: 'low', responsive: 'medium', interactions: 'low', custom: 'low' },
+  'h4': { typography: 'high', styling: 'high', layout: 'medium', animation: 'low', responsive: 'medium', interactions: 'low', custom: 'low' },
+  'h5': { typography: 'high', styling: 'high', layout: 'medium', animation: 'low', responsive: 'medium', interactions: 'low', custom: 'low' },
+  'h6': { typography: 'high', styling: 'high', layout: 'medium', animation: 'low', responsive: 'medium', interactions: 'low', custom: 'low' },
+  'p': { typography: 'high', styling: 'medium', layout: 'medium', animation: 'low', responsive: 'medium', interactions: 'low', custom: 'low' },
+  'span': { typography: 'high', styling: 'medium', layout: 'low', animation: 'low', responsive: 'low', interactions: 'low', custom: 'low' },
+  'strong': { typography: 'high', styling: 'medium', layout: 'low', animation: 'low', responsive: 'low', interactions: 'low', custom: 'low' },
+  'em': { typography: 'high', styling: 'medium', layout: 'low', animation: 'low', responsive: 'low', interactions: 'low', custom: 'low' },
+  'small': { typography: 'high', styling: 'medium', layout: 'low', animation: 'low', responsive: 'low', interactions: 'low', custom: 'low' },
+  'label': { typography: 'high', styling: 'medium', layout: 'medium', animation: 'low', responsive: 'low', interactions: 'low', custom: 'low' },
+  'blockquote': { typography: 'high', styling: 'high', layout: 'medium', animation: 'low', responsive: 'medium', interactions: 'low', custom: 'low' },
+  'text-node': { typography: 'high', styling: 'low', layout: 'low', animation: 'low', responsive: 'low', interactions: 'low', custom: 'low' },
+  
+  // Layout Containers - Layout + Styling
+  'div': { layout: 'high', styling: 'high', typography: 'low', animation: 'medium', responsive: 'high', interactions: 'medium', custom: 'medium' },
+  'section': { layout: 'high', styling: 'high', typography: 'low', animation: 'medium', responsive: 'high', interactions: 'medium', custom: 'medium' },
+  'article': { layout: 'high', styling: 'high', typography: 'low', animation: 'medium', responsive: 'high', interactions: 'medium', custom: 'medium' },
+  'main': { layout: 'high', styling: 'high', typography: 'low', animation: 'low', responsive: 'high', interactions: 'low', custom: 'medium' },
+  'aside': { layout: 'high', styling: 'high', typography: 'low', animation: 'medium', responsive: 'high', interactions: 'low', custom: 'medium' },
+  'header': { layout: 'high', styling: 'high', typography: 'low', animation: 'low', responsive: 'high', interactions: 'low', custom: 'medium' },
+  'footer': { layout: 'high', styling: 'high', typography: 'low', animation: 'low', responsive: 'high', interactions: 'low', custom: 'medium' },
+  'nav': { layout: 'high', styling: 'high', typography: 'low', animation: 'medium', responsive: 'high', interactions: 'medium', custom: 'medium' },
+  
+  // Interactive Elements - Interactions + Styling
+  'button': { styling: 'high', typography: 'high', layout: 'medium', animation: 'medium', interactions: 'high', responsive: 'medium', custom: 'medium' },
+  'link': { styling: 'high', typography: 'high', layout: 'low', animation: 'medium', interactions: 'high', responsive: 'low', custom: 'medium' },
+  'a': { styling: 'high', typography: 'high', layout: 'low', animation: 'medium', interactions: 'high', responsive: 'low', custom: 'medium' },
+  
+  // Form Elements
+  'input': { styling: 'high', layout: 'medium', typography: 'medium', animation: 'low', interactions: 'high', responsive: 'medium', custom: 'high' },
+  'textarea': { styling: 'high', layout: 'medium', typography: 'medium', animation: 'low', interactions: 'medium', responsive: 'medium', custom: 'high' },
+  'select': { styling: 'high', layout: 'medium', typography: 'medium', animation: 'low', interactions: 'high', responsive: 'medium', custom: 'high' },
+  'form': { layout: 'high', styling: 'medium', typography: 'low', animation: 'low', interactions: 'medium', responsive: 'high', custom: 'high' },
+  'checkbox': { styling: 'high', layout: 'low', typography: 'low', animation: 'low', interactions: 'high', responsive: 'low', custom: 'medium' },
+  'radio': { styling: 'high', layout: 'low', typography: 'low', animation: 'low', interactions: 'high', responsive: 'low', custom: 'medium' },
+  
+  // Icons & Media
+  'icon': { styling: 'high', layout: 'medium', typography: 'low', animation: 'medium', interactions: 'low', responsive: 'medium', custom: 'low' },
+  'icon-element': { styling: 'high', layout: 'medium', typography: 'low', animation: 'medium', interactions: 'low', responsive: 'medium', custom: 'low' },
+  'svg': { styling: 'high', layout: 'medium', typography: 'low', animation: 'medium', interactions: 'low', responsive: 'medium', custom: 'medium' },
+  'image': { styling: 'high', layout: 'medium', typography: 'low', animation: 'medium', interactions: 'low', responsive: 'high', custom: 'low' },
+  'video': { styling: 'medium', layout: 'medium', typography: 'low', animation: 'low', interactions: 'medium', responsive: 'high', custom: 'medium' },
+  'audio': { styling: 'medium', layout: 'low', typography: 'low', animation: 'low', interactions: 'medium', responsive: 'low', custom: 'medium' },
+  
+  // Lists
+  'ul': { layout: 'high', styling: 'high', typography: 'medium', animation: 'low', responsive: 'medium', interactions: 'low', custom: 'medium' },
+  'ol': { layout: 'high', styling: 'high', typography: 'medium', animation: 'low', responsive: 'medium', interactions: 'low', custom: 'medium' },
+  'li': { typography: 'high', styling: 'medium', layout: 'medium', animation: 'low', responsive: 'low', interactions: 'low', custom: 'low' },
+  
+  // Special
+  'canvas_root': { layout: 'high', styling: 'high', typography: 'low', animation: 'low', responsive: 'high', interactions: 'low', custom: 'medium' },
+  'frame-component-instance': { layout: 'high', styling: 'low', typography: 'low', animation: 'low', interactions: 'low', responsive: 'low', custom: 'low' },
+  
+  // Default fallback for unknown types
+  'default': { layout: 'medium', styling: 'medium', typography: 'low', animation: 'low', responsive: 'medium', interactions: 'low', custom: 'low' }
+};
+
+// Helper: Get smart expansion defaults based on component type
+const getSmartExpansionDefaults = (componentType) => {
+  const relevance = PROPERTY_RELEVANCE[componentType] || PROPERTY_RELEVANCE['default'];
+  
+  return {
+    layout: relevance.layout === 'high',
+    typography: relevance.typography === 'high',
+    styling: relevance.styling === 'high',
+    animation: relevance.animation === 'high',
+    responsive: relevance.responsive === 'high',
+    interactions: relevance.interactions === 'high',
+    custom: relevance.custom === 'high',
+    debugInfo: false
+  };
+};
+
 // IN PropertiesPanel.jsx - at the TOP of the component:
 const PropertiesPanel = (allProps) => {
   console.log('🎯 ALL PROPS RECEIVED:', Object.keys(allProps));
@@ -122,16 +202,19 @@ const selectedComponentData = (() => {
   
   
   
-  const [expandedSections, setExpandedSections] = useState({
-    layout: true,
-    typography: false,
-    styling: false,
-    animation: false,
-    responsive: false,
-    interactions: false,
-    custom: false,
-    debugInfo: false  // Add debug section collapsed by default
-  });
+  // 🔥 SMART: Initialize with defaults based on component type
+  const [expandedSections, setExpandedSections] = useState(() => 
+    getSmartExpansionDefaults(selectedComponentData?.type || 'default')
+  );
+  
+  // 🔥 NEW: Update expansion when component type changes
+  useEffect(() => {
+    if (selectedComponentData?.type) {
+      const smartDefaults = getSmartExpansionDefaults(selectedComponentData.type);
+      setExpandedSections(smartDefaults);
+      console.log('🎯 Smart expansion for', selectedComponentData.type, smartDefaults);
+    }
+  }, [selectedComponentData?.type]);
   
   const [internalSearchTerm, setInternalSearchTerm] = useState('');
   const activeSearchTerm = externalSearchTerm || internalSearchTerm;
@@ -894,7 +977,7 @@ return (
           </div>
         )}
         
-        {/* 🔥 TEXT CONTENT INPUTS - FIXED with direct text_content field */}
+        {/* 🔥 TEXT CONTENT EDITOR - Always prioritized, consistent styling */}
         {(() => {
           const textElements = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 'em', 
               'small', 'label', 'blockquote', 'button', 'link', 'text-node'];
@@ -905,18 +988,28 @@ return (
           if (!canHaveText || isFrameInstance) return null;
           
           return (
-            <div className="p-4 mb-4 bg-blue-50 border-2 border-blue-300 rounded-lg space-y-4">
+            <div className="p-4 mb-4 rounded-xl border-2 space-y-4" style={{
+              backgroundColor: 'var(--color-surface)',
+              borderColor: 'var(--color-primary)',
+              boxShadow: '0 4px 12px var(--color-primary-soft)'
+            }}>
               <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold text-blue-900">Text Content Editor</h4>
-                <span className="text-xs px-2 py-1 bg-blue-200 text-blue-800 rounded">
+                <h4 className="font-semibold flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></span>
+                  Text Content
+                </h4>
+                <span className="text-xs px-2 py-1 rounded-full font-medium"
+                  style={{ 
+                    backgroundColor: 'var(--color-primary-soft)',
+                    color: 'var(--color-primary)'
+                  }}>
                   {selectedComponentData.type}
                 </span>
               </div>
               
-              <div className="bg-white p-3 rounded border border-blue-200">
-                <label className="block text-sm font-medium text-blue-900 mb-2 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                  Text Content
+              <div className="space-y-2">
+                <label className="block text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+                  Enter your text content
                 </label>
                 <textarea
                   value={selectedComponentData?.text_content || selectedComponentData?.props?.content || selectedComponentData?.props?.text || ''}
@@ -927,14 +1020,20 @@ return (
                     // Also update props.content for compatibility
                     handlePropertyChange('content', value, 'props');
                   }}
-                  className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm font-mono"
                   placeholder="Enter text content..."
                   rows={4}
                   style={{
-                    backgroundColor: 'var(--color-surface)',
+                    backgroundColor: 'var(--color-bg)',
+                    borderColor: 'var(--color-border)',
                     color: 'var(--color-text)'
                   }}
+                  onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
+                  onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
                 />
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  💡 This text will be rendered in your {selectedComponentData.type} element
+                </p>
               </div>
             </div>
           );
