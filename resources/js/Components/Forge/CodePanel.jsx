@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import reverseCodeParserService from '../../Services/ReverseCodeParserService.js';
 import useCodePanelStore from '@/stores/useCodePanelStore';
+import { defineMinimalistTheme, setMinimalistTheme } from '@/utils/monacoTheme';
 
 const CodePanel = ({ 
   showTooltips,
@@ -43,7 +44,7 @@ const CodePanel = ({
   onHighlightComponent = null, // Callback to highlight component in canvas
   reverseParsingEnabled = true // Enable/disable reverse parsing
 }) => {
-  const [editorTheme, setEditorTheme] = useState('vs-dark');
+  const [editorTheme, setEditorTheme] = useState('minimalist-dark');
   const [fontSize, setFontSize] = useState(isMobile ? 16 : 14); // 🔥 FIX: 16px minimum for mobile
   const [wordWrap, setWordWrap] = useState('on'); // Enable word wrap by default on mobile
   const [minimap, setMinimap] = useState(!isMobile); // Disable minimap on mobile
@@ -221,33 +222,26 @@ const CodePanel = ({
       setupReverseParsingTracking(editor, monaco);
     }
     
-    // Configure themes
-    monaco.editor.defineTheme('mobile-dark', {
-      base: 'vs-dark',
-      inherit: true,
-      rules: [
-        { token: 'comment', foreground: '6a737d', fontStyle: 'italic' },
-        { token: 'string', foreground: '9ecbff' },
-        { token: 'number', foreground: '79b8ff' },
-        { token: 'keyword', foreground: 'f97583' },
-        { token: 'operator', foreground: 'f97583' },
-        { token: 'type', foreground: 'b392f0' },
-        { token: 'function', foreground: 'b392f0' },
-        { token: 'variable', foreground: 'e1e4e8' }
-      ],
-      colors: {
-        'editor.background': '#1a1a1a',
-        'editor.foreground': '#e1e4e8',
-        'editor.lineHighlightBackground': '#2a2a2a',
-        'editor.selectionBackground': '#3a3a3a',
-        'editorCursor.foreground': '#e1e4e8',
-        'editorWhitespace.foreground': '#484f58'
-      }
-    });
-
-    // Set theme based on device
-    const theme = isMobile ? 'mobile-dark' : editorTheme;
-    monaco.editor.setTheme(theme);
+    // 🎨 Configure beautiful minimalist themes
+    console.log('%c🎨 MINIMALIST THEME LOADING...', 'background: #f472b6; color: white; font-size: 20px; padding: 10px; font-weight: bold;');
+    
+    try {
+      defineMinimalistTheme(monaco);
+      console.log('%c✅ Theme defined successfully!', 'background: #10b981; color: white; font-size: 16px; padding: 5px;');
+    } catch (error) {
+      console.error('%c❌ Theme definition failed:', 'background: #ef4444; color: white; font-size: 16px; padding: 5px;', error);
+    }
+    
+    // Set theme based on device and preference
+    const isDark = editorTheme === 'vs-dark' || editorTheme === 'mobile-dark' || editorTheme === 'minimalist-dark';
+    const theme = isMobile ? 'minimalist-dark' : (isDark ? 'minimalist-dark' : 'minimalist-light');
+    
+    try {
+      monaco.editor.setTheme(theme);
+      console.log('%c✨ Theme applied: ' + theme, 'background: #a855f7; color: white; font-size: 16px; padding: 5px;');
+    } catch (error) {
+      console.error('%c❌ Theme application failed:', 'background: #ef4444; color: white; font-size: 16px; padding: 5px;', error);
+    }
 
     // 🔥 NEW: Set up error detection
     editor.onDidChangeMarkers(() => {
@@ -713,7 +707,13 @@ const CodePanel = ({
               </label>
               <select
                 value={editorTheme}
-                onChange={(e) => setEditorTheme(e.target.value)}
+                onChange={(e) => {
+                  const newTheme = e.target.value;
+                  setEditorTheme(newTheme);
+                  if (monacoRef.current) {
+                    monacoRef.current.editor.setTheme(newTheme);
+                  }
+                }}
                 className="w-full px-3 py-2 rounded border text-sm"
                 style={{ 
                   backgroundColor: 'var(--color-surface)', 
@@ -721,9 +721,10 @@ const CodePanel = ({
                   color: 'var(--color-text)'
                 }}
               >
-                <option value="vs-dark">Dark</option>
-                <option value="vs">Light</option>
-                <option value="mobile-dark">Mobile Dark</option>
+                <option value="minimalist-dark">Minimalist Dark ✨</option>
+                <option value="minimalist-light">Minimalist Light ✨</option>
+                <option value="vs-dark">VS Dark</option>
+                <option value="vs">VS Light</option>
               </select>
             </div>
 
@@ -886,7 +887,7 @@ const CodePanel = ({
                 width="100%"
                 language={getLanguage(activeCodeTab)}
                 value={addImportsToCode(generatedCode[activeCodeTab] || '', activeCodeTab)}
-                theme={isMobile ? 'mobile-dark' : editorTheme}
+                theme={isMobile ? 'minimalist-dark' : (editorTheme || 'minimalist-dark')}
                 options={editorOptions}
                 onMount={handleEditorDidMount}
                 onChange={handleEditorChange}

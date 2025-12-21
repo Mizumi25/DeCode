@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { FileText, Code2, Settings, Plus, X, File } from 'lucide-react';
 import Editor, { useMonaco } from '@monaco-editor/react';
 import { useCodeSyncStore } from '@/stores/useCodeSyncStore';
+import { defineMinimalistTheme, setMinimalistTheme } from '@/utils/monacoTheme';
 
 // File icon mapping
 const getFileIcon = (fileName, extension) => {
@@ -31,7 +32,7 @@ export default function CodeEditor({
 }) {
   const monaco = useMonaco();
   const editorRef = useRef(null);
-  const [theme, setTheme] = useState('decode-theme');
+  const [theme, setTheme] = useState('minimalist-dark');
 
   const [localValue, setLocalValue] = useState('');
   const [cursorPosition, setCursorPosition] = useState({ lineNumber: 1, column: 1 });
@@ -51,32 +52,31 @@ export default function CodeEditor({
   const getCSSVar = (name) =>
     getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-  // Define custom theme from CSS variables
+  // 🎨 Define beautiful minimalist theme
   const defineDecodeTheme = () => {
     if (monaco) {
-      const surface = getCSSVar('--color-surface');
-      const text = getCSSVar('--color-text');
-      const primary = getCSSVar('--color-primary');
-      const muted = getCSSVar('--color-text-muted');
-
-      monaco.editor.defineTheme('decode-theme', {
-        base: document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs',
-        inherit: true,
-        rules: [
-          { token: '', foreground: text.replace('#', '') },
-          { token: 'comment', foreground: muted.replace('#', '') },
-          { token: 'keyword', foreground: primary.replace('#', '') }
-        ],
-        colors: {
-          'editor.background': surface,
-          'editor.foreground': text,
-          'editorLineNumber.foreground': muted,
-          'editorLineNumber.activeForeground': primary,
-          'editor.selectionBackground': primary + '33',
-          'editorCursor.foreground': primary
-        }
-      });
-      monaco.editor.setTheme('decode-theme');
+      console.log('%c🎨 SOURCE PAGE - MINIMALIST THEME LOADING...', 'background: #06b6d4; color: white; font-size: 20px; padding: 10px; font-weight: bold;');
+      
+      try {
+        // Use the new minimalist theme
+        defineMinimalistTheme(monaco);
+        console.log('%c✅ Theme defined successfully!', 'background: #10b981; color: white; font-size: 16px; padding: 5px;');
+      } catch (error) {
+        console.error('%c❌ Theme definition failed:', 'background: #ef4444; color: white; font-size: 16px; padding: 5px;', error);
+        return;
+      }
+      
+      // Check if dark mode
+      const isDark = document.documentElement.classList.contains('dark');
+      const themeName = isDark ? 'minimalist-dark' : 'minimalist-light';
+      
+      try {
+        monaco.editor.setTheme(themeName);
+        setTheme(themeName);
+        console.log('%c✨ Theme applied: ' + themeName, 'background: #a855f7; color: white; font-size: 16px; padding: 5px;');
+      } catch (error) {
+        console.error('%c❌ Theme application failed:', 'background: #ef4444; color: white; font-size: 16px; padding: 5px;', error);
+      }
     }
   };
 
@@ -86,7 +86,7 @@ export default function CodeEditor({
 
     const updateTheme = () => {
       defineDecodeTheme();
-      setTheme('decode-theme');
+      // Theme is already set inside defineDecodeTheme
     };
 
     // Watch for .dark class changes

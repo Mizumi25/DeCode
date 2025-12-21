@@ -632,6 +632,141 @@ class WorkspaceController extends Controller
       }
   }
 
+    /**
+     * Toggle workspace active status
+     */
+    public function toggleActive(Request $request, Workspace $workspace): JsonResponse
+    {
+        $user = Auth::user();
+        
+        // Only owner can toggle workspace status
+        if ($workspace->owner_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only the workspace owner can toggle workspace status'
+            ], 403);
+        }
+        
+        // Cannot deactivate personal workspace
+        if ($workspace->type === 'personal') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot deactivate personal workspace'
+            ], 400);
+        }
+        
+        $validated = $request->validate([
+            'is_active' => 'required|boolean'
+        ]);
+        
+        $workspace->update(['is_active' => $validated['is_active']]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => $validated['is_active'] ? 'Workspace activated' : 'Workspace deactivated',
+            'workspace' => $workspace
+        ]);
+    }
+
+    /**
+     * Get workspace members with their roles
+     */
+    public function getMembers(Workspace $workspace): JsonResponse
+    {
+        $user = Auth::user();
+        
+        // Check if user has access to this workspace
+        if (!$workspace->hasUser($user->id) && $workspace->owner_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have access to this workspace'
+            ], 403);
+        }
+        
+        $members = $workspace->users()->get()->map(function ($member) use ($workspace) {
+            $pivot = $member->workspaces()->where('workspace_id', $workspace->id)->first()->pivot;
+            
+            return [
+                'id' => $member->id,
+                'name' => $member->name,
+                'email' => $member->email,
+                'avatar' => $member->avatar ?? null,
+                'role' => $pivot->role,
+                'joined_at' => $pivot->joined_at,
+                'discipline' => $pivot->discipline ?? null,
+            ];
+        });
+        
+        return response()->json($members);
+    }
+
+    /**
+     * Update member role
+     */
+    public function updateMemberRole(Request $request, Workspace $workspace, User $user): JsonResponse
+    {
+        $currentUser = Auth::user();
+        
+        // Only owner can change roles
+        if ($workspace->owner_id !== $currentUser->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only the workspace owner can change member roles'
+            ], 403);
+        }
+        
+        // Cannot change owner's role
+        if ($user->id === $workspace->owner_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot change the owner\'s role'
+            ], 400);
+        }
+        
+        $validated = $request->validate([
+            'role' => 'required|in:editor,viewer'
+        ]);
+        
+        $workspace->users()->updateExistingPivot($user->id, [
+            'role' => $validated['role']
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Member role updated successfully'
+        ]);
+    }
+
+    /**
+     * Remove member from workspace
+     */
+    public function removeMember(Workspace $workspace, User $user): JsonResponse
+    {
+        $currentUser = Auth::user();
+        
+        // Only owner can remove members
+        if ($workspace->owner_id !== $currentUser->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only the workspace owner can remove members'
+            ], 403);
+        }
+        
+        // Cannot remove owner
+        if ($user->id === $workspace->owner_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot remove the workspace owner'
+            ], 400);
+        }
+        
+        $workspace->users()->detach($user->id);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Member removed successfully'
+        ]);
+    }
     
     
 }

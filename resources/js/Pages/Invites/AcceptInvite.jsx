@@ -1,6 +1,4 @@
 import React from 'react'
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { Shield, Clock, Building, Users } from 'lucide-react';
 import { motion } from 'framer-motion'
@@ -14,8 +12,6 @@ export default function AcceptInvite({ invite, auth }) {
         post(route('invite.accept', invite.token));
     };
 
-    const Layout = auth.user ? AuthenticatedLayout : GuestLayout;
-
     // simple, consistent motion variants
     const container = {
       hidden: { opacity: 0, y: 8 },
@@ -28,16 +24,16 @@ export default function AcceptInvite({ invite, auth }) {
     }
 
     return (
-        <Layout>
+        <>
             <Head title="Accept Workspace Invitation" />
             
             <div
-              className="min-h-screen"
+              className="min-h-screen flex items-center justify-center"
               style={{
                 background: 'linear-gradient(135deg, var(--color-primary-soft) 0%, var(--color-bg) 45%, rgba(255,255,255,0.6) 55%)',
               }}
             >
-                <motion.div className="flex min-h-screen" initial="hidden" animate="show" variants={container}>
+                <motion.div className="flex w-full max-w-6xl mx-auto" initial="hidden" animate="show" variants={container}>
                     <div className="flex-1 flex flex-col justify-center py-12 px-4 sm:px-6 lg:flex-none lg:px-20 xl:px-24">
                         <div className="mx-auto w-full max-w-md lg:w-96">
                             {/* Header */}
@@ -228,6 +224,6 @@ export default function AcceptInvite({ invite, auth }) {
                     </motion.div>
                 </motion.div>
             </div>
-        </Layout>
+        </>
     );
 }

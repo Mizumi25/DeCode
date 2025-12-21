@@ -211,6 +211,17 @@ Route::put('/{frame:uuid}/canvas-styles', [VoidController::class, 'updateCanvasS
     Route::put('/workspaces/{workspace:uuid}', [WorkspaceController::class, 'update']);
     Route::delete('/workspaces/{workspace:uuid}', [WorkspaceController::class, 'destroy']);
     
+    // Workspace activation/deactivation
+    Route::patch('/workspaces/{workspace:uuid}/toggle-active', [WorkspaceController::class, 'toggleActive']);
+    
+    // Workspace members management
+    Route::get('/workspaces/{workspace:uuid}/members', [WorkspaceController::class, 'getMembers']);
+    Route::patch('/workspaces/{workspace:uuid}/members/{user}/role', [WorkspaceController::class, 'updateMemberRole']);
+    Route::delete('/workspaces/{workspace:uuid}/members/{user}', [WorkspaceController::class, 'removeMember']);
+    
+    // Workspace invites
+    Route::post('/workspaces/{workspace:uuid}/invite', [InviteController::class, 'sendEmailInvite']);
+    
     
   Route::prefix('assets')->group(function () {
         Route::get('/', [AssetController::class, 'index']);

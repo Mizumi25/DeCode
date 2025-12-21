@@ -17,6 +17,7 @@ class Workspace extends Model
         'name',
         'description',
         'type', // personal, team, company
+        'is_active',
         'settings'
     ];
 

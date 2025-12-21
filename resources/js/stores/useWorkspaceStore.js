@@ -389,6 +389,47 @@ const useWorkspaceStore = create(
         return workspace?.owner?.id === userId
       },
 
+      // Toggle workspace active status
+      toggleWorkspaceActive: async (workspaceId, isActive) => {
+        set({ error: null })
+        try {
+          await axios.patch(`/api/workspaces/${workspaceId}/toggle-active`, {
+            is_active: isActive
+          })
+          await get().initializeWorkspaces()
+        } catch (error) {
+          const errorMessage = error.response?.data?.message || error.message || 'Failed to toggle workspace'
+          set({ error: errorMessage })
+          throw new Error(errorMessage)
+        }
+      },
+
+      // Update workspace details
+      updateWorkspace: async (workspaceId, data) => {
+        set({ error: null })
+        try {
+          await axios.put(`/api/workspaces/${workspaceId}`, data)
+          await get().initializeWorkspaces()
+        } catch (error) {
+          const errorMessage = error.response?.data?.message || error.message || 'Failed to update workspace'
+          set({ error: errorMessage })
+          throw new Error(errorMessage)
+        }
+      },
+
+      // Delete workspace
+      deleteWorkspace: async (workspaceId) => {
+        set({ error: null })
+        try {
+          await axios.delete(`/api/workspaces/${workspaceId}`)
+          await get().initializeWorkspaces()
+        } catch (error) {
+          const errorMessage = error.response?.data?.message || error.message || 'Failed to delete workspace'
+          set({ error: errorMessage })
+          throw new Error(errorMessage)
+        }
+      },
+
       // Reset store (for logout)
       reset: () => {
         localStorage.removeItem('currentWorkspaceId')

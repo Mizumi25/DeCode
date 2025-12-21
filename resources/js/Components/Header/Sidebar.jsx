@@ -11,7 +11,8 @@ import {
   Database,
   MessageSquare,
   Eye,
-  Building
+  Building,
+  Briefcase
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { router, usePage } from '@inertiajs/react'
@@ -24,6 +25,7 @@ import AssetManagerPage from '@/Pages/Admin/AssetManagerPage'
 import UserManagementPage from '@/Pages/Admin/UserManagementPage'
 import ProjectOversightPage from '@/Pages/Admin/ProjectOversightPage'
 import CreateWorkspaceModal from '@/Components/Workspaces/CreateWorkspaceModal'
+import WorkspaceManagementModal from '@/Components/Workspaces/WorkspaceManagementModal'
 
 const sidebarItemsTop = [
   { label: 'Account', icon: <User /> },
@@ -32,7 +34,7 @@ const sidebarItemsTop = [
 ]
 
 const sidebarItemsBottom = [
-  { label: 'All', icon: <FolderKanban /> },
+  { label: 'Workspaces', icon: <Briefcase /> },
   { label: 'New Workspace', icon: <FolderPlus /> },
 ]
 
@@ -71,6 +73,7 @@ const Sidebar = ({ isOpen, onClose }) => {
   const [modalText, setModalText] = useState('')
   const [loading, setLoading] = useState(false)
   const [showCreateWorkspaceModal, setShowCreateWorkspaceModal] = useState(false)
+  const [showWorkspaceManagementModal, setShowWorkspaceManagementModal] = useState(false)
 
   const { currentWorkspace } = useWorkspaceStore()
 
@@ -100,8 +103,14 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   const handleItemClick = (label) => {
     if (label === 'New Workspace') {
-      onClose()
+      // Don't close sidebar for workspace modals
       setShowCreateWorkspaceModal(true)
+      return
+    }
+
+    if (label === 'Workspaces') {
+      // Don't close sidebar for workspace modals
+      setShowWorkspaceManagementModal(true)
       return
     }
 
@@ -302,6 +311,12 @@ const Sidebar = ({ isOpen, onClose }) => {
       <CreateWorkspaceModal 
         show={showCreateWorkspaceModal}
         onClose={() => setShowCreateWorkspaceModal(false)}
+      />
+
+      {/* Workspace Management Modal */}
+      <WorkspaceManagementModal 
+        show={showWorkspaceManagementModal}
+        onClose={() => setShowWorkspaceManagementModal(false)}
       />
     </>
   )
