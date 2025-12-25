@@ -50,6 +50,11 @@ const SidebarCodePanel = ({
   const { showCodeStyleTabs, toggleCodeStyleTabs } = useCodePanelStore();
 
   // Monaco Editor configuration
+  const projectCodeStyle = projectFramework && projectStyleFramework
+    ? `${projectFramework}-${projectStyleFramework}`
+    : null;
+  const isReadOnlyCodeStyle = !!projectCodeStyle && codeStyle !== projectCodeStyle;
+
   const editorOptions = {
     fontSize: fontSize,
     wordWrap: wordWrap,
@@ -110,7 +115,7 @@ const SidebarCodePanel = ({
       verticalScrollbarSize: 10,
       horizontalScrollbarSize: 10
     },
-    readOnly: false,
+    readOnly: isReadOnlyCodeStyle,
     selectOnLineNumbers: true,
     roundedSelection: true,
     theme: editorTheme,
@@ -159,6 +164,7 @@ const SidebarCodePanel = ({
 
   // Handle editor change
   const handleEditorChange = (value) => {
+    if (isReadOnlyCodeStyle) return;
     if (handleCodeEdit && value !== undefined) {
       handleCodeEdit(value, activeCodeTab);
     }
@@ -387,18 +393,16 @@ const SidebarCodePanel = ({
                 ? `${projectFramework}-${projectStyleFramework}` 
                 : null;
               const isProjectStyle = option.value === projectCodeStyle;
-              const isDisabled = projectCodeStyle && !isProjectStyle;
+              const isDisabled = false; // Allow switching to any code style; editing is handled via readOnly
               
               return (
                 <button
                   key={option.value}
                   onClick={() => {
-                    if (!isDisabled) {
-                      setCodeStyle(option.value);
-                      generateCode(canvasComponents);
-                    }
+                    setCodeStyle(option.value);
+                    generateCode(canvasComponents);
                   }}
-                  disabled={isDisabled}
+                  disabled={false}
                   className="px-2 py-1.5 rounded text-xs font-medium transition-all"
                   style={{
                     backgroundColor: codeStyle === option.value ? 'var(--color-primary-soft)' : 'var(--color-bg-muted)',
@@ -440,6 +444,11 @@ const SidebarCodePanel = ({
       </div>
       
       {/* Monaco Editor Container */}
+      {isReadOnlyCodeStyle && (
+        <div className="px-2 py-1 text-[10px] rounded" style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', color: 'var(--color-text-muted)' }}>
+          Read-only ({projectCodeStyle})
+        </div>
+      )}
       <div 
         ref={editorContainerRef}
         className="flex-1 min-h-0 relative"

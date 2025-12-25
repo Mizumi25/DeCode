@@ -1,4 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+// Register plugin once (safe to call multiple times)
+if (typeof window !== 'undefined') {
+  gsap.registerPlugin(ScrollTrigger);
+}
+
 
 // 🎬 CSS Animation Keyframes Generator
 const generateKeyframes = (preset) => {
@@ -58,7 +66,7 @@ const generateKeyframes = (preset) => {
 };
 
 // 🎬 AnimatedComponent Wrapper
-export default function AnimatedComponent({ children, component, isPreview = false }) {
+export default function AnimatedComponent({ children, component, isPreview = false, scrollContainerRef = null }) {
   const elementRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
   const [hasPlayed, setHasPlayed] = useState(false);
@@ -69,6 +77,110 @@ export default function AnimatedComponent({ children, component, isPreview = fal
   // Check if animations should be enabled
   const shouldAnimate = isPreview && animationConfig?.enabled;
   
+  // GSAP + ScrollTrigger support (used by AnimationSection)
+  useEffect(() => {
+    if (!shouldAnimate || !elementRef.current) return;
+
+    const anim = animationConfig || {};
+    const usesGsap = !!anim.gsapType || !!anim.scrollTrigger?.enabled || !!anim.batch?.enabled;
+    if (!usesGsap) return;
+
+    const el = elementRef.current;
+    const scroller = scrollContainerRef?.current || undefined;
+
+    // Build ScrollTrigger config (if enabled)
+    const st = anim.scrollTrigger?.enabled ? {
+      trigger: anim.scrollTrigger?.trigger && anim.scrollTrigger.trigger !== 'self'
+        ? anim.scrollTrigger.trigger
+        : el,
+      start: anim.scrollTrigger?.start || 'top center',
+      end: anim.scrollTrigger?.end || 'bottom top',
+      scrub: !!anim.scrollTrigger?.scrub,
+      pin: !!anim.scrollTrigger?.pin,
+      toggleActions: anim.scrollTrigger?.toggleActions || 'play none none none',
+      scroller,
+    } : null;
+
+    // Parse gsap variantDefinition if user typed JSON-like object
+    const parseMaybeObject = (val) => {
+      if (!val) return null;
+      if (typeof val === 'object') return val;
+      if (typeof val !== 'string') return null;
+      const t = val.trim();
+      if (!t) return null;
+      if (t.startsWith('{') && t.endsWith('}')) {
+        try { return JSON.parse(t); } catch { return null; }
+      }
+      return null;
+    };
+
+    // Defaults
+    const duration = Number(anim.gsapDuration ?? 0.8);
+    const delay = Number(anim.gsapDelay ?? 0);
+    const ease = anim.gsapEase || 'power2.out';
+
+    // Basic target vars (minimal, but predictable)
+    const baseVars = {
+      duration,
+      delay,
+      ease,
+      ...(st ? { scrollTrigger: st } : {}),
+    };
+
+    // Allow advanced vars via "variantDefinition" (JSON)
+    const advancedVars = parseMaybeObject(anim.variantDefinition) || {};
+
+    // Provide a sensible default animation if user only enabled ScrollTrigger
+    const defaultToVars = {
+      opacity: 1,
+      y: 0,
+    };
+
+    const defaultFromVars = {
+      opacity: 0,
+      y: 30,
+    };
+
+    let tween;
+
+    const type = anim.gsapType || (anim.scrollTrigger?.enabled ? 'fromTo' : 'to');
+
+    try {
+      if (type === 'from') {
+        tween = gsap.from(el, { ...baseVars, ...defaultFromVars, ...advancedVars });
+      } else if (type === 'to') {
+        tween = gsap.to(el, { ...baseVars, ...defaultToVars, ...advancedVars });
+      } else if (type === 'set') {
+        tween = gsap.set(el, { ...advancedVars });
+      } else {
+        // fromTo
+        const fromVars = { ...defaultFromVars };
+        const toVars = { ...baseVars, ...defaultToVars, ...advancedVars };
+        tween = gsap.fromTo(el, fromVars, toVars);
+      }
+
+      // If the scroller is not window, force a refresh so trigger positions are correct
+      if (st && scroller) {
+        ScrollTrigger.refresh();
+      }
+    } catch (e) {
+      console.warn('GSAP preview animation failed:', e);
+    }
+
+    return () => {
+      try {
+        if (tween) tween.kill();
+      } catch {}
+      try {
+        // Kill only triggers associated with this element
+        ScrollTrigger.getAll().forEach(t => {
+          const trg = t?.vars?.trigger;
+          if (trg === el) t.kill();
+        });
+      } catch {}
+    };
+  }, [shouldAnimate, animationConfig, scrollContainerRef]);
+
   useEffect(() => {
     if (!shouldAnimate || !elementRef.current) return;
     

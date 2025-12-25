@@ -58,23 +58,82 @@ export default function PreviewPanelModal({
     return roots;
   };
 
-  // Render recursively, applying the same responsive style calculation as CanvasComponent
-  const renderTree = (component, parentStyles = {}) => {
-    const responsiveStyles = componentLibraryService?.calculateResponsiveStyles
-      ? componentLibraryService.calculateResponsiveStyles(
-          component,
-          previewPanelResponsiveMode,
-          dimensions,
-          parentStyles
-        )
+  // Build responsive CSS using *container queries* so it reacts to the preview frame width.
+  // We target elements by their stable attribute `data-component-element` (set by ComponentLibraryService).
+  const previewResponsiveCSS = (() => {
+    const toCssDecls = (styleObj = {}, indent = '  ') => {
+      return Object.entries(styleObj)
+        .filter(([k]) => k && !String(k).startsWith('_'))
+        .map(([k, v]) => {
+          const cssKey = String(k).replace(/([A-Z])/g, '-$1').toLowerCase();
+          return `${indent}${cssKey}: ${v};`;
+        })
+        .join('\n');
+    };
+
+    const rules = [];
+
+    const walk = (node) => {
+      const id = node?.id;
+      if (!id) return;
+
+      const mobile = node.style_mobile || {};
+      const tablet = node.style_tablet || {};
+      const desktop = node.style_desktop || {};
+
+      if (mobile && Object.keys(mobile).length) {
+        rules.push(`@container (max-width: 768px) {\n  [data-component-element="${id}"] {\n${toCssDecls(mobile, '    ')}\n  }\n}`);
+      }
+
+      if (tablet && Object.keys(tablet).length) {
+        rules.push(`@container (min-width: 769px) and (max-width: 1024px) {\n  [data-component-element="${id}"] {\n${toCssDecls(tablet, '    ')}\n  }\n}`);
+      }
+
+      if (desktop && Object.keys(desktop).length) {
+        rules.push(`@container (min-width: 1025px) {\n  [data-component-element="${id}"] {\n${toCssDecls(desktop, '    ')}\n  }\n}`);
+      }
+
+      (node.children || []).forEach(walk);
+    };
+
+    buildTree(canvasComponents).forEach(walk);
+
+    // Frame/canvas root responsive overrides (if provided)
+    // We read from frame.canvas_props.responsive_style.{mobile|tablet|desktop}
+    // so you can set different background per breakpoint (like Canvas).
+    const rootResponsive = frame?.canvas_props?.responsive_style || {};
+    const rootMobile = rootResponsive.mobile || {};
+    const rootTablet = rootResponsive.tablet || {};
+    const rootDesktop = rootResponsive.desktop || {};
+
+    if (rootMobile && Object.keys(rootMobile).length) {
+      rules.push(`@container (max-width: 768px) {\n  .preview-canvas-root {\n${toCssDecls(rootMobile, '    ')}\n  }\n}`);
+    }
+
+    if (rootTablet && Object.keys(rootTablet).length) {
+      rules.push(`@container (min-width: 769px) and (max-width: 1024px) {\n  .preview-canvas-root {\n${toCssDecls(rootTablet, '    ')}\n  }\n}`);
+    }
+
+    if (rootDesktop && Object.keys(rootDesktop).length) {
+      rules.push(`@container (min-width: 1025px) {\n  .preview-canvas-root {\n${toCssDecls(rootDesktop, '    ')}\n  }\n}`);
+    }
+
+    // If nothing to inject, keep it empty
+    return rules.join('\n\n');
+  })();
+
+  // Render recursively (use base styles; container queries apply overrides)
+  const renderTree = (component) => {
+    const baseStyle = componentLibraryService?.normalizeStyle
+      ? componentLibraryService.normalizeStyle(component.style)
       : (component.style || {});
 
     const renderedChildren = component.children?.length
-      ? component.children.map(child => renderTree(child, responsiveStyles))
+      ? component.children.map(child => renderTree(child))
       : null;
 
     const renderedComponent = componentLibraryService.renderUnified(
-      { ...component, style: responsiveStyles },
+      { ...component, style: baseStyle },
       component.id,
       renderedChildren
     );
@@ -82,7 +141,7 @@ export default function PreviewPanelModal({
     // Wrap with AnimatedComponent if animations are enabled
     if (component.props?.animation?.enabled) {
       return (
-        <AnimatedComponent key={component.id} component={component} isPreview={true}>
+        <AnimatedComponent key={component.id} component={component} isPreview={true} scrollContainerRef={previewRef}>
           {renderedComponent}
         </AnimatedComponent>
       );
@@ -142,11 +201,14 @@ export default function PreviewPanelModal({
         <div className="flex items-start justify-center p-8">
           <div
             ref={previewRef}
-            className="relative bg-white rounded-lg shadow-2xl overflow-auto"
+            className="relative rounded-lg shadow-2xl overflow-auto"
             style={{
               width: dimensions.width,
               height: dimensions.height,
               maxHeight: 'calc(100vh - 250px)',
+              // Enable container queries based on this preview frame's width
+              containerType: 'inline-size',
+              background: 'transparent',
             }}
           >
             {isLoading ? (
@@ -159,10 +221,29 @@ export default function PreviewPanelModal({
                 {keyframesCSS.length > 0 && (
                   <style>{keyframesCSS.join('\n\n')}</style>
                 )}
+
+                {/* 📱 Responsive container-query CSS (from style_mobile/tablet/desktop) */}
+                {previewResponsiveCSS && (
+                  <style>{previewResponsiveCSS}</style>
+                )}
                 
-                {/* Render components (same hierarchy + responsive styles as Canvas) */}
-                <div style={{ pointerEvents: 'none' }}>
-                  {buildTree(canvasComponents).map(root => renderTree(root, {}))}
+                {/* Canvas Root (match CanvasComponent getCanvasRootStyles) */}
+                <div
+                  className="preview-canvas-root"
+                  style={{
+                    ...(frame?.canvas_style || {}),
+                    width: dimensions.width,
+                    minHeight: dimensions.height,
+                    height: 'auto',
+                    position: 'relative',
+                    boxSizing: 'border-box',
+                    overflow: 'visible',
+                  }}
+                >
+                  {/* Render components (same hierarchy as Canvas) */}
+                  <div style={{ pointerEvents: 'none' }}>
+                    {buildTree(canvasComponents).map(root => renderTree(root))}
+                  </div>
                 </div>
               </>
             )}

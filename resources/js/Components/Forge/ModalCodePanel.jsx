@@ -85,6 +85,11 @@ const ModalCodePanel = ({
 
   const minimizedSize = { width: 400, height: 200 };
 
+  const projectCodeStyle = projectFramework && projectStyleFramework
+    ? `${projectFramework}-${projectStyleFramework}`
+    : null;
+  const isReadOnlyCodeStyle = !!projectCodeStyle && codeStyle !== projectCodeStyle;
+
   // Mobile-optimized Monaco Editor configuration
   const editorOptions = {
     fontSize: isMobile ? 16 : fontSize, // 🔥 FIX: 16px minimum to prevent mobile zoom
@@ -146,7 +151,7 @@ const ModalCodePanel = ({
       verticalScrollbarSize: isMobile ? 8 : 10,
       horizontalScrollbarSize: isMobile ? 8 : 10
     },
-    readOnly: false,
+    readOnly: isReadOnlyCodeStyle,
     selectOnLineNumbers: !isMobile,
     roundedSelection: true,
     theme: editorTheme,
@@ -233,10 +238,11 @@ const ModalCodePanel = ({
 
   // Handle editor change
   const handleEditorChange = useCallback((value) => {
+    if (isReadOnlyCodeStyle) return;
     if (handleCodeEdit && value !== undefined) {
       handleCodeEdit(value, activeCodeTab);
     }
-  }, [handleCodeEdit, activeCodeTab]);
+  }, [handleCodeEdit, activeCodeTab, isReadOnlyCodeStyle]);
 
   // 🔥 FIX: Update editor when activeCodeTab changes (auto-switch from main tab change)
   useEffect(() => {
@@ -767,18 +773,16 @@ const ModalCodePanel = ({
                       ? `${projectFramework}-${projectStyleFramework}` 
                       : null;
                     const isProjectStyle = option.value === projectCodeStyle;
-                    const isDisabled = projectCodeStyle && !isProjectStyle;
+                    const isDisabled = false; // Allow switching to any code style; editing is handled via readOnly
                     
                     return (
                       <button
                         key={option.value}
                         onClick={() => {
-                          if (!isDisabled) {
-                            setCodeStyle(option.value);
-                            generateCode(canvasComponents);
-                          }
+                          setCodeStyle(option.value);
+                          generateCode(canvasComponents);
                         }}
-                        disabled={isDisabled}
+                        disabled={false}
                         className="p-3 rounded-lg text-left transition-all border-2"
                         style={{
                           backgroundColor: codeStyle === option.value ? 'var(--color-primary-soft)' : 'var(--color-bg-muted)',
@@ -829,6 +833,11 @@ const ModalCodePanel = ({
               </div>
 
               {/* Monaco Editor Container */}
+              {isReadOnlyCodeStyle && (
+                <div className="px-3 py-2 text-xs" style={{ backgroundColor: 'var(--color-warning-soft, rgba(245, 158, 11, 0.15))', color: 'var(--color-text)' }}>
+                  Read-only preview. Project uses <strong>{projectCodeStyle}</strong>.
+                </div>
+              )}
               <div 
                 ref={editorContainerRef}
                 className="flex-1 min-h-0 relative"
