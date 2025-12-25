@@ -33,6 +33,13 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
 
     // Get the style (already merged in frontend if variant was selected)
     $finalStyle = $componentData['style'] ?? [];
+
+    // Some incoming payloads don't include `name` (e.g. reverse parsed output).
+    // Keep DB `name` stable and non-null.
+    $resolvedName = $componentData['name']
+        ?? $componentData['component_type']
+        ?? $componentData['type']
+        ?? 'Component';
     
     // 🔥 Handle text_content for text nodes
     $textContent = null;
@@ -62,7 +69,7 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
             } else {
                 \Log::warning('⚠️ Parent component not found - component will be orphaned:', [
                     'component_id' => $componentData['id'],
-                    'component_name' => $componentData['name'],
+                    'component_name' => $resolvedName,
                     'parentId' => $componentData['parentId'],
                     'searched_in_map' => isset($instanceIdToDbIdMap[$componentData['parentId']]),
                     'available_parents_in_map' => array_keys($instanceIdToDbIdMap)
@@ -83,7 +90,7 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
     if (!empty($componentData['style_mobile']) || !empty($componentData['style_tablet']) || !empty($componentData['style_desktop'])) {
         \Log::info('📱 Saving component with responsive styles', [
             'id' => $componentData['id'],
-            'name' => $componentData['name'],
+            'name' => $resolvedName,
             'style_mobile' => $componentData['style_mobile'] ?? null,
             'style_tablet' => $componentData['style_tablet'] ?? null,
             'style_desktop' => $componentData['style_desktop'] ?? null,
@@ -98,7 +105,7 @@ private function saveComponentTreeWithTracking($componentData, $projectId, $fram
         'component_type' => $componentData['component_type'] ?? $componentData['type'], // 🔥 Use component_type if exists
         'props' => $componentData['props'] ?? [],
         'text_content' => $textContent,
-        'name' => $componentData['name'],
+        'name' => $resolvedName,
         'z_index' => $componentData['zIndex'] ?? 0,
         'sort_order' => $componentData['sortOrder'] ?? 0,
         'style' => $finalStyle,
@@ -379,7 +386,9 @@ private function normalizeStyleData($componentData)
             'components.*.type' => 'required|string',
             'components.*.component_type' => 'nullable|string', // 🔥 NEW: Allow component_type for frame-component-instance
             'components.*.props' => 'nullable|array',
-            'components.*.name' => 'required|string',
+            // Some payloads (e.g. reverse-parsed or nested children) may omit `name`.
+            // We default it server-side to avoid 500s.
+            'components.*.name' => 'nullable|string',
             'components.*.zIndex' => 'nullable|integer',
             'components.*.sortOrder' => 'nullable|integer',
             'components.*.variant' => 'nullable|array',
@@ -419,7 +428,7 @@ private function normalizeStyleData($componentData)
             if (isset($c['parentId']) && is_numeric($c['parentId'])) {
                 $numericParentIds[] = [
                     'component' => $c['id'],
-                    'name' => $c['name'],
+                    'name' => $c['name'] ?? null,
                     'parentId' => $c['parentId'],
                     'type' => gettype($c['parentId'])
                 ];
@@ -438,7 +447,7 @@ private function normalizeStyleData($componentData)
             'components' => array_map(function($c) {
                 return [
                     'id' => $c['id'],
-                    'name' => $c['name'],
+                    'name' => $c['name'] ?? null,
                     'parentId' => $c['parentId'] ?? null,
                     'parentId_type' => isset($c['parentId']) ? gettype($c['parentId']) : 'null',
                     'has_children' => isset($c['children']) && count($c['children']) > 0
@@ -547,6 +556,11 @@ private function normalizeStyleData($componentData)
         }
     
         // CRITICAL: Map frontend field names to backend
+        $resolvedName = $componentData['name']
+            ?? $componentData['component_type']
+            ?? $componentData['type']
+            ?? 'Component';
+
         $component = ProjectComponent::create([
             'project_id' => $projectId,
             'frame_id' => $frameId,
@@ -554,7 +568,7 @@ private function normalizeStyleData($componentData)
             'component_instance_id' => $componentData['id'],              // id → component_instance_id
             'component_type' => $componentData['type'],                    // type → component_type
             'props' => $componentData['props'] ?? [],
-            'name' => $componentData['name'],
+            'name' => $resolvedName,
             'z_index' => $componentData['zIndex'] ?? 0,
             'sort_order' => $componentData['sortOrder'] ?? 0,
             'variant' => $componentData['variant'] ?? null,

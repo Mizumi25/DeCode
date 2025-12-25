@@ -162,7 +162,8 @@ class ForgeController extends Controller
                 'name' => $project->name,
                 'settings' => $project->settings ?? [],
                 'output_format' => $project->output_format,
-                'style_framework' => $project->style_framework,
+                'framework' => $project->framework, // 🔥 NEW: Pass framework (html/react)
+                'style_framework' => $project->style_framework, // 🔥 Pass style_framework (css/tailwind)
             ],
             'frame' => $frameData,
             'projectFrames' => $projectFrames,
@@ -233,7 +234,8 @@ class ForgeController extends Controller
                 'name' => $project->name,
                 'settings' => $project->settings ?? [], // Include settings for StyleModal
                 'output_format' => $project->output_format,
-                'style_framework' => $project->style_framework,
+                'framework' => $project->framework, // 🔥 NEW: Pass framework (html/react)
+                'style_framework' => $project->style_framework, // 🔥 Pass style_framework (css/tailwind)
             ],
             'frame' => $frameData, // 🔥 Now includes properly decoded canvas_style
             'projectFrames' => $projectFrames,

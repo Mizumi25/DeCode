@@ -76,14 +76,28 @@ export const defineMinimalistTheme = (monaco) => {
       { token: 'constant.numeric', foreground: colors.orange.substring(1) },
       { token: 'variable.language', foreground: colors.orange.substring(1), fontStyle: 'bold' },
       
-      // Tags (HTML/JSX) - Light Purple
-      { token: 'tag', foreground: colors.lightPurple.substring(1) },
-      { token: 'entity.name.tag', foreground: colors.lightPurple.substring(1) },
+      // Tags (HTML/JSX) - Light Purple (Enhanced)
+      { token: 'tag', foreground: colors.lightPurple.substring(1), fontStyle: 'bold' },
+      { token: 'tag.html', foreground: colors.lightPurple.substring(1), fontStyle: 'bold' },
+      { token: 'tag.jsx', foreground: colors.lightPurple.substring(1), fontStyle: 'bold' },
+      { token: 'entity.name.tag', foreground: colors.lightPurple.substring(1), fontStyle: 'bold' },
+      { token: 'entity.name.tag.html', foreground: colors.lightPurple.substring(1), fontStyle: 'bold' },
+      { token: 'entity.name.tag.jsx', foreground: colors.lightPurple.substring(1), fontStyle: 'bold' },
       { token: 'meta.tag', foreground: colors.lightPurple.substring(1) },
+      { token: 'meta.tag.html', foreground: colors.lightPurple.substring(1) },
+      { token: 'meta.tag.jsx', foreground: colors.lightPurple.substring(1) },
+      { token: 'meta.jsx.children', foreground: colors.white.substring(1) },
       
-      // Attributes - Sky Blue
-      { token: 'attribute.name', foreground: colors.skyBlue.substring(1) },
-      { token: 'entity.other.attribute-name', foreground: colors.skyBlue.substring(1) },
+      // Tag brackets - Pink for visibility
+      { token: 'punctuation.definition.tag', foreground: colors.pink.substring(1) },
+      { token: 'punctuation.definition.tag.begin', foreground: colors.pink.substring(1) },
+      { token: 'punctuation.definition.tag.end', foreground: colors.pink.substring(1) },
+      
+      // Attributes - Sky Blue (Enhanced)
+      { token: 'attribute.name', foreground: colors.skyBlue.substring(1), fontStyle: 'italic' },
+      { token: 'entity.other.attribute-name', foreground: colors.skyBlue.substring(1), fontStyle: 'italic' },
+      { token: 'entity.other.attribute-name.html', foreground: colors.skyBlue.substring(1), fontStyle: 'italic' },
+      { token: 'entity.other.attribute-name.jsx', foreground: colors.skyBlue.substring(1), fontStyle: 'italic' },
       
       // Punctuation - Purple (subtle)
       { token: 'punctuation', foreground: colors.purple.substring(1) },
@@ -198,12 +212,20 @@ export const defineMinimalistTheme = (monaco) => {
       // Constants - Orange
       { token: 'constant', foreground: 'ea580c' },
       
-      // Tags - Purple
-      { token: 'tag', foreground: 'a855f7' },
-      { token: 'entity.name.tag', foreground: 'a855f7' },
+      // Tags - Purple (Enhanced for light theme)
+      { token: 'tag', foreground: 'a855f7', fontStyle: 'bold' },
+      { token: 'tag.html', foreground: 'a855f7', fontStyle: 'bold' },
+      { token: 'tag.jsx', foreground: 'a855f7', fontStyle: 'bold' },
+      { token: 'entity.name.tag', foreground: 'a855f7', fontStyle: 'bold' },
+      { token: 'entity.name.tag.html', foreground: 'a855f7', fontStyle: 'bold' },
+      { token: 'entity.name.tag.jsx', foreground: 'a855f7', fontStyle: 'bold' },
       
-      // Attributes - Sky Blue
-      { token: 'attribute.name', foreground: '0284c7' },
+      // Tag brackets - Pink
+      { token: 'punctuation.definition.tag', foreground: 'db2777' },
+      
+      // Attributes - Sky Blue (Enhanced)
+      { token: 'attribute.name', foreground: '0284c7', fontStyle: 'italic' },
+      { token: 'entity.other.attribute-name', foreground: '0284c7', fontStyle: 'italic' },
       
       // Properties - Green
       { token: 'property', foreground: '059669' },

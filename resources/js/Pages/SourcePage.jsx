@@ -6,8 +6,8 @@ import Panel from '@/Components/Panel';
 import ExplorerPanel from '@/Components/Source/ExplorerPanel';
 import PreviewPanelModal from '@/Components/Forge/PreviewPanelModal';
 import componentLibraryService from '@/Services/ComponentLibraryService';
-import CodeEditor from '@/Components/Source/CodeEditor';
 import TerminalPanel from '@/Components/Source/TerminalPanel';
+import FrameMainSnippetPanel from '@/Components/Source/FrameMainSnippetPanel';
 // Import the new Source store
 import { useSourceStore } from '@/stores/useSourceStore';
 import { useCodeSyncStore } from '@/stores/useCodeSyncStore';
@@ -72,10 +72,10 @@ export default function SourcePage({ projectId, frameId, frame }) {
   
   // 🔥 NEW: Tab management for files
   const [openTabs, setOpenTabs] = useState([]);
-  const [activeTab, setActiveTab] = useState(null);
+  const [activeTab, setActiveTab] = useState('__main__');
   
   const { props } = usePage();
-  const { auth } = props;
+  const { auth, project } = props;
 
   // Initialize loading
   useEffect(() => {
@@ -248,15 +248,45 @@ export default function SourcePage({ projectId, frameId, frame }) {
         const newActiveIndex = closingIndex > 0 ? closingIndex - 1 : 0;
         setActiveTab(newTabs[newActiveIndex].path);
       } else if (newTabs.length === 0) {
-        setActiveTab(null);
+        setActiveTab('__main__');
       }
       
       return newTabs;
     });
   }, [activeTab]);
   
+  // Local frame components state (for preview + snippet reverse updates)
+  const [frameComponents, setFrameComponents] = useState(props.frame?.canvas_data?.components || []);
+
+  // Keep local components in sync if backend frame changes (frame switch/navigation)
+  useEffect(() => {
+    setFrameComponents(props.frame?.canvas_data?.components || []);
+  }, [props.frame?.uuid]);
+
+  const handleUpdateComponents = useCallback(async (nextComponents) => {
+    setFrameComponents(nextComponents);
+
+    // Persist using the same API path Forge uses (ProjectComponents)
+    try {
+      const projectUuid = project?.uuid || projectId;
+      const frameUuid = props.frame?.uuid || frameId;
+
+      if (projectUuid && frameUuid) {
+        await componentLibraryService.saveProjectComponents(projectUuid, frameUuid, nextComponents);
+      }
+    } catch (e) {
+      console.error('SourcePage: failed to persist updated components', e);
+    }
+  }, [project?.uuid, projectId, props.frame?.uuid, frameId]);
+
   // Get active file content
-  const activeFile = openTabs.find(tab => tab.path === activeTab);
+  const activeFile = activeTab && activeTab !== '__main__'
+    ? openTabs.find(tab => tab.path === activeTab)
+    : null;
+
+  const handleFileContentChange = useCallback((tabPath, nextContent) => {
+    setOpenTabs(prev => prev.map(t => (t.path === tabPath ? { ...t, content: nextContent } : t)));
+  }, []);
 
   // Memoize left panels with actual components  
   const leftPanels = useMemo(() => {
@@ -279,12 +309,9 @@ export default function SourcePage({ projectId, frameId, frame }) {
 
     // Preview panel (always visible unless all hidden)
     if (isSourcePanelOpen('source-preview-panel')) {
-      // Get canvas components from frame
-      const canvasComponents = props.frame?.canvas_data?.components || [];
-      
       panels.push(createSourcePanel('source-preview-panel', 'PREVIEW',
         <PreviewPanelModal
-          canvasComponents={canvasComponents}
+          canvasComponents={frameComponents}
           frame={props.frame}
           componentLibraryService={componentLibraryService}
           onClose={() => {}} // No close needed in panel mode
@@ -383,32 +410,19 @@ export default function SourcePage({ projectId, frameId, frame }) {
         <div className="flex-1 flex flex-col min-w-0 relative">
           {/* Code Editor with Tabs */}
           <div className="flex-1 min-h-0 flex flex-col">
-            {CodeEditor ? (
-              <CodeEditor 
-                openTabs={openTabs}
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                onTabClose={handleTabClose}
-                fileContent={activeFile?.content || ''}
-                fileName={activeFile?.name || ''}
-                fileExtension={activeFile?.extension || 'jsx'}
-              />
-            ) : (
-              <div className="h-full flex items-center justify-center bg-[var(--color-bg-muted)]">
-                <div className="text-center">
-                  <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--color-text)' }}>
-                    Code Editor
-                  </h2>
-                  <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                    Select a file to view its contents
-                  </div>
-                  <div className="text-xs mt-4 space-y-1" style={{ color: 'var(--color-text-muted)' }}>
-                    <div>Open tabs: {openTabs.length}</div>
-                    <div>Active: {activeTab || 'None'}</div>
-                  </div>
-                </div>
-              </div>
-            )}
+            <FrameMainSnippetPanel
+              project={project}
+              frame={props.frame}
+              frameComponents={frameComponents}
+              onUpdateComponents={handleUpdateComponents}
+              canEdit={props?.canEdit !== false}
+              openTabs={openTabs}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              onTabClose={handleTabClose}
+              activeFile={activeFile}
+              onFileContentChange={handleFileContentChange}
+            />
           </div>
           
           {/* Preview Panel - Overlays the code editor when open */}

@@ -23,6 +23,8 @@ const SidebarCodePanel = ({
   setShowTooltips,
   codeStyle,
   setCodeStyle,
+  projectFramework, // 🔥 NEW: Project's framework (html/react)
+  projectStyleFramework, // 🔥 NEW: Project's style framework (css/tailwind)
   activeCodeTab,
   setActiveCodeTab,
   generatedCode,
@@ -56,10 +58,16 @@ const SidebarCodePanel = ({
     scrollBeyondLastLine: false,
     automaticLayout: true,
     tabSize: 2,
+    indentSize: 2,
     insertSpaces: true,
+    detectIndentation: true,
+    trimAutoWhitespace: true,
     formatOnPaste: true,
     formatOnType: true,
     autoIndent: 'advanced',
+    autoClosingBrackets: 'always',
+    autoClosingQuotes: 'always',
+    autoSurround: 'languageDefined',
     bracketPairColorization: { enabled: true },
     colorDecorators: true,
     foldingHighlight: true,
@@ -373,24 +381,39 @@ const SidebarCodePanel = ({
               { value: 'react-css', label: 'R+C' },
               { value: 'html-css', label: 'H+C' },
               { value: 'html-tailwind', label: 'H+T' }
-            ].map(option => (
-              <button
-                key={option.value}
-                onClick={() => {
-                  setCodeStyle(option.value);
-                  generateCode(canvasComponents);
-                }}
-                className="px-2 py-1.5 rounded text-xs font-medium transition-all"
-                style={{
-                  backgroundColor: codeStyle === option.value ? 'var(--color-primary-soft)' : 'var(--color-bg-muted)',
-                  color: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                  boxShadow: codeStyle === option.value ? 'var(--shadow-sm)' : 'none'
-                }}
-                title={option.value}
-              >
-                {option.label}
-              </button>
-            ))}
+            ].map(option => {
+              // 🔥 NEW: Calculate if this option is the selected project combination
+              const projectCodeStyle = projectFramework && projectStyleFramework 
+                ? `${projectFramework}-${projectStyleFramework}` 
+                : null;
+              const isProjectStyle = option.value === projectCodeStyle;
+              const isDisabled = projectCodeStyle && !isProjectStyle;
+              
+              return (
+                <button
+                  key={option.value}
+                  onClick={() => {
+                    if (!isDisabled) {
+                      setCodeStyle(option.value);
+                      generateCode(canvasComponents);
+                    }
+                  }}
+                  disabled={isDisabled}
+                  className="px-2 py-1.5 rounded text-xs font-medium transition-all"
+                  style={{
+                    backgroundColor: codeStyle === option.value ? 'var(--color-primary-soft)' : 'var(--color-bg-muted)',
+                    color: isDisabled ? 'var(--color-text-muted)' : (codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text-muted)'),
+                    boxShadow: codeStyle === option.value ? 'var(--shadow-sm)' : 'none',
+                    opacity: isDisabled ? 0.4 : 1,
+                    cursor: isDisabled ? 'not-allowed' : 'pointer'
+                  }}
+                  title={isDisabled ? '🔒 Locked' : option.value}
+                >
+                  {option.label}
+                  {isDisabled && ' 🔒'}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

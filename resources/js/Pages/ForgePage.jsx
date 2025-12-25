@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Panel from '@/Components/Panel';
 import { 
   Square, Code, Layers, User, Settings, ChevronUp, ChevronDown, Copy, RefreshCw, 
-  Monitor, PictureInPicture, Loader2, ChevronRight  // ADD ChevronRight
+  Monitor, PictureInPicture, Loader2, ChevronRight, Save  // ADD Save icon
 } from 'lucide-react';
 import { useForgeStore } from '@/stores/useForgeStore';
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -171,6 +171,19 @@ export default function ForgePage({
     setCurrentFrame: setCodeSyncFrame
   } = useCodeSyncStore();
   
+  // 🔥 NEW: Initialize codeStyle from project's framework + style_framework
+  useEffect(() => {
+    if (project?.framework && project?.style_framework) {
+      const projectCodeStyle = `${project.framework}-${project.style_framework}`;
+      console.log('🎯 Initializing codeStyle from project:', projectCodeStyle);
+      
+      // Only set if it's different from current
+      if (codeStyle !== projectCodeStyle) {
+        setSyncedCodeStyle(projectCodeStyle);
+      }
+    }
+  }, [project?.framework, project?.style_framework]);
+  
   const { 
     currentWorkspace,
     workspaces,
@@ -315,35 +328,57 @@ export default function ForgePage({
   
   const [generatedCode, setGeneratedCode] = useState({ html: '', css: '', react: '', tailwind: '' })
   
+  // 🔥 NEW: Track edited code and dirty state for Save functionality
+  const [editedCode, setEditedCode] = useState({ html: '', css: '', react: '', tailwind: '' })
+  const [isCodeDirty, setIsCodeDirty] = useState(false)
+  const [isSavingCode, setIsSavingCode] = useState(false)
+  
+  // 🔥 NEW: Sync editedCode with generatedCode when it changes
+  useEffect(() => {
+    setEditedCode(generatedCode);
+    setIsCodeDirty(false);
+  }, [generatedCode]);
+  
   const showCodePanel = isForgePanelOpen('code-panel');
   
   const [codePanelPosition, setCodePanelPosition] = useState('bottom')
-  const [activeCodeTab, setActiveCodeTab] = useState('react')
+  
+  // 🔥 NEW: Initialize activeCodeTab based on project's framework
+  const [activeCodeTab, setActiveCodeTab] = useState(() => {
+    if (project?.framework === 'html') return 'html';
+    if (project?.framework === 'react') return 'react';
+    return 'react'; // default
+  })
   
   // 🔥 FIX: Auto-switch activeCodeTab when codeStyle changes
   useEffect(() => {
     // Inline getAvailableTabs logic to avoid dependency issues
     let availableTabs = ['react', 'tailwind']; // default
+    let defaultTab = 'react'; // default first tab
     
     switch (codeStyle) {
       case 'react-tailwind':
         availableTabs = ['react', 'tailwind'];
+        defaultTab = 'react';
         break;
       case 'react-css':
         availableTabs = ['react', 'css'];
+        defaultTab = 'react';
         break;
       case 'html-css':
         availableTabs = ['html', 'css'];
+        defaultTab = 'html';
         break;
       case 'html-tailwind':
         availableTabs = ['html', 'tailwind'];
+        defaultTab = 'html';
         break;
     }
     
-    // If current activeCodeTab is not in available tabs, switch to first available
+    // If current activeCodeTab is not in available tabs, switch to the correct default
     if (!availableTabs.includes(activeCodeTab)) {
-      console.log('🔄 Auto-switching sub-tab from', activeCodeTab, 'to', availableTabs[0], 'due to codeStyle change:', codeStyle);
-      setActiveCodeTab(availableTabs[0]);
+      console.log('🔄 Auto-switching tab from', activeCodeTab, 'to', defaultTab, 'due to codeStyle change:', codeStyle);
+      setActiveCodeTab(defaultTab);
     }
   }, [codeStyle, activeCodeTab]); // Run when codeStyle changes
   const [showTooltips, setShowTooltips] = useState(true)
@@ -2899,12 +2934,74 @@ useEffect(() => {
   
 
   // Handle code editing
+  // 🔥 NEW: Handle code edits in Monaco editor
   const handleCodeEdit = useCallback((newCode, codeType) => {
-    setGeneratedCode(prev => ({
+    console.log('📝 Code edited:', codeType, 'Length:', newCode?.length);
+    
+    // Update edited code state
+    setEditedCode(prev => ({
       ...prev,
       [codeType]: newCode
-    }))
-  }, [])
+    }));
+    
+    // Mark as dirty if different from generated
+    const isDifferent = newCode !== generatedCode[codeType];
+    setIsCodeDirty(isDifferent);
+  }, [generatedCode]);
+
+  // 🔥 NEW: Save edited code back to canvas components
+  const handleSaveCode = useCallback(async () => {
+    if (!isCodeDirty || isSavingCode) return;
+    
+    setIsSavingCode(true);
+    
+    try {
+      console.log('💾 Saving edited code to canvas...');
+      
+      // Import the ReverseCodeParserService dynamically
+      const { default: reverseCodeParserService } = await import('@/Services/ReverseCodeParserService');
+      
+      // Determine which code to parse based on activeCodeTab
+      let codeToParse = editedCode[activeCodeTab] || '';
+      let codeType = activeCodeTab;
+      
+      console.log('🎨 Parsing code type:', codeType, 'Length:', codeToParse.length);
+      
+      // Parse code back to components
+      const parsedComponents = await reverseCodeParserService.parseCodeToComponents(
+        codeToParse,
+        codeType,
+        codeStyle
+      );
+      
+      console.log('✅ Parsed components:', parsedComponents?.length || 0, 'components');
+      
+      if (parsedComponents && parsedComponents.length > 0) {
+        // Update canvas components
+        setFrameCanvasComponents(prev => ({
+          ...prev,
+          [currentFrame]: parsedComponents
+        }));
+        
+        // Regenerate code from new components to ensure sync
+        await generateCode(parsedComponents);
+        
+        // Mark as clean
+        setIsCodeDirty(false);
+        
+        console.log('🎉 Code saved successfully to canvas!');
+      } else {
+        console.warn('⚠️ No components parsed from code');
+        alert('No valid components found in the code. Please check your syntax.');
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to save code:', error);
+      alert(`Failed to parse code: ${error.message}\n\nPlease check for syntax errors.`);
+    } finally {
+      setIsSavingCode(false);
+    }
+  }, [isCodeDirty, isSavingCode, editedCode, activeCodeTab, codeStyle, currentFrame, generateCode])
   
   
   
@@ -3384,6 +3481,8 @@ const handleCanvasClick = useCallback((e) => {
         setShowTooltips={setShowTooltips}
         codeStyle={codeStyle}
         setCodeStyle={setSyncedCodeStyle}
+        projectFramework={project?.framework} // 🔥 NEW: Pass project's framework
+        projectStyleFramework={project?.style_framework} // 🔥 NEW: Pass project's style_framework
         activeCodeTab={activeCodeTab}
         setActiveCodeTab={setActiveCodeTab}
         generatedCode={generatedCode}
@@ -3798,6 +3897,8 @@ const handleCanvasClick = useCallback((e) => {
             setShowTooltips={setShowTooltips}
             codeStyle={codeStyle}
             setCodeStyle={setSyncedCodeStyle}
+            projectFramework={project?.framework} // 🔥 NEW: Pass project's framework
+            projectStyleFramework={project?.style_framework} // 🔥 NEW: Pass project's style_framework
             activeCodeTab={activeCodeTab}
             setActiveCodeTab={setActiveCodeTab}
             generatedCode={generatedCode}
@@ -4021,6 +4122,8 @@ const handleCanvasClick = useCallback((e) => {
           setShowTooltips={setShowTooltips}
           codeStyle={codeStyle}
           setCodeStyle={handleCodeStyleChange}
+          projectFramework={project?.framework} // 🔥 NEW: Pass project's framework
+          projectStyleFramework={project?.style_framework} // 🔥 NEW: Pass project's style_framework
           activeCodeTab={activeCodeTab}
           setActiveCodeTab={setActiveCodeTab}
           generatedCode={generatedCode}

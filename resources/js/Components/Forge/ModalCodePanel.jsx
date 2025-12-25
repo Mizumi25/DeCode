@@ -39,6 +39,8 @@ const ModalCodePanel = ({
   setShowTooltips,
   codeStyle,
   setCodeStyle,
+  projectFramework, // 🔥 NEW: Project's framework (html/react)
+  projectStyleFramework, // 🔥 NEW: Project's style framework (css/tailwind)
   activeCodeTab,
   setActiveCodeTab,
   generatedCode,
@@ -92,10 +94,16 @@ const ModalCodePanel = ({
     scrollBeyondLastLine: false,
     automaticLayout: true,
     tabSize: 2,
+    indentSize: 2,
     insertSpaces: true,
+    detectIndentation: true,
+    trimAutoWhitespace: true,
     formatOnPaste: true,
     formatOnType: true,
     autoIndent: 'advanced',
+    autoClosingBrackets: 'always',
+    autoClosingQuotes: 'always',
+    autoSurround: 'languageDefined',
     bracketPairColorization: { enabled: true },
     colorDecorators: !isMobile,
     foldingHighlight: !isMobile,
@@ -753,24 +761,42 @@ const ModalCodePanel = ({
                     { value: 'react-css', label: 'React + CSS', desc: 'JSX with traditional stylesheets' },
                     { value: 'html-css', label: 'HTML + CSS', desc: 'Vanilla HTML with CSS files' },
                     { value: 'html-tailwind', label: 'HTML + Tailwind', desc: 'HTML with utility classes' }
-                  ].map(option => (
-                    <button
-                      key={option.value}
-                      onClick={() => {
-                        setCodeStyle(option.value);
-                        generateCode(canvasComponents);
-                      }}
-                      className="p-3 rounded-lg text-left transition-all border-2"
-                      style={{
-                        backgroundColor: codeStyle === option.value ? 'var(--color-primary-soft)' : 'var(--color-bg-muted)',
-                        borderColor: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-border)',
-                        color: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text)'
-                      }}
-                    >
-                      <div className="font-semibold text-sm">{option.label}</div>
-                      {!isMobile && <div className="text-xs opacity-80">{option.desc}</div>}
-                    </button>
-                  ))}
+                  ].map(option => {
+                    // 🔥 NEW: Calculate if this option is the selected project combination
+                    const projectCodeStyle = projectFramework && projectStyleFramework 
+                      ? `${projectFramework}-${projectStyleFramework}` 
+                      : null;
+                    const isProjectStyle = option.value === projectCodeStyle;
+                    const isDisabled = projectCodeStyle && !isProjectStyle;
+                    
+                    return (
+                      <button
+                        key={option.value}
+                        onClick={() => {
+                          if (!isDisabled) {
+                            setCodeStyle(option.value);
+                            generateCode(canvasComponents);
+                          }
+                        }}
+                        disabled={isDisabled}
+                        className="p-3 rounded-lg text-left transition-all border-2"
+                        style={{
+                          backgroundColor: codeStyle === option.value ? 'var(--color-primary-soft)' : 'var(--color-bg-muted)',
+                          borderColor: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-border)',
+                          color: isDisabled ? 'var(--color-text-muted)' : (codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text)'),
+                          opacity: isDisabled ? 0.4 : 1,
+                          cursor: isDisabled ? 'not-allowed' : 'pointer'
+                        }}
+                        title={isDisabled ? '🔒 Not available for this project' : option.desc}
+                      >
+                        <div className="font-semibold text-sm">
+                          {option.label}
+                          {isDisabled && ' 🔒'}
+                        </div>
+                        {!isMobile && <div className="text-xs opacity-80">{isDisabled ? 'Locked' : option.desc}</div>}
+                      </button>
+                    );
+                  })}
                 </div>
                 </div>
               )}

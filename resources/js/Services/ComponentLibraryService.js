@@ -180,6 +180,51 @@ class ComponentLibraryService {
     // 🔥 Register frame-component-instance renderer
     this.registerFrameComponentInstance();
   }
+
+  /**
+   * Normalize a style value to a plain object.
+   *
+   * The backend or codegen can sometimes persist styles as JSON strings.
+   * Spreading a string into an object creates numeric keys ("0", "1", ...), which React
+   * then tries to apply as indexed CSSStyleDeclaration properties and crashes.
+   */
+  normalizeStyle(style) {
+    if (!style) return {};
+
+    // Already a plain object
+    if (typeof style === 'object' && !Array.isArray(style)) return style;
+
+    // Some code paths might accidentally pass an array (treat as invalid)
+    if (Array.isArray(style)) return {};
+
+    if (typeof style === 'string') {
+      const trimmed = style.trim();
+      if (!trimmed) return {};
+
+      // JSON style object
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+        } catch {
+          return {};
+        }
+      }
+
+      // Fallback: try parsing as inline CSS string: "width: 24px; height: 24px"
+      const obj = {};
+      trimmed.split(';').forEach((decl) => {
+        const [property, value] = decl.split(':').map(s => s.trim());
+        if (!property || !value) return;
+        const camelProperty = property.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+        obj[camelProperty] = value;
+      });
+      return obj;
+    }
+
+    return {};
+  }
+
   
   // ═══════════════════════════════════════════════════════════════════════════
   // 🔥 UNIFIED RENDERING METHODS - Replace 30+ specialized methods
@@ -211,7 +256,7 @@ class ComponentLibraryService {
             borderRadius: '8px',
             textAlign: 'center',
             color: 'var(--color-text-muted)',
-            ...component.style
+            ...this.normalizeStyle(component.style)
           }
         }, `📦 ${component.props?.sourceFrameName || 'Linked Component'} (Empty)`);
       }
@@ -240,7 +285,7 @@ class ComponentLibraryService {
       // Recursively render each component in the tree
       const renderTree = (comps, isRoot = true) => {
         return comps.map(comp => {
-          let compStyle = typeof comp.style === 'string' ? JSON.parse(comp.style) : (comp.style || {});
+          let compStyle = this.normalizeStyle(comp.style);
           
           // 🔥 FIX: Reset absolute positioning for root-level components
           // Make them flow naturally in the parent container like normal DOM
@@ -275,7 +320,7 @@ class ComponentLibraryService {
         'data-linked-component': true,
         className: 'linked-component-wrapper',
         style: {
-          ...component.style,
+          ...this.normalizeStyle(component.style),
           display: 'block', // Ensure block layout for children to flow
           position: 'relative' // Relative positioning so children flow inside
         }
@@ -583,7 +628,7 @@ class ComponentLibraryService {
   mergeComponentProps(component, componentDef) {
     const defaultProps = componentDef?.default_props || {};
     const instanceProps = component.props || {};
-    const instanceStyle = component.style || {};
+    const instanceStyle = this.normalizeStyle(component.style);
     
     // Merge all props
     let mergedProps = {
@@ -593,8 +638,8 @@ class ComponentLibraryService {
     
     // Build final styles with correct priority
     let finalStyle = {
-      ...(defaultProps.style || {}),
-      ...(instanceProps.style || {}),
+      ...this.normalizeStyle(defaultProps.style),
+      ...this.normalizeStyle(instanceProps.style),
       ...instanceStyle  // Instance style ALWAYS wins
     };
     
@@ -615,7 +660,7 @@ class ComponentLibraryService {
       'data-component-element': id,
       'data-element-type': type,
       style: {
-        ...(props.style || {}),
+        ...this.normalizeStyle(props.style),
         // 🔥 REMOVED: Don't set pointer-events: none - it blocks children interaction!
         // Wrapper has pointer-events: auto and will capture events
       }
@@ -631,6 +676,13 @@ class ComponentLibraryService {
     }
     
     // Map props to HTML attributes
+    const BOOLEAN_ATTRS = new Set([
+      'disabled','checked','readonly','required','multiple','muted','loop','autoplay','controls',
+      'selected','hidden','open','draggable'
+    ]);
+
+    const isValidAttrName = (name) => typeof name === 'string' && /^[a-zA-Z][\w:.-]*$/.test(name);
+
     Object.keys(props).forEach(propKey => {
       // Skip special props that aren't HTML attributes
       if ([
@@ -662,10 +714,18 @@ class ComponentLibraryService {
       const attrKey = PROP_TO_ATTR_MAP[propKey] || propKey;
       const value = props[propKey];
       
-      // Handle boolean attributes
+      // Only allow known boolean HTML attributes to be set as booleans.
+      // This avoids React warnings like: "Received `true` for a non-boolean attribute `width`".
       if (typeof value === 'boolean') {
-        if (value) attrs[attrKey] = true;
-      } else if (value !== null && value !== undefined) {
+        if (value && BOOLEAN_ATTRS.has(String(attrKey).toLowerCase())) {
+          attrs[attrKey] = true;
+        }
+        return;
+      }
+
+      if (value !== null && value !== undefined) {
+        // Prevent invalid attribute names (e.g. accidentally leaking CSS tokens like "24px")
+        if (!isValidAttrName(attrKey)) return;
         attrs[attrKey] = value;
       }
     });
@@ -994,7 +1054,7 @@ class ComponentLibraryService {
 
 calculateResponsiveStyles(component, responsiveMode, canvasDimensions, parentStyles = {}) {
   // 🔥 FIXED: Explicit overrides ALWAYS win over auto-transforms
-  const baseStyles = { ...component.style };
+  const baseStyles = { ...this.normalizeStyle(component.style) };
   const explicitOverrides = component[`style_${responsiveMode}`] || {};
   
   // Debug logging (only if enabled)
@@ -1138,9 +1198,9 @@ getDeviceCanvasDimensions(responsiveMode) {
           display: type === 'flex' ? 'flex' : type === 'grid' ? 'grid' : 'block',
           width: '100%',
           minHeight: type === 'section' ? '200px' : '100px',
-          padding: props.style?.padding || '24px',
+          padding: this.normalizeStyle(props.style)?.padding || '24px',
           backgroundColor: 'transparent',
-          ...props.style
+          ...this.normalizeStyle(props.style)
       },
       children: [],
       isLayoutContainer: true, // ✅ EXPLICITLY TRUE

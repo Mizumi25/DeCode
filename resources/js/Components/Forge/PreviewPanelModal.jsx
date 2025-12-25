@@ -23,23 +23,7 @@ export default function PreviewPanelModal({
   
   // 🎬 Generate CSS keyframes for all animated components
   const keyframesCSS = generatePreviewKeyframes(canvasComponents);
-  
-  // 🎬 Render component with animation wrapper
-  const renderAnimatedComponent = (component) => {
-    const renderedComponent = componentLibraryService.renderUnified(component, component.id);
-    
-    // Wrap with AnimatedComponent if animations are enabled
-    if (component.props?.animation?.enabled) {
-      return (
-        <AnimatedComponent key={component.id} component={component} isPreview={true}>
-          {renderedComponent}
-        </AnimatedComponent>
-      );
-    }
-    
-    return renderedComponent;
-  };
-  
+
   const getPreviewDimensions = () => {
     switch (previewPanelResponsiveMode) {
       case 'mobile': return { width: '375px', height: '667px' };
@@ -48,8 +32,64 @@ export default function PreviewPanelModal({
       default: return { width: '1440px', height: '900px' };
     }
   };
-  
+
   const dimensions = getPreviewDimensions();
+  
+  // Build a proper tree (roots with children) like the Canvas does
+  const buildTree = (components = []) => {
+    const map = new Map();
+    const roots = [];
+
+    components.forEach(c => map.set(c.id, { ...c, children: c.children ? [...c.children] : [] }));
+
+    components.forEach(c => {
+      const node = map.get(c.id);
+      const parentId = c.parentId || c.parent_id || null;
+      if (parentId && map.has(parentId)) {
+        const parent = map.get(parentId);
+        parent.children = parent.children || [];
+        // Avoid duplicates if children already present
+        if (!parent.children.some(ch => ch.id === node.id)) parent.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    });
+
+    return roots;
+  };
+
+  // Render recursively, applying the same responsive style calculation as CanvasComponent
+  const renderTree = (component, parentStyles = {}) => {
+    const responsiveStyles = componentLibraryService?.calculateResponsiveStyles
+      ? componentLibraryService.calculateResponsiveStyles(
+          component,
+          previewPanelResponsiveMode,
+          dimensions,
+          parentStyles
+        )
+      : (component.style || {});
+
+    const renderedChildren = component.children?.length
+      ? component.children.map(child => renderTree(child, responsiveStyles))
+      : null;
+
+    const renderedComponent = componentLibraryService.renderUnified(
+      { ...component, style: responsiveStyles },
+      component.id,
+      renderedChildren
+    );
+
+    // Wrap with AnimatedComponent if animations are enabled
+    if (component.props?.animation?.enabled) {
+      return (
+        <AnimatedComponent key={component.id} component={component} isPreview={true}>
+          {renderedComponent}
+        </AnimatedComponent>
+      );
+    }
+
+    return renderedComponent;
+  };
   
   // Preview content with responsive controls
   const previewContent = (
@@ -120,8 +160,10 @@ export default function PreviewPanelModal({
                   <style>{keyframesCSS.join('\n\n')}</style>
                 )}
                 
-                {/* Render components with animations */}
-                {canvasComponents.map(renderAnimatedComponent)}
+                {/* Render components (same hierarchy + responsive styles as Canvas) */}
+                <div style={{ pointerEvents: 'none' }}>
+                  {buildTree(canvasComponents).map(root => renderTree(root, {}))}
+                </div>
               </>
             )}
           </div>

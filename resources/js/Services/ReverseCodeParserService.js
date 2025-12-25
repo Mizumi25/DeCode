@@ -468,7 +468,7 @@ class ReverseCodeParserService {
       'w-2/5': { width: '40%' },
       'w-3/5': { width: '60%' },
       'w-4/5': { width: '80%' },
-      'max-w-full': { maxWidth: '100%' }
+      'max-w-full': { maxWidth: '100%' },
       
       // Typography
       'text-sm': { fontSize: '0.875rem' },

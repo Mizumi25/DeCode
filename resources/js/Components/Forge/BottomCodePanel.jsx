@@ -37,6 +37,8 @@ const BottomCodePanel = ({
   setShowTooltips,
   codeStyle,
   setCodeStyle,
+  projectFramework, // 🔥 NEW: Project's framework (html/react)
+  projectStyleFramework, // 🔥 NEW: Project's style framework (css/tailwind)
   activeCodeTab,
   setActiveCodeTab,
   generatedCode,
@@ -115,10 +117,16 @@ const BottomCodePanel = ({
     scrollBeyondLastLine: false,
     automaticLayout: true,
     tabSize: 2,
+    indentSize: 2,
     insertSpaces: true,
+    detectIndentation: true,
+    trimAutoWhitespace: true,
     formatOnPaste: true,
     formatOnType: true,
     autoIndent: 'advanced',
+    autoClosingBrackets: 'always',
+    autoClosingQuotes: 'always',
+    autoSurround: 'languageDefined',
     bracketPairColorization: { enabled: true },
     colorDecorators: !isMobile,
     foldingHighlight: !isMobile,
@@ -669,28 +677,46 @@ const BottomCodePanel = ({
                 { value: 'react-css', label: 'React + CSS', desc: 'JSX with traditional stylesheets' },
                 { value: 'html-css', label: 'HTML + CSS', desc: 'Vanilla HTML with CSS files' },
                 { value: 'html-tailwind', label: 'HTML + Tailwind', desc: 'HTML with utility classes' }
-              ].map(option => (
-                <button
-                  key={option.value}
-                  onClick={() => {
-                    setCodeStyle(option.value);
-                    // 🔥 FIX: Pass the new codeStyle to generateCode immediately
-                    generateCode(canvasComponents, option.value);
-                  }}
-                  className="p-3 rounded-xl text-left transition-all border-2"
-                  style={{
-                    backgroundColor: codeStyle === option.value 
-                      ? 'var(--color-primary-soft)'
-                      : 'var(--color-bg)',
-                    borderColor: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-border)',
-                    color: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text)',
-                    boxShadow: codeStyle === option.value ? 'var(--shadow-md)' : 'var(--shadow-sm)'
-                  }}
-                >
-                  <div className="font-semibold text-sm">{option.label}</div>
-                  {!isMobile && <div className="text-xs opacity-80">{option.desc}</div>}
-                </button>
-              ))}
+              ].map(option => {
+                // 🔥 NEW: Calculate if this option is the selected project combination
+                const projectCodeStyle = projectFramework && projectStyleFramework 
+                  ? `${projectFramework}-${projectStyleFramework}` 
+                  : null;
+                const isProjectStyle = option.value === projectCodeStyle;
+                const isDisabled = projectCodeStyle && !isProjectStyle; // Disable if not the project's style
+                
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      if (!isDisabled) {
+                        setCodeStyle(option.value);
+                        // 🔥 FIX: Pass the new codeStyle to generateCode immediately
+                        generateCode(canvasComponents, option.value);
+                      }
+                    }}
+                    disabled={isDisabled}
+                    className="p-3 rounded-xl text-left transition-all border-2"
+                    style={{
+                      backgroundColor: codeStyle === option.value 
+                        ? 'var(--color-primary-soft)'
+                        : 'var(--color-bg)',
+                      borderColor: codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-border)',
+                      color: isDisabled ? 'var(--color-text-muted)' : (codeStyle === option.value ? 'var(--color-primary)' : 'var(--color-text)'),
+                      boxShadow: codeStyle === option.value ? 'var(--shadow-md)' : 'var(--shadow-sm)',
+                      opacity: isDisabled ? 0.4 : 1,
+                      cursor: isDisabled ? 'not-allowed' : 'pointer'
+                    }}
+                    title={isDisabled ? '🔒 Not available for this project' : option.desc}
+                  >
+                    <div className="font-semibold text-sm">
+                      {option.label}
+                      {isDisabled && ' 🔒'}
+                    </div>
+                    {!isMobile && <div className="text-xs opacity-80">{isDisabled ? 'Locked' : option.desc}</div>}
+                  </button>
+                );
+              })}
             </div>
             </div>
           )}
