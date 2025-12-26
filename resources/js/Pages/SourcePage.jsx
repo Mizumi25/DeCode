@@ -72,6 +72,7 @@ export default function SourcePage({ projectId, frameId, frame }) {
   
   // 🔥 NEW: Tab management for files
   const [openTabs, setOpenTabs] = useState([]);
+  const [showMainTab, setShowMainTab] = useState(true);
   const [activeTab, setActiveTab] = useState('__main__');
   
   const { props } = usePage();
@@ -239,21 +240,33 @@ export default function SourcePage({ projectId, frameId, frame }) {
   
   // 🔥 NEW: Handle tab close
   const handleTabClose = useCallback((tabPath) => {
+    // Allow closing the virtual Main tab
+    if (tabPath === '__main__') {
+      setShowMainTab(false);
+      // If main is active, switch to first open file (if any)
+      if (activeTab === '__main__') {
+        setActiveTab(openTabs[0]?.path || null);
+      }
+      return;
+    }
+
     setOpenTabs(prev => {
       const newTabs = prev.filter(tab => tab.path !== tabPath);
-      
+
       // If closing active tab, switch to another tab
       if (activeTab === tabPath && newTabs.length > 0) {
         const closingIndex = prev.findIndex(tab => tab.path === tabPath);
         const newActiveIndex = closingIndex > 0 ? closingIndex - 1 : 0;
         setActiveTab(newTabs[newActiveIndex].path);
       } else if (newTabs.length === 0) {
+        // If no files left, reopen main (so editor isn't blank)
+        setShowMainTab(true);
         setActiveTab('__main__');
       }
-      
+
       return newTabs;
     });
-  }, [activeTab]);
+  }, [activeTab, openTabs]);
   
   // Local frame components state (for preview + snippet reverse updates)
   const [frameComponents, setFrameComponents] = useState(props.frame?.canvas_data?.components || []);
@@ -283,6 +296,18 @@ export default function SourcePage({ projectId, frameId, frame }) {
   const activeFile = activeTab && activeTab !== '__main__'
     ? openTabs.find(tab => tab.path === activeTab)
     : null;
+
+  // If Main is closed and no file is active, default to first open file or reopen Main
+  useEffect(() => {
+    if (!showMainTab && (activeTab === '__main__' || !activeTab)) {
+      if (openTabs.length > 0) {
+        setActiveTab(openTabs[0].path);
+      } else {
+        setShowMainTab(true);
+        setActiveTab('__main__');
+      }
+    }
+  }, [showMainTab, activeTab, openTabs]);
 
   const handleFileContentChange = useCallback((tabPath, nextContent) => {
     setOpenTabs(prev => prev.map(t => (t.path === tabPath ? { ...t, content: nextContent } : t)));
@@ -417,6 +442,7 @@ export default function SourcePage({ projectId, frameId, frame }) {
               onUpdateComponents={handleUpdateComponents}
               canEdit={props?.canEdit !== false}
               openTabs={openTabs}
+              showMainTab={showMainTab}
               activeTab={activeTab}
               onTabChange={setActiveTab}
               onTabClose={handleTabClose}

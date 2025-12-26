@@ -2968,14 +2968,38 @@ useEffect(() => {
       console.log('🎨 Parsing code type:', codeType, 'Length:', codeToParse.length);
       
       // Parse code back to components
+      // If we are in a CSS-based codeStyle, we can rehydrate styles from the CSS tab too
+      const cssText = (codeStyle === 'react-css' || codeStyle === 'html-css') ? (editedCode.css || '') : null;
+
       const parsedComponents = await reverseCodeParserService.parseCodeToComponents(
         codeToParse,
         codeType,
-        codeStyle
+        codeStyle,
+        cssText
       );
       
       console.log('✅ Parsed components:', parsedComponents?.length || 0, 'components');
       
+      // CSS-only Apply: update styles in-place using the CSS tab
+      if (codeType === 'css') {
+        const cssTextOnly = editedCode.css || '';
+        if (!cssTextOnly.trim()) {
+          alert('CSS is empty.');
+          return;
+        }
+
+        const updated = await reverseCodeParserService.applyCssTextToExistingComponents(canvasComponents, cssTextOnly);
+        setFrameCanvasComponents(prev => ({
+          ...prev,
+          [currentFrame]: updated
+        }));
+
+        await generateCode(updated);
+        setIsCodeDirty(false);
+        console.log('✅ CSS applied to canvas components');
+        return;
+      }
+
       if (parsedComponents && parsedComponents.length > 0) {
         // Update canvas components
         setFrameCanvasComponents(prev => ({
@@ -3486,6 +3510,10 @@ const handleCanvasClick = useCallback((e) => {
         activeCodeTab={activeCodeTab}
         setActiveCodeTab={setActiveCodeTab}
         generatedCode={generatedCode}
+        editedCode={editedCode}
+        isCodeDirty={isCodeDirty}
+        isSavingCode={isSavingCode}
+        onApplyCode={handleSaveCode}
         getAvailableTabs={getAvailableTabs}
         highlightCode={highlightCode}
         handleTokenHover={handleTokenHover}
@@ -3902,6 +3930,10 @@ const handleCanvasClick = useCallback((e) => {
             activeCodeTab={activeCodeTab}
             setActiveCodeTab={setActiveCodeTab}
             generatedCode={generatedCode}
+            editedCode={editedCode}
+            isCodeDirty={isCodeDirty}
+            isSavingCode={isSavingCode}
+            onApplyCode={handleSaveCode}
             getAvailableTabs={getAvailableTabs}
             highlightCode={highlightCode}
             handleTokenHover={handleTokenHover}
@@ -4127,6 +4159,10 @@ const handleCanvasClick = useCallback((e) => {
           activeCodeTab={activeCodeTab}
           setActiveCodeTab={setActiveCodeTab}
           generatedCode={generatedCode}
+          editedCode={editedCode}
+          isCodeDirty={isCodeDirty}
+          isSavingCode={isSavingCode}
+          onApplyCode={handleSaveCode}
           getAvailableTabs={getAvailableTabs}
           copyCodeToClipboard={copyCodeToClipboard}
           downloadCode={downloadCode}

@@ -16,6 +16,7 @@ export default function FrameMainSnippetPanel({
   canEdit = true,
   // File editor mode
   openTabs = [],
+  showMainTab = true,
   activeTab = '__main__',
   onTabChange,
   onTabClose,
@@ -172,24 +173,36 @@ export default function FrameMainSnippetPanel({
           backgroundColor: 'var(--color-bg-muted)',
         }}
       >
-        <button
-          type="button"
-          onClick={() => onTabChange && onTabChange('__main__')}
-          className="group flex items-center gap-2 px-3 py-1.5 rounded-md border transition-colors"
-          style={{
-            borderColor: isMainTabActive ? 'var(--color-primary)' : 'transparent',
-            backgroundColor: isMainTabActive ? 'var(--color-surface)' : 'transparent',
-          }}
-          title="Main Snippet"
-        >
-          <Sparkles size={14} style={{ color: 'var(--color-primary)' }} />
-          <span
-            className="text-sm"
-            style={{ color: isMainTabActive ? 'var(--color-text)' : 'var(--color-text-muted)' }}
+        {showMainTab && (
+          <button
+            type="button"
+            onClick={() => onTabChange && onTabChange('__main__')}
+            className="group flex items-center gap-2 px-3 py-1.5 rounded-md border transition-colors"
+            style={{
+              borderColor: isMainTabActive ? 'var(--color-primary)' : 'transparent',
+              backgroundColor: isMainTabActive ? 'var(--color-surface)' : 'transparent',
+            }}
+            title="Main Snippet"
           >
-            Main
-          </span>
-        </button>
+            <Sparkles size={14} style={{ color: 'var(--color-primary)' }} />
+            <span
+              className="text-sm"
+              style={{ color: isMainTabActive ? 'var(--color-text)' : 'var(--color-text-muted)' }}
+            >
+              Main
+            </span>
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onTabClose && onTabClose('__main__');
+              }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity"
+              title="Close"
+            >
+              <X size={14} style={{ color: 'var(--color-text-muted)' }} />
+            </span>
+          </button>
+        )}
 
         {openTabs.length === 0 ? null :
           openTabs.map((tab) => {

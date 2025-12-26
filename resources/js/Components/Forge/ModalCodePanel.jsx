@@ -34,6 +34,10 @@ if (typeof window !== 'undefined') {
 
 const ModalCodePanel = ({ 
   showCodePanel,
+  editedCode,
+  isCodeDirty,
+  isSavingCode,
+  onApplyCode,
   setShowCodePanel,
   showTooltips,
   setShowTooltips,
@@ -896,6 +900,23 @@ const ModalCodePanel = ({
                   >
                     <RefreshCw className="w-4 h-4" />
                   </button>
+
+                  {/* Apply (reverse parse -> update canvas) */}
+                  {!isReadOnlyCodeStyle && (
+                    <button
+                      onClick={() => onApplyCode && onApplyCode()}
+                      disabled={!isCodeDirty || isSavingCode}
+                      className="px-3 py-1.5 rounded-md transition-all"
+                      style={{
+                        backgroundColor: (!isCodeDirty || isSavingCode) ? 'var(--color-border)' : 'var(--color-primary)',
+                        color: (!isCodeDirty || isSavingCode) ? 'var(--color-text-muted)' : 'white',
+                        cursor: (!isCodeDirty || isSavingCode) ? 'not-allowed' : 'pointer'
+                      }}
+                      title="Apply code to canvas"
+                    >
+                      {isSavingCode ? 'Applying...' : 'Apply'}
+                    </button>
+                  )}
                 </div>
 
                 {/* Monaco Editor */}
@@ -907,7 +928,7 @@ const ModalCodePanel = ({
                     height="100%"
                     width="100%"
                     language={getLanguage(activeCodeTab)}
-                    value={generatedCode[activeCodeTab] || ''}
+                    value={(isReadOnlyCodeStyle ? (generatedCode[activeCodeTab] || '') : (editedCode?.[activeCodeTab] ?? generatedCode[activeCodeTab] ?? ''))}
                     theme={isMobile ? 'modal-dark' : editorTheme}
                     options={editorOptions}
                     onMount={handleEditorDidMount}

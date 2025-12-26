@@ -24,6 +24,10 @@ import useCodePanelStore from '@/stores/useCodePanelStore';
 import Editor from '@monaco-editor/react';
 
 const BottomCodePanel = ({
+  editedCode,
+  isCodeDirty,
+  isSavingCode,
+  onApplyCode,
   showCodePanel,
   setShowCodePanel,
   codePanelMinimized,
@@ -833,6 +837,23 @@ const BottomCodePanel = ({
               >
                 <RefreshCw className="w-4 h-4" />
               </button>
+
+              {/* Apply (reverse parse -> update canvas) */}
+              {!isReadOnlyCodeStyle && (
+                <button
+                  onClick={() => onApplyCode && onApplyCode()}
+                  disabled={!isCodeDirty || isSavingCode}
+                  className="px-3 py-2 rounded-lg transition-all"
+                  style={{
+                    backgroundColor: (!isCodeDirty || isSavingCode) ? 'var(--color-border)' : 'var(--color-primary)',
+                    color: (!isCodeDirty || isSavingCode) ? 'var(--color-text-muted)' : 'white',
+                    cursor: (!isCodeDirty || isSavingCode) ? 'not-allowed' : 'pointer'
+                  }}
+                  title="Apply code to canvas"
+                >
+                  {isSavingCode ? 'Applying...' : 'Apply'}
+                </button>
+              )}
             </div>
 
             {/* Monaco Editor */}
@@ -847,7 +868,7 @@ const BottomCodePanel = ({
                 height="100%"
                 width="100%"
                 language={getLanguage(activeCodeTab)}
-                value={generatedCode[activeCodeTab] || ''}
+                value={(isReadOnlyCodeStyle ? (generatedCode[activeCodeTab] || '') : (editedCode?.[activeCodeTab] ?? generatedCode[activeCodeTab] ?? ''))}
                 theme={isMobile ? 'bottom-dark' : editorTheme}
                 options={editorOptions}
                 onMount={handleEditorDidMount}

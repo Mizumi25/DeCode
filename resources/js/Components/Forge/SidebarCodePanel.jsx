@@ -19,6 +19,10 @@ import {
 import useCodePanelStore from '@/stores/useCodePanelStore';
 
 const SidebarCodePanel = ({
+  editedCode,
+  isCodeDirty,
+  isSavingCode,
+  onApplyCode,
   showTooltips,
   setShowTooltips,
   codeStyle,
@@ -491,6 +495,23 @@ const SidebarCodePanel = ({
           >
             <Download className="w-3.5 h-3.5" />
           </button>
+
+          {/* Apply (reverse parse -> update canvas) */}
+          {!isReadOnlyCodeStyle && (
+            <button
+              onClick={() => onApplyCode && onApplyCode()}
+              disabled={!isCodeDirty || isSavingCode}
+              className="px-2 py-1.5 rounded transition-all"
+              style={{
+                backgroundColor: (!isCodeDirty || isSavingCode) ? 'var(--color-border)' : 'var(--color-primary)',
+                color: (!isCodeDirty || isSavingCode) ? 'var(--color-text-muted)' : 'white',
+                cursor: (!isCodeDirty || isSavingCode) ? 'not-allowed' : 'pointer'
+              }}
+              title="Apply code to canvas"
+            >
+              {isSavingCode ? '...' : 'Apply'}
+            </button>
+          )}
         </div>
 
         {/* Monaco Editor */}
@@ -502,7 +523,7 @@ const SidebarCodePanel = ({
             height="100%"
             width="100%"
             language={getLanguage(activeCodeTab)}
-            value={generatedCode[activeCodeTab] || ''}
+            value={(isReadOnlyCodeStyle ? (generatedCode[activeCodeTab] || '') : (editedCode?.[activeCodeTab] ?? generatedCode[activeCodeTab] ?? ''))}
             theme={editorTheme}
             options={editorOptions}
             onMount={handleEditorDidMount}
