@@ -1,1 +1,1 @@
-This is a Capstone Project, DeCode, design to code, a frontend focus website builder with code Generations, this includes Real-time collaboration. Certain features are incomplete, we are planning to continue the project in the near future. 
+[![Video Thumbnail](https://img.youtube.com/vi/iWT-PFuFNrSC_r4I/0.jpg)](https://www.youtube.com)
